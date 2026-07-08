@@ -6,7 +6,7 @@ const navItems = [
   { to: '/',        icon: '🏠', label: 'Inicio',          exact: true  },
   { to: '/pqrs', icon: '📨', label: 'PQRS' },
   // Cuando agregues Indicadores, solo añades una línea aquí:
-  // { to: '/indicadores', icon: '📈', label: 'Indicadores' },
+  //{ to: '/indicadores', icon: '📈', label: 'Indicadores' },
 ]
 
 export default function Layout() {
@@ -91,13 +91,15 @@ export default function Layout() {
 
           {!collapsed && (
             <div className="px-4 py-2 mt-3 text-white/30 text-xs font-semibold uppercase tracking-widest">
-              Análisis
+              PROXIMO
             </div>
           )}
 
           {[
-            { to: '/reportes',    icon: '📊', label: 'Reportes'      },
-            { to: '/documentos',  icon: '📁', label: 'Documentación' },
+            //{ to: '/reportes',    icon: '📊', label: 'Reportes'      },
+            {to: '/indicadores', icon: '📈', label: 'Indicadores'},
+            {to: '/fichas de seguridad', icon:'📋', label:'Fichas de Seguridad'},
+            {to: '/documentos',  icon: '📁', label: 'Documentación' },
           ].map((item) => (
             <div
               key={item.to}
@@ -143,7 +145,7 @@ export default function Layout() {
         <div className="border-t border-white/10 py-2 flex-shrink-0">
           <div className="flex items-center gap-3 px-4 py-2.5 text-white/40 text-sm">
             <span className="text-base flex-shrink-0">🤖</span>
-            {!collapsed && <span className="truncate">Copilot IA</span>}
+            {!collapsed && <span className="truncate">Agente IA</span>}
             {!collapsed && (
               <span className="ml-auto text-xs bg-white/10 px-1.5 py-0.5 rounded-full">
                 Pronto
