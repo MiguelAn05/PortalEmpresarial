@@ -5,6 +5,7 @@ import { useAuth } from '../AuthContext.jsx'
 const navItems = [
   { to: '/',        icon: '🏠', label: 'Inicio',          exact: true  },
   { to: '/pqrs', icon: '📨', label: 'PQRS' },
+  { TO: '/master-planner', icon: '🗂️', label:'MasterPlanner'}
   // Cuando agregues Indicadores, solo añades una línea aquí:
   //{ to: '/indicadores', icon: '📈', label: 'Indicadores' },
 ]

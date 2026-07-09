@@ -9,6 +9,7 @@ class PQRSSolicitud(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey('tenants.id'), nullable=False, index=True)
     codigo_seguimiento = Column(String(30), unique=True, nullable=True, index=True)
+    radicado_calidad = Column(String(30), unique=True, nullable=True, index=True)
     tipo = Column(String(20), nullable=False)
     empresa = Column(String(150), nullable=True)
     nit_cedula = Column(String(30), nullable=True)

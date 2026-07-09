@@ -12,11 +12,14 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id
 from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta
+from app.models.autorizacion import AutorizacionPQRS
 from app.modules.pqrs.schemas import (
-    PQRSCreate, PQRSOut, PQRSDetailOut, PQRSUpdateEstado, PQRSAsignar, EncuestaCreate,
+    PQRSCreate, PQRSOut, PQRSDetailOut, PQRSUpdateEstado, PQRSAsignar,
+    PQRSAsignarArea, EncuestaCreate,
 )
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
+    generar_codigo_seguimiento, generar_radicado_calidad,
 )
 
 router = APIRouter(prefix="/pqrs", tags=["PQRS"])
@@ -45,6 +48,10 @@ def crear_pqrs(
     db.commit()
     db.refresh(solicitud)
 
+    # El código de seguimiento se genera con el ID real ya asignado,
+    # así el número que ve el cliente coincide con el "PQRS #<id>" interno.
+    solicitud.codigo_seguimiento = generar_codigo_seguimiento(solicitud.id)
+
     db.add(PQRSSeguimiento(
         pqrs_id=solicitud.id,
         usuario_id=current_user.id,
@@ -52,6 +59,7 @@ def crear_pqrs(
         comentario="Solicitud registrada en el sistema.",
     ))
     db.commit()
+    db.refresh(solicitud)
 
     disparar_webhook_n8n("pqrs-creada", {
         "pqrs_id": solicitud.id,
@@ -132,6 +140,54 @@ def asignar_pqrs(
     return solicitud
 
 
+@router.patch("/{pqrs_id}/area", response_model=PQRSOut)
+def asignar_area(
+    pqrs_id: int,
+    payload: PQRSAsignarArea,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+):
+    """Asigna el área responsable de una PQRS (actualiza el campo real, no solo el historial)."""
+    solicitud = (
+        db.query(PQRSSolicitud)
+        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
+        .first()
+    )
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+    if solicitud.estado == "cerrado":
+        raise HTTPException(status_code=400, detail="No se puede reasignar área en una PQRS cerrada.")
+
+    solicitud.area_responsable = payload.area
+
+    # Si se asigna a Calidad, se genera su propio consecutivo de radicado interno,
+    # distinto del código de seguimiento del cliente.
+    if payload.area.strip().lower() == "calidad" and not solicitud.radicado_calidad:
+        solicitud.radicado_calidad = generar_radicado_calidad(db, tenant_id)
+
+    comentario = payload.comentario or f"Área asignada: {payload.area}."
+    if solicitud.radicado_calidad and payload.area.strip().lower() == "calidad":
+        comentario += f" Radicado de Calidad: {solicitud.radicado_calidad}."
+
+    db.add(PQRSSeguimiento(
+        pqrs_id=solicitud.id,
+        usuario_id=current_user.id,
+        tipo_evento="asignacion_area",
+        comentario=comentario,
+    ))
+    db.commit()
+    db.refresh(solicitud)
+
+    disparar_webhook_n8n("pqrs-area-asignada", {
+        "pqrs_id": solicitud.id,
+        "area_responsable": solicitud.area_responsable,
+        "radicado_calidad": solicitud.radicado_calidad,
+    })
+
+    return solicitud
+
+
 @router.patch("/{pqrs_id}/estado", response_model=PQRSOut)
 def cambiar_estado_pqrs(
     pqrs_id: int,
@@ -151,6 +207,17 @@ def cambiar_estado_pqrs(
     )
     if not solicitud:
         raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+
+    if payload.estado == "cerrado":
+        hay_pendiente = db.query(AutorizacionPQRS).filter(
+            AutorizacionPQRS.pqrs_id == pqrs_id,
+            AutorizacionPQRS.estado == "pendiente",
+        ).first()
+        if hay_pendiente:
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede cerrar la PQRS: hay una autorización pendiente de respuesta."
+            )
 
     solicitud.estado = payload.estado
 

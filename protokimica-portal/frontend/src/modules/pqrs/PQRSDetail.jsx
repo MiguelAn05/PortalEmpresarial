@@ -30,6 +30,7 @@ const PRIORIDADES = {
 const EVENTOS = {
   cambio_estado:           { icon: '🔄', label: 'Cambio de estado'      },
   asignacion:              { icon: '👤', label: 'Asignación'            },
+  asignacion_area:         { icon: '🏢', label: 'Área asignada'         },
   comentario:              { icon: '💬', label: 'Comentario'            },
   escalamiento:            { icon: '🚨', label: 'Escalamiento'          },
   autorizacion_solicitada: { icon: '🔐', label: 'Autorización solicitada'},
@@ -66,23 +67,10 @@ function SLALabel({ fechaLimite, cerrado }) {
 }
 
 // ── Panel de autorizaciones ────────────────────────────────────────
-function PanelAutorizaciones({ pqrsId, pqrsEstado, user }) {
-  const queryClient = useQueryClient()
+function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, hayPendiente, invalidar }) {
   const [tipoId, setTipoId]         = useState('')
   const [comentario, setComentario] = useState('')
   const [respuesta, setRespuesta]   = useState({ id: null, decision: '', comentario: '' })
-
-  const { data: tipos = [] } = useQuery({
-    queryKey: ['tipos-autorizacion'],
-    queryFn: async () => { const { data } = await api.get('/autorizaciones/tipos'); return data },
-  })
-
-  const { data: autorizaciones = [] } = useQuery({
-    queryKey: ['autorizaciones', pqrsId],
-    queryFn: async () => { const { data } = await api.get(`/autorizaciones/pqrs/${pqrsId}`); return data },
-  })
-
-  const hayPendiente = autorizaciones.some(a => a.estado === 'pendiente')
 
   const mutSolicitar = useMutation({
     mutationFn: () => api.post(`/autorizaciones/pqrs/${pqrsId}/solicitar`, {
@@ -90,8 +78,7 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user }) {
       comentario_solicitud: comentario,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['autorizaciones', pqrsId] })
-      queryClient.invalidateQueries({ queryKey: ['pqrs', pqrsId] })
+      invalidar()
       setTipoId(''); setComentario('')
     },
   })
@@ -102,8 +89,7 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user }) {
         decision, comentario_respuesta: comentario,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['autorizaciones', pqrsId] })
-      queryClient.invalidateQueries({ queryKey: ['pqrs', pqrsId] })
+      invalidar()
       setRespuesta({ id: null, decision: '', comentario: '' })
     },
   })
@@ -325,12 +311,25 @@ export default function PQRSDetail() {
     queryFn: async () => { const { data } = await api.get(`/pqrs/${id}`); return data },
   })
 
+  const { data: tipos = [] } = useQuery({
+    queryKey: ['tipos-autorizacion'],
+    queryFn: async () => { const { data } = await api.get('/autorizaciones/tipos'); return data },
+  })
+
   const { data: autorizaciones = [] } = useQuery({
     queryKey: ['autorizaciones', id],
     queryFn: async () => { const { data } = await api.get(`/autorizaciones/pqrs/${id}`); return data },
   })
 
   const hayPendiente = autorizaciones.some(a => a.estado === 'pendiente')
+
+  // Única fuente de invalidación: la usan tanto el panel de autorizaciones
+  // como el resto de la pantalla, así todo se refresca al instante.
+  const invalidarAutorizaciones = () => {
+    queryClient.invalidateQueries({ queryKey: ['autorizaciones', id] })
+    queryClient.invalidateQueries({ queryKey: ['pqrs', id] })
+    queryClient.invalidateQueries({ queryKey: ['pqrs'] })
+  }
 
   const mutEstado = useMutation({
     mutationFn: () => api.patch(`/pqrs/${id}/estado`, { estado: nuevoEstado, comentario }),
@@ -342,12 +341,10 @@ export default function PQRSDetail() {
   })
 
   const mutArea = useMutation({
-    mutationFn: () => api.patch(`/pqrs/${id}/estado`, {
-      estado: pqrs.estado,
-      comentario: `Área asignada: ${nuevaArea}`,
-    }),
+    mutationFn: () => api.patch(`/pqrs/${id}/area`, { area: nuevaArea }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pqrs', id] })
+      queryClient.invalidateQueries({ queryKey: ['pqrs'] })
       setNuevaArea('')
     },
   })
@@ -377,6 +374,7 @@ export default function PQRSDetail() {
           <div>
             <div className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">
               PQRS #{pqrs.id} · {pqrs.codigo_seguimiento || 'Sin código'}
+              {pqrs.radicado_calidad && ` · Calidad: ${pqrs.radicado_calidad}`}
             </div>
             <h1 className="text-xl font-bold mb-1">{pqrs.empresa || pqrs.cliente_nombre}</h1>
             {pqrs.empresa && (
@@ -501,6 +499,11 @@ export default function PQRSDetail() {
               <div className="text-xs text-[#6B7EA8] mb-2">
                 Área actual: <strong>{pqrs.area_responsable || 'Sin asignar'}</strong>
               </div>
+              {pqrs.radicado_calidad && (
+                <div className="text-xs text-[#6B7EA8] mb-2">
+                  Radicado de Calidad: <strong>{pqrs.radicado_calidad}</strong>
+                </div>
+              )}
               <select
                 value={nuevaArea}
                 onChange={(e) => setNuevaArea(e.target.value)}
@@ -582,6 +585,10 @@ export default function PQRSDetail() {
             pqrsId={pqrs.id}
             pqrsEstado={pqrs.estado}
             user={user}
+            tipos={tipos}
+            autorizaciones={autorizaciones}
+            hayPendiente={hayPendiente}
+            invalidar={invalidarAutorizaciones}
           />
 
           {/* Historial */}

@@ -7,6 +7,8 @@ import PQRSDetail from './modules/pqrs/PQRSDetail.jsx'
 import FormularioPQRS from './modules/publico/FormularioPQRS.jsx'
 import SeguimientoPQRS from './modules/publico/SeguimientoPQRS.jsx'
 import Admin from './modules/admin/Admin.jsx'
+import MasterPlanner from './modules/masterPlanner/MasterPlanner.jsx'
+
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -31,6 +33,7 @@ export default function App() {
         <Route path="pqrs"     element={<PQRSList />} />
         <Route path="pqrs/:id" element={<PQRSDetail />} />
         <Route path="admin" element={<Admin />} />
+        <Route path="/master-planner" element={<MasterPlanner />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

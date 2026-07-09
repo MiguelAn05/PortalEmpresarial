@@ -139,18 +139,8 @@ async def radicar_pqrs_publica(
     if adjunto_factura and adjunto_factura.filename:
         ruta_factura = await guardar_archivo(adjunto_factura, "facturas")
 
-    # Generar código único
-    codigo = generar_codigo_seguimiento()
-    intentos = 0
-    while db.query(PQRSSolicitud).filter(
-        PQRSSolicitud.codigo_seguimiento == codigo
-    ).first() and intentos < 5:
-        codigo = generar_codigo_seguimiento()
-        intentos += 1
-
     solicitud = PQRSSolicitud(
         tenant_id=tenant.id,
-        codigo_seguimiento=codigo,
         tipo=tipo,
         empresa=empresa,
         nit_cedula=nit_cedula,
@@ -175,6 +165,13 @@ async def radicar_pqrs_publica(
         origen_publico="publico",
     )
     db.add(solicitud)
+    db.commit()
+    db.refresh(solicitud)
+
+    # El código se genera con el ID real ya asignado por la base de datos,
+    # así coincide siempre con el número interno "PQRS #<id>".
+    codigo = generar_codigo_seguimiento(solicitud.id)
+    solicitud.codigo_seguimiento = codigo
     db.commit()
     db.refresh(solicitud)
 

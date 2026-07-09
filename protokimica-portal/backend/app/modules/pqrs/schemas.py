@@ -21,6 +21,11 @@ class PQRSAsignar(BaseModel):
     comentario: str | None = None
 
 
+class PQRSAsignarArea(BaseModel):
+    area: str
+    comentario: str | None = None
+
+
 class SeguimientoOut(BaseModel):
     id: int
     tipo_evento: str
@@ -33,6 +38,8 @@ class SeguimientoOut(BaseModel):
 
 class PQRSOut(BaseModel):
     id: int
+    codigo_seguimiento: str | None = None
+    radicado_calidad: str | None = None
     tipo: str
 
     empresa: str | None = None

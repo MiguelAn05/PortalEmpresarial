@@ -2,8 +2,6 @@
 Lógica de negocio de PQRS.
 """
 from datetime import datetime, timedelta, timezone
-import random
-import string
 
 import httpx
 
@@ -33,15 +31,38 @@ def calcular_prioridad(tipo: str) -> str:
     return PRIORIDAD_POR_TIPO.get(tipo, "media")
 
 
-def generar_codigo_seguimiento() -> str:
+def generar_codigo_seguimiento(pqrs_id: int) -> str:
     """
-    Genera un código único para que el cliente consulte su PQRS.
-    Formato: PK-2026-XXXX donde XXXX son 4 dígitos aleatorios.
-    Ejemplo: PK-2026-4821
+    Genera el código de seguimiento a partir del ID real de la PQRS,
+    para que el número que ve el cliente (PK-2026-0010) sea siempre
+    el mismo caso que internamente se ve como "PQRS #10".
+    Formato: PK-{año}-{id con 4 dígitos mínimo}.
     """
     año = datetime.now().year
-    numero = ''.join(random.choices(string.digits, k=4))
-    return f"PK-{año}-{numero}"
+    return f"PK-{año}-{pqrs_id:04d}"
+
+
+def generar_radicado_calidad(db, tenant_id: int) -> str:
+    """
+    Genera un consecutivo independiente para el área de Calidad,
+    distinto al número de radicado general del cliente.
+    Formato: CAL-{año}-{consecutivo con 4 dígitos}.
+    """
+    from app.models.pqrs import PQRSSolicitud  # import local para evitar ciclos
+
+    año = datetime.now().year
+    prefijo = f"CAL-{año}-"
+    total = (
+        db.query(PQRSSolicitud)
+        .filter(
+            PQRSSolicitud.tenant_id == tenant_id,
+            PQRSSolicitud.radicado_calidad.isnot(None),
+            PQRSSolicitud.radicado_calidad.like(f"{prefijo}%"),
+        )
+        .count()
+    )
+    consecutivo = total + 1
+    return f"{prefijo}{consecutivo:04d}"
 
 
 def disparar_webhook_n8n(evento: str, payload: dict) -> None:
