@@ -18,7 +18,7 @@ from app.core.database import Base
 
 # Importa TODOS los modelos para que Alembic los detecte al autogenerar migraciones.
 # Cuando agregues el módulo de Indicadores, importa sus modelos aquí también.
-from app.models import tenant, user, pqrs  # noqa: F401
+from app.models import tenant, user, pqrs,autorizacion  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

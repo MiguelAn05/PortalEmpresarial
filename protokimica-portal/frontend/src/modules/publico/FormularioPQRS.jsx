@@ -440,13 +440,23 @@ export default function FormularioPQRS() {
       <div className="w-full max-w-lg mx-auto">
 
         {/* Header */}
-        <div className="text-center py-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-[#F5A800] rounded-xl mb-3 shadow">
-            <span className="text-[#0D2B5E] font-black text-lg">PK</span>
-          </div>
-          <h1 className="text-xl font-bold text-[#0D2B5E]">Protokimica</h1>
-          <p className="text-sm text-[#6B7EA8] mt-1">Radicación de PQRS</p>
-        </div>
+       <div className="text-center py-6">
+       <div className="flex justify-center mb-4">
+        <img
+         src="/logo.png"
+         alt="Protokimica"
+         className="h-20 w-auto object-contain drop-shadow-sm"
+         />
+       </div>
+
+        <h1 className="text-2xl font-bold text-[#0D2B5E]">
+         Protokimica
+        </h1>
+
+        <p className="text-sm text-[#6B7EA8] mt-1">
+         Portal de Radicación de PQRS
+       </p>
+       </div>
 
         <BarraPasos pasoActual={paso} totalPasos={4} />
 
