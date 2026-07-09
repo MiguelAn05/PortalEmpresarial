@@ -328,7 +328,6 @@ export default function FormularioPQRS() {
     cantidad_factura: '',
     cantidad_reclamo: '',
     descripcion: '',
-    area_responsable: '',
   })
   const [productoSeleccionado, setProductoSeleccionado] = useState(null)
   const [adjuntoProducto, setAdjuntoProducto] = useState(null)
@@ -399,7 +398,7 @@ export default function FormularioPQRS() {
       formData.append('factura_numero', form.factura_numero)
       formData.append('cantidad_factura', form.cantidad_factura)
       formData.append('cantidad_reclamo', form.cantidad_reclamo)
-      formData.append('area_responsable', form.area_responsable)
+      
       if (adjuntoProducto) formData.append('adjunto_producto', adjuntoProducto)
       if (adjuntoFactura)  formData.append('adjunto_factura', adjuntoFactura)
 
@@ -421,7 +420,7 @@ export default function FormularioPQRS() {
       tipo: '', empresa: '', nit_cedula: '', cliente_nombre: '',
       cliente_email: '', cliente_telefono: '', ciudad: '', departamento: '',
       lote: '', factura_numero: '', cantidad_factura: '', cantidad_reclamo: '',
-      descripcion: '', area_responsable: '',
+      descripcion: '', 
     })
     setProductoSeleccionado(null)
     setAdjuntoProducto(null)
@@ -490,12 +489,12 @@ export default function FormularioPQRS() {
           {paso === 2 && (
             <div className="p-6 space-y-4">
               <div>
-                <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Datos de la empresa</h2>
+                <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Datos de la empresa / persona</h2>
                 <p className="text-sm text-[#6B7EA8]">Información del cliente que realiza la solicitud.</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Empresa <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Empresa / Persona <span className="text-red-500">*</span></label>
                 <input name="empresa" value={form.empresa} onChange={handleChange} placeholder="Nombre de la empresa" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
               </div>
 
