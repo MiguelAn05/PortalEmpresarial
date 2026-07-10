@@ -19,6 +19,9 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:5173"
 
+    # URL pública del frontend, para armar links (ej. en correos de n8n)
+    FRONTEND_URL: str = "http://localhost:5173"
+
     # Opcional: URL base de n8n para disparar automatizaciones. Vacío = se ignora.
     N8N_WEBHOOK_URL: str = ""
 

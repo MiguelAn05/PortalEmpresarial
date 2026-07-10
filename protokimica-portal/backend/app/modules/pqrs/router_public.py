@@ -3,7 +3,6 @@ Endpoints PÚBLICOS de PQRS — sin autenticación.
 Soporta subida de archivos (imágenes del producto y factura).
 """
 import os
-import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -19,6 +18,7 @@ from app.modules.pqrs.service import (
     calcular_prioridad,
     generar_codigo_seguimiento,
     disparar_webhook_n8n,
+    guardar_archivo,
 )
 
 router = APIRouter(prefix="/public", tags=["Público — PQRS"])
@@ -26,37 +26,6 @@ router = APIRouter(prefix="/public", tags=["Público — PQRS"])
 # Carpeta donde se guardan los archivos subidos
 UPLOAD_DIR = "/app/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-EXTENSIONES_PERMITIDAS = {".jpg", ".jpeg", ".png", ".pdf", ".webp"}
-MAX_TAMANIO_MB = 10
-
-
-async def guardar_archivo(archivo: UploadFile, subfolder: str) -> str:
-    """Guarda un archivo subido y retorna la ruta relativa."""
-    ext = os.path.splitext(archivo.filename)[1].lower()
-    if ext not in EXTENSIONES_PERMITIDAS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Tipo de archivo no permitido. Usa: {', '.join(EXTENSIONES_PERMITIDAS)}"
-        )
-
-    contenido = await archivo.read()
-    if len(contenido) > MAX_TAMANIO_MB * 1024 * 1024:
-        raise HTTPException(
-            status_code=400,
-            detail=f"El archivo no puede superar {MAX_TAMANIO_MB}MB."
-        )
-
-    carpeta = os.path.join(UPLOAD_DIR, subfolder)
-    os.makedirs(carpeta, exist_ok=True)
-
-    nombre_unico = f"{uuid.uuid4().hex}{ext}"
-    ruta = os.path.join(carpeta, nombre_unico)
-
-    with open(ruta, "wb") as f:
-        f.write(contenido)
-
-    return f"/uploads/{subfolder}/{nombre_unico}"
 
 
 class PQRSPublicaOut(BaseModel):

@@ -5,58 +5,105 @@ logueado, para que cada empresa solo vea sus propias solicitudes.
 """
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.deps import get_current_user, get_current_tenant_id
 from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta
 from app.models.autorizacion import AutorizacionPQRS
 from app.modules.pqrs.schemas import (
-    PQRSCreate, PQRSOut, PQRSDetailOut, PQRSUpdateEstado, PQRSAsignar,
+    PQRSOut, PQRSDetailOut, PQRSUpdateEstado, PQRSAsignar,
     PQRSAsignarArea, EncuestaCreate,
 )
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
-    generar_codigo_seguimiento, generar_radicado_calidad,
+    generar_codigo_seguimiento, generar_radicado_calidad, guardar_archivo,
 )
 
 router = APIRouter(prefix="/pqrs", tags=["PQRS"])
 
 
 @router.post("", response_model=PQRSOut, status_code=status.HTTP_201_CREATED)
-def crear_pqrs(
-    payload: PQRSCreate,
+async def crear_pqrs(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
+    # Tipo y descripción
+    tipo: str = Form(...),
+    descripcion: str = Form(...),
+    area_responsable: str = Form(None),
+    # Datos del cliente — mismos campos que el formulario público
+    empresa: str = Form(None),
+    nit_cedula: str = Form(None),
+    cliente_nombre: str = Form(...),
+    cliente_email: str = Form(None),
+    cliente_telefono: str = Form(None),
+    ciudad: str = Form(None),
+    departamento: str = Form(None),
+    # Datos del producto
+    producto_codigo: str = Form(None),
+    producto_nombre: str = Form(None),
+    canal_atencion: str = Form(None),
+    lote: str = Form(None),
+    factura_numero: str = Form(None),
+    cantidad_factura: str = Form(None),
+    cantidad_reclamo: str = Form(None),
+    # Archivos adjuntos (opcionales también internamente)
+    adjunto_producto: UploadFile = File(None),
+    adjunto_factura: UploadFile = File(None),
 ):
+    ruta_producto = None
+    ruta_factura = None
+    if adjunto_producto and adjunto_producto.filename:
+        ruta_producto = await guardar_archivo(adjunto_producto, "productos")
+    if adjunto_factura and adjunto_factura.filename:
+        ruta_factura = await guardar_archivo(adjunto_factura, "facturas")
+
     solicitud = PQRSSolicitud(
         tenant_id=tenant_id,
-        tipo=payload.tipo,
-        cliente_nombre=payload.cliente_nombre,
-        cliente_email=payload.cliente_email,
-        cliente_telefono=payload.cliente_telefono,
-        descripcion=payload.descripcion,
-        area_responsable=payload.area_responsable,
+        tipo=tipo,
+        empresa=empresa,
+        nit_cedula=nit_cedula,
+        cliente_nombre=cliente_nombre,
+        cliente_email=cliente_email,
+        cliente_telefono=cliente_telefono,
+        ciudad=ciudad,
+        departamento=departamento,
+        producto_codigo=producto_codigo,
+        producto_nombre=producto_nombre,
+        canal_atencion=canal_atencion,
+        lote=lote,
+        factura_numero=factura_numero,
+        cantidad_factura=cantidad_factura,
+        cantidad_reclamo=cantidad_reclamo,
+        adjunto_producto=ruta_producto,
+        adjunto_factura=ruta_factura,
+        descripcion=descripcion,
+        area_responsable=area_responsable,
         estado="recibido",
-        prioridad=calcular_prioridad(payload.tipo),
-        fecha_limite_sla=calcular_fecha_limite_sla(payload.tipo),
+        prioridad=calcular_prioridad(tipo),
+        fecha_limite_sla=calcular_fecha_limite_sla(tipo),
+        origen_publico="interno",
     )
     db.add(solicitud)
     db.commit()
     db.refresh(solicitud)
 
     # El código de seguimiento se genera con el ID real ya asignado,
-    # así el número que ve el cliente coincide con el "PQRS #<id>" interno.
+    # así el número que ve el cliente coincide con el radicado interno.
     solicitud.codigo_seguimiento = generar_codigo_seguimiento(solicitud.id)
+
+    if area_responsable and area_responsable.strip().lower() == "calidad":
+        solicitud.radicado_calidad = generar_radicado_calidad(db, tenant_id)
 
     db.add(PQRSSeguimiento(
         pqrs_id=solicitud.id,
         usuario_id=current_user.id,
         tipo_evento="cambio_estado",
-        comentario="Solicitud registrada en el sistema.",
+        comentario=f"Solicitud registrada internamente por {current_user.nombre}.",
     ))
     db.commit()
     db.refresh(solicitud)
@@ -239,7 +286,12 @@ def cambiar_estado_pqrs(
     if payload.estado == "cerrado":
         disparar_webhook_n8n("pqrs-cerrada", {
             "pqrs_id": solicitud.id,
+            "codigo_seguimiento": solicitud.codigo_seguimiento,
+            "cliente_nombre": solicitud.cliente_nombre,
             "cliente_email": solicitud.cliente_email,
+            "tipo": solicitud.tipo,
+            "area_responsable": solicitud.area_responsable,
+            "link_seguimiento": f"{settings.FRONTEND_URL}/seguimiento",
         })
 
     return solicitud

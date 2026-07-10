@@ -229,68 +229,23 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
   )
 }
 
-// ── Encuesta ───────────────────────────────────────────────────────
-function EncuestaSection({ pqrsId, encuesta }) {
-  const queryClient = useQueryClient()
-  const [calificacion, setCalificacion] = useState(0)
-  const [comentario, setComentario]     = useState('')
-  const [enviada, setEnviada]           = useState(false)
-
-  const mutation = useMutation({
-    mutationFn: () => api.post(`/pqrs/${pqrsId}/encuesta`, { calificacion, comentario }),
-    onSuccess: () => { setEnviada(true); queryClient.invalidateQueries({ queryKey: ['pqrs', pqrsId] }) },
-  })
-
-  if (encuesta?.calificacion) {
-    return (
-      <div className="bg-[#F0F4FA] rounded-xl p-5">
-        <h3 className="font-semibold text-[#0D2B5E] mb-3 text-sm">⭐ Encuesta de satisfacción</h3>
-        <div className="flex items-center gap-2 mb-2">
-          {[1,2,3,4,5].map(n => (
-            <span key={n} className={`text-2xl ${n <= encuesta.calificacion ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
-          ))}
-          <span className="text-sm font-semibold text-[#1A2B47] ml-2">{encuesta.calificacion}/5</span>
-        </div>
-        {encuesta.comentario && <p className="text-sm text-[#6B7EA8] italic">"{encuesta.comentario}"</p>}
-      </div>
-    )
-  }
-
-  if (enviada) {
-    return (
-      <div className="bg-green-50 border border-green-200 rounded-xl p-5 text-center">
-        <div className="text-2xl mb-1">✅</div>
-        <p className="text-sm font-semibold text-green-700">Encuesta registrada</p>
-      </div>
-    )
-  }
+// ── Encuesta (solo lectura para el agente) ──────────────────────────
+// El agente no debe poder auto-registrar la satisfacción del cliente.
+// Esto solo debe verse si el cliente ya la respondió (hoy vía el portal
+// público /seguimiento; a futuro por el correo que le llegue al cierre).
+function EncuestaSection({ encuesta }) {
+  if (!encuesta?.calificacion) return null
 
   return (
-    <div className="bg-[#FFF4E0] border border-[#F5A800]/30 rounded-xl p-5">
-      <h3 className="font-semibold text-[#0D2B5E] mb-1 text-sm">⭐ Registrar satisfacción del cliente</h3>
-      <p className="text-xs text-[#6B7EA8] mb-4">PQRS cerrada — registra la calificación del cliente.</p>
-      <div className="flex gap-2 mb-4">
+    <div className="bg-[#F0F4FA] rounded-xl p-5">
+      <h3 className="font-semibold text-[#0D2B5E] mb-3 text-sm">⭐ Encuesta de satisfacción</h3>
+      <div className="flex items-center gap-2 mb-2">
         {[1,2,3,4,5].map(n => (
-          <button key={n} onClick={() => setCalificacion(n)}
-            className={`text-3xl transition-transform hover:scale-110 ${n <= calificacion ? 'text-yellow-400' : 'text-gray-300'}`}>
-            ★
-          </button>
+          <span key={n} className={`text-2xl ${n <= encuesta.calificacion ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
         ))}
+        <span className="text-sm font-semibold text-[#1A2B47] ml-2">{encuesta.calificacion}/5</span>
       </div>
-      <textarea
-        value={comentario}
-        onChange={(e) => setComentario(e.target.value)}
-        placeholder="Comentario del cliente (opcional)..."
-        rows={2}
-        className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#F5A800] resize-none mb-3"
-      />
-      <button
-        onClick={() => mutation.mutate()}
-        disabled={calificacion === 0 || mutation.isPending}
-        className="w-full bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-bold py-2 rounded-lg text-sm transition disabled:opacity-50"
-      >
-        {mutation.isPending ? 'Guardando...' : 'Guardar calificación'}
-      </button>
+      {encuesta.comentario && <p className="text-sm text-[#6B7EA8] italic">"{encuesta.comentario}"</p>}
     </div>
   )
 }
@@ -566,9 +521,9 @@ export default function PQRSDetail() {
             </div>
           )}
 
-          {/* Encuesta si está cerrada */}
+          {/* Encuesta si está cerrada y el cliente ya respondió */}
           {pqrs.estado === 'cerrado' && (
-            <EncuestaSection pqrsId={pqrs.id} encuesta={pqrs.encuesta} />
+            <EncuestaSection encuesta={pqrs.encuesta} />
           )}
         </div>
 

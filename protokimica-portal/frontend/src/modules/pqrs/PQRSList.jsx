@@ -46,119 +46,201 @@ function SLALabel({ fechaLimite }) {
   return <span className="text-xs text-[#6B7EA8]">Vence en {dias}d</span>
 }
 
+const CANALES_ATENCION = [
+  'Puntos de venta',
+  'Venta institucional',
+  'Distribuidor autorizado',
+  'Página web / formulario en línea',
+  'Línea telefónica',
+]
+
+const DEPARTAMENTOS = [
+  'Amazonas','Antioquia','Arauca','Atlántico','Bolívar','Boyacá','Caldas',
+  'Caquetá','Casanare','Cauca','Cesar','Chocó','Córdoba','Cundinamarca',
+  'Guainía','Guaviare','Huila','La Guajira','Magdalena','Meta','Nariño',
+  'Norte de Santander','Putumayo','Quindío','Risaralda','San Andrés',
+  'Santander','Sucre','Tolima','Valle del Cauca','Vaupés','Vichada',
+]
+
+const AREAS_PQRS = ['Comercial', 'Logística', 'Calidad', 'HSEQ', 'TI', 'Facturación', 'Servicio al cliente']
+
 // ── Modal para crear PQRS ──────────────────────────────────────────
+// Mismos campos que el formulario público (/formulario), para que una
+// PQRS registrada por un agente interno guarde exactamente la misma
+// información que una radicada por el cliente.
 function ModalCrear({ onClose, onCreated }) {
-  const [form, setForm] = useState({
+  const FORM_VACIO = {
     tipo: 'queja',
+    empresa: '',
+    nit_cedula: '',
     cliente_nombre: '',
     cliente_email: '',
     cliente_telefono: '',
-    descripcion: '',
+    ciudad: '',
+    departamento: '',
+    producto_codigo: '',
+    producto_nombre: '',
+    canal_atencion: '',
+    lote: '',
+    factura_numero: '',
+    cantidad_factura: '',
+    cantidad_reclamo: '',
     area_responsable: '',
-  })
+    descripcion: '',
+  }
+  const [form, setForm] = useState(FORM_VACIO)
+  const [adjuntoProducto, setAdjuntoProducto] = useState(null)
+  const [adjuntoFactura, setAdjuntoFactura]   = useState(null)
   const [error, setError] = useState('')
 
   const mutation = useMutation({
-    mutationFn: (data) => api.post('/pqrs', data),
+    mutationFn: () => {
+      const formData = new FormData()
+      Object.entries(form).forEach(([key, value]) => formData.append(key, value ?? ''))
+      if (adjuntoProducto) formData.append('adjunto_producto', adjuntoProducto)
+      if (adjuntoFactura)  formData.append('adjunto_factura', adjuntoFactura)
+      return api.post('/pqrs', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    },
     onSuccess: () => { onCreated(); onClose() },
     onError: (err) => setError(err.response?.data?.detail || 'Error al crear la PQRS'),
   })
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); setError('') }
+
+  const inputCls = "w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+  const labelCls = "block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5"
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#D6E0F0]">
-          <h2 className="font-bold text-[#0D2B5E] text-lg">Nueva PQRS</h2>
+          <div>
+            <h2 className="font-bold text-[#0D2B5E] text-lg">Registrar PQRS</h2>
+            <p className="text-xs text-[#6B7EA8] mt-0.5">Mismos datos que el formulario público del cliente.</p>
+          </div>
           <button onClick={onClose} className="text-[#6B7EA8] hover:text-[#0D2B5E] text-xl">✕</button>
         </div>
 
-        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+
+          {/* Tipo y área */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-                Tipo
-              </label>
-              <select
-                name="tipo"
-                value={form.tipo}
-                onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
-              >
+              <label className={labelCls}>Tipo *</label>
+              <select name="tipo" value={form.tipo} onChange={handleChange} className={inputCls}>
                 <option value="peticion">Petición</option>
                 <option value="queja">Queja</option>
                 <option value="reclamo">Reclamo</option>
                 <option value="sugerencia">Sugerencia</option>
-                <option value="felicitacon">Felicitacion</option>
+                <option value="felicitacion">Felicitación</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-                Área responsable
-              </label>
-              <select
-                name="area_responsable"
-                value={form.area_responsable}
-                onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
-              >
+              <label className={labelCls}>Área responsable</label>
+              <select name="area_responsable" value={form.area_responsable} onChange={handleChange} className={inputCls}>
                 <option value="">Sin asignar</option>
-                <option value="Comercial">Comercial</option>
-                <option value="Logística">Logística</option>
-                <option value="Calidad">Calidad</option>
-                <option value="HSEQ">HSEQ</option>
-                <option value="TI">TI</option>
+                {AREAS_PQRS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
           </div>
 
+          {/* Cliente */}
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-              Nombre del cliente *
-            </label>
-            <input
-              name="cliente_nombre"
-              value={form.cliente_nombre}
-              onChange={handleChange}
-              placeholder="Ej: Industrias del Valle S.A.S"
-              required
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
-            />
+            <p className="text-xs font-bold text-[#0D2B5E] uppercase tracking-wide mb-2">Datos del cliente</p>
+            <div className="grid grid-cols-2 gap-4 mb-3">
+              <div>
+                <label className={labelCls}>Empresa</label>
+                <input name="empresa" value={form.empresa} onChange={handleChange} placeholder="Ej: Industrias del Valle S.A.S" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>NIT / Cédula</label>
+                <input name="nit_cedula" value={form.nit_cedula} onChange={handleChange} placeholder="Ej: 900123456-7" className={inputCls} />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className={labelCls}>Nombre del contacto *</label>
+              <input name="cliente_nombre" value={form.cliente_nombre} onChange={handleChange} placeholder="Nombre de quien contacta" required className={inputCls} />
+            </div>
+            <div className="grid grid-cols-2 gap-4 mb-3">
+              <div>
+                <label className={labelCls}>Correo</label>
+                <input name="cliente_email" type="email" value={form.cliente_email} onChange={handleChange} placeholder="cliente@empresa.com" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Teléfono</label>
+                <input name="cliente_telefono" value={form.cliente_telefono} onChange={handleChange} placeholder="3001234567" className={inputCls} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Ciudad</label>
+                <input name="ciudad" value={form.ciudad} onChange={handleChange} placeholder="Ej: Medellín" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Departamento</label>
+                <select name="departamento" value={form.departamento} onChange={handleChange} className={inputCls}>
+                  <option value="">Selecciona...</option>
+                  {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-                Correo cliente
-              </label>
-              <input
-                name="cliente_email"
-                type="email"
-                value={form.cliente_email}
-                onChange={handleChange}
-                placeholder="cliente@empresa.com"
-                className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
-              />
+          {/* Producto */}
+          <div>
+            <p className="text-xs font-bold text-[#0D2B5E] uppercase tracking-wide mb-2">Producto y factura</p>
+            <div className="grid grid-cols-2 gap-4 mb-3">
+              <div>
+                <label className={labelCls}>Código de producto</label>
+                <input name="producto_codigo" value={form.producto_codigo} onChange={handleChange} placeholder="Ej: PK-001" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Nombre del producto</label>
+                <input name="producto_nombre" value={form.producto_nombre} onChange={handleChange} placeholder="Ej: Hipoclorito de Sodio 13%" className={inputCls} />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-                Teléfono
-              </label>
-              <input
-                name="cliente_telefono"
-                value={form.cliente_telefono}
-                onChange={handleChange}
-                placeholder="3001234567"
-                className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
-              />
+            <div className="mb-3">
+              <label className={labelCls}>Canal de atención</label>
+              <select name="canal_atencion" value={form.canal_atencion} onChange={handleChange} className={inputCls}>
+                <option value="">Selecciona...</option>
+                {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mb-3">
+              <div>
+                <label className={labelCls}>Lote</label>
+                <input name="lote" value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>N° Factura</label>
+                <input name="factura_numero" value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className={inputCls} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mb-3">
+              <div>
+                <label className={labelCls}>Cant. en factura</label>
+                <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Cant. en reclamo</label>
+                <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className={inputCls} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Foto del producto</label>
+                <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoProducto(e.target.files[0] || null)} className="text-xs text-[#6B7EA8]" />
+              </div>
+              <div>
+                <label className={labelCls}>Foto de la factura</label>
+                <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoFactura(e.target.files[0] || null)} className="text-xs text-[#6B7EA8]" />
+              </div>
             </div>
           </div>
 
+          {/* Descripción */}
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-              Descripción *
-            </label>
+            <label className={labelCls}>Descripción *</label>
             <textarea
               name="descripcion"
               value={form.descripcion}
@@ -166,7 +248,7 @@ function ModalCrear({ onClose, onCreated }) {
               placeholder="Describe detalladamente la situación..."
               rows={4}
               required
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] resize-none"
+              className={`${inputCls} resize-none`}
             />
           </div>
 
@@ -185,7 +267,7 @@ function ModalCrear({ onClose, onCreated }) {
             Cancelar
           </button>
           <button
-            onClick={() => mutation.mutate(form)}
+            onClick={() => mutation.mutate()}
             disabled={mutation.isPending || !form.cliente_nombre || !form.descripcion}
             className="px-4 py-2 rounded-lg bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] text-sm font-bold transition disabled:opacity-50"
           >
@@ -196,6 +278,7 @@ function ModalCrear({ onClose, onCreated }) {
     </div>
   )
 }
+
 
 // ── Modal detalle / cambiar estado ─────────────────────────────────
 function ModalDetalle({ pqrs, onClose, onUpdated }) {
