@@ -17,6 +17,7 @@ export default function Header() {
             </div>
 
             <button
+                title="Próximamente"
                 className="
                 bg-[#F5A800]
                 hover:bg-[#FFC840]

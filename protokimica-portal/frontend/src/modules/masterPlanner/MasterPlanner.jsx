@@ -1,37 +1,53 @@
+import { useMemo, useState } from "react"
+import Header from "./components/Header"
 import KPICards from "./components/KPICards"
 import Filters from "./components/Filters"
 import ProjectsTable from "./components/ProjectsTable"
+import KanbanBoard from "./components/KanbanBoard"
+import ProjectDetailModal from "./components/ProjectDetailModal"
+import mockProjects from "./data/mockProjects"
 
-export default function MasterPlanner(){
+const FILTROS_VACIOS = { busqueda: "", area: "", estado: "", prioridad: "", año: "" }
 
-return(
+export default function MasterPlanner() {
+  const [projects, setProjects] = useState(mockProjects)
+  const [filtros, setFiltros] = useState(FILTROS_VACIOS)
+  const [vista, setVista] = useState("kanban")
+  const [seleccionado, setSeleccionado] = useState(null)
 
-<div className="space-y-6">
+  const filtrados = useMemo(() => {
+    const q = filtros.busqueda.trim().toLowerCase()
+    return projects.filter(p => {
+      if (q && ![p.proyecto, p.actividad, p.responsable].join(" ").toLowerCase().includes(q)) return false
+      if (filtros.area && p.area !== filtros.area) return false
+      if (filtros.estado && p.estado !== filtros.estado) return false
+      if (filtros.prioridad && p.prioridad !== filtros.prioridad) return false
+      if (filtros.año && String(p.año) !== filtros.año) return false
+      return true
+    })
+  }, [projects, filtros])
 
-<div>
+  const cambiarEstado = (id, nuevoEstado) => {
+    setProjects(prev => prev.map(p => (p.id === id ? { ...p, estado: nuevoEstado } : p)))
+  }
 
-<h1 className="text-3xl font-bold text-[#0D2B5E]">
+  return (
+    <div className="space-y-6">
+      <Header />
+      <KPICards projects={projects} />
+      <Filters filtros={filtros} onChange={setFiltros} vista={vista} onChangeVista={setVista} />
 
-Master Planner
+      {vista === "kanban" ? (
+        <KanbanBoard
+          projects={filtrados}
+          onChangeEstado={cambiarEstado}
+          onSelect={setSeleccionado}
+        />
+      ) : (
+        <ProjectsTable projects={filtrados} onSelect={setSeleccionado} />
+      )}
 
-</h1>
-
-<p className="text-gray-500">
-
-Planeación estratégica y seguimiento de proyectos
-
-</p>
-
-</div>
-
-<KPICards/>
-
-<Filters/>
-
-<ProjectsTable/>
-
-</div>
-
-)
-
+      <ProjectDetailModal project={seleccionado} onClose={() => setSeleccionado(null)} />
+    </div>
+  )
 }
