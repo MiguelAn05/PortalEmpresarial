@@ -20,6 +20,7 @@ class PQRSSolicitud(Base):
     departamento = Column(String(100), nullable=True)
     producto_codigo = Column(String(50), nullable=True)
     producto_nombre = Column(String(200), nullable=True)
+    canal_atencion = Column(String(50), nullable=True)
     lote = Column(String(50), nullable=True)
     factura_numero = Column(String(50), nullable=True)
     cantidad_factura = Column(String(20), nullable=True)

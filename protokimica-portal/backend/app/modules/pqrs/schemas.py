@@ -54,6 +54,7 @@ class PQRSOut(BaseModel):
 
     producto_codigo: str | None = None
     producto_nombre: str | None = None
+    canal_atencion: str | None = None
     lote: str | None = None
     factura_numero: str | None = None
     cantidad_factura: str | None = None

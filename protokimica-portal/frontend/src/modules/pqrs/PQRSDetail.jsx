@@ -373,7 +373,7 @@ export default function PQRSDetail() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">
-              PQRS #{pqrs.id} · {pqrs.codigo_seguimiento || 'Sin código'}
+              {pqrs.codigo_seguimiento || `PQRS #${pqrs.id}`}
               {pqrs.radicado_calidad && ` · Calidad: ${pqrs.radicado_calidad}`}
             </div>
             <h1 className="text-xl font-bold mb-1">{pqrs.empresa || pqrs.cliente_nombre}</h1>
@@ -438,6 +438,7 @@ export default function PQRSDetail() {
               {[
                 { label: 'Producto',         value: pqrs.producto_nombre  },
                 { label: 'Código',           value: pqrs.producto_codigo  },
+                { label: 'Canal de atención', value: pqrs.canal_atencion  },
                 { label: 'Lote',             value: pqrs.lote             },
                 { label: 'Factura',          value: pqrs.factura_numero   },
                 { label: 'Cant. factura',    value: pqrs.cantidad_factura },

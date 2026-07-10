@@ -33,7 +33,7 @@ export default function App() {
         <Route path="pqrs"     element={<PQRSList />} />
         <Route path="pqrs/:id" element={<PQRSDetail />} />
         <Route path="admin" element={<Admin />} />
-        <Route path="/master-planner" element={<MasterPlanner />} />
+        <Route path="master-planner" element={<MasterPlanner />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

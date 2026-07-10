@@ -117,6 +117,7 @@ async def radicar_pqrs_publica(
     # Datos del producto
     producto_codigo: str = Form(None),
     producto_nombre: str = Form(None),
+    canal_atencion: str = Form(None),
     lote: str = Form(None),
     factura_numero: str = Form(None),
     cantidad_factura: str = Form(None),
@@ -151,6 +152,7 @@ async def radicar_pqrs_publica(
         departamento=departamento,
         producto_codigo=producto_codigo,
         producto_nombre=producto_nombre,
+        canal_atencion=canal_atencion,
         lote=lote,
         factura_numero=factura_numero,
         cantidad_factura=cantidad_factura,
