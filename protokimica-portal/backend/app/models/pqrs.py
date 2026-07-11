@@ -55,6 +55,18 @@ class PQRSSeguimiento(Base):
     pqrs = relationship('PQRSSolicitud', back_populates='seguimientos')
     usuario = relationship('User')
 
+    @property
+    def usuario_nombre(self):
+        return self.usuario.nombre if self.usuario else None
+
+    @property
+    def usuario_area(self):
+        return self.usuario.area if self.usuario else None
+
+    @property
+    def usuario_rol(self):
+        return self.usuario.rol if self.usuario else None
+
 
 class PQRSEncuesta(Base):
     __tablename__ = 'pqrs_encuestas'

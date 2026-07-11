@@ -32,6 +32,9 @@ class SeguimientoOut(BaseModel):
     comentario: str | None
     fecha: datetime
     usuario_id: int | None
+    usuario_nombre: str | None = None
+    usuario_area: str | None = None
+    usuario_rol: str | None = None
 
     class Config:
         from_attributes = True

@@ -574,6 +574,11 @@ export default function PQRSDetail() {
                             <span className="text-xs font-semibold text-[#0D2B5E]">{evento.label}</span>
                             <span className="text-xs text-[#9BACC8] flex-shrink-0">{formatFecha(seg.fecha)}</span>
                           </div>
+                          <div className="text-xs text-[#6B7EA8] mb-1">
+                            {seg.usuario_nombre
+                              ? `${seg.usuario_nombre}${seg.usuario_area ? ` · ${seg.usuario_area}` : ''}`
+                              : 'Cliente (formulario público)'}
+                          </div>
                           {seg.comentario && (
                             <p className="text-sm text-[#1A2B47]">{seg.comentario}</p>
                           )}
