@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.config import settings
 from app.core.deps import get_current_user, get_current_tenant_id
 from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta
@@ -21,6 +20,9 @@ from app.modules.pqrs.schemas import (
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
     generar_codigo_seguimiento, generar_radicado_calidad, guardar_archivo,
+)
+from app.modules.pqrs.notificaciones import (
+    notificar_cliente_creacion, notificar_cliente_cierre, notificar_area,
 )
 
 router = APIRouter(prefix="/pqrs", tags=["PQRS"])
@@ -108,13 +110,9 @@ async def crear_pqrs(
     db.commit()
     db.refresh(solicitud)
 
-    disparar_webhook_n8n("pqrs-creada", {
-        "pqrs_id": solicitud.id,
-        "tenant_id": tenant_id,
-        "tipo": solicitud.tipo,
-        "area_responsable": solicitud.area_responsable,
-        "prioridad": solicitud.prioridad,
-    })
+    notificar_cliente_creacion(solicitud)
+    if solicitud.area_responsable:
+        notificar_area(db, tenant_id, solicitud, solicitud.area_responsable, motivo="creacion")
 
     return solicitud
 
@@ -206,6 +204,7 @@ def asignar_area(
     if solicitud.estado == "cerrado":
         raise HTTPException(status_code=400, detail="No se puede reasignar área en una PQRS cerrada.")
 
+    area_anterior = solicitud.area_responsable
     solicitud.area_responsable = payload.area
 
     # Si se asigna a Calidad, se genera su propio consecutivo de radicado interno,
@@ -226,11 +225,9 @@ def asignar_area(
     db.commit()
     db.refresh(solicitud)
 
-    disparar_webhook_n8n("pqrs-area-asignada", {
-        "pqrs_id": solicitud.id,
-        "area_responsable": solicitud.area_responsable,
-        "radicado_calidad": solicitud.radicado_calidad,
-    })
+    if payload.area != area_anterior:
+        motivo = "creacion" if not area_anterior else "reasignacion"
+        notificar_area(db, tenant_id, solicitud, payload.area, motivo=motivo)
 
     return solicitud
 
@@ -284,15 +281,7 @@ def cambiar_estado_pqrs(
     db.refresh(solicitud)
 
     if payload.estado == "cerrado":
-        disparar_webhook_n8n("pqrs-cerrada", {
-            "pqrs_id": solicitud.id,
-            "codigo_seguimiento": solicitud.codigo_seguimiento,
-            "cliente_nombre": solicitud.cliente_nombre,
-            "cliente_email": solicitud.cliente_email,
-            "tipo": solicitud.tipo,
-            "area_responsable": solicitud.area_responsable,
-            "link_seguimiento": f"{settings.FRONTEND_URL}/seguimiento",
-        })
+        notificar_cliente_cierre(solicitud)
 
     return solicitud
 

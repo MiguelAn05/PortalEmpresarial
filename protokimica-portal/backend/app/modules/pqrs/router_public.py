@@ -17,9 +17,9 @@ from app.modules.pqrs.service import (
     calcular_fecha_limite_sla,
     calcular_prioridad,
     generar_codigo_seguimiento,
-    disparar_webhook_n8n,
     guardar_archivo,
 )
+from app.modules.pqrs.notificaciones import notificar_cliente_creacion, notificar_area
 
 router = APIRouter(prefix="/public", tags=["Público — PQRS"])
 
@@ -154,15 +154,9 @@ async def radicar_pqrs_publica(
     ))
     db.commit()
 
-    disparar_webhook_n8n("pqrs-publica-creada", {
-        "pqrs_id": solicitud.id,
-        "codigo_seguimiento": codigo,
-        "tipo": tipo,
-        "cliente_nombre": cliente_nombre,
-        "cliente_email": cliente_email,
-        "empresa": empresa,
-        "area_responsable": area_responsable,
-    })
+    notificar_cliente_creacion(solicitud)
+    if solicitud.area_responsable:
+        notificar_area(db, tenant.id, solicitud, solicitud.area_responsable, motivo="creacion")
 
     return PQRSPublicaOut(
         codigo_seguimiento=codigo,
