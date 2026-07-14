@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -73,9 +73,19 @@ class PQRSEncuesta(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     pqrs_id = Column(Integer, ForeignKey('pqrs_solicitudes.id'), nullable=False, unique=True)
-    calificacion = Column(Integer, nullable=True)
+
+    tipo_solicitud = Column(String(20), nullable=True)  # peticion | queja | reclamo | sugerencia | felicitacion
+    calificacion = Column(Integer, nullable=True)  # calificación de la atención, 1 a 5
+    solucionada = Column(String(20), nullable=True)  # si | parcial | no
+    calificacion_tiempo_respuesta = Column(String(20), nullable=True)  # excelente | bueno | regular | malo
+    recomendaria = Column(Boolean, nullable=True)
     comentario = Column(Text, nullable=True)
+
     respondida_en = Column(DateTime(timezone=True), nullable=True)
     enviada_en = Column(DateTime(timezone=True), server_default=func.now())
 
     pqrs = relationship('PQRSSolicitud', back_populates='encuesta')
+
+    @property
+    def respondida(self) -> bool:
+        return self.respondida_en is not None

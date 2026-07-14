@@ -57,7 +57,6 @@ def notificar_cliente_creacion(solicitud) -> None:
         "link_seguimiento": f"{settings.FRONTEND_URL}/seguimiento",
     })
 
-
 def notificar_cliente_cierre(solicitud) -> None:
     """Aviso al cliente de que su PQRS fue cerrada (con link a la encuesta)."""
     if not solicitud.cliente_email:
@@ -70,6 +69,7 @@ def notificar_cliente_cierre(solicitud) -> None:
         "tipo": solicitud.tipo,
         "area_responsable": solicitud.area_responsable,
         "link_seguimiento": f"{settings.FRONTEND_URL}/seguimiento",
+        "link_encuesta": f"{settings.FRONTEND_URL}/encuesta/{solicitud.codigo_seguimiento}",
     })
 
 
