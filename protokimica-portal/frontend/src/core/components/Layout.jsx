@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
+import CambiarPasswordModal from './CambiarPasswordModal.jsx'
 
 const navItems = [
   { to: '/',        icon: '🏠', label: 'Inicio',          exact: true  },
@@ -12,6 +13,7 @@ const navItems = [
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false)
+  const [mostrarPassword, setMostrarPassword] = useState(false)
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
@@ -182,13 +184,16 @@ export default function Layout() {
           <div className="flex-1" />
 
           {/* Usuario */}
-          <div className="flex items-center gap-2 bg-[#F0F4FA] border border-[#D6E0F0]
+          <button
+            onClick={() => setMostrarPassword(true)}
+            title="Cambiar contraseña"
+            className="flex items-center gap-2 bg-[#F0F4FA] border border-[#D6E0F0]
             rounded-full px-3 py-1.5 cursor-pointer hover:bg-[#D6E0F0] transition">
             <div className="w-6 h-6 rounded-full bg-[#1A4FA0] flex items-center justify-center">
               <span className="text-white text-xs font-bold">{initials}</span>
             </div>
             <span className="text-sm font-medium text-[#1A2B47]">{user?.nombre}</span>
-          </div>
+          </button>
         </header>
 
         {/* Contenido — cada pantalla se renderiza aquí */}
@@ -196,6 +201,10 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {mostrarPassword && (
+        <CambiarPasswordModal onClose={() => setMostrarPassword(false)} />
+      )}
     </div>
   )
 }

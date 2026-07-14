@@ -8,6 +8,7 @@ class RegisterRequest(BaseModel):
     password: str
     rol: str = "agente"
     area: str | None = None
+    setup_key: str            # llave de configuración inicial — ver REGISTER_SETUP_KEY
 
 
 class LoginRequest(BaseModel):
@@ -45,6 +46,12 @@ class UsuarioUpdate(BaseModel):
     rol: str | None = None
     area: str | None = None
     activo: bool | None = None
+    password: str | None = None  # para que un admin pueda restablecerla si alguien la olvidó
+
+
+class CambiarPasswordRequest(BaseModel):
+    password_actual: str
+    password_nueva: str
 
 
 class UsuarioOut(BaseModel):

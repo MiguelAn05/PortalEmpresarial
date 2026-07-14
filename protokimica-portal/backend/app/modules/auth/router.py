@@ -1,19 +1,23 @@
 """
 Endpoints de autenticación.
-Cualquier persona puede registrarse con el correo que quiera (corporativo o
-personal) siempre que indique a qué empresa (tenant_slug) pertenece.
+El registro público (/register) está cerrado por defecto — requiere una
+llave de configuración (REGISTER_SETUP_KEY) y solo se usa para crear el
+primer admin de una empresa nueva. La creación de usuarios del día a día
+se hace desde /usuarios (requiere sesión de administrador).
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.deps import get_current_user, get_current_tenant_id, require_role, ROLES_VALIDOS
+from app.core.rate_limit import limitar_login
 from app.models.user import User
 from app.models.tenant import Tenant
 from app.modules.auth.schemas import (
     RegisterRequest, LoginRequest, TokenResponse, UserOut,
-    UsuarioCreate, UsuarioUpdate, UsuarioOut,
+    UsuarioCreate, UsuarioUpdate, UsuarioOut, CambiarPasswordRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -21,6 +25,12 @@ router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+    # Sin llave configurada en el servidor, o si no coincide, el endpoint
+    # queda completamente cerrado. Esto evita que cualquier persona en
+    # internet pueda crearse una cuenta (incluso de administrador) sola.
+    if not settings.REGISTER_SETUP_KEY or payload.setup_key != settings.REGISTER_SETUP_KEY:
+        raise HTTPException(status_code=403, detail="No autorizado para registrar usuarios por esta vía.")
+
     tenant = db.query(Tenant).filter(Tenant.slug == payload.tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="La empresa (tenant) indicada no existe.")
@@ -48,7 +58,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, db: Session = Depends(get_db), _: None = Depends(limitar_login)):
     tenant = db.query(Tenant).filter(Tenant.slug == payload.tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="La empresa (tenant) indicada no existe.")
@@ -73,6 +83,22 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/cambiar-password")
+def cambiar_password(
+    payload: CambiarPasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not verify_password(payload.password_actual, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="La contraseña actual no es correcta.")
+    if len(payload.password_nueva) < 6:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 6 caracteres.")
+
+    current_user.password_hash = hash_password(payload.password_nueva)
+    db.commit()
+    return {"mensaje": "Contraseña actualizada correctamente."}
 
 
 # ─── Gestión de usuarios (solo admin, dentro de su propio tenant) ──────────
@@ -153,6 +179,11 @@ def actualizar_usuario(
 
     if payload.area is not None:
         usuario.area = payload.area or None
+
+    if payload.password is not None:
+        if len(payload.password) < 6:
+            raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres.")
+        usuario.password_hash = hash_password(payload.password)
 
     if payload.activo is not None:
         if usuario.id == current_user.id and payload.activo is False:

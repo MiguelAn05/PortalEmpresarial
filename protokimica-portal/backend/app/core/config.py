@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # URL pública del frontend, para armar links (ej. en correos de n8n)
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # Llave secreta para poder usar POST /auth/register (crear el primer
+    # admin de un tenant nuevo). Sin esta llave, el endpoint queda cerrado.
+    # Nunca se usa desde el frontend — solo se llama manualmente (ej. con
+    # curl/Postman) la única vez que se crea una empresa nueva.
+    REGISTER_SETUP_KEY: str = ""
+
     # Opcional: URL base de n8n para disparar automatizaciones. Vacío = se ignora.
     N8N_WEBHOOK_URL: str = ""
 

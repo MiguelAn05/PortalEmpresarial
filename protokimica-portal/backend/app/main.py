@@ -15,6 +15,13 @@ app = FastAPI(
     title=settings.APP_NAME,
     description="API del Portal de Gestión Empresarial — Protokimica",
     version="0.1.0",
+    # En producción se ocultan /docs, /redoc y el esquema OpenAPI —
+    # no hace falta que estén visibles para cualquiera en internet.
+    # Se activan solo si ENVIRONMENT=development (o cualquier valor
+    # distinto de "production") en el backend/.env.
+    docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
+    redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
+    openapi_url="/openapi.json" if settings.ENVIRONMENT != "production" else None,
 )
 
 

@@ -292,6 +292,17 @@ function GestionUsuarios() {
               </select>
 
               <button
+                onClick={() => {
+                  const nueva = prompt(`Nueva contraseña para ${u.nombre} (mínimo 6 caracteres):`)
+                  if (nueva) mutActualizar.mutate({ id: u.id, cambios: { password: nueva } })
+                }}
+                title="Restablecer contraseña"
+                className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 bg-[#F0F4FA] text-[#6B7EA8] hover:bg-[#D6E0F0] transition"
+              >
+                🔑
+              </button>
+
+              <button
                 onClick={() => mutActualizar.mutate({ id: u.id, cambios: { activo: !u.activo } })}
                 className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 transition ${
                   u.activo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
