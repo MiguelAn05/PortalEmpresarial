@@ -81,20 +81,6 @@ class PQRSOut(BaseModel):
         from_attributes = True
 
 
-class PQRSDetailOut(PQRSOut):
-    seguimientos: list[SeguimientoOut] = []
-    encuesta: EncuestaOut | None = None
-
-
-class EncuestaCreate(BaseModel):
-    tipo_solicitud: str  # peticion | queja | reclamo | sugerencia | felicitacion
-    calificacion: int  # calificación de la atención, 1 a 5
-    solucionada: str  # si | parcial | no
-    calificacion_tiempo_respuesta: str  # excelente | bueno | regular | malo
-    recomendaria: bool
-    comentario: str | None = None
-
-
 class EncuestaOut(BaseModel):
     tipo_solicitud: str | None = None
     calificacion: int | None = None
@@ -107,3 +93,17 @@ class EncuestaOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PQRSDetailOut(PQRSOut):
+    seguimientos: list[SeguimientoOut] = []
+    encuesta: EncuestaOut | None = None
+
+
+class EncuestaCreate(BaseModel):
+    tipo_solicitud: str  # peticion | queja | reclamo | sugerencia | felicitacion
+    calificacion: int  # calificación de la atención, 1 a 5
+    solucionada: str  # si | parcial | no
+    calificacion_tiempo_respuesta: str  # excelente | bueno | regular | malo
+    recomendaria: bool
+    comentario: str | None = None
