@@ -15,7 +15,7 @@ from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta
 from app.models.autorizacion import AutorizacionPQRS
 from app.modules.pqrs.schemas import (
     PQRSOut, PQRSDetailOut, PQRSUpdateEstado, PQRSAsignar,
-    PQRSAsignarArea, EncuestaCreate,
+    PQRSAsignarArea, 
 )
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
@@ -286,28 +286,4 @@ def cambiar_estado_pqrs(
     return solicitud
 
 
-@router.post("/{pqrs_id}/encuesta", status_code=status.HTTP_201_CREATED)
-def responder_encuesta(
-    pqrs_id: int,
-    payload: EncuestaCreate,
-    db: Session = Depends(get_db),
-    tenant_id: int = Depends(get_current_tenant_id),
-):
-    solicitud = (
-        db.query(PQRSSolicitud)
-        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
-        .first()
-    )
-    if not solicitud:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
-    if not solicitud.encuesta:
-        raise HTTPException(status_code=400, detail="Esta PQRS aún no tiene una encuesta pendiente.")
-    if not (1 <= payload.calificacion <= 5):
-        raise HTTPException(status_code=400, detail="La calificación debe estar entre 1 y 5.")
 
-    solicitud.encuesta.calificacion = payload.calificacion
-    solicitud.encuesta.comentario = payload.comentario
-    solicitud.encuesta.respondida_en = datetime.now(timezone.utc)
-    db.commit()
-
-    return {"mensaje": "Gracias por tu respuesta."}

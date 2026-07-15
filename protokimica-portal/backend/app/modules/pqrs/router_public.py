@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from app.modules.pqrs.schemas import EncuestaCreate
 
 from app.core.database import get_db
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
@@ -205,3 +206,74 @@ def consultar_pqrs_publica(codigo: str, db: Session = Depends(get_db)):
         fecha_cierre=solicitud.fecha_cierre,
         historial=historial_publico,
     )
+    
+class EncuestaEstadoOut(BaseModel):
+    disponible: bool
+    ya_respondida: bool
+    cliente_nombre: str | None = None
+    tipo_pqrs: str | None = None
+    mensaje: str
+
+
+@router.get("/encuesta/{codigo}", response_model=EncuestaEstadoOut)
+def consultar_estado_encuesta(codigo: str, db: Session = Depends(get_db)):
+    solicitud = db.query(PQRSSolicitud).filter(
+        PQRSSolicitud.codigo_seguimiento == codigo.upper()
+    ).first()
+
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="No encontramos ninguna solicitud con ese código.")
+
+    if solicitud.estado != "cerrado" or not solicitud.encuesta:
+        return EncuestaEstadoOut(
+            disponible=False, ya_respondida=False,
+            mensaje="Esta solicitud aún no tiene una encuesta disponible.",
+        )
+
+    if solicitud.encuesta.respondida_en:
+        return EncuestaEstadoOut(
+            disponible=False, ya_respondida=True,
+            mensaje="Ya registramos tu respuesta a esta encuesta. ¡Gracias!",
+        )
+
+    return EncuestaEstadoOut(
+        disponible=True, ya_respondida=False,
+        cliente_nombre=solicitud.cliente_nombre,
+        tipo_pqrs=solicitud.tipo,
+        mensaje="Encuesta disponible.",
+    )
+
+
+@router.post("/encuesta/{codigo}")
+def responder_encuesta_publica(codigo: str, payload: EncuestaCreate, db: Session = Depends(get_db)):
+    solicitud = db.query(PQRSSolicitud).filter(
+        PQRSSolicitud.codigo_seguimiento == codigo.upper()
+    ).first()
+
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="No encontramos ninguna solicitud con ese código.")
+    if solicitud.estado != "cerrado" or not solicitud.encuesta:
+        raise HTTPException(status_code=400, detail="Esta solicitud no tiene una encuesta disponible.")
+    if solicitud.encuesta.respondida_en:
+        raise HTTPException(status_code=400, detail="Esta encuesta ya fue respondida.")
+
+    if payload.tipo_solicitud not in {"peticion", "queja", "reclamo", "sugerencia", "felicitacion"}:
+        raise HTTPException(status_code=400, detail="tipo_solicitud inválido.")
+    if not (1 <= payload.calificacion <= 5):
+        raise HTTPException(status_code=400, detail="La calificación debe estar entre 1 y 5.")
+    if payload.solucionada not in {"si", "parcial", "no"}:
+        raise HTTPException(status_code=400, detail="solucionada debe ser 'si', 'parcial' o 'no'.")
+    if payload.calificacion_tiempo_respuesta not in {"excelente", "bueno", "regular", "malo"}:
+        raise HTTPException(status_code=400, detail="calificacion_tiempo_respuesta inválida.")
+
+    encuesta = solicitud.encuesta
+    encuesta.tipo_solicitud = payload.tipo_solicitud
+    encuesta.calificacion = payload.calificacion
+    encuesta.solucionada = payload.solucionada
+    encuesta.calificacion_tiempo_respuesta = payload.calificacion_tiempo_respuesta
+    encuesta.recomendaria = payload.recomendaria
+    encuesta.comentario = payload.comentario
+    encuesta.respondida_en = datetime.now(timezone.utc)
+    db.commit()
+
+    return {"mensaje": "¡Gracias por tu tiempo! Tu respuesta fue registrada."}
