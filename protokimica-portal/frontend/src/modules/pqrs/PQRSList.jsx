@@ -54,6 +54,17 @@ const CANALES_ATENCION = [
   'Línea telefónica',
 ]
 
+const CANALES_ATENCION_FELICITACION = [
+  'Llamada telefónica',
+  'WhatsApp',
+  'Punto de venta Centro',
+  'Punto de venta Belén',
+  'Punto de venta Guayabal',
+  'Punto de venta La 65',
+  'Punto de venta Cristo Rey',
+  'Punto de venta Itagüí',
+]
+
 const DEPARTAMENTOS = [
   'Amazonas','Antioquia','Arauca','Atlántico','Bolívar','Boyacá','Caldas',
   'Caquetá','Casanare','Cauca','Cesar','Chocó','Córdoba','Cundinamarca',
@@ -106,6 +117,11 @@ function ModalCrear({ onClose, onCreated }) {
   })
 
   const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); setError('') }
+
+  // Una felicitación no necesita producto/factura/lote — solo el canal
+  // por el que llegó y un comentario opcional. Mismo criterio que el
+  // formulario público.
+  const esFelicitacion = form.tipo === 'felicitacion'
 
   const inputCls = "w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
   const labelCls = "block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5"
@@ -186,68 +202,74 @@ function ModalCrear({ onClose, onCreated }) {
             </div>
           </div>
 
-          {/* Producto */}
+          {/* Canal de atención — siempre visible, cambia de opciones según el tipo */}
           <div>
-            <p className="text-xs font-bold text-[#0D2B5E] uppercase tracking-wide mb-2">Producto y factura</p>
-            <div className="grid grid-cols-2 gap-4 mb-3">
-              <div>
-                <label className={labelCls}>Código de producto</label>
-                <input name="producto_codigo" value={form.producto_codigo} onChange={handleChange} placeholder="Ej: PK-001" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Nombre del producto</label>
-                <input name="producto_nombre" value={form.producto_nombre} onChange={handleChange} placeholder="Ej: Hipoclorito de Sodio 13%" className={inputCls} />
-              </div>
-            </div>
-            <div className="mb-3">
-              <label className={labelCls}>Canal de atención</label>
-              <select name="canal_atencion" value={form.canal_atencion} onChange={handleChange} className={inputCls}>
-                <option value="">Selecciona...</option>
-                {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mb-3">
-              <div>
-                <label className={labelCls}>Lote</label>
-                <input name="lote" value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>N° Factura</label>
-                <input name="factura_numero" value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className={inputCls} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mb-3">
-              <div>
-                <label className={labelCls}>Cant. en factura</label>
-                <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Cant. en reclamo</label>
-                <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className={inputCls} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Foto del producto</label>
-                <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoProducto(e.target.files[0] || null)} className="text-xs text-[#6B7EA8]" />
-              </div>
-              <div>
-                <label className={labelCls}>Foto de la factura</label>
-                <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoFactura(e.target.files[0] || null)} className="text-xs text-[#6B7EA8]" />
-              </div>
-            </div>
+            <label className={labelCls}>Canal de atención</label>
+            <select name="canal_atencion" value={form.canal_atencion} onChange={handleChange} className={inputCls}>
+              <option value="">Selecciona...</option>
+              {(esFelicitacion ? CANALES_ATENCION_FELICITACION : CANALES_ATENCION).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
 
-          {/* Descripción */}
+          {/* Producto — no aplica a felicitaciones */}
+          {!esFelicitacion && (
+            <div>
+              <p className="text-xs font-bold text-[#0D2B5E] uppercase tracking-wide mb-2">Producto y factura</p>
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                  <label className={labelCls}>Código de producto</label>
+                  <input name="producto_codigo" value={form.producto_codigo} onChange={handleChange} placeholder="Ej: PK-001" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Nombre del producto</label>
+                  <input name="producto_nombre" value={form.producto_nombre} onChange={handleChange} placeholder="Ej: Hipoclorito de Sodio 13%" className={inputCls} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                  <label className={labelCls}>Lote</label>
+                  <input name="lote" value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>N° Factura</label>
+                  <input name="factura_numero" value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className={inputCls} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                  <label className={labelCls}>Cant. en factura</label>
+                  <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Cant. en reclamo</label>
+                  <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className={inputCls} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Foto del producto</label>
+                  <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoProducto(e.target.files[0] || null)} className="text-xs text-[#6B7EA8]" />
+                </div>
+                <div>
+                  <label className={labelCls}>Foto de la factura</label>
+                  <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoFactura(e.target.files[0] || null)} className="text-xs text-[#6B7EA8]" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Descripción / comentario */}
           <div>
-            <label className={labelCls}>Descripción *</label>
+            <label className={labelCls}>
+              {esFelicitacion ? 'Comentario (opcional)' : 'Descripción *'}
+            </label>
             <textarea
               name="descripcion"
               value={form.descripcion}
               onChange={handleChange}
-              placeholder="Describe detalladamente la situación..."
+              placeholder={esFelicitacion ? 'Cuéntanos qué le gustó al cliente...' : 'Describe detalladamente la situación...'}
               rows={4}
-              required
+              required={!esFelicitacion}
               className={`${inputCls} resize-none`}
             />
           </div>
@@ -268,7 +290,7 @@ function ModalCrear({ onClose, onCreated }) {
           </button>
           <button
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || !form.cliente_nombre || !form.descripcion}
+            disabled={mutation.isPending || !form.cliente_nombre || (!esFelicitacion && !form.descripcion)}
             className="px-4 py-2 rounded-lg bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] text-sm font-bold transition disabled:opacity-50"
           >
             {mutation.isPending ? 'Creando...' : 'Crear PQRS'}

@@ -26,6 +26,17 @@ const CANALES_ATENCION = [
   'Línea telefónica',
 ]
 
+const CANALES_ATENCION_FELICITACION = [
+  'Llamada telefónica',
+  'WhatsApp',
+  'Punto de venta Centro',
+  'Punto de venta Belén',
+  'Punto de venta Guayabal',
+  'Punto de venta La 65',
+  'Punto de venta Cristo Rey',
+  'Punto de venta Itagüí',
+]
+
 // Productos de prueba — aquí irá la integración con Geminus
 const PRODUCTOS_PRUEBA = [
   { codigo: 'PK-001', nombre: 'Hipoclorito de Sodio 13% x 20L' },
@@ -285,8 +296,7 @@ function Confirmacion({ codigo, tipo, onNueva }) {
 }
 
 // ── Barra de progreso ──────────────────────────────────────────────
-function BarraPasos({ pasoActual, totalPasos }) {
-  const labels = ['Tipo', 'Cliente', 'Producto', 'Evidencias']
+function BarraPasos({ pasoActual, totalPasos, labels }) {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
@@ -337,6 +347,7 @@ export default function FormularioPQRS() {
     cantidad_reclamo: '',
     canal_atencion: '',
     descripcion: '',
+    comentario: '',
   })
   const [productoSeleccionado, setProductoSeleccionado] = useState(null)
   const [adjuntoProducto, setAdjuntoProducto] = useState(null)
@@ -349,6 +360,15 @@ export default function FormularioPQRS() {
     setForm({ ...form, [e.target.name]: e.target.value })
     setError('')
   }
+
+  // Una felicitación no necesita producto, factura ni evidencias —
+  // solo canal de atención y un comentario opcional. Por eso su flujo
+  // es más corto (3 pasos en vez de 4).
+  const esFelicitacion = form.tipo === 'felicitacion'
+  const totalPasosActual = esFelicitacion ? 3 : 4
+  const labelsActuales = esFelicitacion
+    ? ['Tipo', 'Cliente', 'Comentario']
+    : ['Tipo', 'Cliente', 'Producto', 'Evidencias']
 
   // Validaciones por paso
   const validarPaso = () => {
@@ -363,13 +383,16 @@ export default function FormularioPQRS() {
       if (!form.ciudad.trim())         { setError('La ciudad es obligatoria.'); return false }
       if (!form.departamento)          { setError('El departamento es obligatorio.'); return false }
     }
-    if (paso === 3) {
+    if (paso === 3 && esFelicitacion) {
+      if (!form.canal_atencion)       { setError('Selecciona el canal de atención.'); return false }
+    }
+    if (paso === 3 && !esFelicitacion) {
       if (!productoSeleccionado)      { setError('Selecciona el producto.'); return false }
       if (!form.lote.trim())          { setError('El lote es obligatorio.'); return false }
       if (!form.factura_numero.trim()){ setError('El número de factura es obligatorio.'); return false }
       if (!form.cantidad_factura.trim()){ setError('La cantidad en factura es obligatoria.'); return false }
     }
-    if (paso === 4) {
+    if (paso === 4 && !esFelicitacion) {
       if (!form.descripcion.trim())   { setError('La descripción es obligatoria.'); return false }
       if (!adjuntoProducto)           { setError('La foto del producto es obligatoria.'); return false }
       if (!adjuntoFactura)            { setError('La foto de la factura es obligatoria.'); return false }
@@ -393,7 +416,6 @@ export default function FormularioPQRS() {
       // Usamos FormData para enviar archivos junto con los campos de texto
       const formData = new FormData()
       formData.append('tipo', form.tipo)
-      formData.append('descripcion', form.descripcion)
       formData.append('empresa', form.empresa)
       formData.append('nit_cedula', form.nit_cedula)
       formData.append('cliente_nombre', form.cliente_nombre)
@@ -401,16 +423,22 @@ export default function FormularioPQRS() {
       formData.append('cliente_telefono', form.cliente_telefono)
       formData.append('ciudad', form.ciudad)
       formData.append('departamento', form.departamento)
-      formData.append('producto_codigo', productoSeleccionado?.codigo || '')
-      formData.append('producto_nombre', productoSeleccionado?.nombre || '')
       formData.append('canal_atencion', form.canal_atencion)
-      formData.append('lote', form.lote)
-      formData.append('factura_numero', form.factura_numero)
-      formData.append('cantidad_factura', form.cantidad_factura)
-      formData.append('cantidad_reclamo', form.cantidad_reclamo)
-      
-      if (adjuntoProducto) formData.append('adjunto_producto', adjuntoProducto)
-      if (adjuntoFactura)  formData.append('adjunto_factura', adjuntoFactura)
+
+      if (esFelicitacion) {
+        // El backend exige 'descripcion'; el comentario opcional la reemplaza.
+        formData.append('descripcion', form.comentario.trim() || 'Felicitación registrada sin comentario adicional.')
+      } else {
+        formData.append('descripcion', form.descripcion)
+        formData.append('producto_codigo', productoSeleccionado?.codigo || '')
+        formData.append('producto_nombre', productoSeleccionado?.nombre || '')
+        formData.append('lote', form.lote)
+        formData.append('factura_numero', form.factura_numero)
+        formData.append('cantidad_factura', form.cantidad_factura)
+        formData.append('cantidad_reclamo', form.cantidad_reclamo)
+        if (adjuntoProducto) formData.append('adjunto_producto', adjuntoProducto)
+        if (adjuntoFactura)  formData.append('adjunto_factura', adjuntoFactura)
+      }
 
       const { data } = await api.post('/public/pqrs', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -431,7 +459,7 @@ export default function FormularioPQRS() {
       cliente_email: '', cliente_telefono: '', ciudad: '', departamento: '',
       lote: '', factura_numero: '', cantidad_factura: '', cantidad_reclamo: '',
       canal_atencion: '',
-      descripcion: '', 
+      descripcion: '', comentario: '',
     })
     setProductoSeleccionado(null)
     setAdjuntoProducto(null)
@@ -468,7 +496,7 @@ export default function FormularioPQRS() {
        </p>
        </div>
 
-        <BarraPasos pasoActual={paso} totalPasos={4} />
+        <BarraPasos pasoActual={paso} totalPasos={totalPasosActual} labels={labelsActuales} />
 
         <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] overflow-hidden">
 
@@ -546,8 +574,8 @@ export default function FormularioPQRS() {
             </div>
           )}
 
-          {/* ── PASO 3: Producto ── */}
-          {paso === 3 && (
+          {/* ── PASO 3: Producto (no aplica a felicitaciones) ── */}
+          {paso === 3 && !esFelicitacion && (
             <div className="p-6 space-y-4">
               <div>
                 <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Información del producto</h2>
@@ -608,8 +636,47 @@ export default function FormularioPQRS() {
             </div>
           )}
 
-          {/* ── PASO 4: Descripción y evidencias ── */}
-          {paso === 4 && (
+          {/* ── PASO 3 (felicitaciones): Canal + comentario ── */}
+          {paso === 3 && esFelicitacion && (
+            <div className="p-6 space-y-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">¡Gracias por tu felicitación! 🤩</h2>
+                <p className="text-sm text-[#6B7EA8]">Cuéntanos por dónde nos conociste y, si quieres, déjanos un comentario.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+                  Canal de atención <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="canal_atencion"
+                  value={form.canal_atencion}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+                >
+                  <option value="">Selecciona...</option>
+                  {CANALES_ATENCION_FELICITACION.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+                  Comentario <span className="font-normal normal-case text-[#9BACC8]">(opcional)</span>
+                </label>
+                <textarea
+                  name="comentario"
+                  value={form.comentario}
+                  onChange={handleChange}
+                  placeholder="Cuéntanos qué te gustó..."
+                  rows={4}
+                  className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition resize-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── PASO 4: Descripción y evidencias (no aplica a felicitaciones) ── */}
+          {paso === 4 && !esFelicitacion && (
             <div className="p-6 space-y-4">
               <div>
                 <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Descripción y evidencias</h2>
@@ -667,7 +734,7 @@ export default function FormularioPQRS() {
                 ← Atrás
               </button>
             )}
-            {paso < 4 ? (
+            {paso < totalPasosActual ? (
               <button
                 onClick={siguientePaso}
                 className="flex-1 bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-bold py-3 rounded-xl text-sm transition"
