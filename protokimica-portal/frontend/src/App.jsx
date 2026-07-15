@@ -6,6 +6,7 @@ import PQRSList from './modules/pqrs/PQRSList.jsx'
 import PQRSDetail from './modules/pqrs/PQRSDetail.jsx'
 import FormularioPQRS from './modules/publico/FormularioPQRS.jsx'
 import SeguimientoPQRS from './modules/publico/SeguimientoPQRS.jsx'
+import EncuestaPQRS from './modules/publico/EncuestaPQRS.jsx'
 import Admin from './modules/admin/Admin.jsx'
 import MasterPlanner from './modules/masterPlanner/MasterPlanner.jsx'
 
@@ -22,6 +23,7 @@ export default function App() {
       <Route path="/login"       element={<Login />} />
       <Route path="/formulario"  element={<FormularioPQRS />} />
       <Route path="/seguimiento" element={<SeguimientoPQRS />} />
+      <Route path="/encuesta/:codigo" element={<EncuestaPQRS />} />
 
       {/* ── Rutas protegidas (empleados) ── */}
       <Route path="/" element={

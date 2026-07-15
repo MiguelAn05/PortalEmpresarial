@@ -199,15 +199,18 @@ export default function SeguimientoPQRS() {
 
             {/* CTA si está cerrada */}
             {pqrs.estado === 'cerrado' && (
-              <div className="bg-[#FFF4E0] border border-[#F5A800]/30 rounded-2xl p-5 text-center">
+              <a
+                href={`/encuesta/${pqrs.codigo_seguimiento}`}
+                className="block bg-[#FFF4E0] border border-[#F5A800]/30 rounded-2xl p-5 text-center hover:bg-[#FFF0D4] transition"
+              >
                 <div className="text-2xl mb-2">⭐</div>
                 <p className="text-sm font-semibold text-[#0D2B5E] mb-1">
                   Tu solicitud fue cerrada
                 </p>
                 <p className="text-xs text-[#6B7EA8]">
-                  Esperamos haber resuelto tu caso satisfactoriamente.
+                  Cuéntanos cómo te fue — toma menos de un minuto →
                 </p>
-              </div>
+              </a>
             )}
 
             {/* Radicar otra */}

@@ -231,21 +231,82 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
 
 // ── Encuesta (solo lectura para el agente) ──────────────────────────
 // El agente no debe poder auto-registrar la satisfacción del cliente.
-// Esto solo debe verse si el cliente ya la respondió (hoy vía el portal
-// público /seguimiento; a futuro por el correo que le llegue al cierre).
+// Esto solo debe verse si el cliente ya la respondió (vía el link de
+// encuesta que le llega por correo al cerrarse la PQRS).
+// Colapsada por defecto para no saturar el detalle: muestra un resumen
+// de una línea y se expande con clic para ver las 6 respuestas completas.
+const SOLUCIONADA_LABEL = { si: 'Sí', parcial: 'Parcialmente', no: 'No' }
+const TIEMPO_LABEL = { excelente: 'Excelente', bueno: 'Bueno', regular: 'Regular', malo: 'Malo' }
+const TIPO_ENCUESTA_LABEL = {
+  peticion: 'Petición', queja: 'Queja', reclamo: 'Reclamo',
+  sugerencia: 'Sugerencia', felicitacion: 'Felicitación',
+}
+
 function EncuestaSection({ encuesta }) {
-  if (!encuesta?.calificacion) return null
+  const [abierta, setAbierta] = useState(false)
+
+  if (!encuesta?.respondida_en) {
+    // La PQRS está cerrada pero el cliente aún no ha respondido —
+    // igual vale la pena que el agente lo sepa de un vistazo.
+    if (encuesta) {
+      return (
+        <div className="bg-[#F0F4FA] rounded-xl p-5">
+          <h3 className="font-semibold text-[#0D2B5E] mb-1 text-sm">⭐ Encuesta de satisfacción</h3>
+          <p className="text-xs text-[#6B7EA8]">Enviada al cliente, esperando respuesta.</p>
+        </div>
+      )
+    }
+    return null
+  }
 
   return (
-    <div className="bg-[#F0F4FA] rounded-xl p-5">
-      <h3 className="font-semibold text-[#0D2B5E] mb-3 text-sm">⭐ Encuesta de satisfacción</h3>
-      <div className="flex items-center gap-2 mb-2">
-        {[1,2,3,4,5].map(n => (
-          <span key={n} className={`text-2xl ${n <= encuesta.calificacion ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
-        ))}
-        <span className="text-sm font-semibold text-[#1A2B47] ml-2">{encuesta.calificacion}/5</span>
-      </div>
-      {encuesta.comentario && <p className="text-sm text-[#6B7EA8] italic">"{encuesta.comentario}"</p>}
+    <div className="bg-[#F0F4FA] rounded-xl overflow-hidden">
+      <button
+        onClick={() => setAbierta(!abierta)}
+        className="w-full flex items-center justify-between p-5 text-left"
+      >
+        <div>
+          <h3 className="font-semibold text-[#0D2B5E] text-sm mb-1">⭐ Encuesta de satisfacción</h3>
+          <div className="flex items-center gap-1">
+            {[1,2,3,4,5].map(n => (
+              <span key={n} className={`text-lg ${n <= encuesta.calificacion ? 'text-yellow-400' : 'text-gray-300'}`}>★</span>
+            ))}
+            <span className="text-xs text-[#6B7EA8] ml-1">
+              {encuesta.calificacion}/5 · respondida el {formatFecha(encuesta.respondida_en)}
+            </span>
+          </div>
+        </div>
+        <span className={`text-[#6B7EA8] transition-transform ${abierta ? 'rotate-180' : ''}`}>▾</span>
+      </button>
+
+      {abierta && (
+        <div className="px-5 pb-5 space-y-3 border-t border-[#D6E0F0] pt-4">
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <span className="text-[#6B7EA8] font-semibold uppercase tracking-wide block mb-0.5">Tipo de solicitud</span>
+              <span className="text-[#1A2B47] font-medium">{TIPO_ENCUESTA_LABEL[encuesta.tipo_solicitud] || encuesta.tipo_solicitud}</span>
+            </div>
+            <div>
+              <span className="text-[#6B7EA8] font-semibold uppercase tracking-wide block mb-0.5">¿Solucionada?</span>
+              <span className="text-[#1A2B47] font-medium">{SOLUCIONADA_LABEL[encuesta.solucionada] || '—'}</span>
+            </div>
+            <div>
+              <span className="text-[#6B7EA8] font-semibold uppercase tracking-wide block mb-0.5">Tiempo de respuesta</span>
+              <span className="text-[#1A2B47] font-medium">{TIEMPO_LABEL[encuesta.calificacion_tiempo_respuesta] || '—'}</span>
+            </div>
+            <div>
+              <span className="text-[#6B7EA8] font-semibold uppercase tracking-wide block mb-0.5">¿Recomendaría?</span>
+              <span className="text-[#1A2B47] font-medium">{encuesta.recomendaria ? 'Sí' : 'No'}</span>
+            </div>
+          </div>
+          {encuesta.comentario && (
+            <div>
+              <span className="text-[#6B7EA8] font-semibold uppercase tracking-wide block mb-1 text-xs">Comentario</span>
+              <p className="text-sm text-[#1A2B47] italic">"{encuesta.comentario}"</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
