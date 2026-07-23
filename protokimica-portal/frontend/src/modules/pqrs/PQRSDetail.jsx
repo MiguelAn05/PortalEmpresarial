@@ -37,7 +37,7 @@ const EVENTOS = {
   autorizacion_respondida: { icon: '✅', label: 'Autorización respondida'},
 }
 
-const AREAS = ['Comercial','Logística','Calidad','HSEQ','TI','Facturación','Servicio al cliente']
+const AREAS = ['Comercial','Logística','Calidad','TI','Facturación','Servicio al cliente']
 
 function Badge({ map, value }) {
   const item = map[value] || { label: value, color: 'bg-gray-100 text-gray-600' }

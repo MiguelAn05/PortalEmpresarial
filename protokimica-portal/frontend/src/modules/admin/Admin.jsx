@@ -4,7 +4,7 @@ import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
 
 const AREAS = [
-  'Comercial', 'Logística', 'Calidad', 'HSEQ',
+  'Comercial', 'Logística', 'Calidad',
   'TI', 'Facturación', 'Servicio al cliente', 'Contabilidad',
 ]
 

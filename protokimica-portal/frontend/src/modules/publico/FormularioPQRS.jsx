@@ -19,14 +19,19 @@ const DEPARTAMENTOS = [
 ]
 
 const CANALES_ATENCION = [
-  'Puntos de venta',
   'Venta institucional',
-  'Distribuidor autorizado',
-  'Página web / formulario en línea',
+  'WhatsApp',
+  'Punto de venta Centro',
+  'Punto de venta Belén',
+  'Punto de venta Guayabal',
+  'Punto de venta La 65',
+  'Punto de venta Cristo Rey',
+  'Punto de venta Itagüí',
   'Línea telefónica',
 ]
 
 const CANALES_ATENCION_FELICITACION = [
+  'Venta institucional',
   'Llamada telefónica',
   'WhatsApp',
   'Punto de venta Centro',
