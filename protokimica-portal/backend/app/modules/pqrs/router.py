@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user, get_current_tenant_id
 from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta
 from app.models.autorizacion import AutorizacionPQRS
@@ -33,6 +32,7 @@ async def crear_pqrs(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
     # Tipo y descripción
     tipo: str = Form(...),
     descripcion: str = Form(...),
@@ -155,6 +155,7 @@ def asignar_pqrs(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
 ):
     solicitud = (
         db.query(PQRSSolicitud)
@@ -192,6 +193,7 @@ def asignar_area(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
 ):
     """Asigna el área responsable de una PQRS (actualiza el campo real, no solo el historial)."""
     solicitud = (
@@ -239,6 +241,7 @@ def cambiar_estado_pqrs(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
 ):
     estados_validos = {"recibido", "asignado", "en_proceso", "resuelto", "cerrado"}
     if payload.estado not in estados_validos:
