@@ -1,4 +1,4 @@
-const AREAS = ["TI", "Comercial", "Calidad", "HSEQ", "Logística", "Servicio al cliente", "Talento Humano"]
+const AREAS = ["TI", "Comercial", "Calidad", "Logística", "Servicio al cliente", "Talento Humano"]
 const ESTADOS = ["Planeación", "En ejecución", "En riesgo", "Pausado", "Finalizado"]
 const PRIORIDADES = ["Alta", "Media", "Baja"]
 

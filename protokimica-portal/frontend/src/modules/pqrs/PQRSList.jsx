@@ -47,14 +47,20 @@ function SLALabel({ fechaLimite }) {
 }
 
 const CANALES_ATENCION = [
-  'Puntos de venta',
+  
   'Venta institucional',
-  'Distribuidor autorizado',
-  'Página web / formulario en línea',
+  'WhatsApp',
+  'Punto de venta Centro',
+  'Punto de venta Belén',
+  'Punto de venta Guayabal',
+  'Punto de venta La 65',
+  'Punto de venta Cristo Rey',
+  'Punto de venta Itagüí',
   'Línea telefónica',
 ]
 
 const CANALES_ATENCION_FELICITACION = [
+  'Venta institucional',
   'Llamada telefónica',
   'WhatsApp',
   'Punto de venta Centro',
@@ -73,7 +79,7 @@ const DEPARTAMENTOS = [
   'Santander','Sucre','Tolima','Valle del Cauca','Vaupés','Vichada',
 ]
 
-const AREAS_PQRS = ['Comercial', 'Logística', 'Calidad', 'HSEQ', 'TI', 'Facturación', 'Servicio al cliente']
+const AREAS_PQRS = ['Comercial', 'Logística', 'Calidad', 'TI', 'Facturación', 'Servicio al cliente']
 
 // ── Modal para crear PQRS ──────────────────────────────────────────
 // Mismos campos que el formulario público (/formulario), para que una
