@@ -42,6 +42,8 @@ const CANALES_ATENCION_FELICITACION = [
   'Punto de venta Itagüí',
 ]
 
+const PRESENTACIONES = ['Unidad', 'Kilo', 'Gramo', 'Litro', 'Mililitro']
+
 // Productos de prueba — aquí irá la integración con Geminus
 const PRODUCTOS_PRUEBA = [
   { codigo: 'PK-001', nombre: 'Hipoclorito de Sodio 13% x 20L' },
@@ -55,7 +57,7 @@ const PRODUCTOS_PRUEBA = [
 ]
 
 // ── Componente: campo de adjunto ───────────────────────────────────
-function CampoAdjunto({ label, descripcion, icono, onChange, archivo, obligatorio }) {
+function CampoAdjunto({ label, descripcion, icono, onChange, archivo, obligatorio, accept = 'image/*,.pdf', hint = 'JPG, PNG, PDF — máx. 10MB' }) {
   const inputRef = useRef(null)
 
   const handleChange = (e) => {
@@ -94,6 +96,12 @@ function CampoAdjunto({ label, descripcion, icono, onChange, archivo, obligatori
                 alt="preview"
                 className="w-16 h-16 object-cover rounded-lg"
               />
+            ) : archivo.type.startsWith('video/') ? (
+              <video
+                src={URL.createObjectURL(archivo)}
+                className="w-16 h-16 object-cover rounded-lg"
+                muted
+              />
             ) : (
               <div className="w-16 h-16 bg-green-100 rounded-lg flex items-center justify-center text-2xl">
                 📄
@@ -120,7 +128,7 @@ function CampoAdjunto({ label, descripcion, icono, onChange, archivo, obligatori
               Toca para seleccionar o arrastra aquí
             </div>
             <div className="text-xs text-[#9BACC8] mt-1">
-              JPG, PNG, PDF — máx. 10MB
+              {hint}
             </div>
           </div>
         )}
@@ -128,7 +136,7 @@ function CampoAdjunto({ label, descripcion, icono, onChange, archivo, obligatori
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,.pdf"
+        accept={accept}
         onChange={handleChange}
         className="hidden"
       />
@@ -349,7 +357,7 @@ export default function FormularioPQRS() {
     lote: '',
     factura_numero: '',
     cantidad_factura: '',
-    cantidad_reclamo: '',
+    presentacion: '',
     canal_atencion: '',
     descripcion: '',
     comentario: '',
@@ -357,6 +365,7 @@ export default function FormularioPQRS() {
   const [productoSeleccionado, setProductoSeleccionado] = useState(null)
   const [adjuntoProducto, setAdjuntoProducto] = useState(null)
   const [adjuntoFactura, setAdjuntoFactura]   = useState(null)
+  const [adjuntoVideo, setAdjuntoVideo]       = useState(null)
   const [codigoGenerado, setCodigoGenerado]   = useState('')
   const [loading, setLoading]                 = useState(false)
   const [error, setError]                     = useState('')
@@ -366,14 +375,17 @@ export default function FormularioPQRS() {
     setError('')
   }
 
-  // Una felicitación no necesita producto, factura ni evidencias —
-  // solo canal de atención y un comentario opcional. Por eso su flujo
-  // es más corto (3 pasos en vez de 4).
+  // Felicitación y queja no necesitan producto/factura — una queja es por
+  // el servicio (ej: "me atendieron mal"), no por un producto específico.
   const esFelicitacion = form.tipo === 'felicitacion'
-  const totalPasosActual = esFelicitacion ? 3 : 4
+  const esQueja = form.tipo === 'queja'
+  const requiereProducto = !esFelicitacion && !esQueja
+  const totalPasosActual = requiereProducto ? 4 : 3
   const labelsActuales = esFelicitacion
     ? ['Tipo', 'Cliente', 'Comentario']
-    : ['Tipo', 'Cliente', 'Producto', 'Evidencias']
+    : esQueja
+      ? ['Tipo', 'Cliente', 'Detalle']
+      : ['Tipo', 'Cliente', 'Producto', 'Evidencias']
 
   // Validaciones por paso
   const validarPaso = () => {
@@ -391,13 +403,17 @@ export default function FormularioPQRS() {
     if (paso === 3 && esFelicitacion) {
       if (!form.canal_atencion)       { setError('Selecciona el canal de atención.'); return false }
     }
-    if (paso === 3 && !esFelicitacion) {
+    if (paso === 3 && esQueja) {
+      if (!form.canal_atencion)       { setError('Selecciona el canal de atención.'); return false }
+      if (!form.descripcion.trim())   { setError('Cuéntanos qué ocurrió.'); return false }
+    }
+    if (paso === 3 && requiereProducto) {
       if (!productoSeleccionado)      { setError('Selecciona el producto.'); return false }
       if (!form.lote.trim())          { setError('El lote es obligatorio.'); return false }
       if (!form.factura_numero.trim()){ setError('El número de factura es obligatorio.'); return false }
       if (!form.cantidad_factura.trim()){ setError('La cantidad en factura es obligatoria.'); return false }
     }
-    if (paso === 4 && !esFelicitacion) {
+    if (paso === 4 && requiereProducto) {
       if (!form.descripcion.trim())   { setError('La descripción es obligatoria.'); return false }
       if (!adjuntoProducto)           { setError('La foto del producto es obligatoria.'); return false }
       if (!adjuntoFactura)            { setError('La foto de la factura es obligatoria.'); return false }
@@ -433,16 +449,20 @@ export default function FormularioPQRS() {
       if (esFelicitacion) {
         // El backend exige 'descripcion'; el comentario opcional la reemplaza.
         formData.append('descripcion', form.comentario.trim() || 'Felicitación registrada sin comentario adicional.')
+      } else if (esQueja) {
+        formData.append('descripcion', form.descripcion)
+        if (adjuntoVideo) formData.append('adjunto_video', adjuntoVideo)
       } else {
         formData.append('descripcion', form.descripcion)
         formData.append('producto_codigo', productoSeleccionado?.codigo || '')
         formData.append('producto_nombre', productoSeleccionado?.nombre || '')
+        formData.append('presentacion', form.presentacion)
         formData.append('lote', form.lote)
         formData.append('factura_numero', form.factura_numero)
         formData.append('cantidad_factura', form.cantidad_factura)
-        formData.append('cantidad_reclamo', form.cantidad_reclamo)
         if (adjuntoProducto) formData.append('adjunto_producto', adjuntoProducto)
         if (adjuntoFactura)  formData.append('adjunto_factura', adjuntoFactura)
+        if (adjuntoVideo)    formData.append('adjunto_video', adjuntoVideo)
       }
 
       const { data } = await api.post('/public/pqrs', formData, {
@@ -462,13 +482,14 @@ export default function FormularioPQRS() {
     setForm({
       tipo: '', empresa: '', nit_cedula: '', cliente_nombre: '',
       cliente_email: '', cliente_telefono: '', ciudad: '', departamento: '',
-      lote: '', factura_numero: '', cantidad_factura: '', cantidad_reclamo: '',
+      lote: '', factura_numero: '', cantidad_factura: '', presentacion: '',
       canal_atencion: '',
       descripcion: '', comentario: '',
     })
     setProductoSeleccionado(null)
     setAdjuntoProducto(null)
     setAdjuntoFactura(null)
+    setAdjuntoVideo(null)
     setCodigoGenerado('')
     setPaso(1)
   }
@@ -579,8 +600,8 @@ export default function FormularioPQRS() {
             </div>
           )}
 
-          {/* ── PASO 3: Producto (no aplica a felicitaciones) ── */}
-          {paso === 3 && !esFelicitacion && (
+          {/* ── PASO 3: Producto (no aplica a felicitación ni queja) ── */}
+          {paso === 3 && requiereProducto && (
             <div className="p-6 space-y-4">
               <div>
                 <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Información del producto</h2>
@@ -592,19 +613,35 @@ export default function FormularioPQRS() {
                 onChange={setProductoSeleccionado}
               />
 
-              <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-                  Canal de atención
-                </label>
-                <select
-                  name="canal_atencion"
-                  value={form.canal_atencion}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
-                >
-                  <option value="">Selecciona...</option>
-                  {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+                    Presentación
+                  </label>
+                  <select
+                    name="presentacion"
+                    value={form.presentacion}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+                  >
+                    <option value="">Selecciona...</option>
+                    {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+                    Canal de atención
+                  </label>
+                  <select
+                    name="canal_atencion"
+                    value={form.canal_atencion}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+                  >
+                    <option value="">Selecciona...</option>
+                    {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -618,15 +655,9 @@ export default function FormularioPQRS() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Cant. en factura <span className="text-red-500">*</span></label>
-                  <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Cant. en reclamo</label>
-                  <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Cant. en factura <span className="text-red-500">*</span></label>
+                <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
               </div>
 
               <div>
@@ -638,6 +669,55 @@ export default function FormularioPQRS() {
                   ))}
                 </select>
               </div>
+            </div>
+          )}
+
+          {/* ── PASO 3 (quejas): Canal + descripción + evidencia opcional ── */}
+          {paso === 3 && esQueja && (
+            <div className="p-6 space-y-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Cuéntanos qué pasó</h2>
+                <p className="text-sm text-[#6B7EA8]">Las quejas son sobre el servicio recibido, no requieren un producto asociado.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+                  Canal de atención <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="canal_atencion"
+                  value={form.canal_atencion}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+                >
+                  <option value="">Selecciona...</option>
+                  {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+                  Descripción detallada <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  name="descripcion"
+                  value={form.descripcion}
+                  onChange={handleChange}
+                  placeholder="Cuéntanos qué ocurrió, cuándo fue y quién te atendió..."
+                  rows={5}
+                  className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition resize-none"
+                />
+              </div>
+
+              <CampoAdjunto
+                label="Video o foto de evidencia"
+                descripcion="Si tienes alguna evidencia, adjúntala aquí"
+                icono="🎥"
+                accept="image/*,video/mp4,video/quicktime,video/webm"
+                hint="Imagen o video — video máx. 20MB"
+                archivo={adjuntoVideo}
+                onChange={setAdjuntoVideo}
+              />
             </div>
           )}
 
@@ -680,8 +760,8 @@ export default function FormularioPQRS() {
             </div>
           )}
 
-          {/* ── PASO 4: Descripción y evidencias (no aplica a felicitaciones) ── */}
-          {paso === 4 && !esFelicitacion && (
+          {/* ── PASO 4: Descripción y evidencias (no aplica a felicitación ni queja) ── */}
+          {paso === 4 && requiereProducto && (
             <div className="p-6 space-y-4">
               <div>
                 <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Descripción y evidencias</h2>
@@ -718,6 +798,16 @@ export default function FormularioPQRS() {
                 obligatorio
                 archivo={adjuntoFactura}
                 onChange={setAdjuntoFactura}
+              />
+
+              <CampoAdjunto
+                label="Video (opcional)"
+                descripcion="Si quieres, adjunta un video corto del problema"
+                icono="🎥"
+                accept="video/mp4,video/quicktime,video/webm"
+                hint="MP4, MOV o WEBM — máx. 20MB (~20-30 seg)"
+                archivo={adjuntoVideo}
+                onChange={setAdjuntoVideo}
               />
             </div>
           )}

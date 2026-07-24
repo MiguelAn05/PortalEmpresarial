@@ -365,6 +365,14 @@ export default function PQRSDetail() {
     },
   })
 
+  const mutAreaCausante = useMutation({
+    mutationFn: (area_causante) => api.patch(`/pqrs/${id}/area-causante`, { area_causante }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pqrs', id] })
+      queryClient.invalidateQueries({ queryKey: ['pqrs'] })
+    },
+  })
+
   if (isLoading) return (
     <div className="flex items-center justify-center py-20 text-[#6B7EA8] text-sm">Cargando...</div>
   )
@@ -417,6 +425,24 @@ export default function PQRSDetail() {
             <div className="mt-1">
               <SLALabel fechaLimite={pqrs.fecha_limite_sla} cerrado={pqrs.estado === 'cerrado'} />
             </div>
+            {/* Área causante — distinta del área que gestiona el caso.
+                Solo de uso interno, para poder sacar reportes de "qué área
+                fue la responsable del problema" más adelante en Indicadores. */}
+            {puedeEditar ? (
+              <select
+                value={pqrs.area_causante || ''}
+                onChange={(e) => mutAreaCausante.mutate(e.target.value)}
+                className="mt-2 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg px-2 py-1 border border-white/20 focus:outline-none cursor-pointer transition"
+                title="Área causante del problema (uso interno)"
+              >
+                <option value="" className="text-[#1A2B47]">Área causante: sin definir</option>
+                {AREAS.map(a => <option key={a} value={a} className="text-[#1A2B47]">Causante: {a}</option>)}
+              </select>
+            ) : (
+              pqrs.area_causante && (
+                <div className="mt-2 text-xs text-white/60">Causante: {pqrs.area_causante}</div>
+              )
+            )}
           </div>
         </div>
       </div>
@@ -454,11 +480,11 @@ export default function PQRSDetail() {
               {[
                 { label: 'Producto',         value: pqrs.producto_nombre  },
                 { label: 'Código',           value: pqrs.producto_codigo  },
+                { label: 'Presentación',     value: pqrs.presentacion     },
                 { label: 'Canal de atención', value: pqrs.canal_atencion  },
                 { label: 'Lote',             value: pqrs.lote             },
                 { label: 'Factura',          value: pqrs.factura_numero   },
                 { label: 'Cant. factura',    value: pqrs.cantidad_factura },
-                { label: 'Cant. reclamo',    value: pqrs.cantidad_reclamo },
               ].map(({ label, value }) => value && (
                 <div key={label}>
                   <div className="text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide">{label}</div>
@@ -469,7 +495,7 @@ export default function PQRSDetail() {
           </div>
 
           {/* Adjuntos */}
-          {(pqrs.adjunto_producto || pqrs.adjunto_factura) && (
+          {(pqrs.adjunto_producto || pqrs.adjunto_factura || pqrs.adjunto_video) && (
             <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
               <h3 className="font-semibold text-[#0D2B5E] mb-4 text-sm">📎 Evidencias adjuntas</h3>
               <div className="space-y-3">
@@ -503,6 +529,18 @@ export default function PQRSDetail() {
                       <span className="text-2xl">🧾</span>
                       <span className="text-sm font-medium text-[#1A4FA0] underline">Ver factura adjunta</span>
                     </a>
+                  </div>
+                )}
+                {pqrs.adjunto_video && (
+                  <div>
+                    <div className="text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-2">
+                      Video de evidencia
+                    </div>
+                    <video
+                      src={`http://localhost:8000${pqrs.adjunto_video}`}
+                      controls
+                      className="w-full rounded-lg border border-[#D6E0F0] max-h-52"
+                    />
                   </div>
                 )}
               </div>

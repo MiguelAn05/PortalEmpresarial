@@ -26,6 +26,10 @@ class PQRSAsignarArea(BaseModel):
     comentario: str | None = None
 
 
+class PQRSAreaCausante(BaseModel):
+    area_causante: str
+
+
 class SeguimientoOut(BaseModel):
     id: int
     tipo_evento: str
@@ -57,6 +61,7 @@ class PQRSOut(BaseModel):
 
     producto_codigo: str | None = None
     producto_nombre: str | None = None
+    presentacion: str | None = None
     canal_atencion: str | None = None
     lote: str | None = None
     factura_numero: str | None = None
@@ -65,9 +70,11 @@ class PQRSOut(BaseModel):
 
     adjunto_producto: str | None = None
     adjunto_factura: str | None = None
+    adjunto_video: str | None = None
 
     descripcion: str
     area_responsable: str | None = None
+    area_causante: str | None = None
     asignado_a: int | None = None
 
     estado: str

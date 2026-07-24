@@ -80,6 +80,7 @@ const DEPARTAMENTOS = [
 ]
 
 const AREAS_PQRS = ['Comercial', 'Logística', 'Calidad', 'TI', 'Facturación', 'Servicio al cliente']
+const PRESENTACIONES = ['Unidad', 'Kilo', 'Gramo', 'Litro', 'Mililitro']
 
 // ── Modal para crear PQRS ──────────────────────────────────────────
 // Mismos campos que el formulario público (/formulario), para que una
@@ -97,17 +98,18 @@ function ModalCrear({ onClose, onCreated }) {
     departamento: '',
     producto_codigo: '',
     producto_nombre: '',
+    presentacion: '',
     canal_atencion: '',
     lote: '',
     factura_numero: '',
     cantidad_factura: '',
-    cantidad_reclamo: '',
     area_responsable: '',
     descripcion: '',
   }
   const [form, setForm] = useState(FORM_VACIO)
   const [adjuntoProducto, setAdjuntoProducto] = useState(null)
   const [adjuntoFactura, setAdjuntoFactura]   = useState(null)
+  const [adjuntoVideo, setAdjuntoVideo]       = useState(null)
   const [error, setError] = useState('')
 
   const mutation = useMutation({
@@ -116,6 +118,7 @@ function ModalCrear({ onClose, onCreated }) {
       Object.entries(form).forEach(([key, value]) => formData.append(key, value ?? ''))
       if (adjuntoProducto) formData.append('adjunto_producto', adjuntoProducto)
       if (adjuntoFactura)  formData.append('adjunto_factura', adjuntoFactura)
+      if (adjuntoVideo)    formData.append('adjunto_video', adjuntoVideo)
       return api.post('/pqrs', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
     },
     onSuccess: () => { onCreated(); onClose() },
@@ -125,9 +128,12 @@ function ModalCrear({ onClose, onCreated }) {
   const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); setError('') }
 
   // Una felicitación no necesita producto/factura/lote — solo el canal
-  // por el que llegó y un comentario opcional. Mismo criterio que el
-  // formulario público.
+  // por el que llegó y un comentario opcional. Una queja tampoco, porque
+  // es sobre el servicio (ej: "me atendieron mal"), no sobre un producto.
+  // Mismo criterio que el formulario público.
   const esFelicitacion = form.tipo === 'felicitacion'
+  const esQueja = form.tipo === 'queja'
+  const mostrarProducto = !esFelicitacion && !esQueja
 
   const inputCls = "w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
   const labelCls = "block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5"
@@ -217,8 +223,8 @@ function ModalCrear({ onClose, onCreated }) {
             </select>
           </div>
 
-          {/* Producto — no aplica a felicitaciones */}
-          {!esFelicitacion && (
+          {/* Producto — no aplica a felicitaciones ni quejas */}
+          {mostrarProducto && (
             <div>
               <p className="text-xs font-bold text-[#0D2B5E] uppercase tracking-wide mb-2">Producto y factura</p>
               <div className="grid grid-cols-2 gap-4 mb-3">
@@ -233,22 +239,25 @@ function ModalCrear({ onClose, onCreated }) {
               </div>
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div>
-                  <label className={labelCls}>Lote</label>
-                  <input name="lote" value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className={inputCls} />
+                  <label className={labelCls}>Presentación</label>
+                  <select name="presentacion" value={form.presentacion} onChange={handleChange} className={inputCls}>
+                    <option value="">Selecciona...</option>
+                    {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className={labelCls}>N° Factura</label>
-                  <input name="factura_numero" value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className={inputCls} />
+                  <label className={labelCls}>Lote</label>
+                  <input name="lote" value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className={inputCls} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div>
-                  <label className={labelCls}>Cant. en factura</label>
-                  <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className={inputCls} />
+                  <label className={labelCls}>N° Factura</label>
+                  <input name="factura_numero" value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Cant. en reclamo</label>
-                  <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className={inputCls} />
+                  <label className={labelCls}>Cant. en factura</label>
+                  <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className={inputCls} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -261,6 +270,20 @@ function ModalCrear({ onClose, onCreated }) {
                   <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoFactura(e.target.files[0] || null)} className="text-xs text-[#6B7EA8]" />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Video de evidencia — opcional, aplica a todo menos felicitaciones */}
+          {!esFelicitacion && (
+            <div>
+              <label className={labelCls}>Video de evidencia (opcional)</label>
+              <input
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm"
+                onChange={(e) => setAdjuntoVideo(e.target.files[0] || null)}
+                className="text-xs text-[#6B7EA8]"
+              />
+              <p className="text-xs text-[#9BACC8] mt-1">MP4, MOV o WEBM — máx. 20MB (~20-30 seg)</p>
             </div>
           )}
 

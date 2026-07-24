@@ -20,6 +20,7 @@ class PQRSSolicitud(Base):
     departamento = Column(String(100), nullable=True)
     producto_codigo = Column(String(50), nullable=True)
     producto_nombre = Column(String(200), nullable=True)
+    presentacion = Column(String(30), nullable=True)  # unidad | kilo | gramo | litro | mililitro
     canal_atencion = Column(String(50), nullable=True)
     lote = Column(String(50), nullable=True)
     factura_numero = Column(String(50), nullable=True)
@@ -27,8 +28,10 @@ class PQRSSolicitud(Base):
     cantidad_reclamo = Column(String(20), nullable=True)
     adjunto_producto = Column(String(500), nullable=True)
     adjunto_factura = Column(String(500), nullable=True)
+    adjunto_video = Column(String(500), nullable=True)
     descripcion = Column(Text, nullable=False)
-    area_responsable = Column(String(100), nullable=True)
+    area_responsable = Column(String(100), nullable=True)  # área que GESTIONA el caso (asignación operativa)
+    area_causante = Column(String(100), nullable=True)  # área CAUSANTE del problema, para indicadores — solo editable internamente
     asignado_a = Column(Integer, ForeignKey('users.id'), nullable=True)
     estado = Column(String(20), nullable=False, default='recibido')
     prioridad = Column(String(20), nullable=False, default='media')

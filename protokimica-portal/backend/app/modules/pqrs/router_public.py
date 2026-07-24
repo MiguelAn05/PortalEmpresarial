@@ -19,6 +19,8 @@ from app.modules.pqrs.service import (
     calcular_prioridad,
     generar_codigo_seguimiento,
     guardar_archivo,
+    EXTENSIONES_VIDEO_PERMITIDAS,
+    MAX_TAMANIO_VIDEO_MB,
 )
 from app.modules.pqrs.notificaciones import notificar_cliente_creacion, notificar_area
 
@@ -87,6 +89,7 @@ async def radicar_pqrs_publica(
     # Datos del producto
     producto_codigo: str = Form(None),
     producto_nombre: str = Form(None),
+    presentacion: str = Form(None),
     canal_atencion: str = Form(None),
     lote: str = Form(None),
     factura_numero: str = Form(None),
@@ -95,6 +98,7 @@ async def radicar_pqrs_publica(
     # Archivos adjuntos
     adjunto_producto: UploadFile = File(None),
     adjunto_factura: UploadFile = File(None),
+    adjunto_video: UploadFile = File(None),
 ):
     tenant = db.query(Tenant).filter(Tenant.slug == "protokimica").first()
     if not tenant:
@@ -103,12 +107,20 @@ async def radicar_pqrs_publica(
     # Guardar archivos si vienen
     ruta_producto = None
     ruta_factura = None
+    ruta_video = None
 
     if adjunto_producto and adjunto_producto.filename:
         ruta_producto = await guardar_archivo(adjunto_producto, "productos")
 
     if adjunto_factura and adjunto_factura.filename:
         ruta_factura = await guardar_archivo(adjunto_factura, "facturas")
+
+    if adjunto_video and adjunto_video.filename:
+        ruta_video = await guardar_archivo(
+            adjunto_video, "videos",
+            extensiones_permitidas=EXTENSIONES_VIDEO_PERMITIDAS,
+            max_mb=MAX_TAMANIO_VIDEO_MB,
+        )
 
     solicitud = PQRSSolicitud(
         tenant_id=tenant.id,
@@ -122,6 +134,7 @@ async def radicar_pqrs_publica(
         departamento=departamento,
         producto_codigo=producto_codigo,
         producto_nombre=producto_nombre,
+        presentacion=presentacion,
         canal_atencion=canal_atencion,
         lote=lote,
         factura_numero=factura_numero,
@@ -129,6 +142,7 @@ async def radicar_pqrs_publica(
         cantidad_reclamo=cantidad_reclamo,
         adjunto_producto=ruta_producto,
         adjunto_factura=ruta_factura,
+        adjunto_video=ruta_video,
         descripcion=descripcion,
         area_responsable=area_responsable,
         estado="recibido",
@@ -141,8 +155,10 @@ async def radicar_pqrs_publica(
     db.refresh(solicitud)
 
     # El código se genera con el ID real ya asignado por la base de datos,
-    # así coincide siempre con el número interno "PQRS #<id>".
-    codigo = generar_codigo_seguimiento(solicitud.id)
+    # así coincide siempre con el número interno "PQRS #<id>". El prefijo
+    # cambia solo si el canal es un punto de venta específico o venta
+    # institucional (ver PREFIJOS_POR_CANAL en service.py).
+    codigo = generar_codigo_seguimiento(solicitud.id, canal_atencion)
     solicitud.codigo_seguimiento = codigo
     db.commit()
     db.refresh(solicitud)

@@ -15,11 +15,12 @@ from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta
 from app.models.autorizacion import AutorizacionPQRS
 from app.modules.pqrs.schemas import (
     PQRSOut, PQRSDetailOut, PQRSUpdateEstado, PQRSAsignar,
-    PQRSAsignarArea, 
+    PQRSAsignarArea, PQRSAreaCausante,
 )
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
     generar_codigo_seguimiento, generar_radicado_calidad, guardar_archivo,
+    EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB,
 )
 from app.modules.pqrs.notificaciones import (
     notificar_cliente_creacion, notificar_cliente_cierre, notificar_area,
@@ -49,6 +50,7 @@ async def crear_pqrs(
     # Datos del producto
     producto_codigo: str = Form(None),
     producto_nombre: str = Form(None),
+    presentacion: str = Form(None),
     canal_atencion: str = Form(None),
     lote: str = Form(None),
     factura_numero: str = Form(None),
@@ -57,13 +59,21 @@ async def crear_pqrs(
     # Archivos adjuntos (opcionales también internamente)
     adjunto_producto: UploadFile = File(None),
     adjunto_factura: UploadFile = File(None),
+    adjunto_video: UploadFile = File(None),
 ):
     ruta_producto = None
     ruta_factura = None
+    ruta_video = None
     if adjunto_producto and adjunto_producto.filename:
         ruta_producto = await guardar_archivo(adjunto_producto, "productos")
     if adjunto_factura and adjunto_factura.filename:
         ruta_factura = await guardar_archivo(adjunto_factura, "facturas")
+    if adjunto_video and adjunto_video.filename:
+        ruta_video = await guardar_archivo(
+            adjunto_video, "videos",
+            extensiones_permitidas=EXTENSIONES_VIDEO_PERMITIDAS,
+            max_mb=MAX_TAMANIO_VIDEO_MB,
+        )
 
     solicitud = PQRSSolicitud(
         tenant_id=tenant_id,
@@ -77,6 +87,7 @@ async def crear_pqrs(
         departamento=departamento,
         producto_codigo=producto_codigo,
         producto_nombre=producto_nombre,
+        presentacion=presentacion,
         canal_atencion=canal_atencion,
         lote=lote,
         factura_numero=factura_numero,
@@ -84,6 +95,7 @@ async def crear_pqrs(
         cantidad_reclamo=cantidad_reclamo,
         adjunto_producto=ruta_producto,
         adjunto_factura=ruta_factura,
+        adjunto_video=ruta_video,
         descripcion=descripcion,
         area_responsable=area_responsable,
         estado="recibido",
@@ -97,7 +109,9 @@ async def crear_pqrs(
 
     # El código de seguimiento se genera con el ID real ya asignado,
     # así el número que ve el cliente coincide con el radicado interno.
-    solicitud.codigo_seguimiento = generar_codigo_seguimiento(solicitud.id)
+    # El prefijo cambia si el canal es un punto de venta específico o
+    # venta institucional (ver PREFIJOS_POR_CANAL en service.py).
+    solicitud.codigo_seguimiento = generar_codigo_seguimiento(solicitud.id, canal_atencion)
 
     if area_responsable and area_responsable.strip().lower() == "calidad":
         solicitud.radicado_calidad = generar_radicado_calidad(db, tenant_id)
@@ -232,6 +246,42 @@ def asignar_area(
         motivo = "creacion" if not area_anterior else "reasignacion"
         notificar_area(db, tenant_id, solicitud, payload.area, motivo=motivo)
 
+    return solicitud
+
+
+@router.patch("/{pqrs_id}/area-causante", response_model=PQRSOut)
+def asignar_area_causante(
+    pqrs_id: int,
+    payload: PQRSAreaCausante,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
+):
+    """
+    Marca qué área fue la CAUSANTE del problema (ej: 'Producción fue el
+    culpable'). Es distinto de area_responsable (que gestiona el caso día
+    a día) — este campo es de uso interno, no lo llena el cliente, y sirve
+    para sacar reportes de cuántas PQRS son causadas por cada área.
+    """
+    solicitud = (
+        db.query(PQRSSolicitud)
+        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
+        .first()
+    )
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+
+    solicitud.area_causante = payload.area_causante
+
+    db.add(PQRSSeguimiento(
+        pqrs_id=solicitud.id,
+        usuario_id=current_user.id,
+        tipo_evento="area_causante",
+        comentario=f"Área causante marcada como: {payload.area_causante}.",
+    ))
+    db.commit()
+    db.refresh(solicitud)
     return solicitud
 
 
