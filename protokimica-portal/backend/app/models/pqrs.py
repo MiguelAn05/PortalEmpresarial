@@ -21,6 +21,7 @@ class PQRSSolicitud(Base):
     producto_codigo = Column(String(50), nullable=True)
     producto_nombre = Column(String(200), nullable=True)
     presentacion = Column(String(30), nullable=True)  # unidad | kilo | gramo | litro | mililitro
+    cantidad_presentacion = Column(String(20), nullable=True)  # cantidad asociada a la presentación, ej: "5"
     canal_atencion = Column(String(50), nullable=True)
     lote = Column(String(50), nullable=True)
     factura_numero = Column(String(50), nullable=True)

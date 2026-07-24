@@ -358,6 +358,7 @@ export default function FormularioPQRS() {
     factura_numero: '',
     cantidad_factura: '',
     presentacion: '',
+    cantidad_presentacion: '',
     canal_atencion: '',
     descripcion: '',
     comentario: '',
@@ -457,6 +458,7 @@ export default function FormularioPQRS() {
         formData.append('producto_codigo', productoSeleccionado?.codigo || '')
         formData.append('producto_nombre', productoSeleccionado?.nombre || '')
         formData.append('presentacion', form.presentacion)
+        formData.append('cantidad_presentacion', form.cantidad_presentacion)
         formData.append('lote', form.lote)
         formData.append('factura_numero', form.factura_numero)
         formData.append('cantidad_factura', form.cantidad_factura)
@@ -483,6 +485,7 @@ export default function FormularioPQRS() {
       tipo: '', empresa: '', nit_cedula: '', cliente_nombre: '',
       cliente_email: '', cliente_telefono: '', ciudad: '', departamento: '',
       lote: '', factura_numero: '', cantidad_factura: '', presentacion: '',
+      cantidad_presentacion: '',
       canal_atencion: '',
       descripcion: '', comentario: '',
     })
@@ -618,15 +621,26 @@ export default function FormularioPQRS() {
                   <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
                     Presentación
                   </label>
-                  <select
-                    name="presentacion"
-                    value={form.presentacion}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
-                  >
-                    <option value="">Selecciona...</option>
-                    {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                  <div className="flex gap-2">
+                    <select
+                      name="presentacion"
+                      value={form.presentacion}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+                    >
+                      <option value="">Selecciona...</option>
+                      {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <input
+                      type="text"
+                      name="cantidad_presentacion"
+                      value={form.cantidad_presentacion}
+                      onChange={handleChange}
+                      disabled={!form.presentacion}
+                      placeholder="Cant."
+                      className="w-20 px-3 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition disabled:bg-[#F5F7FB] disabled:cursor-not-allowed"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">

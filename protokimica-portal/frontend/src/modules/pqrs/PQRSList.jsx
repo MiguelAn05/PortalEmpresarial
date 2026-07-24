@@ -26,6 +26,26 @@ const PRIORIDADES = {
   critica: { label: 'Crítica', color: 'text-red-600'    },
 }
 
+// Mismo mapeo que PREFIJOS_POR_CANAL en el backend (service.py) — se usa
+// para filtrar por punto de venta a partir del prefijo del radicado.
+const PUNTOS_VENTA = [
+  { prefijo: 'PVC',  label: 'Punto de venta Centro'     },
+  { prefijo: 'PVB',  label: 'Punto de venta Belén'      },
+  { prefijo: 'PVG',  label: 'Punto de venta Guayabal'   },
+  { prefijo: 'PV65', label: 'Punto de venta La 65'      },
+  { prefijo: 'PVCR', label: 'Punto de venta Cristo Rey' },
+  { prefijo: 'PVI',  label: 'Punto de venta Itagüí'     },
+  { prefijo: 'VI',   label: 'Venta institucional'       },
+]
+
+const AREAS_CAUSANTES = ['Comercial', 'Logística', 'Calidad', 'TI', 'Facturación', 'Servicio al cliente']
+
+// Compara el prefijo exacto del radicado (evita que "PVC" matchee "PVCR0010")
+function coincidePuntoVenta(codigo, prefijo) {
+  if (!codigo) return false
+  return new RegExp(`^${prefijo}\\d+$`).test(codigo)
+}
+
 function Badge({ map, value }) {
   const item = map[value] || { label: value, color: 'bg-gray-100 text-gray-600' }
   return (
@@ -99,6 +119,7 @@ function ModalCrear({ onClose, onCreated }) {
     producto_codigo: '',
     producto_nombre: '',
     presentacion: '',
+    cantidad_presentacion: '',
     canal_atencion: '',
     lote: '',
     factura_numero: '',
@@ -240,10 +261,21 @@ function ModalCrear({ onClose, onCreated }) {
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div>
                   <label className={labelCls}>Presentación</label>
-                  <select name="presentacion" value={form.presentacion} onChange={handleChange} className={inputCls}>
-                    <option value="">Selecciona...</option>
-                    {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                  <div className="flex gap-2">
+                    <select name="presentacion" value={form.presentacion} onChange={handleChange} className={inputCls}>
+                      <option value="">Selecciona...</option>
+                      {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <input
+                      type="text"
+                      name="cantidad_presentacion"
+                      value={form.cantidad_presentacion}
+                      onChange={handleChange}
+                      disabled={!form.presentacion}
+                      placeholder="Cant."
+                      className={`${inputCls} w-20 disabled:bg-[#F5F7FB] disabled:cursor-not-allowed`}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className={labelCls}>Lote</label>
@@ -446,6 +478,13 @@ export default function PQRSList() {
   const [modalCrear, setModalCrear]     = useState(false)
   const [seleccionada, setSeleccionada] = useState(null)
 
+  // Filtros adicionales (client-side, sobre lo ya traído del servidor)
+  const [panelFiltrosAbierto, setPanelFiltrosAbierto] = useState(false)
+  const [filtroFechaDesde, setFiltroFechaDesde]       = useState('')
+  const [filtroFechaHasta, setFiltroFechaHasta]       = useState('')
+  const [filtroPuntoVenta, setFiltroPuntoVenta]       = useState('')
+  const [filtroAreaCausante, setFiltroAreaCausante]   = useState('')
+
   const { data: pqrsList = [], isLoading, isError } = useQuery({
     queryKey: ['pqrs', filtroEstado, filtroTipo],
     queryFn: async () => {
@@ -459,13 +498,28 @@ export default function PQRSList() {
 
   const refetch = () => queryClient.invalidateQueries({ queryKey: ['pqrs'] })
 
-  // Búsqueda local por radicado, cliente, NIT o empresa
+  // Búsqueda + filtros adicionales, todo en client-side sobre lo ya traído
   const pqrsFiltrada = pqrsList.filter((p) => {
     const q = busqueda.trim().toLowerCase()
-    if (!q) return true
-    return [p.codigo_seguimiento, p.radicado_calidad, p.cliente_nombre, p.empresa, p.nit_cedula]
-      .filter(Boolean)
-      .some(campo => campo.toLowerCase().includes(q))
+    if (q) {
+      const coincideBusqueda = [p.codigo_seguimiento, p.radicado_calidad, p.cliente_nombre, p.empresa, p.nit_cedula]
+        .filter(Boolean)
+        .some(campo => campo.toLowerCase().includes(q))
+      if (!coincideBusqueda) return false
+    }
+
+    if (filtroFechaDesde && new Date(p.fecha_creacion) < new Date(filtroFechaDesde)) return false
+    if (filtroFechaHasta) {
+      const hasta = new Date(filtroFechaHasta)
+      hasta.setHours(23, 59, 59, 999) // incluir todo el día seleccionado
+      if (new Date(p.fecha_creacion) > hasta) return false
+    }
+
+    if (filtroPuntoVenta && !coincidePuntoVenta(p.codigo_seguimiento, filtroPuntoVenta)) return false
+
+    if (filtroAreaCausante && p.area_causante !== filtroAreaCausante) return false
+
+    return true
   })
 
   // Contadores para las tarjetas de resumen
@@ -529,38 +583,120 @@ export default function PQRSList() {
       </div>
 
       {/* Filtros */}
-      <div className="flex gap-2 mb-4 flex-wrap">
-        <select
-          value={filtroEstado}
-          onChange={(e) => setFiltroEstado(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
-        >
-          <option value="">Todos los estados</option>
-          {Object.entries(ESTADOS).map(([key, { label }]) => (
-            <option key={key} value={key}>{label}</option>
-          ))}
-        </select>
+      {(() => {
+        const hayFiltrosActivos = filtroEstado || filtroTipo || filtroFechaDesde || filtroFechaHasta || filtroPuntoVenta || filtroAreaCausante
+        const limpiarTodo = () => {
+          setFiltroEstado(''); setFiltroTipo('')
+          setFiltroFechaDesde(''); setFiltroFechaHasta('')
+          setFiltroPuntoVenta(''); setFiltroAreaCausante('')
+        }
+        return (
+          <div className="mb-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPanelFiltrosAbierto(v => !v)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition ${
+                  panelFiltrosAbierto || hayFiltrosActivos
+                    ? 'border-[#1A4FA0] text-[#1A4FA0] bg-[#F0F4FA]'
+                    : 'border-[#D6E0F0] text-[#6B7EA8] bg-white hover:bg-[#F0F4FA]'
+                }`}
+              >
+                🔧 Filtros {hayFiltrosActivos && <span className="w-1.5 h-1.5 rounded-full bg-[#1A4FA0]" />}
+                <span className="text-xs">{panelFiltrosAbierto ? '▲' : '▼'}</span>
+              </button>
 
-        <select
-          value={filtroTipo}
-          onChange={(e) => setFiltroTipo(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
-        >
-          <option value="">Todos los tipos</option>
-          {Object.entries(TIPOS).map(([key, { label }]) => (
-            <option key={key} value={key}>{label}</option>
-          ))}
-        </select>
+              {hayFiltrosActivos && (
+                <button
+                  onClick={limpiarTodo}
+                  className="px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#6B7EA8] bg-white hover:bg-[#F0F4FA] transition"
+                >
+                  ✕ Limpiar filtros
+                </button>
+              )}
+            </div>
 
-        {(filtroEstado || filtroTipo) && (
-          <button
-            onClick={() => { setFiltroEstado(''); setFiltroTipo('') }}
-            className="px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#6B7EA8] bg-white hover:bg-[#F0F4FA] transition"
-          >
-            ✕ Limpiar filtros
-          </button>
-        )}
-      </div>
+            {panelFiltrosAbierto && (
+              <div className="mt-3 p-4 bg-white rounded-xl border border-[#D6E0F0] grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Estado</label>
+                  <select
+                    value={filtroEstado}
+                    onChange={(e) => setFiltroEstado(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                  >
+                    <option value="">Todos los estados</option>
+                    {Object.entries(ESTADOS).map(([key, { label }]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Tipo</label>
+                  <select
+                    value={filtroTipo}
+                    onChange={(e) => setFiltroTipo(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                  >
+                    <option value="">Todos los tipos</option>
+                    {Object.entries(TIPOS).map(([key, { label }]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Punto de venta</label>
+                  <select
+                    value={filtroPuntoVenta}
+                    onChange={(e) => setFiltroPuntoVenta(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                  >
+                    <option value="">Todos</option>
+                    {PUNTOS_VENTA.map(({ prefijo, label }) => (
+                      <option key={prefijo} value={prefijo}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Área causante</label>
+                  <select
+                    value={filtroAreaCausante}
+                    onChange={(e) => setFiltroAreaCausante(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                  >
+                    <option value="">Todas</option>
+                    {AREAS_CAUSANTES.map(a => (
+                      <option key={a} value={a}>{a}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Fecha desde</label>
+                  <input
+                    type="date"
+                    value={filtroFechaDesde}
+                    onChange={(e) => setFiltroFechaDesde(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Fecha hasta</label>
+                  <input
+                    type="date"
+                    value={filtroFechaHasta}
+                    onChange={(e) => setFiltroFechaHasta(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Tabla */}
       <div className="bg-white rounded-xl border border-[#D6E0F0] overflow-hidden">

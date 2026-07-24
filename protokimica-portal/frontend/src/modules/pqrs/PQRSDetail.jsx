@@ -480,7 +480,9 @@ export default function PQRSDetail() {
               {[
                 { label: 'Producto',         value: pqrs.producto_nombre  },
                 { label: 'Código',           value: pqrs.producto_codigo  },
-                { label: 'Presentación',     value: pqrs.presentacion     },
+                { label: 'Presentación',     value: pqrs.presentacion
+                                                ? `${pqrs.presentacion}${pqrs.cantidad_presentacion ? ' - ' + pqrs.cantidad_presentacion : ''}`
+                                                : null },
                 { label: 'Canal de atención', value: pqrs.canal_atencion  },
                 { label: 'Lote',             value: pqrs.lote             },
                 { label: 'Factura',          value: pqrs.factura_numero   },
