@@ -1,0 +1,101 @@
+# Docker Compose de PRODUCCIÓN — servidor Ubuntu (zeus)
+#
+# Diferencias clave contra el docker-compose.yml de desarrollo:
+#   - db/redis/backend NO publican puertos al host (nadie afuera de la
+#     red interna de Docker los necesita tocar directamente).
+#   - backend usa la imagen ya compilada (COPY . .), sin bind-mount del
+#     código fuente ni --reload.
+#   - se agregan los servicios nginx (sirve el frontend + hace de proxy
+#     a la API) y cloudflared (túnel hacia portal.protokimica.com, sin
+#     abrir ningún puerto en el firewall del servidor).
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: protokimica_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: protokimica
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: protokimica_portal
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U protokimica -d protokimica_portal"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: protokimica_redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: protokimica_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.prod
+    volumes:
+      # Solo los archivos subidos por los usuarios persisten fuera del
+      # contenedor. El código NO se monta — el que corre es el que se
+      # compiló dentro de la imagen (así producción no depende de que
+      # el código en disco del servidor esté "vivo" ni cambie solo).
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: protokimica_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: protokimica_n8n
+    restart: unless-stopped
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=America/Bogota
+      - TZ=America/Bogota
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: protokimica_cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - frontend
+
+volumes:
+  pgdata:
+  n8n_data:
+  uploads_data:

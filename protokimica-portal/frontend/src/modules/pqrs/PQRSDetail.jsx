@@ -506,9 +506,9 @@ export default function PQRSDetail() {
                     <div className="text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-2">
                       Foto del producto
                     </div>
-                    <a href={`http://localhost:8000${pqrs.adjunto_producto}`} target="_blank" rel="noreferrer">
+                    <a href={`${pqrs.adjunto_producto}`} target="_blank" rel="noreferrer">
                       <img
-                        src={`http://localhost:8000${pqrs.adjunto_producto}`}
+                        src={`${pqrs.adjunto_producto}`}
                         alt="Producto"
                         className="w-full rounded-lg border border-[#D6E0F0] object-cover max-h-40 hover:opacity-90 transition cursor-pointer"
                         onError={(e) => { e.target.style.display='none' }}
@@ -523,7 +523,7 @@ export default function PQRSDetail() {
                     </div>
                     
                       <a
-                      href={`http://localhost:8000${pqrs.adjunto_factura}`}
+                      href={`${pqrs.adjunto_factura}`}
                       target="_blank"
                       rel="noreferrer"
                       className="flex items-center gap-2 p-3 bg-[#F0F4FA] rounded-lg hover:bg-[#D6E0F0] transition"
@@ -539,7 +539,7 @@ export default function PQRSDetail() {
                       Video de evidencia
                     </div>
                     <video
-                      src={`http://localhost:8000${pqrs.adjunto_video}`}
+                      src={`${pqrs.adjunto_video}`}
                       controls
                       className="w-full rounded-lg border border-[#D6E0F0] max-h-52"
                     />

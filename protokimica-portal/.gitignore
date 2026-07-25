@@ -12,6 +12,7 @@ dist/
 # Entornos
 .env
 .env.local
+.env.prod
 
 # Docker
 pgdata/
