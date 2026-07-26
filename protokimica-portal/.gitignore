@@ -6,8 +6,9 @@ venv/
 
 # Node / React
 node_modules/
-dist/
 .vite/
+# frontend/dist SÍ se commitea (ver LEEME de despliegue) — el server
+# no compila el frontend, solo sirve lo que ya viene compilado.
 
 # Entornos
 .env
