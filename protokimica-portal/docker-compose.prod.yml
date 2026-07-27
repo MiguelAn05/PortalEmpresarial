@@ -69,33 +69,23 @@ services:
       - backend
 
   n8n:
-    image: n8nio/n8n:latest
-    container_name: protokimica_n8n
-    restart: unless-stopped
-    environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_USER}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://localhost:5678/
-      - GENERIC_TIMEZONE=America/Bogota
-      - TZ=America/Bogota
-    volumes:
-      - n8n_data:/home/node/.n8n
+  image: n8nio/n8n:latest
+  container_name: protokimica_n8n
+  restart: unless-stopped
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: protokimica_cloudflared
-    restart: unless-stopped
-    command: tunnel run
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      - frontend
+  ports:
+    - "5679:5678"
 
-volumes:
-  pgdata:
-  n8n_data:
-  uploads_data:
+  environment:
+    - N8N_BASIC_AUTH_ACTIVE=true
+    - N8N_BASIC_AUTH_USER=${N8N_USER}
+    - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+    - N8N_HOST=localhost
+    - N8N_PORT=5678
+    - N8N_PROTOCOL=http
+    - WEBHOOK_URL=http://localhost:5678/
+    - GENERIC_TIMEZONE=America/Bogota
+    - TZ=America/Bogota
+
+  volumes:
+    - n8n_data:/home/node/.n8n
