@@ -1,8 +1,6 @@
-const AREAS = ["TI", "Comercial", "Calidad", "Logística", "Servicio al cliente", "Talento Humano"]
-const ESTADOS = ["Planeación", "En ejecución", "En riesgo", "Pausado", "Finalizado"]
-const PRIORIDADES = ["Alta", "Media", "Baja"]
+import { ESTADOS_TAREA, PRIORIDADES, AREAS } from "../constants"
 
-export default function Filters({ filtros, onChange, vista, onChangeVista }) {
+export default function Filters({ filtros, onChange, vista, onChangeVista, proyectos = [] }) {
   const set = (campo) => (e) => onChange({ ...filtros, [campo]: e.target.value })
 
   return (
@@ -14,9 +12,17 @@ export default function Filters({ filtros, onChange, vista, onChangeVista }) {
           <input
             value={filtros.busqueda}
             onChange={set('busqueda')}
-            placeholder="Proyecto, actividad, responsable..."
+            placeholder="Proyecto, tarea, asignado..."
             className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
           />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Proyecto</label>
+          <select value={filtros.proyecto_id} onChange={set('proyecto_id')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <option value="">Todos</option>
+            {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
         </div>
 
         <div>
@@ -31,7 +37,7 @@ export default function Filters({ filtros, onChange, vista, onChangeVista }) {
           <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Estado</label>
           <select value={filtros.estado} onChange={set('estado')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
             <option value="">Todos</option>
-            {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
+            {Object.entries(ESTADOS_TAREA).map(([valor, cfg]) => <option key={valor} value={valor}>{cfg.label}</option>)}
           </select>
         </div>
 
@@ -39,16 +45,7 @@ export default function Filters({ filtros, onChange, vista, onChangeVista }) {
           <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Prioridad</label>
           <select value={filtros.prioridad} onChange={set('prioridad')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
             <option value="">Todas</option>
-            {PRIORIDADES.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Año</label>
-          <select value={filtros.año} onChange={set('año')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
-            <option value="">Todos</option>
-            <option value="2026">2026</option>
-            <option value="2025">2025</option>
+            {Object.entries(PRIORIDADES).map(([valor, cfg]) => <option key={valor} value={valor}>{cfg.label}</option>)}
           </select>
         </div>
       </div>

@@ -1,0 +1,201 @@
+import { useEffect, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  crearProyecto, actualizarProyecto,
+  listarPresupuesto, agregarItemPresupuesto, eliminarItemPresupuesto,
+} from "../api"
+import { AREAS, PRIORIDADES, formatMoneda } from "../constants"
+
+const VACIO = {
+  nombre: "", objetivo: "", alcance: "", lider_id: "", area: "",
+  prioridad: "media", fecha_inicio: "", fecha_fin_estimada: "",
+}
+
+export default function ProyectoFormModal({ proyecto, usuarios = [], onClose }) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState(VACIO)
+  const [proyectoId, setProyectoId] = useState(proyecto?.id ?? null)
+  const [itemForm, setItemForm] = useState({ concepto: "", detalle: "", valor_unitario: "", cantidad: "1" })
+
+  useEffect(() => {
+    if (proyecto) {
+      setForm({
+        nombre: proyecto.nombre || "",
+        objetivo: proyecto.objetivo || "",
+        alcance: proyecto.alcance || "",
+        lider_id: proyecto.lider_id || "",
+        area: proyecto.area || "",
+        prioridad: proyecto.prioridad || "media",
+        fecha_inicio: proyecto.fecha_inicio?.slice(0, 10) || "",
+        fecha_fin_estimada: proyecto.fecha_fin_estimada?.slice(0, 10) || "",
+      })
+      setProyectoId(proyecto.id)
+    }
+  }, [proyecto])
+
+  const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
+
+  const { data: items = [] } = useQuery({
+    queryKey: ["mp-presupuesto", proyectoId],
+    queryFn: () => listarPresupuesto(proyectoId),
+    enabled: !!proyectoId,
+  })
+  const total = items.reduce((s, i) => s + i.valor_total, 0)
+
+  const mutGuardar = useMutation({
+    mutationFn: () => {
+      const payload = {
+        ...form,
+        lider_id: form.lider_id ? Number(form.lider_id) : null,
+        fecha_inicio: form.fecha_inicio || null,
+        fecha_fin_estimada: form.fecha_fin_estimada || null,
+      }
+      return proyectoId ? actualizarProyecto(proyectoId, payload) : crearProyecto(payload)
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["mp-proyectos"] })
+      setProyectoId(data.id) // deja el modal abierto en modo edición para poder cargar presupuesto
+    },
+  })
+
+  const mutAgregarItem = useMutation({
+    mutationFn: () => agregarItemPresupuesto(proyectoId, {
+      ...itemForm,
+      valor_unitario: Number(itemForm.valor_unitario) || 0,
+      cantidad: Number(itemForm.cantidad) || 1,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mp-presupuesto", proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ["mp-proyectos"] })
+      setItemForm({ concepto: "", detalle: "", valor_unitario: "", cantidad: "1" })
+    },
+  })
+
+  const mutEliminarItem = useMutation({
+    mutationFn: (itemId) => eliminarItemPresupuesto(itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mp-presupuesto", proyectoId] })
+      queryClient.invalidateQueries({ queryKey: ["mp-proyectos"] })
+    },
+  })
+
+  return (
+    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-gradient-to-r from-[#0D2B5E] to-[#1A4FA0] rounded-t-2xl p-6 text-white sticky top-0">
+          <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
+          <h2 className="text-lg font-bold">{proyectoId ? "Editar proyecto" : "Nuevo proyecto"}</h2>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Nombre del proyecto</label>
+            <input value={form.nombre} onChange={set('nombre')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Objetivo</label>
+            <textarea value={form.objetivo} onChange={set('objetivo')} rows={2} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm resize-none" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Alcance</label>
+            <textarea value={form.alcance} onChange={set('alcance')} rows={2} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm resize-none" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Líder</label>
+              <select value={form.lider_id} onChange={set('lider_id')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                <option value="">Sin asignar</option>
+                {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Área</label>
+              <select value={form.area} onChange={set('area')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                <option value="">Sin definir</option>
+                {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Prioridad</label>
+              <select value={form.prioridad} onChange={set('prioridad')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                {Object.entries(PRIORIDADES).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Inicio</label>
+              <input type="date" value={form.fecha_inicio} onChange={set('fecha_inicio')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Fin estimado</label>
+              <input type="date" value={form.fecha_fin_estimada} onChange={set('fecha_fin_estimada')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+            </div>
+          </div>
+
+          <button
+            onClick={() => mutGuardar.mutate()}
+            disabled={!form.nombre || mutGuardar.isPending}
+            className="w-full bg-[#1A4FA0] hover:bg-[#0D2B5E] disabled:opacity-40 text-white font-semibold py-2.5 rounded-lg transition"
+          >
+            {proyectoId ? "Guardar cambios" : "Crear proyecto y continuar"}
+          </button>
+
+          {/* Presupuesto: solo disponible una vez el proyecto existe */}
+          {proyectoId && (
+            <div className="border-t border-[#EDF2F7] pt-5 mt-2">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-[#0D2B5E]">Presupuesto</h3>
+                <span className="text-sm font-bold text-[#0D2B5E]">{formatMoneda(total)}</span>
+              </div>
+
+              <div className="space-y-2 mb-3">
+                {items.map(item => (
+                  <div key={item.id} className="flex items-center justify-between bg-[#F7F9FC] rounded-lg px-3 py-2 text-sm">
+                    <div>
+                      <p className="font-medium text-[#1A2B47]">{item.concepto}</p>
+                      <p className="text-xs text-[#6B7EA8]">{item.cantidad} × {formatMoneda(item.valor_unitario)} = {formatMoneda(item.valor_total)}</p>
+                    </div>
+                    <button onClick={() => mutEliminarItem.mutate(item.id)} className="text-red-500 hover:text-red-700 text-xs font-semibold">
+                      Quitar
+                    </button>
+                  </div>
+                ))}
+                {items.length === 0 && <p className="text-xs text-[#9BACC8] text-center py-3">Sin ítems de presupuesto aún.</p>}
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                <input
+                  placeholder="Concepto" value={itemForm.concepto}
+                  onChange={(e) => setItemForm({ ...itemForm, concepto: e.target.value })}
+                  className="col-span-2 rounded-lg border border-[#D6E0F0] px-2 py-1.5 text-xs"
+                />
+                <input
+                  placeholder="Valor unitario" type="number" value={itemForm.valor_unitario}
+                  onChange={(e) => setItemForm({ ...itemForm, valor_unitario: e.target.value })}
+                  className="rounded-lg border border-[#D6E0F0] px-2 py-1.5 text-xs"
+                />
+                <input
+                  placeholder="Cant." type="number" value={itemForm.cantidad}
+                  onChange={(e) => setItemForm({ ...itemForm, cantidad: e.target.value })}
+                  className="rounded-lg border border-[#D6E0F0] px-2 py-1.5 text-xs"
+                />
+              </div>
+              <button
+                onClick={() => mutAgregarItem.mutate()}
+                disabled={!itemForm.concepto || mutAgregarItem.isPending}
+                className="w-full mt-2 border border-[#D6E0F0] hover:bg-gray-50 disabled:opacity-40 text-xs font-semibold text-[#0D2B5E] py-2 rounded-lg transition"
+              >
+                + Agregar ítem
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

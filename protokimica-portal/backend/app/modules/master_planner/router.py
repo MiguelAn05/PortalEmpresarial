@@ -17,7 +17,7 @@ from app.modules.master_planner.schemas import (
     ProyectoCreate, ProyectoUpdate, ProyectoOut,
     ItemPresupuestoCreate, ItemPresupuestoOut,
     TareaCreate, TareaUpdate, TareaOut,
-    TareaActualizacionOut,
+    TareaActualizacionOut, UsuarioAsignableOut,
 )
 from app.modules.pqrs.service import disparar_webhook_n8n, guardar_archivo
 
@@ -171,6 +171,49 @@ def eliminar_item_presupuesto(
 
 
 # ── Tareas ──────────────────────────────────────────────────────
+
+@router.get("/usuarios-asignables", response_model=list[UsuarioAsignableOut])
+def listar_usuarios_asignables(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Lista liviana (id, nombre, área) de usuarios activos del tenant,
+    para poblar dropdowns de asignación (líder de proyecto, asignado
+    de tarea). A diferencia de GET /usuarios (solo admin), este queda
+    disponible para cualquier usuario autenticado: cualquier rol
+    puede necesitar asignar una tarea a un compañero.
+    """
+    return (
+        db.query(User)
+        .filter(User.tenant_id == tenant_id, User.activo == True)
+        .order_by(User.nombre)
+        .all()
+    )
+
+
+@router.get("/tareas", response_model=list[TareaOut])
+def listar_todas_las_tareas(
+    estado: str | None = None,
+    area: str | None = None,
+    proyecto_id: int | None = None,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Tablero global: todas las tareas de todos los proyectos del tenant."""
+    query = (
+        db.query(Tarea)
+        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
+        .filter(Proyecto.tenant_id == tenant_id)
+    )
+    if estado:
+        query = query.filter(Tarea.estado == estado)
+    if area:
+        query = query.filter(Tarea.area == area)
+    if proyecto_id:
+        query = query.filter(Tarea.proyecto_id == proyecto_id)
+    return query.order_by(Tarea.creado_en.desc()).all()
+
 
 @router.post(
     "/proyectos/{proyecto_id}/tareas",

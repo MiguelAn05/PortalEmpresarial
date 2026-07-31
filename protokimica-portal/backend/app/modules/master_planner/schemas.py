@@ -101,6 +101,7 @@ class TareaUpdate(BaseModel):
 class TareaOut(BaseModel):
     id: int
     proyecto_id: int
+    proyecto_nombre: str | None = None
     parent_id: int | None
     titulo: str
     descripcion: str | None
@@ -114,6 +115,15 @@ class TareaOut(BaseModel):
     fecha_inicio: datetime | None
     fecha_fin: datetime | None
     creado_en: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UsuarioAsignableOut(BaseModel):
+    id: int
+    nombre: str
+    area: str | None = None
 
     class Config:
         from_attributes = True

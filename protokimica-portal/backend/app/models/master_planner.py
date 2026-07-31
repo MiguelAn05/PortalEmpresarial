@@ -120,6 +120,10 @@ class Tarea(Base):
     def asignado_nombre(self):
         return self.asignado.nombre if self.asignado else None
 
+    @property
+    def proyecto_nombre(self):
+        return self.proyecto.nombre if self.proyecto else None
+
 
 class TareaActualizacion(Base):
     """

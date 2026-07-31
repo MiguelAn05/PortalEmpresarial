@@ -6,6 +6,7 @@ import CambiarPasswordModal from './CambiarPasswordModal.jsx'
 const navItems = [
   { to: '/',        icon: '🏠', label: 'Inicio',          exact: true  },
   { to: '/pqrs', icon: '📨', label: 'PQRS' },
+  { to: '/master-planner', icon: '🗂️', label:'Master Planner'},
   
   // Cuando agregues Indicadores, solo añades una línea aquí:
   //{ to: '/indicadores', icon: '📈', label: 'Indicadores' },
@@ -103,7 +104,7 @@ export default function Layout() {
             {to: '/indicadores', icon: '📈', label: 'Indicadores'},
             {to: '/fichas de seguridad', icon:'📋', label:'Fichas de Seguridad'},
             {to: '/documentos',  icon: '📁', label: 'Documentación' },
-            { to: '/master-planner', icon: '🗂️', label:'Master Planner'},
+            
           ].map((item) => (
             <div
               key={item.to}

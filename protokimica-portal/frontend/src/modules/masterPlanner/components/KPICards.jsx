@@ -1,16 +1,16 @@
-export default function KPICards({ projects }) {
-  const total = projects.length
-  const activos = projects.filter(p => p.estado === "En ejecución" || p.estado === "Planeación").length
-  const enRiesgo = projects.filter(p => p.estado === "En riesgo").length
-  const finalizados = projects.filter(p => p.estado === "Finalizado").length
+export default function KPICards({ tareas }) {
+  const total = tareas.length
+  const activas = tareas.filter(t => t.estado === "pendiente" || t.estado === "en_proceso").length
+  const bloqueadas = tareas.filter(t => t.estado === "bloqueada").length
+  const completadas = tareas.filter(t => t.estado === "completada").length
   const avancePromedio = total
-    ? Math.round(projects.reduce((sum, p) => sum + p.avance, 0) / total)
+    ? Math.round(tareas.reduce((sum, t) => sum + t.avance_pct, 0) / total)
     : 0
 
   const cards = [
-    { title: "Actividades activas", value: activos, color: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", icon: "📁" },
-    { title: "En riesgo", value: enRiesgo, color: "bg-red-50", border: "border-red-200", text: "text-red-700", icon: "⚠️" },
-    { title: "Finalizadas", value: finalizados, color: "bg-green-50", border: "border-green-200", text: "text-green-700", icon: "✅" },
+    { title: "Tareas activas", value: activas, color: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", icon: "📁" },
+    { title: "Bloqueadas", value: bloqueadas, color: "bg-red-50", border: "border-red-200", text: "text-red-700", icon: "⚠️" },
+    { title: "Completadas", value: completadas, color: "bg-green-50", border: "border-green-200", text: "text-green-700", icon: "✅" },
     { title: "Avance promedio", value: `${avancePromedio}%`, color: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", icon: "📈" },
   ]
 
