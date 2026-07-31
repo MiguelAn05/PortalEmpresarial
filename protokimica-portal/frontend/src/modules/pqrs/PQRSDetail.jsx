@@ -320,6 +320,7 @@ export default function PQRSDetail() {
 
   const [nuevoEstado, setNuevoEstado]   = useState('')
   const [comentario, setComentario]     = useState('')
+  const [evidencia, setEvidencia]       = useState(null)
   const [nuevaArea, setNuevaArea]       = useState('')
 
   const { data: pqrs, isLoading, isError } = useQuery({
@@ -348,11 +349,17 @@ export default function PQRSDetail() {
   }
 
   const mutEstado = useMutation({
-    mutationFn: () => api.patch(`/pqrs/${id}/estado`, { estado: nuevoEstado, comentario }),
+    mutationFn: () => {
+      const formData = new FormData()
+      formData.append('estado', nuevoEstado)
+      if (comentario) formData.append('comentario', comentario)
+      if (evidencia) formData.append('evidencia', evidencia)
+      return api.patch(`/pqrs/${id}/estado`, formData)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pqrs', id] })
       queryClient.invalidateQueries({ queryKey: ['pqrs'] })
-      setNuevoEstado(''); setComentario('')
+      setNuevoEstado(''); setComentario(''); setEvidencia(null)
     },
   })
 
@@ -610,6 +617,18 @@ export default function PQRSDetail() {
                     rows={3}
                     className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] resize-none mb-3"
                   />
+                  <label className="block text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-1">
+                    Evidencia (opcional)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf"
+                    onChange={(e) => setEvidencia(e.target.files?.[0] || null)}
+                    className="w-full text-xs text-[#6B7EA8] mb-3 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#EAF0FB] file:text-[#1A4FA0] hover:file:bg-[#D6E0F0]"
+                  />
+                  {evidencia && (
+                    <p className="text-xs text-[#6B7EA8] mb-3 -mt-2">📎 {evidencia.name}</p>
+                  )}
                   <button
                     onClick={() => mutEstado.mutate()}
                     disabled={!nuevoEstado || mutEstado.isPending}
@@ -682,6 +701,27 @@ export default function PQRSDetail() {
                           </div>
                           {seg.comentario && (
                             <p className="text-sm text-[#1A2B47]">{seg.comentario}</p>
+                          )}
+                          {seg.adjunto_evidencia && (
+                            /\.(jpg|jpeg|png|webp)$/i.test(seg.adjunto_evidencia) ? (
+                              <a href={seg.adjunto_evidencia} target="_blank" rel="noreferrer" className="inline-block mt-2">
+                                <img
+                                  src={seg.adjunto_evidencia}
+                                  alt="Evidencia"
+                                  className="max-h-32 rounded-lg border border-[#D6E0F0] hover:opacity-90 transition cursor-pointer"
+                                  onError={(e) => { e.target.style.display='none' }}
+                                />
+                              </a>
+                            ) : (
+                              <a
+                                href={seg.adjunto_evidencia}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-block mt-2 text-xs text-[#1A4FA0] font-semibold underline"
+                              >
+                                📎 Ver evidencia adjunta
+                              </a>
+                            )
                           )}
                         </div>
                       </div>

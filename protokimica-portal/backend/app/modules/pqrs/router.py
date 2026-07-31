@@ -14,7 +14,7 @@ from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta
 from app.models.autorizacion import AutorizacionPQRS
 from app.modules.pqrs.schemas import (
-    PQRSOut, PQRSDetailOut, PQRSUpdateEstado, PQRSAsignar,
+    PQRSOut, PQRSDetailOut, PQRSAsignar,
     PQRSAsignarArea, PQRSAreaCausante,
 )
 from app.modules.pqrs.service import (
@@ -24,6 +24,7 @@ from app.modules.pqrs.service import (
 )
 from app.modules.pqrs.notificaciones import (
     notificar_cliente_creacion, notificar_cliente_cierre, notificar_area,
+    notificar_servicio_cliente_creacion,
 )
 
 router = APIRouter(prefix="/pqrs", tags=["PQRS"])
@@ -113,7 +114,7 @@ async def crear_pqrs(
     # así el número que ve el cliente coincide con el radicado interno.
     # El prefijo cambia si el canal es un punto de venta específico o
     # venta institucional (ver PREFIJOS_POR_CANAL en service.py).
-    solicitud.codigo_seguimiento = generar_codigo_seguimiento(solicitud.id, canal_atencion)
+    solicitud.codigo_seguimiento = generar_codigo_seguimiento(db, tenant_id, canal_atencion)
 
     if area_responsable and area_responsable.strip().lower() == "calidad":
         solicitud.radicado_calidad = generar_radicado_calidad(db, tenant_id)
@@ -128,6 +129,7 @@ async def crear_pqrs(
     db.refresh(solicitud)
 
     notificar_cliente_creacion(solicitud)
+    notificar_servicio_cliente_creacion(db, tenant_id, solicitud)
     if solicitud.area_responsable:
         notificar_area(db, tenant_id, solicitud, solicitud.area_responsable, motivo="creacion")
 
@@ -288,16 +290,18 @@ def asignar_area_causante(
 
 
 @router.patch("/{pqrs_id}/estado", response_model=PQRSOut)
-def cambiar_estado_pqrs(
+async def cambiar_estado_pqrs(
     pqrs_id: int,
-    payload: PQRSUpdateEstado,
+    estado: str = Form(...),
+    comentario: str | None = Form(None),
+    evidencia: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
     _: User = Depends(solo_lectura_no),
 ):
     estados_validos = {"recibido", "asignado", "en_proceso", "resuelto", "cerrado"}
-    if payload.estado not in estados_validos:
+    if estado not in estados_validos:
         raise HTTPException(status_code=400, detail=f"Estado inválido. Usa uno de: {estados_validos}")
 
     solicitud = (
@@ -308,7 +312,7 @@ def cambiar_estado_pqrs(
     if not solicitud:
         raise HTTPException(status_code=404, detail="PQRS no encontrada.")
 
-    if payload.estado == "cerrado":
+    if estado == "cerrado":
         hay_pendiente = db.query(AutorizacionPQRS).filter(
             AutorizacionPQRS.pqrs_id == pqrs_id,
             AutorizacionPQRS.estado == "pendiente",
@@ -319,24 +323,29 @@ def cambiar_estado_pqrs(
                 detail="No se puede cerrar la PQRS: hay una autorización pendiente de respuesta."
             )
 
-    solicitud.estado = payload.estado
+    solicitud.estado = estado
 
-    if payload.estado == "cerrado":
+    if estado == "cerrado":
         solicitud.fecha_cierre = datetime.now(timezone.utc)
         # Crea automáticamente el registro de encuesta pendiente de respuesta
         if not solicitud.encuesta:
             db.add(PQRSEncuesta(pqrs_id=solicitud.id))
 
+    ruta_evidencia = None
+    if evidencia is not None:
+        ruta_evidencia = await guardar_archivo(evidencia, "evidencias")
+
     db.add(PQRSSeguimiento(
         pqrs_id=solicitud.id,
         usuario_id=current_user.id,
         tipo_evento="cambio_estado",
-        comentario=payload.comentario or f"Estado actualizado a '{payload.estado}'.",
+        comentario=comentario or f"Estado actualizado a '{estado}'.",
+        adjunto_evidencia=ruta_evidencia,
     ))
     db.commit()
     db.refresh(solicitud)
 
-    if payload.estado == "cerrado":
+    if estado == "cerrado":
         notificar_cliente_cierre(solicitud)
 
     return solicitud

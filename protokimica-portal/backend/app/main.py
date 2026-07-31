@@ -1,10 +1,26 @@
+import logging
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
-import os
 
 from app.core.config import settings
+
+# Logging global: sin esto, logger.info()/.error() de los módulos
+# (ej. notificaciones a n8n) no aparecen en `docker logs` con formato
+# útil. Nivel INFO en desarrollo, WARNING en producción para no llenar
+# los logs de ruido — los errores (n8n caído, SMTP fallando, etc.)
+# siempre se ven en ambos casos porque ERROR > WARNING.
+logging.basicConfig(
+    level=logging.INFO if settings.ENVIRONMENT != "production" else logging.WARNING,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+# Excepción: el logger de n8n queremos verlo en INFO también en
+# producción — es la única forma de confirmar que un correo SÍ salió,
+# no solo cuando falla.
+logging.getLogger("pqrs.n8n").setLevel(logging.INFO)
 from app.modules.auth.router import router as auth_router
 from app.modules.pqrs.router import router as pqrs_router
 from app.modules.pqrs.router_public import router as pqrs_public_router

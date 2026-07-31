@@ -1,6 +1,7 @@
 """
 Lógica de negocio de PQRS.
 """
+import logging
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -9,6 +10,8 @@ import httpx
 from fastapi import HTTPException, UploadFile
 
 from app.core.config import settings
+
+logger = logging.getLogger("pqrs.n8n")
 
 SLA_DIAS_POR_TIPO = {
     "peticion":   15,
@@ -99,22 +102,43 @@ PREFIJOS_POR_CANAL = {
 }
 
 
-def generar_codigo_seguimiento(pqrs_id: int, canal_atencion: str | None = None) -> str:
+def generar_codigo_seguimiento(db, tenant_id: int, canal_atencion: str | None = None) -> str:
     """
-    Genera el código de seguimiento a partir del ID real de la PQRS,
-    para que el número que ve el cliente sea siempre el mismo caso que
-    internamente se ve como "PQRS #<id>" — sin importar el prefijo.
+    Genera el código de seguimiento con un consecutivo INDEPENDIENTE
+    por prefijo (punto de venta / canal), no un ID global compartido.
+
+    Antes se usaba el ID autoincremental de toda la tabla, por lo que
+    dos canales distintos "se robaban" números entre sí (ej: la
+    primera PQRS de todo el sistema entraba por PVG y salía PVG0001,
+    la segunda entraba por PVI y salía PVI0002 — saltándose PVI0001).
+    Ahora cada prefijo lleva su propio consecutivo desde 0001, lo cual
+    además es necesario para que los indicadores/reportes por punto de
+    venta tengan sentido.
 
     - Canal = punto de venta específico o venta institucional:
       prefijo propio sin año, ej: PVG0010 (Guayabal), VI0010.
-    - Cualquier otro canal (o sin canal): PK-{año}-{id}, como siempre.
-    """
-    prefijo_especial = PREFIJOS_POR_CANAL.get((canal_atencion or "").strip())
-    if prefijo_especial:
-        return f"{prefijo_especial}{pqrs_id:04d}"
+    - Cualquier otro canal (o sin canal): PK-{año}-{consecutivo}.
 
-    año = datetime.now().year
-    return f"PK-{año}-{pqrs_id:04d}"
+    Nota: los códigos ya asignados a PQRS existentes NO se recalculan
+    ni se tocan — este cambio solo afecta a los que se creen de aquí
+    en adelante.
+    """
+    from app.models.pqrs import PQRSSolicitud  # import local para evitar ciclos
+
+    prefijo_especial = PREFIJOS_POR_CANAL.get((canal_atencion or "").strip())
+    prefijo = prefijo_especial or f"PK-{datetime.now().year}-"
+
+    total = (
+        db.query(PQRSSolicitud)
+        .filter(
+            PQRSSolicitud.tenant_id == tenant_id,
+            PQRSSolicitud.codigo_seguimiento.isnot(None),
+            PQRSSolicitud.codigo_seguimiento.like(f"{prefijo}%"),
+        )
+        .count()
+    )
+    consecutivo = total + 1
+    return f"{prefijo}{consecutivo:04d}"
 
 
 def generar_radicado_calidad(db, tenant_id: int) -> str:
@@ -143,13 +167,30 @@ def generar_radicado_calidad(db, tenant_id: int) -> str:
 def disparar_webhook_n8n(evento: str, payload: dict) -> None:
     """
     Notifica a n8n para automatizaciones: email, Teams, escalamiento, etc.
-    Si n8n no está configurado, se ignora silenciosamente.
+
+    Si n8n no está configurado (N8N_WEBHOOK_URL vacío), se ignora
+    silenciosamente a propósito (ej. en desarrollo sin n8n levantado).
+
+    Cualquier otro fallo (timeout, conexión rechazada, respuesta de
+    error de n8n) SE LOGUEA siempre — nunca debe fallar en silencio,
+    porque el único síntoma visible es "no llegó el correo" y sin log
+    no hay forma de saber por qué. Nunca lanza excepción hacia arriba:
+    un fallo notificando a n8n no debe tumbar la creación/cierre de la
+    PQRS, que ya se guardó en la base de datos.
     """
     url = getattr(settings, "N8N_WEBHOOK_URL", None)
     if not url:
         return
 
+    webhook_url = f"{url}/{evento}"
     try:
-        httpx.post(f"{url}/{evento}", json=payload, timeout=3.0)
-    except httpx.HTTPError:
-        pass
+        resp = httpx.post(webhook_url, json=payload, timeout=10.0)
+        if resp.status_code >= 400:
+            logger.error(
+                "n8n respondió error en '%s' (HTTP %s): %s",
+                evento, resp.status_code, resp.text[:500],
+            )
+        else:
+            logger.info("n8n webhook '%s' disparado OK (HTTP %s)", evento, resp.status_code)
+    except httpx.HTTPError as exc:
+        logger.error("Fallo al llamar webhook de n8n '%s' (%s): %s", evento, webhook_url, exc)

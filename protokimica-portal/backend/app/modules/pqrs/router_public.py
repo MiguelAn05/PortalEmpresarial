@@ -22,7 +22,9 @@ from app.modules.pqrs.service import (
     EXTENSIONES_VIDEO_PERMITIDAS,
     MAX_TAMANIO_VIDEO_MB,
 )
-from app.modules.pqrs.notificaciones import notificar_cliente_creacion, notificar_area
+from app.modules.pqrs.notificaciones import (
+    notificar_cliente_creacion, notificar_area, notificar_servicio_cliente_creacion,
+)
 
 router = APIRouter(prefix="/public", tags=["Público — PQRS"])
 
@@ -160,7 +162,7 @@ async def radicar_pqrs_publica(
     # así coincide siempre con el número interno "PQRS #<id>". El prefijo
     # cambia solo si el canal es un punto de venta específico o venta
     # institucional (ver PREFIJOS_POR_CANAL en service.py).
-    codigo = generar_codigo_seguimiento(solicitud.id, canal_atencion)
+    codigo = generar_codigo_seguimiento(db, tenant.id, canal_atencion)
     solicitud.codigo_seguimiento = codigo
     db.commit()
     db.refresh(solicitud)
@@ -174,6 +176,7 @@ async def radicar_pqrs_publica(
     db.commit()
 
     notificar_cliente_creacion(solicitud)
+    notificar_servicio_cliente_creacion(db, tenant.id, solicitud)
     if solicitud.area_responsable:
         notificar_area(db, tenant.id, solicitud, solicitud.area_responsable, motivo="creacion")
 

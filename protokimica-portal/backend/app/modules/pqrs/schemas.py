@@ -34,6 +34,7 @@ class SeguimientoOut(BaseModel):
     id: int
     tipo_evento: str
     comentario: str | None
+    adjunto_evidencia: str | None = None
     fecha: datetime
     usuario_id: int | None
     usuario_nombre: str | None = None

@@ -54,6 +54,7 @@ class PQRSSeguimiento(Base):
     usuario_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     tipo_evento = Column(String(30), nullable=False)
     comentario = Column(Text, nullable=True)
+    adjunto_evidencia = Column(String(255), nullable=True)
     fecha = Column(DateTime(timezone=True), server_default=func.now())
 
     pqrs = relationship('PQRSSolicitud', back_populates='seguimientos')
