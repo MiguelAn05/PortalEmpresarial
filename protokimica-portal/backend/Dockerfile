@@ -2,11 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Dependencias del sistema necesarias para psycopg2
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# No hacen falta gcc ni libpq-dev: requirements.txt usa psycopg2-binary,
+# que ya viene compilado y trae la libpq embebida. Instalarlos solo hacía
+# la imagen más pesada y el build mucho más lento (y se quedaba sin
+# memoria en equipos con poca RAM libre).
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

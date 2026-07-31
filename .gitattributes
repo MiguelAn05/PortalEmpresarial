@@ -1,2 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Los scripts de shell SIEMPRE con LF, aunque se clonen en Windows.
+# Si se guardan con CRLF, el contenedor de Docker (Linux) no los puede
+# ejecutar y falla con "exec ./entrypoint.sh: no such file or directory".
+*.sh text eol=lf
