@@ -1,16 +1,17 @@
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { crearTarea } from "../api"
-import { AREAS, PRIORIDADES } from "../constants"
+import { AREAS, PRIORIDADES, datetimeLocalAIso } from "../constants"
 
 const VACIO = {
   titulo: "", descripcion: "", area: "", asignado_a: "",
   prioridad: "media", riesgos: "", fecha_inicio: "", fecha_fin: "",
 }
 
-export default function TareaFormModal({ proyectos = [], usuarios = [], onClose }) {
+export default function TareaFormModal({ proyectos = [], usuarios = [], proyectoIdInicial = null, onClose }) {
   const queryClient = useQueryClient()
-  const [proyectoId, setProyectoId] = useState(proyectos[0]?.id || "")
+  // Si se abre desde dentro de un proyecto, ese proyecto ya viene fijo.
+  const [proyectoId, setProyectoId] = useState(proyectoIdInicial ?? proyectos[0]?.id ?? "")
   const [form, setForm] = useState(VACIO)
 
   const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
@@ -19,14 +20,19 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], onClose 
     mutationFn: () => crearTarea(proyectoId, {
       ...form,
       asignado_a: form.asignado_a ? Number(form.asignado_a) : null,
-      fecha_inicio: form.fecha_inicio || null,
-      fecha_fin: form.fecha_fin || null,
+      fecha_inicio: datetimeLocalAIso(form.fecha_inicio),
+      fecha_fin: datetimeLocalAIso(form.fecha_fin),
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mp-tareas"] })
+      queryClient.invalidateQueries({ queryKey: ["mp-proyectos"] })
       onClose()
     },
   })
+
+  const proyectoFijo = proyectoIdInicial != null
+    ? proyectos.find(p => p.id === proyectoIdInicial)
+    : null
 
   return (
     <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
@@ -34,6 +40,7 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], onClose 
         <div className="bg-gradient-to-r from-[#0D2B5E] to-[#1A4FA0] rounded-t-2xl p-6 text-white sticky top-0">
           <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
           <h2 className="text-lg font-bold">Nueva tarea</h2>
+          {proyectoFijo && <p className="text-xs text-white/70 mt-1">en {proyectoFijo.nombre}</p>}
         </div>
 
         <div className="p-6 space-y-4">
@@ -43,12 +50,14 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], onClose 
             </p>
           ) : (
             <>
-              <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Proyecto</label>
-                <select value={proyectoId} onChange={(e) => setProyectoId(e.target.value)} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
-                  {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                </select>
-              </div>
+              {!proyectoFijo && (
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Proyecto</label>
+                  <select value={proyectoId} onChange={(e) => setProyectoId(e.target.value)} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                    {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Título</label>
@@ -77,20 +86,23 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], onClose 
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Prioridad</label>
-                  <select value={form.prioridad} onChange={set('prioridad')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
-                    {Object.entries(PRIORIDADES).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Prioridad</label>
+                <select value={form.prioridad} onChange={set('prioridad')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                  {Object.entries(PRIORIDADES).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
+                </select>
+              </div>
+
+              {/* Fecha y hora: la hora es lo que permite ubicar la tarea en el
+                  calendario a una franja concreta del día. */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Inicio</label>
-                  <input type="date" value={form.fecha_inicio} onChange={set('fecha_inicio')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+                  <input type="datetime-local" value={form.fecha_inicio} onChange={set('fecha_inicio')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Fin</label>
-                  <input type="date" value={form.fecha_fin} onChange={set('fecha_fin')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+                  <input type="datetime-local" value={form.fecha_fin} onChange={set('fecha_fin')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
                 </div>
               </div>
 

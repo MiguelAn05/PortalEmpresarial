@@ -1,7 +1,21 @@
 import { ESTADOS_TAREA, PRIORIDADES, AREAS } from "../constants"
 
-export default function Filters({ filtros, onChange, vista, onChangeVista, proyectos = [] }) {
+const VISTAS = [
+  { id: 'kanban',     label: '🗂️ Kanban' },
+  { id: 'tabla',      label: '📋 Tabla' },
+  { id: 'cronograma', label: '📊 Cronograma' },
+]
+
+/**
+ * Filtros del listado de tareas. `proyectos` es opcional: dentro de un
+ * proyecto no tiene sentido volver a filtrar por proyecto.
+ */
+export default function Filters({
+  filtros, onChange, vista, onChangeVista,
+  proyectos = null, usuarios = [], totalVisible, totalGeneral,
+}) {
   const set = (campo) => (e) => onChange({ ...filtros, [campo]: e.target.value })
+  const hayFiltros = Object.values(filtros).some(v => v !== "")
 
   return (
     <div className="bg-white rounded-2xl border border-[#D6E0F0] p-5 shadow-sm">
@@ -12,16 +26,27 @@ export default function Filters({ filtros, onChange, vista, onChangeVista, proye
           <input
             value={filtros.busqueda}
             onChange={set('busqueda')}
-            placeholder="Proyecto, tarea, asignado..."
+            placeholder="Tarea, proyecto, asignado..."
             className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
           />
         </div>
 
+        {proyectos && (
+          <div>
+            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Proyecto</label>
+            <select value={filtros.proyecto_id} onChange={set('proyecto_id')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+              <option value="">Todos</option>
+              {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+          </div>
+        )}
+
         <div>
-          <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Proyecto</label>
-          <select value={filtros.proyecto_id} onChange={set('proyecto_id')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+          <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Responsable</label>
+          <select value={filtros.asignado_a} onChange={set('asignado_a')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
             <option value="">Todos</option>
-            {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            <option value="sin_asignar">Sin asignar</option>
+            {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
           </select>
         </div>
 
@@ -48,34 +73,47 @@ export default function Filters({ filtros, onChange, vista, onChangeVista, proye
             {Object.entries(PRIORIDADES).map(([valor, cfg]) => <option key={valor} value={valor}>{cfg.label}</option>)}
           </select>
         </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Vencimiento</label>
+          <select value={filtros.vencimiento} onChange={set('vencimiento')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <option value="">Todas</option>
+            <option value="vencida">Solo vencidas</option>
+            <option value="por_vencer">Solo por vencer</option>
+            <option value="en_riesgo">Vencidas y por vencer</option>
+            <option value="sin_fecha">Sin fecha de fin</option>
+          </select>
+        </div>
       </div>
 
-      <div className="flex justify-between items-center mt-5">
+      <div className="flex flex-wrap justify-between items-center gap-3 mt-5">
         <div className="inline-flex rounded-lg border border-[#D6E0F0] p-1 bg-[#F7F9FC]">
-          <button
-            onClick={() => onChangeVista('kanban')}
-            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${
-              vista === 'kanban' ? 'bg-white text-[#0D2B5E] shadow-sm' : 'text-[#6B7EA8]'
-            }`}
-          >
-            🗂️ Kanban
-          </button>
-          <button
-            onClick={() => onChangeVista('tabla')}
-            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${
-              vista === 'tabla' ? 'bg-white text-[#0D2B5E] shadow-sm' : 'text-[#6B7EA8]'
-            }`}
-          >
-            📋 Tabla
-          </button>
+          {VISTAS.map(v => (
+            <button
+              key={v.id}
+              onClick={() => onChangeVista(v.id)}
+              className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${
+                vista === v.id ? 'bg-white text-[#0D2B5E] shadow-sm' : 'text-[#6B7EA8]'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
         </div>
 
-        <button
-          title="Próximamente"
-          className="px-4 py-2 rounded-lg border border-[#D6E0F0] text-sm font-medium hover:bg-gray-50"
-        >
-          Exportar
-        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-[#9BACC8]">
+            {totalVisible} de {totalGeneral} tarea{totalGeneral === 1 ? '' : 's'}
+          </span>
+          {hayFiltros && (
+            <button
+              onClick={() => onChange(Object.fromEntries(Object.keys(filtros).map(k => [k, ""])))}
+              className="text-xs font-semibold text-[#1A4FA0] hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -10,6 +10,7 @@ class ProyectoCreate(BaseModel):
     alcance: str | None = None
     lider_id: int | None = None
     area: str | None = None
+    estado: str = "planeacion"
     prioridad: str = "media"
     fecha_inicio: datetime | None = None
     fecha_fin_estimada: datetime | None = None
@@ -26,6 +27,7 @@ class ProyectoUpdate(BaseModel):
     fecha_inicio: datetime | None = None
     fecha_fin_estimada: datetime | None = None
     fecha_fin_real: datetime | None = None
+    archivado: bool | None = None
 
 
 class ProyectoOut(BaseModel):
@@ -41,8 +43,11 @@ class ProyectoOut(BaseModel):
     fecha_inicio: datetime | None
     fecha_fin_estimada: datetime | None
     fecha_fin_real: datetime | None
+    archivado: bool
     presupuesto_total: float
     avance_pct: float
+    total_tareas: int
+    tareas_completadas: int
     creado_en: datetime
 
     class Config:
@@ -86,6 +91,14 @@ class TareaCreate(BaseModel):
     fecha_fin: datetime | None = None
 
 
+class SubtareaCreate(BaseModel):
+    """El área y el proyecto se heredan del padre, por eso no van aquí."""
+    titulo: str
+    asignado_a: int | None = None
+    prioridad: str = "media"
+    fecha_fin: datetime | None = None
+
+
 class TareaUpdate(BaseModel):
     titulo: str | None = None
     descripcion: str | None = None
@@ -96,6 +109,27 @@ class TareaUpdate(BaseModel):
     riesgos: str | None = None
     fecha_inicio: datetime | None = None
     fecha_fin: datetime | None = None
+
+
+class SubtareaOut(BaseModel):
+    """
+    Subtarea vista desde su tarea padre. Es plana a propósito: el modelo
+    permite anidar más niveles, pero el módulo solo expone uno para que
+    la subtarea funcione como checklist y no como un árbol de proyectos.
+    """
+    id: int
+    proyecto_id: int
+    parent_id: int | None
+    titulo: str
+    asignado_a: int | None
+    asignado_nombre: str | None = None
+    estado: str
+    prioridad: str
+    avance_pct: int
+    fecha_fin: datetime | None
+
+    class Config:
+        from_attributes = True
 
 
 class TareaOut(BaseModel):
@@ -115,6 +149,9 @@ class TareaOut(BaseModel):
     fecha_inicio: datetime | None
     fecha_fin: datetime | None
     creado_en: datetime
+    subtareas: list[SubtareaOut] = []
+    total_subtareas: int = 0
+    subtareas_completadas: int = 0
 
     class Config:
         from_attributes = True

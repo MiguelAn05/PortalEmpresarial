@@ -5,7 +5,7 @@ Sigue el mismo patrón que PQRS: una entidad principal (Proyecto) con
 tablas hijas para desglose (ItemPresupuesto) y trazabilidad
 (TareaActualizacion), en vez de un log narrativo tipo Excel.
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Numeric, func
+from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime, ForeignKey, Numeric, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -33,6 +33,11 @@ class Proyecto(Base):
     fecha_fin_estimada = Column(DateTime(timezone=True), nullable=True)
     fecha_fin_real = Column(DateTime(timezone=True), nullable=True)
 
+    # Un proyecto archivado sale de las vistas del día a día pero conserva
+    # todo su historial. Es la salida por defecto en vez de borrar, porque
+    # el borrado arrastra en cascada tareas, actualizaciones y evidencias.
+    archivado = Column(Boolean, nullable=False, default=False, server_default="false")
+
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     lider = relationship("User", foreign_keys=[lider_id])
@@ -49,12 +54,25 @@ class Proyecto(Base):
         return sum((item.valor_total or 0) for item in self.items_presupuesto)
 
     @property
+    def _tareas_raiz(self) -> list["Tarea"]:
+        return [t for t in self.tareas if t.parent_id is None]
+
+    @property
     def avance_pct(self) -> float:
         """Promedio del avance de las tareas de primer nivel (sin subtareas), redondeado."""
-        tareas_raiz = [t for t in self.tareas if t.parent_id is None]
+        tareas_raiz = self._tareas_raiz
         if not tareas_raiz:
             return 0
         return round(sum(t.avance_pct for t in tareas_raiz) / len(tareas_raiz), 1)
+
+    @property
+    def total_tareas(self) -> int:
+        """Solo tareas de primer nivel — es lo que se muestra en la tarjeta del proyecto."""
+        return len(self._tareas_raiz)
+
+    @property
+    def tareas_completadas(self) -> int:
+        return sum(1 for t in self._tareas_raiz if t.estado == "completada")
 
 
 class ItemPresupuesto(Base):
@@ -110,7 +128,11 @@ class Tarea(Base):
 
     proyecto = relationship("Proyecto", back_populates="tareas")
     asignado = relationship("User", foreign_keys=[asignado_a])
-    subtareas = relationship("Tarea", cascade="all, delete-orphan")
+    subtareas = relationship(
+        "Tarea", back_populates="parent",
+        cascade="all, delete-orphan", order_by="Tarea.creado_en.asc()",
+    )
+    parent = relationship("Tarea", back_populates="subtareas", remote_side=[id])
     actualizaciones = relationship(
         "TareaActualizacion", back_populates="tarea",
         cascade="all, delete-orphan", order_by="TareaActualizacion.fecha.desc()",
@@ -123,6 +145,14 @@ class Tarea(Base):
     @property
     def proyecto_nombre(self):
         return self.proyecto.nombre if self.proyecto else None
+
+    @property
+    def total_subtareas(self) -> int:
+        return len(self.subtareas)
+
+    @property
+    def subtareas_completadas(self) -> int:
+        return sum(1 for s in self.subtareas if s.estado == "completada")
 
 
 class TareaActualizacion(Base):

@@ -16,7 +16,7 @@ from app.models.master_planner import Proyecto, ItemPresupuesto, Tarea, TareaAct
 from app.modules.master_planner.schemas import (
     ProyectoCreate, ProyectoUpdate, ProyectoOut,
     ItemPresupuestoCreate, ItemPresupuestoOut,
-    TareaCreate, TareaUpdate, TareaOut,
+    TareaCreate, TareaUpdate, TareaOut, SubtareaCreate,
     TareaActualizacionOut, UsuarioAsignableOut,
 )
 from app.modules.pqrs.service import disparar_webhook_n8n, guardar_archivo
@@ -65,10 +65,15 @@ def crear_proyecto(
 def listar_proyectos(
     estado: str | None = None,
     area: str | None = None,
+    archivados: bool = False,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    query = db.query(Proyecto).filter(Proyecto.tenant_id == tenant_id)
+    """Por defecto solo los proyectos activos; `archivados=true` devuelve el archivo."""
+    query = db.query(Proyecto).filter(
+        Proyecto.tenant_id == tenant_id,
+        Proyecto.archivado.is_(archivados),
+    )
     if estado:
         query = query.filter(Proyecto.estado == estado)
     if area:
@@ -110,7 +115,25 @@ def eliminar_proyecto(
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(solo_lectura_no),
 ):
+    """
+    Borrado definitivo, permitido solo si el proyecto no tiene tareas: la
+    relación es en cascada y arrastraría tareas, actualizaciones y sus
+    evidencias sin posibilidad de recuperarlas. Para sacar de circulación
+    un proyecto con historial se usa `archivado` (PATCH /proyectos/{id}).
+    """
     proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id)
+
+    total_tareas = db.query(Tarea).filter(Tarea.proyecto_id == proyecto_id).count()
+    if total_tareas:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"El proyecto tiene {total_tareas} tarea(s) y no se puede eliminar. "
+                "Archívalo para sacarlo de la vista sin perder el historial, o "
+                "elimina primero sus tareas."
+            ),
+        )
+
     db.delete(proyecto)
     db.commit()
 
@@ -197,15 +220,25 @@ def listar_todas_las_tareas(
     estado: str | None = None,
     area: str | None = None,
     proyecto_id: int | None = None,
+    incluir_subtareas: bool = False,
+    incluir_archivados: bool = False,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    """Tablero global: todas las tareas de todos los proyectos del tenant."""
+    """
+    Tablero global: tareas de todos los proyectos activos del tenant.
+    Las subtareas quedan fuera por defecto — viven dentro de su tarea
+    padre como checklist, no como tarjetas sueltas del Kanban.
+    """
     query = (
         db.query(Tarea)
         .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
         .filter(Proyecto.tenant_id == tenant_id)
     )
+    if not incluir_archivados:
+        query = query.filter(Proyecto.archivado.is_(False))
+    if not incluir_subtareas:
+        query = query.filter(Tarea.parent_id.is_(None))
     if estado:
         query = query.filter(Tarea.estado == estado)
     if area:
@@ -246,16 +279,59 @@ def crear_tarea(
 @router.get("/proyectos/{proyecto_id}/tareas", response_model=list[TareaOut])
 def listar_tareas_de_proyecto(
     proyecto_id: int,
+    incluir_subtareas: bool = False,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     _get_proyecto_o_404(db, proyecto_id, tenant_id)
-    return (
-        db.query(Tarea)
-        .filter(Tarea.proyecto_id == proyecto_id)
-        .order_by(Tarea.creado_en.asc())
-        .all()
+    query = db.query(Tarea).filter(Tarea.proyecto_id == proyecto_id)
+    if not incluir_subtareas:
+        query = query.filter(Tarea.parent_id.is_(None))
+    return query.order_by(Tarea.creado_en.asc()).all()
+
+
+@router.post(
+    "/tareas/{tarea_id}/subtareas",
+    response_model=TareaOut, status_code=status.HTTP_201_CREATED,
+)
+def crear_subtarea(
+    tarea_id: int,
+    payload: SubtareaCreate,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(solo_lectura_no),
+):
+    """
+    Crea una subtarea colgando de `tarea_id`. Hereda el proyecto del padre
+    y se limita a un nivel: una subtarea no puede tener subtareas, para que
+    el checklist no se convierta en un árbol imposible de leer.
+    """
+    padre = _get_tarea_o_404(db, tarea_id, tenant_id)
+    if padre.parent_id is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Una subtarea no puede tener subtareas. Solo se admite un nivel.",
+        )
+
+    subtarea = Tarea(
+        proyecto_id=padre.proyecto_id,
+        parent_id=padre.id,
+        area=padre.area,
+        **payload.model_dump(),
     )
+    db.add(subtarea)
+    db.commit()
+    db.refresh(subtarea)
+
+    if subtarea.asignado_a:
+        disparar_webhook_n8n("mp-tarea-asignada", {
+            "tarea_id": subtarea.id,
+            "titulo": subtarea.titulo,
+            "proyecto": padre.proyecto.nombre,
+            "asignado_a": subtarea.asignado_a,
+        })
+
+    return subtarea
 
 
 @router.get("/tareas/mias", response_model=list[TareaOut])
@@ -264,14 +340,37 @@ def listar_mis_tareas(
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
 ):
-    """Tareas asignadas al usuario logueado, en cualquier proyecto del tenant."""
+    """
+    Tareas asignadas al usuario logueado en cualquier proyecto activo.
+    Aquí sí entran las subtareas: si alguien es responsable de una, tiene
+    que verla en su lista aunque en el tablero viva dentro de su padre.
+    """
     return (
         db.query(Tarea)
         .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
-        .filter(Proyecto.tenant_id == tenant_id, Tarea.asignado_a == current_user.id)
+        .filter(
+            Proyecto.tenant_id == tenant_id,
+            Proyecto.archivado.is_(False),
+            Tarea.asignado_a == current_user.id,
+        )
         .order_by(Tarea.fecha_fin.asc().nullslast())
         .all()
     )
+
+
+@router.get("/tareas/{tarea_id}", response_model=TareaOut)
+def obtener_tarea(
+    tarea_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Una tarea sola, con sus subtareas. Lo usa el detalle del frontend para
+    releer del servidor tras cada cambio en vez de arrastrar una copia que
+    se queda desactualizada. Va después de /tareas/mias a propósito: FastAPI
+    resuelve por orden de declaración y "mias" tiene que ganar.
+    """
+    return _get_tarea_o_404(db, tarea_id, tenant_id)
 
 
 @router.patch("/tareas/{tarea_id}", response_model=TareaOut)

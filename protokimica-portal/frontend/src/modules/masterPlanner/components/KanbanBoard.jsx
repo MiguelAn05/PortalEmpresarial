@@ -1,10 +1,10 @@
 import { useState } from "react"
-import ProjectCard from "./ProjectCard"
+import TareaCard from "./TareaCard"
 import { ESTADOS_TAREA } from "../constants"
 
 const COLUMNAS = Object.entries(ESTADOS_TAREA).map(([estado, cfg]) => ({ estado, ...cfg }))
 
-export default function KanbanBoard({ tareas, onChangeEstado, onSelect }) {
+export default function KanbanBoard({ tareas, onChangeEstado, onSelect, mostrarProyecto = true }) {
   const [dragId, setDragId] = useState(null)
   const [overEstado, setOverEstado] = useState(null)
 
@@ -46,9 +46,10 @@ export default function KanbanBoard({ tareas, onChangeEstado, onSelect }) {
                 </div>
               )}
               {items.map(tarea => (
-                <ProjectCard
+                <TareaCard
                   key={tarea.id}
                   tarea={tarea}
+                  mostrarProyecto={mostrarProyecto}
                   draggable
                   onDragStart={() => setDragId(tarea.id)}
                   onDragEnd={() => { setDragId(null); setOverEstado(null) }}
