@@ -6,11 +6,14 @@ import KanbanBoard from "../components/KanbanBoard"
 import TareasTable from "../components/TareasTable"
 import GanttView from "../components/GanttView"
 import { listarTareas, actualizarTarea } from "../api"
-import { FILTROS_TAREAS_VACIOS, filtrarTareas } from "../constants"
+import { FILTROS_TAREAS_VACIOS, filtrarTareas, puedeEditar } from "../constants"
+import { useAuth } from "../../../core/AuthContext"
 
 /** Vista global: todas las tareas de todos los proyectos activos. */
 export default function TareasView({ proyectos, usuarios, onSelectTarea, onNuevaTarea }) {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const editable = puedeEditar(user)
   const [vista, setVista] = useState("kanban")
   const [filtros, setFiltros] = useState(FILTROS_TAREAS_VACIOS)
 
@@ -69,16 +72,19 @@ export default function TareasView({ proyectos, usuarios, onSelectTarea, onNueva
       {tareas.length === 0 ? (
         <div className="bg-white rounded-2xl border border-dashed border-[#D6E0F0] p-16 text-center">
           <p className="text-[#6B7EA8] mb-4">Todavía no hay tareas creadas.</p>
-          <button
-            onClick={onNuevaTarea}
-            className="bg-[#1A4FA0] hover:bg-[#0D2B5E] text-white font-semibold px-6 py-3 rounded-xl shadow-sm transition"
-          >
-            + Crear la primera tarea
-          </button>
+          {editable && (
+            <button
+              onClick={onNuevaTarea}
+              className="bg-[#1A4FA0] hover:bg-[#0D2B5E] text-white font-semibold px-6 py-3 rounded-xl shadow-sm transition"
+            >
+              + Crear la primera tarea
+            </button>
+          )}
         </div>
       ) : vista === "kanban" ? (
         <KanbanBoard
           tareas={visibles}
+          arrastrable={editable}
           onChangeEstado={(id, estado) => mutCambiarEstado.mutate({ id, estado })}
           onSelect={onSelectTarea}
         />

@@ -7,14 +7,18 @@ import CalendarioTareas from "../components/CalendarioTareas"
 import KPICards from "../components/KPICards"
 import PriorityBadge from "../components/PriorityBadge"
 import Avatar from "../components/Avatar"
+import HistorialPanel from "../components/HistorialPanel"
+import ConfirmarCambios from "../components/ConfirmarCambios"
+import { useAuth } from "../../../core/AuthContext"
 import {
   obtenerProyecto, listarTareasDeProyecto, actualizarTarea, actualizarProyecto,
-  listarPresupuesto, agregarItemPresupuesto, eliminarItemPresupuesto,
+  listarPresupuesto, agregarItemPresupuesto, actualizarItemPresupuesto,
+  eliminarItemPresupuesto, listarHistorialProyecto,
 } from "../api"
 import {
   ESTADOS_PROYECTO, ESTADOS_TAREA, PRIORIDADES,
   FILTROS_TAREAS_VACIOS, filtrarTareas, alertaVencimiento,
-  colorAvance, formatFecha, formatMoneda,
+  colorAvance, formatFecha, formatMoneda, puedeEditar,
 } from "../constants"
 
 const SUBVISTAS = [
@@ -23,13 +27,17 @@ const SUBVISTAS = [
   { id: 'cronograma',  label: '📊 Cronograma' },
   { id: 'calendario',  label: '🗓️ Calendario' },
   { id: 'presupuesto', label: '💰 Presupuesto' },
+  { id: 'historial',   label: '🕓 Historial' },
   { id: 'informacion', label: 'ℹ️ Información' },
 ]
 
 export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSelectTarea, onNuevaTarea, onEditar }) {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const editable = puedeEditar(user)
   const [subvista, setSubvista] = useState('tablero')
   const [filtros, setFiltros] = useState(FILTROS_TAREAS_VACIOS)
+  const [confirmacion, setConfirmacion] = useState(null)
 
   const { data: proyecto, isLoading: cargandoProyecto } = useQuery({
     queryKey: ["mp-proyecto", proyectoId],
@@ -45,6 +53,9 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
     queryClient.invalidateQueries({ queryKey: ["mp-tareas"] })
     queryClient.invalidateQueries({ queryKey: ["mp-proyecto", proyectoId] })
     queryClient.invalidateQueries({ queryKey: ["mp-proyectos"] })
+    queryClient.invalidateQueries({ queryKey: ["mp-historial-proyecto", proyectoId] })
+    queryClient.invalidateQueries({ queryKey: ["mp-historial-general"] })
+    queryClient.invalidateQueries({ queryKey: ["mp-resumen"] })
   }
 
   const mutCambiarEstadoTarea = useMutation({
@@ -54,7 +65,7 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
 
   const mutCampoProyecto = useMutation({
     mutationFn: (payload) => actualizarProyecto(proyectoId, payload),
-    onSuccess: invalidar,
+    onSuccess: () => { invalidar(); setConfirmacion(null) },
   })
 
   const visibles = useMemo(() => filtrarTareas(tareas, filtros), [tareas, filtros])
@@ -83,17 +94,30 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <select
                   value={proyecto.estado}
-                  onChange={(e) => mutCampoProyecto.mutate({ estado: e.target.value })}
-                  className={`text-xs font-semibold rounded-full px-3 py-1 border-0 cursor-pointer ${estadoCfg.color || 'bg-gray-100'}`}
+                  disabled={!editable}
+                  onChange={(e) => setConfirmacion({
+                    cambios: [{ campo: 'estado', antes: proyecto.estado, despues: e.target.value }],
+                    ejecutar: () => mutCampoProyecto.mutate({ estado: e.target.value }),
+                  })}
+                  className={`text-xs font-semibold rounded-full px-3 py-1 border-0 ${editable ? 'cursor-pointer' : ''} ${estadoCfg.color || 'bg-gray-100'}`}
                 >
                   {Object.entries(ESTADOS_PROYECTO).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
                 </select>
                 <PriorityBadge priority={proyecto.prioridad} />
                 {proyecto.area && (
-                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#F7F9FC] border border-[#D6E0F0] text-[#6B7EA8]">
+                  <span
+                    className="px-3 py-1 rounded-full text-xs font-semibold bg-[#EAF0FB] border border-[#D6E0F0] text-[#1A4FA0]"
+                    title="Area responsable: es la duena del presupuesto"
+                  >
                     {proyecto.area}
                   </span>
                 )}
+                {proyecto.areas_participantes?.map(a => (
+                  <span key={a} title="Area participante"
+                    className="px-3 py-1 rounded-full text-xs font-semibold bg-[#F7F9FC] border border-[#D6E0F0] text-[#6B7EA8]">
+                    {a}
+                  </span>
+                ))}
                 {proyecto.archivado && (
                   <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Archivado</span>
                 )}
@@ -102,27 +126,38 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
               {proyecto.objetivo && <p className="text-sm text-[#6B7EA8] mt-1 max-w-2xl">{proyecto.objetivo}</p>}
             </div>
 
-            <div className="flex gap-2 shrink-0">
-              <button
-                onClick={() => onEditar(proyecto)}
-                className="border border-[#D6E0F0] hover:bg-gray-50 text-[#0D2B5E] text-sm font-semibold px-4 py-2.5 rounded-xl transition"
-              >
-                Editar proyecto
-              </button>
-              <button
-                onClick={onNuevaTarea}
-                className="bg-[#1A4FA0] hover:bg-[#0D2B5E] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition"
-              >
-                + Nueva tarea
-              </button>
-            </div>
+            {editable && (
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={() => onEditar(proyecto)}
+                  className="border border-[#D6E0F0] hover:bg-gray-50 text-[#0D2B5E] text-sm font-semibold px-4 py-2.5 rounded-xl transition"
+                >
+                  Editar proyecto
+                </button>
+                <button
+                  onClick={onNuevaTarea}
+                  className="bg-[#1A4FA0] hover:bg-[#0D2B5E] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition"
+                >
+                  + Nueva tarea
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-5 mt-6 pt-5 border-t border-[#EDF2F7]">
             <Dato titulo="Líder"><Avatar name={proyecto.lider_nombre} compact /></Dato>
             <Dato titulo="Inicio">{formatFecha(proyecto.fecha_inicio)}</Dato>
             <Dato titulo="Fin estimado">{formatFecha(proyecto.fecha_fin_estimada)}</Dato>
-            <Dato titulo="Presupuesto">{formatMoneda(proyecto.presupuesto_total)}</Dato>
+            <Dato titulo="Presupuesto">
+              {formatMoneda(proyecto.presupuesto_total)}
+              {proyecto.presupuesto_total > 0 && (
+                <span className={`block text-[11px] font-semibold ${
+                  proyecto.presupuesto_ejecutado > proyecto.presupuesto_total ? 'text-red-600' : 'text-[#9BACC8]'
+                }`}>
+                  {Math.round((proyecto.presupuesto_ejecutado / proyecto.presupuesto_total) * 100)}% ejecutado
+                </span>
+              )}
+            </Dato>
             <Dato titulo={`Avance · ${proyecto.tareas_completadas}/${proyecto.total_tareas} tareas`}>
               <div className="flex items-center gap-2">
                 <div className="flex-1 bg-gray-200 rounded-full h-2">
@@ -224,9 +259,20 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
           {subvista === 'tabla' && <TareasTable tareas={visibles} onSelect={onSelectTarea} mostrarProyecto={false} />}
           {subvista === 'cronograma' && <GanttView tareas={visibles} onSelect={onSelectTarea} mostrarProyecto={false} />}
           {subvista === 'calendario' && <CalendarioTareas tareas={visibles} onSelect={onSelectTarea} />}
-          {subvista === 'presupuesto' && <PanelPresupuesto proyectoId={proyectoId} onCambio={invalidar} />}
-          {subvista === 'informacion' && <PanelInformacion proyecto={proyecto} onEditar={() => onEditar(proyecto)} />}
+          {subvista === 'presupuesto' && <PanelPresupuesto proyectoId={proyectoId} editable={editable} onCambio={invalidar} />}
+          {subvista === 'historial' && <PanelHistorial proyectoId={proyectoId} />}
+          {subvista === 'informacion' && <PanelInformacion proyecto={proyecto} editable={editable} onEditar={() => onEditar(proyecto)} />}
         </>
+      )}
+
+      {confirmacion && (
+        <ConfirmarCambios
+          titulo="Cambiar el estado del proyecto?"
+          cambios={confirmacion.cambios}
+          guardando={mutCampoProyecto.isPending}
+          onConfirmar={confirmacion.ejecutar}
+          onCancelar={() => setConfirmacion(null)}
+        />
       )}
     </div>
   )
@@ -241,12 +287,14 @@ function Dato({ titulo, children }) {
   )
 }
 
-function PanelInformacion({ proyecto, onEditar }) {
+function PanelInformacion({ proyecto, editable, onEditar }) {
   return (
     <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm p-6 space-y-5">
       <div className="flex justify-between items-start">
         <h3 className="text-sm font-bold text-[#0D2B5E]">Información del proyecto</h3>
-        <button onClick={onEditar} className="text-xs font-semibold text-[#1A4FA0] hover:underline">Editar</button>
+        {editable && (
+          <button onClick={onEditar} className="text-xs font-semibold text-[#1A4FA0] hover:underline">Editar</button>
+        )}
       </div>
       <Campo titulo="Objetivo" valor={proyecto.objetivo} />
       <Campo titulo="Alcance" valor={proyecto.alcance} />
@@ -271,7 +319,7 @@ function Campo({ titulo, valor }) {
   )
 }
 
-function PanelPresupuesto({ proyectoId, onCambio }) {
+function PanelPresupuesto({ proyectoId, editable, onCambio }) {
   const queryClient = useQueryClient()
   const [itemForm, setItemForm] = useState({ concepto: "", detalle: "", valor_unitario: "", cantidad: "1" })
 
@@ -280,6 +328,9 @@ function PanelPresupuesto({ proyectoId, onCambio }) {
     queryFn: () => listarPresupuesto(proyectoId),
   })
   const total = items.reduce((s, i) => s + i.valor_total, 0)
+  const ejecutado = items.reduce((s, i) => s + i.valor_ejecutado, 0)
+  const disponible = total - ejecutado
+  const ejecucionPct = total ? Math.round((ejecutado / total) * 100) : 0
 
   const refrescar = () => {
     queryClient.invalidateQueries({ queryKey: ["mp-presupuesto", proyectoId] })
@@ -300,11 +351,22 @@ function PanelPresupuesto({ proyectoId, onCambio }) {
     onSuccess: refrescar,
   })
 
+  const mutEjecutado = useMutation({
+    mutationFn: ({ id, valor_ejecutado }) => actualizarItemPresupuesto(id, { valor_ejecutado }),
+    onSuccess: refrescar,
+  })
+
   return (
     <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm overflow-hidden">
-      <div className="flex justify-between items-center px-6 py-4 border-b border-[#D6E0F0]">
+      <div className="px-6 py-4 border-b border-[#D6E0F0]">
         <h3 className="text-sm font-bold text-[#0D2B5E]">Presupuesto del proyecto</h3>
-        <span className="text-lg font-bold text-[#0D2B5E]">{formatMoneda(total)}</span>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[#EDF2F7] border-b border-[#D6E0F0]">
+        <ResumenCifra titulo="Planeado" valor={formatMoneda(total)} />
+        <ResumenCifra titulo="Ejecutado" valor={formatMoneda(ejecutado)} />
+        <ResumenCifra titulo="Disponible" valor={formatMoneda(disponible)} alerta={disponible < 0} />
+        <ResumenCifra titulo="% ejecutado" valor={`${ejecucionPct}%`} alerta={ejecucionPct > 100} />
       </div>
 
       <div className="overflow-x-auto">
@@ -313,14 +375,16 @@ function PanelPresupuesto({ proyectoId, onCambio }) {
             <tr className="text-xs uppercase tracking-wider text-[#6B7EA8]">
               <th className="text-left px-6 py-3">Concepto</th>
               <th className="text-right px-6 py-3">Valor unitario</th>
-              <th className="text-right px-6 py-3">Cantidad</th>
-              <th className="text-right px-6 py-3">Total</th>
+              <th className="text-right px-6 py-3">Cant.</th>
+              <th className="text-right px-6 py-3">Planeado</th>
+              <th className="text-right px-6 py-3 w-44">Ejecutado</th>
+              <th className="text-right px-6 py-3">Disponible</th>
               <th className="px-6 py-3" />
             </tr>
           </thead>
           <tbody>
             {items.length === 0 && (
-              <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-[#9BACC8]">
+              <tr><td colSpan={7} className="px-6 py-10 text-center text-sm text-[#9BACC8]">
                 Sin ítems de presupuesto todavía.
               </td></tr>
             )}
@@ -330,16 +394,31 @@ function PanelPresupuesto({ proyectoId, onCambio }) {
                   <p className="text-sm font-medium text-[#1A2B47]">{item.concepto}</p>
                   {item.detalle && <p className="text-xs text-[#9BACC8]">{item.detalle}</p>}
                 </td>
-                <td className="px-6 py-3 text-right text-sm">{formatMoneda(item.valor_unitario)}</td>
+                <td className="px-6 py-3 text-right text-sm whitespace-nowrap">{formatMoneda(item.valor_unitario)}</td>
                 <td className="px-6 py-3 text-right text-sm">{item.cantidad}</td>
-                <td className="px-6 py-3 text-right text-sm font-semibold">{formatMoneda(item.valor_total)}</td>
+                <td className="px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{formatMoneda(item.valor_total)}</td>
+                <td className="px-6 py-3">
+                  <CampoEjecutado
+                    item={item}
+                    editable={editable}
+                    guardando={mutEjecutado.isPending}
+                    onGuardar={(valor) => mutEjecutado.mutate({ id: item.id, valor_ejecutado: valor })}
+                  />
+                </td>
+                <td className={`px-6 py-3 text-right text-sm font-semibold whitespace-nowrap ${
+                  item.disponible < 0 ? 'text-red-600' : 'text-[#1A2B47]'
+                }`}>
+                  {formatMoneda(item.disponible)}
+                </td>
                 <td className="px-6 py-3 text-right">
-                  <button
-                    onClick={() => { if (confirm(`¿Quitar "${item.concepto}" del presupuesto?`)) mutEliminar.mutate(item.id) }}
-                    className="text-xs text-red-500 hover:text-red-700 font-semibold"
-                  >
-                    Quitar
-                  </button>
+                  {editable && (
+                    <button
+                      onClick={() => { if (confirm(`¿Quitar "${item.concepto}" del presupuesto?`)) mutEliminar.mutate(item.id) }}
+                      className="text-xs text-red-500 hover:text-red-700 font-semibold"
+                    >
+                      Quitar
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -347,6 +426,7 @@ function PanelPresupuesto({ proyectoId, onCambio }) {
         </table>
       </div>
 
+      {editable && (
       <div className="p-6 border-t border-[#D6E0F0] bg-[#F7F9FC]">
         <p className="text-xs font-semibold text-[#6B7EA8] uppercase mb-2">Agregar ítem</p>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
@@ -378,6 +458,97 @@ function PanelPresupuesto({ proyectoId, onCambio }) {
         >
           + Agregar ítem
         </button>
+      </div>
+      )}
+    </div>
+  )
+}
+
+function ResumenCifra({ titulo, valor, alerta }) {
+  return (
+    <div className="bg-white px-6 py-4">
+      <p className="text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide">{titulo}</p>
+      <p className={`text-lg font-bold mt-1 ${alerta ? 'text-[#D93B3B]' : 'text-[#0D2B5E]'}`}>{valor}</p>
+    </div>
+  )
+}
+
+/**
+ * Campo editable del valor ejecutado. Guarda al salir del campo o con Enter
+ * en vez de en cada tecla, para no disparar una petición por dígito.
+ */
+function CampoEjecutado({ item, editable, guardando, onGuardar }) {
+  const [valor, setValor] = useState(String(item.valor_ejecutado ?? 0))
+  const [editando, setEditando] = useState(false)
+
+  const confirmar = () => {
+    setEditando(false)
+    const numero = Number(valor)
+    if (isNaN(numero) || numero === item.valor_ejecutado) {
+      setValor(String(item.valor_ejecutado ?? 0))
+      return
+    }
+    onGuardar(numero)
+  }
+
+  return (
+    <input
+      type="number" min={0}
+      value={editando ? valor : String(item.valor_ejecutado ?? 0)}
+      disabled={guardando || !editable}
+      onFocus={() => { setValor(String(item.valor_ejecutado ?? 0)); setEditando(true) }}
+      onChange={(e) => setValor(e.target.value)}
+      onBlur={confirmar}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+      title="Cuánto se ha gastado realmente de este ítem"
+      className={`w-full rounded-lg border px-3 py-1.5 text-sm text-right transition ${
+        item.valor_ejecutado > item.valor_total
+          ? 'border-red-300 bg-red-50 text-red-700 font-semibold'
+          : 'border-[#D6E0F0] focus:border-[#1A4FA0]'
+      }`}
+    />
+  )
+}
+
+function PanelHistorial({ proyectoId }) {
+  const [soloProyecto, setSoloProyecto] = useState(false)
+
+  const { data: historial = [], isLoading } = useQuery({
+    queryKey: ["mp-historial-proyecto", proyectoId, soloProyecto],
+    queryFn: () => listarHistorialProyecto(proyectoId, { solo_proyecto: soloProyecto }),
+  })
+
+  return (
+    <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm overflow-hidden">
+      <div className="flex flex-wrap justify-between items-center gap-3 px-6 py-4 border-b border-[#D6E0F0]">
+        <div>
+          <h3 className="text-sm font-bold text-[#0D2B5E]">Historial de cambios</h3>
+          <p className="text-xs text-[#9BACC8] mt-0.5">
+            Quién cambió qué y cuándo, en el proyecto y en sus tareas.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-[#6B7EA8] cursor-pointer select-none">
+          <input
+            type="checkbox" checked={soloProyecto}
+            onChange={(e) => setSoloProyecto(e.target.checked)}
+            className="rounded border-[#D6E0F0] accent-[#1A4FA0]"
+          />
+          Solo cambios del proyecto
+        </label>
+      </div>
+
+      <div className="p-6">
+        {isLoading ? (
+          <p className="text-sm text-[#9BACC8] text-center py-6">Cargando historial...</p>
+        ) : (
+          <HistorialPanel
+            entradas={historial}
+            mostrarEntidad={!soloProyecto}
+            vacio={soloProyecto
+              ? 'Este proyecto no ha tenido cambios desde que se creó.'
+              : 'Todavía no hay cambios registrados en este proyecto ni en sus tareas.'}
+          />
+        )}
       </div>
     </div>
   )

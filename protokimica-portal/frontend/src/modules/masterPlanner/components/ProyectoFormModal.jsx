@@ -8,6 +8,7 @@ import { AREAS, ESTADOS_PROYECTO, PRIORIDADES, formatMoneda, isoADateInput } fro
 
 const VACIO = {
   nombre: "", objetivo: "", alcance: "", lider_id: "", area: "",
+  areas_participantes: [],
   estado: "planeacion", prioridad: "media", fecha_inicio: "", fecha_fin_estimada: "",
 }
 
@@ -20,6 +21,7 @@ function aFormulario(proyecto) {
     alcance: proyecto.alcance || "",
     lider_id: proyecto.lider_id || "",
     area: proyecto.area || "",
+    areas_participantes: proyecto.areas_participantes || [],
     estado: proyecto.estado || "planeacion",
     prioridad: proyecto.prioridad || "media",
     fecha_inicio: isoADateInput(proyecto.fecha_inicio),
@@ -117,12 +119,47 @@ export default function ProyectoFormModal({ proyecto, usuarios = [], onClose }) 
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Área</label>
+              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Área responsable</label>
               <select value={form.area} onChange={set('area')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
                 <option value="">Sin definir</option>
                 {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Áreas participantes: dan visibilidad, no presupuesto. El
+              presupuesto se le atribuye siempre al área responsable, si no
+              los totales por área saldrían duplicados. */}
+          <div>
+            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+              Otras áreas que participan
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {AREAS.filter(a => a !== form.area).map(a => {
+                const activa = form.areas_participantes.includes(a)
+                return (
+                  <button
+                    key={a} type="button"
+                    onClick={() => setForm({
+                      ...form,
+                      areas_participantes: activa
+                        ? form.areas_participantes.filter(x => x !== a)
+                        : [...form.areas_participantes, a],
+                    })}
+                    className={`text-xs font-semibold rounded-full px-3 py-1.5 border transition ${
+                      activa
+                        ? 'bg-[#EAF0FB] border-[#1A4FA0] text-[#1A4FA0]'
+                        : 'bg-white border-[#D6E0F0] text-[#6B7EA8] hover:border-[#1A4FA0]'
+                    }`}
+                  >
+                    {activa && '✓ '}{a}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-[#9BACC8] mt-1.5">
+              Su gente podrá ver el proyecto. El presupuesto sigue contando solo para el área responsable.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

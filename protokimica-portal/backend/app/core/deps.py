@@ -14,8 +14,19 @@ from app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-# Roles válidos del sistema
-ROLES_VALIDOS = {"admin", "lider", "agente", "lectura"}
+# Roles válidos del sistema.
+# - admin:    lo puede todo, incluida la configuración.
+# - gerencia: ve TODO el portal sin límite de área, pero no modifica nada
+#             estructural. Pensado para gerencia y dirección administrativa:
+#             consultan indicadores, no operan. Lo único que sí puede hacer
+#             es dejar comentarios/actualizaciones (ver `puede_comentar`).
+# - lider:    opera su área.
+# - agente:   opera lo que le asignan.
+# - lectura:  no escribe nada.
+ROLES_VALIDOS = {"admin", "gerencia", "lider", "agente", "lectura"}
+
+# Roles que ven todas las áreas sin restricción.
+ROLES_VISION_TOTAL = {"admin", "gerencia"}
 
 
 def get_current_user(
@@ -61,7 +72,31 @@ def require_role(*roles: str):
 
 
 def solo_lectura_no(current_user: User = Depends(get_current_user)) -> User:
-    """Bloquea usuarios de solo lectura en endpoints de escritura."""
+    """
+    Bloquea en endpoints de escritura a quien no debe modificar datos.
+
+    Incluye a `gerencia` a propósito: ese rol existe para consultar todo el
+    portal sin poder dañar nada. Al vivir el bloqueo aquí, cubre también los
+    módulos que ya estaban en producción sin tener que tocarlos uno por uno.
+    """
+    if current_user.rol in ("lectura", "gerencia"):
+        detalle = (
+            "Tu usuario de gerencia tiene acceso de consulta a todo el portal, "
+            "pero no puede modificar proyectos, tareas ni presupuesto."
+            if current_user.rol == "gerencia"
+            else "Tu usuario es de solo lectura."
+        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detalle)
+    return current_user
+
+
+def puede_comentar(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Más permisivo que `solo_lectura_no`: deja pasar a `gerencia`.
+
+    Se usa solo donde el aporte es un comentario o una actualización de
+    seguimiento — cosas que suman contexto sin alterar la planeación.
+    """
     if current_user.rol == "lectura":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

@@ -21,6 +21,11 @@ export const archivarProyecto = (id, archivado = true) =>
 export const eliminarProyecto = (id) =>
   api.delete(`/master-planner/proyectos/${id}`)
 
+// ── Resumen gerencial ─────────────────────────────────────────
+/** Todo viene calculado del servidor: KPIs, presupuesto, semáforo, cumplimiento y carga. */
+export const obtenerResumen = (params = {}) =>
+  api.get('/master-planner/resumen', { params }).then(r => r.data)
+
 // ── Presupuesto ───────────────────────────────────────────────
 export const listarPresupuesto = (proyectoId) =>
   api.get(`/master-planner/proyectos/${proyectoId}/presupuesto`).then(r => r.data)
@@ -28,8 +33,22 @@ export const listarPresupuesto = (proyectoId) =>
 export const agregarItemPresupuesto = (proyectoId, payload) =>
   api.post(`/master-planner/proyectos/${proyectoId}/presupuesto`, payload).then(r => r.data)
 
+/** Se usa sobre todo para registrar el valor ejecutado (lo realmente gastado). */
+export const actualizarItemPresupuesto = (itemId, payload) =>
+  api.patch(`/master-planner/presupuesto/${itemId}`, payload).then(r => r.data)
+
 export const eliminarItemPresupuesto = (itemId) =>
   api.delete(`/master-planner/presupuesto/${itemId}`)
+
+// ── Historial de cambios ──────────────────────────────────────
+export const listarHistorialProyecto = (proyectoId, params = {}) =>
+  api.get(`/master-planner/proyectos/${proyectoId}/historial`, { params }).then(r => r.data)
+
+export const listarHistorialTarea = (tareaId) =>
+  api.get(`/master-planner/tareas/${tareaId}/historial`).then(r => r.data)
+
+export const listarHistorialGeneral = (params = {}) =>
+  api.get('/master-planner/historial', { params }).then(r => r.data)
 
 // ── Tareas ────────────────────────────────────────────────────
 export const listarTareas = (params = {}) =>

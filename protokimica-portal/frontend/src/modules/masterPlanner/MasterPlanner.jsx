@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import Header from "./components/Header"
+import ResumenView from "./views/ResumenView"
 import ProyectosView from "./views/ProyectosView"
 import ProyectoDetalle from "./views/ProyectoDetalle"
 import TareasView from "./views/TareasView"
@@ -9,9 +10,12 @@ import TareaDetailModal from "./components/TareaDetailModal"
 import ProyectoFormModal from "./components/ProyectoFormModal"
 import TareaFormModal from "./components/TareaFormModal"
 import { listarProyectos, listarUsuariosAsignables } from "./api"
+import { puedeEditar } from "./constants"
+import { useAuth } from "../../core/AuthContext"
 
 /**
- * Shell del módulo. Tres pestañas:
+ * Shell del módulo. Cuatro pestañas:
+ *  - Resumen: los números para gerencia (presupuesto, semáforo, cumplimiento).
  *  - Proyectos: la lista de proyectos; al entrar a uno se ven SUS tareas.
  *  - Tareas: mirada transversal a todas las tareas de todos los proyectos.
  *  - Calendario: quién está haciendo qué y cuándo.
@@ -20,7 +24,9 @@ import { listarProyectos, listarUsuariosAsignables } from "./api"
  * desde el tablero, la tabla, el cronograma o el calendario sea lo mismo.
  */
 export default function MasterPlanner() {
-  const [vista, setVista] = useState("proyectos")
+  const { user } = useAuth()
+  const editable = puedeEditar(user)
+  const [vista, setVista] = useState("resumen")
   const [proyectoAbierto, setProyectoAbierto] = useState(null)
   const [tareaSeleccionadaId, setTareaSeleccionadaId] = useState(null)
   const [proyectoEnEdicion, setProyectoEnEdicion] = useState(null)
@@ -50,16 +56,26 @@ export default function MasterPlanner() {
     setVista(nueva)
   }
 
+  // Desde el resumen se entra directo a la ficha del proyecto, sin pasar por
+  // el listado: el gerente ve un proyecto en rojo y quiere abrirlo ya.
+  const abrirProyectoDesdeResumen = (id) => setProyectoAbierto(id)
+
   return (
     <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-6">
       <Header
         vista={vista}
         onChangeVista={cambiarVista}
+        editable={editable}
+        rol={user?.rol}
         onNuevoProyecto={() => abrirFormProyecto(null)}
         onNuevaTarea={() => setFormTarea({ proyectoId: proyectoAbierto })}
       />
 
-      {vista === "proyectos" && (
+      {vista === "resumen" && !proyectoAbierto && (
+        <ResumenView onAbrirProyecto={abrirProyectoDesdeResumen} />
+      )}
+
+      {(vista === "proyectos" || (vista === "resumen" && proyectoAbierto)) && (
         proyectoAbierto ? (
           <ProyectoDetalle
             proyectoId={proyectoAbierto}

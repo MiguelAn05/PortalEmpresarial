@@ -22,6 +22,10 @@ class Proyecto(Base):
     alcance = Column(Text, nullable=True)
 
     lider_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Área RESPONSABLE del proyecto: la dueña del presupuesto. Es una sola a
+    # propósito — si el presupuesto se repartiera entre varias áreas, los
+    # totales por área quedarían inflados. Las demás áreas involucradas van
+    # en `areas_participantes` y solo otorgan visibilidad.
     area = Column(String(100), nullable=True)
 
     # planeacion | en_ejecucion | pausado | cerrado
@@ -47,11 +51,36 @@ class Proyecto(Base):
     tareas = relationship(
         "Tarea", back_populates="proyecto", cascade="all, delete-orphan"
     )
+    # Sin esta cascada, borrar un proyecto revienta contra la llave foránea de
+    # mp_historial: sus filas de bitácora siguen apuntando al proyecto.
+    historial = relationship(
+        "HistorialCambio", back_populates="proyecto", cascade="all, delete-orphan"
+    )
+    areas_extra = relationship(
+        "ProyectoArea", back_populates="proyecto", cascade="all, delete-orphan"
+    )
+
+    @property
+    def areas_participantes(self) -> list[str]:
+        """Áreas adicionales a la responsable. Dan visibilidad, no presupuesto."""
+        return sorted(a.area for a in self.areas_extra)
+
+    @property
+    def areas_involucradas(self) -> list[str]:
+        """La responsable más las participantes — para mostrar en pantalla."""
+        todas = set(self.areas_participantes)
+        if self.area:
+            todas.add(self.area)
+        return sorted(todas)
 
     @property
     def presupuesto_total(self) -> float:
         """Suma de todos los ítems de presupuesto — nunca se escribe a mano."""
         return sum((item.valor_total or 0) for item in self.items_presupuesto)
+
+    @property
+    def presupuesto_ejecutado(self) -> float:
+        return sum(float(item.valor_ejecutado or 0) for item in self.items_presupuesto)
 
     @property
     def _tareas_raiz(self) -> list["Tarea"]:
@@ -75,6 +104,25 @@ class Proyecto(Base):
         return sum(1 for t in self._tareas_raiz if t.estado == "completada")
 
 
+class ProyectoArea(Base):
+    """
+    Área adicional que participa en un proyecto. Existe para el caso real de
+    proyectos que involucran a dos o más áreas: cualquiera de ellas ve el
+    proyecto, pero el presupuesto se le sigue atribuyendo solo al área
+    responsable (`Proyecto.area`).
+    """
+    __tablename__ = "mp_proyecto_areas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    proyecto_id = Column(
+        Integer, ForeignKey("mp_proyectos.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    area = Column(String(100), nullable=False, index=True)
+
+    proyecto = relationship("Proyecto", back_populates="areas_extra")
+
+
 class ItemPresupuesto(Base):
     """Equivale a una fila de la hoja 'Presupuesto' del Excel DE-F-10."""
     __tablename__ = "mp_items_presupuesto"
@@ -86,6 +134,9 @@ class ItemPresupuesto(Base):
     detalle = Column(String(300), nullable=True)
     valor_unitario = Column(Numeric(14, 2), nullable=False, default=0)
     cantidad = Column(Numeric(10, 2), nullable=False, default=1)
+    # Lo realmente gastado contra este ítem. Se captura a mano; mientras esté
+    # en 0 el ítem cuenta como planeado pero no ejecutado.
+    valor_ejecutado = Column(Numeric(14, 2), nullable=False, default=0, server_default="0")
     observaciones = Column(Text, nullable=True)
 
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
@@ -94,7 +145,13 @@ class ItemPresupuesto(Base):
 
     @property
     def valor_total(self) -> float:
+        """Valor planeado del ítem."""
         return float(self.valor_unitario or 0) * float(self.cantidad or 0)
+
+    @property
+    def disponible(self) -> float:
+        """Puede ser negativo: es la señal de que el ítem se pasó del presupuesto."""
+        return self.valor_total - float(self.valor_ejecutado or 0)
 
 
 class Tarea(Base):
@@ -123,6 +180,9 @@ class Tarea(Base):
 
     fecha_inicio = Column(DateTime(timezone=True), nullable=True)
     fecha_fin = Column(DateTime(timezone=True), nullable=True)
+    # Momento en que la tarea pasó a "completada". Es lo que permite medir
+    # cumplimiento: sin esto solo se sabe que está hecha, no si llegó a tiempo.
+    fecha_completada = Column(DateTime(timezone=True), nullable=True)
 
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -175,6 +235,44 @@ class TareaActualizacion(Base):
 
     tarea = relationship("Tarea", back_populates="actualizaciones")
     usuario = relationship("User")
+
+    @property
+    def usuario_nombre(self):
+        return self.usuario.nombre if self.usuario else None
+
+
+class HistorialCambio(Base):  # noqa: E303
+    """
+    Bitácora de cambios de proyectos y tareas: quién cambió qué, cuándo, y de
+    qué valor a cuál. Es lo que permite responder "¿por qué esta entrega se
+    corrió tres veces?" sin depender de la memoria de nadie.
+
+    Los valores se guardan como texto ya resuelto (el nombre del responsable,
+    no su id) para que el historial siga siendo legible aunque después se
+    desactive un usuario o se renombre algo.
+    """
+    __tablename__ = "mp_historial"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    entidad = Column(String(20), nullable=False)   # proyecto | tarea
+    entidad_id = Column(Integer, nullable=False)
+    # Cómo se llamaba en ese momento. Denormalizado para que el historial
+    # siga siendo legible si después se renombra o se borra la tarea.
+    entidad_nombre = Column(String(200), nullable=True)
+    # Siempre presente, incluso para tareas: permite filtrar todo el historial
+    # de un proyecto (el suyo y el de sus tareas) con una sola consulta.
+    proyecto_id = Column(Integer, ForeignKey("mp_proyectos.id"), nullable=False, index=True)
+
+    campo = Column(String(50), nullable=False)
+    valor_anterior = Column(Text, nullable=True)
+    valor_nuevo = Column(Text, nullable=True)
+
+    usuario_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    fecha = Column(DateTime(timezone=True), server_default=func.now())
+
+    usuario = relationship("User")
+    proyecto = relationship("Proyecto", back_populates="historial")
 
     @property
     def usuario_nombre(self):

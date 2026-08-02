@@ -2,12 +2,15 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import ProyectoCard from "../components/ProyectoCard"
 import { listarProyectos, archivarProyecto, eliminarProyecto } from "../api"
-import { ESTADOS_PROYECTO, AREAS } from "../constants"
+import { ESTADOS_PROYECTO, AREAS, puedeEditar } from "../constants"
+import { useAuth } from "../../../core/AuthContext"
 
 const FILTROS_VACIOS = { busqueda: "", estado: "", area: "" }
 
 export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEditarProyecto }) {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const editable = puedeEditar(user)
   const [filtros, setFiltros] = useState(FILTROS_VACIOS)
   const [verArchivados, setVerArchivados] = useState(false)
   const [error, setError] = useState(null)
@@ -105,7 +108,7 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
               ? (verArchivados ? "No hay proyectos archivados." : "Todavía no hay proyectos creados.")
               : "Ningún proyecto coincide con los filtros."}
           </p>
-          {proyectos.length === 0 && !verArchivados && (
+          {proyectos.length === 0 && !verArchivados && editable && (
             <button
               onClick={onNuevoProyecto}
               className="bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-semibold px-6 py-3 rounded-xl shadow-sm transition"
@@ -120,6 +123,7 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
             <ProyectoCard
               key={p.id}
               proyecto={p}
+              editable={editable}
               onAbrir={() => onAbrirProyecto(p.id)}
               onEditar={() => onEditarProyecto(p)}
               onArchivar={() => mutArchivar.mutate({ id: p.id, archivado: !p.archivado })}

@@ -1,7 +1,8 @@
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { crearSubtarea, actualizarTarea, eliminarTarea } from "../api"
-import { ALERTAS, alertaVencimiento, formatFecha, datetimeLocalAIso } from "../constants"
+import { ALERTAS, alertaVencimiento, formatFecha, datetimeLocalAIso, puedeEditar } from "../constants"
+import { useAuth } from "../../../core/AuthContext"
 
 /**
  * Checklist de subtareas dentro de una tarea. A propósito NO arrastra el
@@ -10,6 +11,8 @@ import { ALERTAS, alertaVencimiento, formatFecha, datetimeLocalAIso } from "../c
  */
 export default function SubtareasPanel({ tarea, usuarios = [], onCambio }) {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const editable = puedeEditar(user)
   const [nueva, setNueva] = useState({ titulo: "", asignado_a: "", fecha_fin: "" })
   const [abriendo, setAbriendo] = useState(false)
 
@@ -49,9 +52,11 @@ export default function SubtareasPanel({ tarea, usuarios = [], onCambio }) {
         <h3 className="text-sm font-bold text-[#0D2B5E]">
           Subtareas {subtareas.length > 0 && <span className="text-[#6B7EA8] font-semibold">({completadas}/{subtareas.length})</span>}
         </h3>
-        <button onClick={() => setAbriendo(v => !v)} className="text-xs font-semibold text-[#1A4FA0] hover:underline">
-          {abriendo ? 'Cancelar' : '+ Agregar subtarea'}
-        </button>
+        {editable && (
+          <button onClick={() => setAbriendo(v => !v)} className="text-xs font-semibold text-[#1A4FA0] hover:underline">
+            {abriendo ? 'Cancelar' : '+ Agregar subtarea'}
+          </button>
+        )}
       </div>
 
       {subtareas.length > 0 && (
@@ -75,8 +80,9 @@ export default function SubtareasPanel({ tarea, usuarios = [], onCambio }) {
             <div key={sub.id} className="group flex items-center gap-2.5 bg-[#F7F9FC] rounded-lg px-3 py-2">
               <input
                 type="checkbox" checked={hecha}
+                disabled={!editable}
                 onChange={() => mutAlternar.mutate(sub)}
-                className="w-4 h-4 rounded border-[#D6E0F0] accent-[#1A4FA0] cursor-pointer shrink-0"
+                className="w-4 h-4 rounded border-[#D6E0F0] accent-[#1A4FA0] cursor-pointer shrink-0 disabled:cursor-not-allowed"
               />
               <span className={`text-sm flex-1 truncate ${hecha ? 'line-through text-[#9BACC8]' : 'text-[#1A2B47]'}`}>
                 {sub.titulo}
@@ -89,13 +95,15 @@ export default function SubtareasPanel({ tarea, usuarios = [], onCambio }) {
                   {formatFecha(sub.fecha_fin, { day: '2-digit', month: 'short' })}
                 </span>
               )}
-              <button
-                onClick={() => { if (confirm(`¿Eliminar la subtarea "${sub.titulo}"?`)) mutEliminar.mutate(sub.id) }}
-                className="text-xs text-[#C3CFE2] hover:text-red-500 shrink-0 opacity-0 group-hover:opacity-100 transition"
-                aria-label="Eliminar subtarea"
-              >
-                ✕
-              </button>
+              {editable && (
+                <button
+                  onClick={() => { if (confirm(`¿Eliminar la subtarea "${sub.titulo}"?`)) mutEliminar.mutate(sub.id) }}
+                  className="text-xs text-[#C3CFE2] hover:text-red-500 shrink-0 opacity-0 group-hover:opacity-100 transition"
+                  aria-label="Eliminar subtarea"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           )
         })}

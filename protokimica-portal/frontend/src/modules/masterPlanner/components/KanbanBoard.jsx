@@ -4,7 +4,7 @@ import { ESTADOS_TAREA } from "../constants"
 
 const COLUMNAS = Object.entries(ESTADOS_TAREA).map(([estado, cfg]) => ({ estado, ...cfg }))
 
-export default function KanbanBoard({ tareas, onChangeEstado, onSelect, mostrarProyecto = true }) {
+export default function KanbanBoard({ tareas, onChangeEstado, onSelect, mostrarProyecto = true, arrastrable = true }) {
   const [dragId, setDragId] = useState(null)
   const [overEstado, setOverEstado] = useState(null)
 
@@ -21,7 +21,7 @@ export default function KanbanBoard({ tareas, onChangeEstado, onSelect, mostrarP
             onDragLeave={() => setOverEstado(prev => (prev === estado ? null : prev))}
             onDrop={(e) => {
               e.preventDefault()
-              if (dragId != null) onChangeEstado(dragId, estado)
+              if (arrastrable && dragId != null) onChangeEstado(dragId, estado)
               setDragId(null)
               setOverEstado(null)
             }}
@@ -50,7 +50,7 @@ export default function KanbanBoard({ tareas, onChangeEstado, onSelect, mostrarP
                   key={tarea.id}
                   tarea={tarea}
                   mostrarProyecto={mostrarProyecto}
-                  draggable
+                  draggable={arrastrable}
                   onDragStart={() => setDragId(tarea.id)}
                   onDragEnd={() => { setDragId(null); setOverEstado(null) }}
                   onClick={() => onSelect(tarea)}

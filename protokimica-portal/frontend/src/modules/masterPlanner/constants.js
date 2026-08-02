@@ -64,6 +64,143 @@ export function diasRestantes(fechaFin) {
   return Math.ceil((new Date(fechaFin) - new Date()) / 86400000)
 }
 
+// ── Roles y permisos ──────────────────────────────────────────
+// El backend es la autoridad: estas funciones solo sirven para no mostrar
+// botones que de todas formas darían 403.
+export const ROLES = {
+  admin:    { label: 'Administrador' },
+  gerencia: { label: 'Gerencia / Dirección' },
+  lider:    { label: 'Líder de área' },
+  agente:   { label: 'Agente' },
+  lectura:  { label: 'Solo lectura' },
+}
+
+/** Puede crear, editar o borrar proyectos, tareas y presupuesto. */
+export function puedeEditar(usuario) {
+  return !['lectura', 'gerencia'].includes(usuario?.rol)
+}
+
+/** Puede escribir actualizaciones de avance y comentarios. */
+export function puedeComentar(usuario) {
+  return usuario?.rol !== 'lectura'
+}
+
+/** Gerencia comenta, pero no mueve el % de avance: eso es planeación. */
+export function puedeReportarAvance(usuario) {
+  return puedeEditar(usuario)
+}
+
+// ── Semáforo de proyectos ─────────────────────────────────────
+// Lo calcula el backend comparando avance real contra plazo consumido.
+export const SALUD = {
+  verde:     { label: 'En tiempo',  color: 'bg-green-100 text-green-700',  punto: 'bg-green-500',  texto: 'text-green-600' },
+  amarillo:  { label: 'Atrasado',   color: 'bg-amber-100 text-amber-700',  punto: 'bg-amber-500',  texto: 'text-amber-600' },
+  rojo:      { label: 'En riesgo',  color: 'bg-red-100 text-red-700',      punto: 'bg-red-500',    texto: 'text-red-600' },
+  cerrado:   { label: 'Cerrado',    color: 'bg-gray-200 text-gray-600',    punto: 'bg-gray-400',   texto: 'text-gray-500' },
+  sin_datos: { label: 'Sin fechas', color: 'bg-gray-100 text-gray-500',    punto: 'bg-gray-300',   texto: 'text-gray-400' },
+}
+
+/**
+ * Traduce a lenguaje llano la comparación entre avance y plazo consumido.
+ *
+ * La idea: si un proyecto va por el 50% y solo ha transcurrido el 6% de su
+ * tiempo, va adelantado. Al revés, va atrasado. Mostrar los dos porcentajes
+ * crudos obliga a hacer esa resta mentalmente, así que aquí ya se hace y se
+ * dice el resultado con palabras.
+ */
+export function lecturaAvancePlazo(avance, plazo) {
+  if (plazo === null || plazo === undefined) {
+    return { texto: `${avance}% de avance`, detalle: 'Sin fechas para comparar', tono: 'neutro' }
+  }
+
+  const diferencia = Math.round(avance - plazo)
+  const comparacion = `Debería ir por el ${Math.round(plazo)}% y va en el ${Math.round(avance)}%`
+
+  if (plazo >= 100 && avance < 100) {
+    return {
+      texto: 'Plazo vencido',
+      detalle: `La fecha de entrega ya pasó y va en el ${Math.round(avance)}%`,
+      tono: 'malo',
+    }
+  }
+  if (diferencia >= 10) {
+    return { texto: `Adelantado ${diferencia} puntos`, detalle: comparacion, tono: 'bueno' }
+  }
+  if (diferencia >= -10) {
+    return { texto: 'Al día', detalle: comparacion, tono: 'bueno' }
+  }
+  return {
+    texto: `Atrasado ${Math.abs(diferencia)} puntos`,
+    detalle: comparacion,
+    tono: diferencia >= -25 ? 'regular' : 'malo',
+  }
+}
+
+export const TONOS = {
+  bueno:   'text-green-600',
+  regular: 'text-amber-600',
+  malo:    'text-red-600',
+  neutro:  'text-[#9BACC8]',
+}
+
+// ── Historial de cambios ──────────────────────────────────────
+// Cómo se lee cada `campo` que devuelve el backend. `tipo` decide el formato
+// del valor: 'fecha' lo pinta como fecha, 'texto_largo' solo dice que cambió.
+export const CAMPOS_HISTORIAL = {
+  // Proyecto
+  nombre:             { label: 'Nombre del proyecto', tipo: 'texto' },
+  estado:             { label: 'Estado',              tipo: 'estado' },
+  prioridad:          { label: 'Prioridad',           tipo: 'prioridad' },
+  area:               { label: 'Área',                tipo: 'texto' },
+  lider_id:           { label: 'Líder',               tipo: 'texto' },
+  archivado:          { label: 'Archivado',           tipo: 'si_no' },
+  fecha_inicio:       { label: 'Fecha de inicio',     tipo: 'fecha' },
+  fecha_fin_estimada: { label: 'Fecha de entrega',    tipo: 'fecha' },
+  fecha_fin_real:     { label: 'Fecha de cierre real', tipo: 'fecha' },
+  objetivo:           { label: 'Objetivo',            tipo: 'texto_largo' },
+  alcance:            { label: 'Alcance',             tipo: 'texto_largo' },
+  // Tarea
+  titulo:             { label: 'Título',              tipo: 'texto' },
+  asignado_a:         { label: 'Responsable',         tipo: 'texto' },
+  avance_pct:         { label: 'Avance',              tipo: 'porcentaje' },
+  fecha_fin:          { label: 'Fecha de fin',        tipo: 'fecha' },
+  descripcion:        { label: 'Descripción',         tipo: 'texto_largo' },
+  riesgos:            { label: 'Riesgos',             tipo: 'texto_largo' },
+  // Eventos de presupuesto
+  presupuesto_agregado:  { label: 'Ítem de presupuesto agregado',  tipo: 'evento' },
+  presupuesto_eliminado: { label: 'Ítem de presupuesto eliminado', tipo: 'evento' },
+  presupuesto_ejecutado: { label: 'Ejecución de presupuesto',      tipo: 'evento' },
+}
+
+export function etiquetaCampo(campo) {
+  return CAMPOS_HISTORIAL[campo]?.label || campo
+}
+
+/** Convierte el valor crudo del historial en algo legible según el tipo del campo. */
+export function valorHistorial(campo, valor) {
+  if (valor === null || valor === undefined || valor === '') return 'sin definir'
+  const tipo = CAMPOS_HISTORIAL[campo]?.tipo
+  if (tipo === 'fecha') return formatFechaHora(valor)
+  if (tipo === 'estado') return ESTADOS_TAREA[valor]?.label || ESTADOS_PROYECTO[valor]?.label || valor
+  if (tipo === 'prioridad') return PRIORIDADES[valor]?.label || valor
+  if (tipo === 'porcentaje') return `${valor}%`
+  if (tipo === 'si_no') return valor === 'si' ? 'Sí' : 'No'
+  return valor
+}
+
+/**
+ * Para un cambio de fecha, cuántos días se corrió. Positivo = se aplazó.
+ * Es el dato que a gerencia le interesa de verdad de un cambio de fecha.
+ */
+export function diasDesplazados(entrada) {
+  if (CAMPOS_HISTORIAL[entrada.campo]?.tipo !== 'fecha') return null
+  if (!entrada.valor_anterior || !entrada.valor_nuevo) return null
+  const antes = new Date(entrada.valor_anterior)
+  const despues = new Date(entrada.valor_nuevo)
+  if (isNaN(antes) || isNaN(despues)) return null
+  return Math.round((despues - antes) / 86400000)
+}
+
 // ── Filtrado de tareas ────────────────────────────────────────
 // Mismo criterio para el tablero, la tabla, el cronograma y el calendario,
 // para que "12 de 30 tareas" signifique lo mismo en todas las vistas.

@@ -7,7 +7,7 @@ import { ESTADOS_PROYECTO, colorAvance, formatFecha, formatMoneda } from "../con
  * Tarjeta de un PROYECTO (no de una tarea). Al hacer clic se entra al
  * proyecto y ahí sí aparecen sus tareas.
  */
-export default function ProyectoCard({ proyecto, onAbrir, onEditar, onArchivar, onEliminar }) {
+export default function ProyectoCard({ proyecto, editable = true, onAbrir, onEditar, onArchivar, onEliminar }) {
   const [menuAbierto, setMenuAbierto] = useState(false)
   const menuRef = useRef(null)
 
@@ -39,6 +39,7 @@ export default function ProyectoCard({ proyecto, onAbrir, onEditar, onArchivar, 
           )}
         </div>
 
+        {editable && (
         <div className="relative" ref={menuRef}>
           <button
             onClick={(e) => { e.stopPropagation(); setMenuAbierto(v => !v) }}
@@ -69,6 +70,7 @@ export default function ProyectoCard({ proyecto, onAbrir, onEditar, onArchivar, 
             </div>
           )}
         </div>
+        )}
       </div>
 
       <h3 className="text-base font-bold text-[#0D2B5E] leading-snug mb-1">{proyecto.nombre}</h3>
@@ -89,11 +91,20 @@ export default function ProyectoCard({ proyecto, onAbrir, onEditar, onArchivar, 
 
         <div className="flex items-center justify-between">
           <Avatar name={proyecto.lider_nombre} compact />
-          {proyecto.area && (
-            <span className="text-[11px] text-[#6B7EA8] bg-[#F7F9FC] border border-[#D6E0F0] rounded-full px-2 py-0.5">
-              {proyecto.area}
-            </span>
-          )}
+          <div className="flex flex-wrap gap-1 justify-end">
+            {proyecto.area && (
+              <span title="Area responsable"
+                className="text-[11px] text-[#1A4FA0] bg-[#EAF0FB] border border-[#D6E0F0] rounded-full px-2 py-0.5">
+                {proyecto.area}
+              </span>
+            )}
+            {proyecto.areas_participantes?.map(a => (
+              <span key={a} title="Area participante"
+                className="text-[11px] text-[#6B7EA8] bg-[#F7F9FC] border border-[#D6E0F0] rounded-full px-2 py-0.5">
+                {a}
+              </span>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-[#9BACC8] border-t border-[#EDF2F7] pt-2.5">

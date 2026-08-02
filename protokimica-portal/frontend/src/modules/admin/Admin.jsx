@@ -149,11 +149,16 @@ function TiposAutorizacion() {
 }
 
 const ROLES = [
-  { value: 'admin',   label: 'Administrador', desc: 'Acceso total, incluida esta sección' },
-  { value: 'lider',   label: 'Líder de área',  desc: 'Gestiona y autoriza PQRS de su área' },
-  { value: 'agente',  label: 'Agente',         desc: 'Gestiona PQRS asignadas' },
-  { value: 'lectura', label: 'Solo lectura',   desc: 'Solo puede consultar, no editar' },
+  { value: 'admin',    label: 'Administrador',       desc: 'Acceso total, incluida esta sección' },
+  { value: 'gerencia', label: 'Gerencia / Dirección', desc: 'Ve TODAS las áreas sin límite, pero no modifica nada; solo puede comentar' },
+  { value: 'lider',    label: 'Líder de área',        desc: 'Gestiona y autoriza PQRS de su área' },
+  { value: 'agente',   label: 'Agente',               desc: 'Gestiona PQRS asignadas' },
+  { value: 'lectura',  label: 'Solo lectura',         desc: 'Solo puede consultar, no editar' },
 ]
+
+// Aviso para el admin: en Master Planner el área del usuario ya no es
+// informativa, decide qué proyectos ve.
+const NOTA_AREA = 'En Master Planner el área determina qué proyectos ve la persona. Sin área, solo verá lo asignado a ella y los proyectos sin clasificar.'
 
 function GestionUsuarios() {
   const queryClient = useQueryClient()
@@ -233,7 +238,12 @@ function GestionUsuarios() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Área</label>
+              <label
+                className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5"
+                title={NOTA_AREA}
+              >
+                Área <span className="normal-case font-normal text-[#9BACC8]">(define qué ve)</span>
+              </label>
               <select name="area" value={form.area} onChange={handleChange}
                 className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]">
                 <option value="">Sin área</option>

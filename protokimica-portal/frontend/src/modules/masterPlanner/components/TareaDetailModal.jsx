@@ -3,14 +3,30 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import PriorityBadge from "./PriorityBadge"
 import Avatar from "./Avatar"
 import SubtareasPanel from "./SubtareasPanel"
+import HistorialPanel from "./HistorialPanel"
+import ConfirmarCambios, { ConfirmarDescarte } from "./ConfirmarCambios"
+import { calcularCambios } from "../cambiosFormulario"
+import { useAuth } from "../../../core/AuthContext"
 import {
-  obtenerTarea, listarActualizaciones, agregarActualizacion, actualizarTarea, eliminarTarea,
+  obtenerTarea, listarActualizaciones, agregarActualizacion, actualizarTarea,
+  eliminarTarea, listarHistorialTarea,
 } from "../api"
 import {
   ESTADOS_TAREA, PRIORIDADES, AREAS, ALERTAS,
   alertaVencimiento, colorAvance, formatFecha, formatFechaHora,
   isoADatetimeLocal, datetimeLocalAIso,
+  puedeEditar, puedeReportarAvance,
 } from "../constants"
+
+// Qué campos del formulario se confirman antes de guardar y cómo leer su
+// valor original para poder compararlos.
+const CAMPOS_CONFIRMABLES = {
+  titulo:       (t) => t.titulo,
+  prioridad:    (t) => t.prioridad,
+  area:         (t) => t.area || "",
+  fecha_inicio: (t) => isoADatetimeLocal(t.fecha_inicio),
+  fecha_fin:    (t) => isoADatetimeLocal(t.fecha_fin),
+}
 
 /**
  * Detalle de una TAREA. Relee la tarea del servidor por su id en vez de
@@ -20,6 +36,11 @@ import {
  */
 export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const editable = puedeEditar(user)
+  const puedeAvance = puedeReportarAvance(user)
+  const [confirmacion, setConfirmacion] = useState(null) // { cambios, ejecutar }
+  const [pidiendoDescarte, setPidiendoDescarte] = useState(false)
   // `form` distinto de null es el modo edición. Se llena al pulsar "Editar
   // detalles" con los valores de ese momento, no en un efecto: así una
   // recarga de fondo de la query no pisa lo que se está escribiendo.
@@ -38,6 +59,11 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
     queryFn: () => listarActualizaciones(tareaId),
   })
 
+  const { data: historial = [] } = useQuery({
+    queryKey: ["mp-historial-tarea", tareaId],
+    queryFn: () => listarHistorialTarea(tareaId),
+  })
+
   const empezarEdicion = () => setForm({
     titulo: tarea.titulo,
     descripcion: tarea.descripcion || "",
@@ -52,12 +78,27 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
     queryClient.invalidateQueries({ queryKey: ["mp-tarea", tareaId] })
     queryClient.invalidateQueries({ queryKey: ["mp-tareas"] })
     queryClient.invalidateQueries({ queryKey: ["mp-proyectos"] })
+    queryClient.invalidateQueries({ queryKey: ["mp-historial-tarea", tareaId] })
+    queryClient.invalidateQueries({ queryKey: ["mp-historial-general"] })
+    queryClient.invalidateQueries({ queryKey: ["mp-resumen"] })
   }
 
   const mutCampo = useMutation({
     mutationFn: (payload) => actualizarTarea(tareaId, payload),
-    onSuccess: invalidar,
+    onSuccess: () => { invalidar(); setConfirmacion(null) },
   })
+
+  /**
+   * Los cambios rápidos (estado, responsable) también pasan por confirmación:
+   * son de los que más aparecen en el historial y de los que más se hacen sin
+   * querer al abrir un desplegable.
+   */
+  const pedirConfirmacion = (campo, antes, despues, payload) => {
+    setConfirmacion({
+      cambios: [{ campo, antes, despues }],
+      ejecutar: () => mutCampo.mutate(payload),
+    })
+  }
 
   const mutGuardarEdicion = useMutation({
     mutationFn: () => actualizarTarea(tareaId, {
@@ -65,8 +106,35 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
       fecha_inicio: datetimeLocalAIso(form.fecha_inicio),
       fecha_fin: datetimeLocalAIso(form.fecha_fin),
     }),
-    onSuccess: () => { invalidar(); setForm(null) },
+    onSuccess: () => { invalidar(); setForm(null); setConfirmacion(null) },
   })
+
+  const cambiosPendientes = form && tarea
+    ? calcularCambios(form, tarea, {
+        ...CAMPOS_CONFIRMABLES,
+        descripcion: (t) => t.descripcion || "",
+        riesgos: (t) => t.riesgos || "",
+      })
+    : []
+
+  const intentarGuardarEdicion = () => {
+    if (cambiosPendientes.length === 0) { setForm(null); return }
+    setConfirmacion({
+      cambios: cambiosPendientes.filter(c => c.campo in CAMPOS_CONFIRMABLES || true),
+      ejecutar: () => mutGuardarEdicion.mutate(),
+    })
+  }
+
+  const intentarCerrarEdicion = () => {
+    if (cambiosPendientes.length > 0) setPidiendoDescarte(true)
+    else setForm(null)
+  }
+
+  // Cerrar el modal completo con la edición abierta también avisa.
+  const intentarCerrarModal = () => {
+    if (cambiosPendientes.length > 0) setPidiendoDescarte(true)
+    else onClose()
+  }
 
   const mutActualizacion = useMutation({
     mutationFn: () => {
@@ -91,7 +159,7 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
   const alerta = tarea ? alertaVencimiento(tarea) : null
 
   return (
-    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={intentarCerrarModal}>
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
 
         {isLoading || !tarea ? (
@@ -99,7 +167,7 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
         ) : (
           <>
             <div className="bg-gradient-to-r from-[#0D2B5E] to-[#1A4FA0] rounded-t-2xl p-6 text-white sticky top-0 z-10">
-              <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
+              <button onClick={intentarCerrarModal} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
               <p className="text-xs uppercase tracking-wide text-white/70 mb-1">{tarea.proyecto_nombre}</p>
               <h2 className="text-xl font-bold pr-8">{tarea.titulo}</h2>
             </div>
@@ -120,8 +188,11 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                   <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Estado</label>
                   <select
                     value={tarea.estado}
-                    onChange={(e) => mutCampo.mutate({ estado: e.target.value })}
-                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+                    disabled={!editable}
+                    onChange={(e) => pedirConfirmacion(
+                      'estado', tarea.estado, e.target.value, { estado: e.target.value },
+                    )}
+                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm disabled:bg-[#F7F9FC] disabled:text-[#9BACC8]"
                   >
                     {Object.entries(ESTADOS_TAREA).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
                   </select>
@@ -130,8 +201,17 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                   <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Asignado a</label>
                   <select
                     value={tarea.asignado_a || ""}
-                    onChange={(e) => mutCampo.mutate({ asignado_a: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+                    disabled={!editable}
+                    onChange={(e) => {
+                      const id = e.target.value ? Number(e.target.value) : null
+                      pedirConfirmacion(
+                        'asignado_a',
+                        tarea.asignado_nombre,
+                        usuarios.find(u => u.id === id)?.nombre || null,
+                        { asignado_a: id },
+                      )
+                    }}
+                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm disabled:bg-[#F7F9FC] disabled:text-[#9BACC8]"
                   >
                     <option value="">Sin asignar</option>
                     {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
@@ -154,9 +234,11 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                       <PriorityBadge priority={tarea.prioridad} />
                       {tarea.area && <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white border border-[#D6E0F0] text-[#6B7EA8]">{tarea.area}</span>}
                     </div>
-                    <button onClick={empezarEdicion} className="text-xs font-semibold text-[#1A4FA0] hover:underline">
-                      Editar detalles
-                    </button>
+                    {editable && (
+                      <button onClick={empezarEdicion} className="text-xs font-semibold text-[#1A4FA0] hover:underline">
+                        Editar detalles
+                      </button>
+                    )}
                   </div>
                   {tarea.descripcion && <p className="text-sm text-[#1A2B47]">{tarea.descripcion}</p>}
                   {tarea.riesgos && (
@@ -201,8 +283,14 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => setForm(null)} className="flex-1 border border-[#D6E0F0] text-sm font-semibold py-2 rounded-lg hover:bg-gray-50">Cancelar</button>
-                    <button onClick={() => mutGuardarEdicion.mutate()} disabled={mutGuardarEdicion.isPending} className="flex-1 bg-[#1A4FA0] hover:bg-[#0D2B5E] text-white text-sm font-semibold py-2 rounded-lg">Guardar</button>
+                    <button onClick={intentarCerrarEdicion} className="flex-1 border border-[#D6E0F0] text-sm font-semibold py-2 rounded-lg hover:bg-gray-50">Cancelar</button>
+                    <button
+                      onClick={intentarGuardarEdicion}
+                      disabled={mutGuardarEdicion.isPending || cambiosPendientes.length === 0}
+                      className="flex-1 bg-[#1A4FA0] hover:bg-[#0D2B5E] disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg"
+                    >
+                      {cambiosPendientes.length === 0 ? 'Sin cambios' : 'Guardar'}
+                    </button>
                   </div>
                 </div>
               )}
@@ -225,12 +313,14 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                     rows={2} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm resize-none"
                   />
                   <div className="flex items-center gap-3">
-                    <input
-                      type="number" min={0} max={100} value={avanceNuevo}
-                      onChange={(e) => setAvanceNuevo(e.target.value)}
-                      placeholder="% avance"
-                      className="w-28 rounded-lg border border-[#D6E0F0] px-3 py-1.5 text-sm"
-                    />
+                    {puedeAvance && (
+                      <input
+                        type="number" min={0} max={100} value={avanceNuevo}
+                        onChange={(e) => setAvanceNuevo(e.target.value)}
+                        placeholder="% avance"
+                        className="w-28 rounded-lg border border-[#D6E0F0] px-3 py-1.5 text-sm"
+                      />
+                    )}
                     <input
                       type="file" accept=".jpg,.jpeg,.png,.webp,.pdf"
                       onChange={(e) => setEvidencia(e.target.files?.[0] || null)}
@@ -279,6 +369,18 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                 </div>
               </div>
 
+              {/* Historial: quién cambió qué. Va aparte de las actualizaciones
+                  porque una cosa es lo que la persona reporta y otra lo que el
+                  sistema registró que efectivamente cambió. */}
+              <div className="border-t border-[#EDF2F7] pt-5">
+                <h3 className="text-sm font-bold text-[#0D2B5E] mb-3">Historial de cambios</h3>
+                <HistorialPanel
+                  entradas={historial}
+                  vacio="Esta tarea no ha tenido cambios desde que se creó."
+                />
+              </div>
+
+              {editable && (
               <button
                 onClick={() => {
                   const aviso = tarea.total_subtareas > 0
@@ -290,10 +392,27 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
               >
                 Eliminar tarea
               </button>
+              )}
             </div>
           </>
         )}
       </div>
+
+      {confirmacion && (
+        <ConfirmarCambios
+          cambios={confirmacion.cambios}
+          guardando={mutCampo.isPending || mutGuardarEdicion.isPending}
+          onConfirmar={confirmacion.ejecutar}
+          onCancelar={() => setConfirmacion(null)}
+        />
+      )}
+
+      {pidiendoDescarte && (
+        <ConfirmarDescarte
+          onSeguir={() => setPidiendoDescarte(false)}
+          onDescartar={() => { setPidiendoDescarte(false); setForm(null) }}
+        />
+      )}
     </div>
   )
 }

@@ -10,30 +10,110 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
+from app.core.deps import (
+    get_current_user, get_current_tenant_id, solo_lectura_no, puede_comentar,
+)
 from app.models.user import User
-from app.models.master_planner import Proyecto, ItemPresupuesto, Tarea, TareaActualizacion
+from app.models.master_planner import (
+    Proyecto, ProyectoArea, ItemPresupuesto, Tarea, TareaActualizacion, HistorialCambio,
+)
 from app.modules.master_planner.schemas import (
     ProyectoCreate, ProyectoUpdate, ProyectoOut,
-    ItemPresupuestoCreate, ItemPresupuestoOut,
+    ItemPresupuestoCreate, ItemPresupuestoUpdate, ItemPresupuestoOut,
     TareaCreate, TareaUpdate, TareaOut, SubtareaCreate,
-    TareaActualizacionOut, UsuarioAsignableOut,
+    TareaActualizacionOut, UsuarioAsignableOut, HistorialCambioOut,
 )
+from app.modules.master_planner.historial import (
+    instantanea, registrar_cambios, registrar_evento,
+)
+from app.modules.master_planner.permisos import (
+    aplicar_filtro_proyectos, puede_ver_proyecto, puede_ver_presupuesto, ve_todo,
+)
+from app.modules.master_planner.resumen import construir_resumen
 from app.modules.pqrs.service import disparar_webhook_n8n, guardar_archivo
 
 router = APIRouter(prefix="/master-planner", tags=["Master Planner"])
 
 
-def _get_proyecto_o_404(db: Session, proyecto_id: int, tenant_id: int) -> Proyecto:
+@router.get("/resumen")
+def obtener_resumen(
+    area: str | None = None,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Resumen gerencial ya calculado: KPIs, presupuesto planeado vs ejecutado
+    por área, semáforo y replanificaciones por proyecto, cumplimiento de
+    fechas y carga por responsable. Se calcula aquí para que el número
+    signifique lo mismo en pantalla que en cualquier reporte posterior.
+    """
+    return construir_resumen(db, tenant_id, current_user, area)
+
+
+def _get_proyecto_o_404(
+    db: Session, proyecto_id: int, tenant_id: int, usuario: User | None = None,
+) -> Proyecto:
     proyecto = db.query(Proyecto).filter(
         Proyecto.id == proyecto_id, Proyecto.tenant_id == tenant_id,
     ).first()
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado.")
+    # 404 y no 403 a propósito: un 403 confirmaría que el proyecto existe.
+    if usuario is not None and not puede_ver_proyecto(db, proyecto, usuario):
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado.")
     return proyecto
 
 
-def _get_tarea_o_404(db: Session, tarea_id: int, tenant_id: int) -> Tarea:
+def _get_proyecto_presupuesto_o_404(
+    db: Session, proyecto_id: int, tenant_id: int, usuario: User,
+) -> Proyecto:
+    """
+    Como `_get_proyecto_o_404`, pero además exige permiso sobre el dinero:
+    tener una tarea asignada en un proyecto ajeno no da acceso a su
+    presupuesto.
+    """
+    proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id, usuario)
+    if not puede_ver_presupuesto(proyecto, usuario):
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso al presupuesto de un proyecto de otra área.",
+        )
+    return proyecto
+
+
+def _get_item_presupuesto_o_404(
+    db: Session, item_id: int, tenant_id: int, usuario: User | None = None,
+) -> ItemPresupuesto:
+    item = (
+        db.query(ItemPresupuesto)
+        .join(Proyecto, ItemPresupuesto.proyecto_id == Proyecto.id)
+        .filter(ItemPresupuesto.id == item_id, Proyecto.tenant_id == tenant_id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Ítem de presupuesto no encontrado.")
+    if usuario is not None and not puede_ver_presupuesto(item.proyecto, usuario):
+        raise HTTPException(status_code=404, detail="Ítem de presupuesto no encontrado.")
+    return item
+
+
+def _sincronizar_cierre(tarea: Tarea) -> None:
+    """
+    Mantiene `fecha_completada` alineada con el estado. Se sella al completar
+    y se limpia si la tarea se reabre, para que el cumplimiento no quede
+    midiendo contra un cierre que ya no existe.
+    """
+    if tarea.estado == "completada":
+        if not tarea.fecha_completada:
+            tarea.fecha_completada = datetime.now(timezone.utc)
+    else:
+        tarea.fecha_completada = None
+
+
+def _get_tarea_o_404(
+    db: Session, tarea_id: int, tenant_id: int, usuario: User | None = None,
+) -> Tarea:
     tarea = (
         db.query(Tarea)
         .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
@@ -42,7 +122,24 @@ def _get_tarea_o_404(db: Session, tarea_id: int, tenant_id: int) -> Tarea:
     )
     if not tarea:
         raise HTTPException(status_code=404, detail="Tarea no encontrada.")
+    if usuario is not None and not puede_ver_proyecto(db, tarea.proyecto, usuario):
+        raise HTTPException(status_code=404, detail="Tarea no encontrada.")
     return tarea
+
+
+def _sincronizar_areas(db: Session, proyecto: Proyecto, areas: list[str]) -> None:
+    """
+    Reemplaza las áreas participantes del proyecto. El área responsable no
+    se duplica aquí: si viene en la lista, se descarta.
+    """
+    deseadas = {a for a in areas if a and a != proyecto.area}
+    actuales = {a.area for a in proyecto.areas_extra}
+
+    for extra in list(proyecto.areas_extra):
+        if extra.area not in deseadas:
+            proyecto.areas_extra.remove(extra)
+    for area in deseadas - actuales:
+        proyecto.areas_extra.append(ProyectoArea(area=area))
 
 
 # ── Proyectos ───────────────────────────────────────────────────
@@ -54,8 +151,11 @@ def crear_proyecto(
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(solo_lectura_no),
 ):
-    proyecto = Proyecto(tenant_id=tenant_id, **payload.model_dump())
+    datos = payload.model_dump()
+    areas = datos.pop("areas_participantes", None) or []
+    proyecto = Proyecto(tenant_id=tenant_id, **datos)
     db.add(proyecto)
+    _sincronizar_areas(db, proyecto, areas)
     db.commit()
     db.refresh(proyecto)
     return proyecto
@@ -68,12 +168,17 @@ def listar_proyectos(
     archivados: bool = False,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
 ):
-    """Por defecto solo los proyectos activos; `archivados=true` devuelve el archivo."""
+    """
+    Por defecto solo los proyectos activos; `archivados=true` devuelve el
+    archivo. Siempre acotado a lo que el usuario tiene permitido ver.
+    """
     query = db.query(Proyecto).filter(
         Proyecto.tenant_id == tenant_id,
         Proyecto.archivado.is_(archivados),
     )
+    query = aplicar_filtro_proyectos(query, current_user)
     if estado:
         query = query.filter(Proyecto.estado == estado)
     if area:
@@ -86,8 +191,9 @@ def obtener_proyecto(
     proyecto_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
 ):
-    return _get_proyecto_o_404(db, proyecto_id, tenant_id)
+    return _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
 
 
 @router.patch("/proyectos/{proyecto_id}", response_model=ProyectoOut)
@@ -96,13 +202,25 @@ def actualizar_proyecto(
     payload: ProyectoUpdate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(solo_lectura_no),
 ):
-    proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id)
-    for campo, valor in payload.model_dump(exclude_unset=True).items():
+    proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
+    antes = instantanea(proyecto, "proyecto")
+
+    cambios = payload.model_dump(exclude_unset=True)
+    areas = cambios.pop("areas_participantes", None)
+    for campo, valor in cambios.items():
         setattr(proyecto, campo, valor)
+    if areas is not None:
+        _sincronizar_areas(db, proyecto, areas)
     if payload.estado == "cerrado" and not proyecto.fecha_fin_real:
         proyecto.fecha_fin_real = datetime.now(timezone.utc)
+
+    registrar_cambios(
+        db, "proyecto", proyecto.id, proyecto.id,
+        antes, instantanea(proyecto, "proyecto"), current_user.id,
+        entidad_nombre=proyecto.nombre,
+    )
     db.commit()
     db.refresh(proyecto)
     return proyecto
@@ -113,7 +231,7 @@ def eliminar_proyecto(
     proyecto_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(solo_lectura_no),
 ):
     """
     Borrado definitivo, permitido solo si el proyecto no tiene tareas: la
@@ -121,7 +239,7 @@ def eliminar_proyecto(
     evidencias sin posibilidad de recuperarlas. Para sacar de circulación
     un proyecto con historial se usa `archivado` (PATCH /proyectos/{id}).
     """
-    proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id)
+    proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
 
     total_tareas = db.query(Tarea).filter(Tarea.proyecto_id == proyecto_id).count()
     if total_tareas:
@@ -149,11 +267,48 @@ def agregar_item_presupuesto(
     payload: ItemPresupuestoCreate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(solo_lectura_no),
 ):
-    _get_proyecto_o_404(db, proyecto_id, tenant_id)
+    _get_proyecto_presupuesto_o_404(db, proyecto_id, tenant_id, current_user)
     item = ItemPresupuesto(proyecto_id=proyecto_id, **payload.model_dump())
     db.add(item)
+    db.flush()  # necesitamos el id del ítem para dejarlo en el historial
+
+    registrar_evento(
+        db, "proyecto", proyecto_id, proyecto_id, "presupuesto_agregado",
+        current_user.id, valor_nuevo=f"{item.concepto} · {item.valor_total:.0f}",
+        entidad_nombre=item.proyecto.nombre,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/presupuesto/{item_id}", response_model=ItemPresupuestoOut)
+def actualizar_item_presupuesto(
+    item_id: int,
+    payload: ItemPresupuestoUpdate,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_lectura_no),
+):
+    """Se usa sobre todo para registrar el valor ejecutado (lo realmente gastado)."""
+    item = _get_item_presupuesto_o_404(db, item_id, tenant_id, current_user)
+    ejecutado_anterior = float(item.valor_ejecutado or 0)
+
+    for campo, valor in payload.model_dump(exclude_unset=True).items():
+        setattr(item, campo, valor)
+
+    ejecutado_nuevo = float(item.valor_ejecutado or 0)
+    if ejecutado_nuevo != ejecutado_anterior:
+        registrar_evento(
+            db, "proyecto", item.proyecto_id, item.proyecto_id, "presupuesto_ejecutado",
+            current_user.id,
+            valor_anterior=f"{item.concepto} · {ejecutado_anterior:.0f}",
+            valor_nuevo=f"{item.concepto} · {ejecutado_nuevo:.0f}",
+            entidad_nombre=item.proyecto.nombre,
+        )
+
     db.commit()
     db.refresh(item)
     return item
@@ -164,8 +319,9 @@ def listar_presupuesto(
     proyecto_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
 ):
-    _get_proyecto_o_404(db, proyecto_id, tenant_id)
+    _get_proyecto_presupuesto_o_404(db, proyecto_id, tenant_id, current_user)
     return (
         db.query(ItemPresupuesto)
         .filter(ItemPresupuesto.proyecto_id == proyecto_id)
@@ -179,16 +335,14 @@ def eliminar_item_presupuesto(
     item_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(solo_lectura_no),
 ):
-    item = (
-        db.query(ItemPresupuesto)
-        .join(Proyecto, ItemPresupuesto.proyecto_id == Proyecto.id)
-        .filter(ItemPresupuesto.id == item_id, Proyecto.tenant_id == tenant_id)
-        .first()
+    item = _get_item_presupuesto_o_404(db, item_id, tenant_id, current_user)
+    registrar_evento(
+        db, "proyecto", item.proyecto_id, item.proyecto_id, "presupuesto_eliminado",
+        current_user.id, valor_anterior=f"{item.concepto} · {item.valor_total:.0f}",
+        entidad_nombre=item.proyecto.nombre,
     )
-    if not item:
-        raise HTTPException(status_code=404, detail="Ítem de presupuesto no encontrado.")
     db.delete(item)
     db.commit()
 
@@ -224,9 +378,10 @@ def listar_todas_las_tareas(
     incluir_archivados: bool = False,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Tablero global: tareas de todos los proyectos activos del tenant.
+    Tablero global: tareas de los proyectos activos que el usuario puede ver.
     Las subtareas quedan fuera por defecto — viven dentro de su tarea
     padre como checklist, no como tarjetas sueltas del Kanban.
     """
@@ -235,6 +390,7 @@ def listar_todas_las_tareas(
         .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
         .filter(Proyecto.tenant_id == tenant_id)
     )
+    query = aplicar_filtro_proyectos(query, current_user)
     if not incluir_archivados:
         query = query.filter(Proyecto.archivado.is_(False))
     if not incluir_subtareas:
@@ -257,9 +413,9 @@ def crear_tarea(
     payload: TareaCreate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(solo_lectura_no),
 ):
-    proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id)
+    proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
     tarea = Tarea(proyecto_id=proyecto_id, **payload.model_dump())
     db.add(tarea)
     db.commit()
@@ -282,8 +438,9 @@ def listar_tareas_de_proyecto(
     incluir_subtareas: bool = False,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
 ):
-    _get_proyecto_o_404(db, proyecto_id, tenant_id)
+    _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
     query = db.query(Tarea).filter(Tarea.proyecto_id == proyecto_id)
     if not incluir_subtareas:
         query = query.filter(Tarea.parent_id.is_(None))
@@ -299,14 +456,14 @@ def crear_subtarea(
     payload: SubtareaCreate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(solo_lectura_no),
 ):
     """
     Crea una subtarea colgando de `tarea_id`. Hereda el proyecto del padre
     y se limita a un nivel: una subtarea no puede tener subtareas, para que
     el checklist no se convierta en un árbol imposible de leer.
     """
-    padre = _get_tarea_o_404(db, tarea_id, tenant_id)
+    padre = _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
     if padre.parent_id is not None:
         raise HTTPException(
             status_code=400,
@@ -363,6 +520,7 @@ def obtener_tarea(
     tarea_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Una tarea sola, con sus subtareas. Lo usa el detalle del frontend para
@@ -370,7 +528,7 @@ def obtener_tarea(
     se queda desactualizada. Va después de /tareas/mias a propósito: FastAPI
     resuelve por orden de declaración y "mias" tiene que ganar.
     """
-    return _get_tarea_o_404(db, tarea_id, tenant_id)
+    return _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
 
 
 @router.patch("/tareas/{tarea_id}", response_model=TareaOut)
@@ -379,13 +537,21 @@ def actualizar_tarea(
     payload: TareaUpdate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(solo_lectura_no),
 ):
-    tarea = _get_tarea_o_404(db, tarea_id, tenant_id)
+    tarea = _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
     asignado_anterior = tarea.asignado_a
+    antes = instantanea(tarea, "tarea")
 
     for campo, valor in payload.model_dump(exclude_unset=True).items():
         setattr(tarea, campo, valor)
+
+    _sincronizar_cierre(tarea)
+    registrar_cambios(
+        db, "tarea", tarea.id, tarea.proyecto_id,
+        antes, instantanea(tarea, "tarea"), current_user.id,
+        entidad_nombre=tarea.titulo,
+    )
     db.commit()
     db.refresh(tarea)
 
@@ -405,11 +571,70 @@ def eliminar_tarea(
     tarea_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(solo_lectura_no),
 ):
-    tarea = _get_tarea_o_404(db, tarea_id, tenant_id)
+    tarea = _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
     db.delete(tarea)
     db.commit()
+
+
+# ── Historial de cambios ────────────────────────────────────────
+
+@router.get("/proyectos/{proyecto_id}/historial", response_model=list[HistorialCambioOut])
+def historial_de_proyecto(
+    proyecto_id: int,
+    solo_proyecto: bool = False,
+    limite: int = 200,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Historial del proyecto y, por defecto, también el de sus tareas — que es
+    como gerencia quiere leerlo: una sola línea de tiempo de todo lo que se
+    movió. Con `solo_proyecto=true` se limita a los cambios del proyecto.
+    """
+    _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
+    query = db.query(HistorialCambio).filter(HistorialCambio.proyecto_id == proyecto_id)
+    if solo_proyecto:
+        query = query.filter(HistorialCambio.entidad == "proyecto")
+    return query.order_by(HistorialCambio.fecha.desc()).limit(limite).all()
+
+
+@router.get("/tareas/{tarea_id}/historial", response_model=list[HistorialCambioOut])
+def historial_de_tarea(
+    tarea_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+):
+    _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
+    return (
+        db.query(HistorialCambio)
+        .filter(HistorialCambio.entidad == "tarea", HistorialCambio.entidad_id == tarea_id)
+        .order_by(HistorialCambio.fecha.desc())
+        .all()
+    )
+
+
+@router.get("/historial", response_model=list[HistorialCambioOut])
+def historial_general(
+    campo: str | None = None,
+    limite: int = 100,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+):
+    """Actividad reciente de los proyectos que el usuario puede ver."""
+    query = (
+        db.query(HistorialCambio)
+        .join(Proyecto, HistorialCambio.proyecto_id == Proyecto.id)
+        .filter(Proyecto.tenant_id == tenant_id, Proyecto.archivado.is_(False))
+    )
+    query = aplicar_filtro_proyectos(query, current_user)
+    if campo:
+        query = query.filter(HistorialCambio.campo == campo)
+    return query.order_by(HistorialCambio.fecha.desc()).limit(limite).all()
 
 
 # ── Línea de tiempo de actualizaciones (reemplaza el log del Excel) ──
@@ -425,10 +650,17 @@ async def agregar_actualizacion(
     evidencia: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    current_user: User = Depends(get_current_user),
-    _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(puede_comentar),
 ):
-    tarea = _get_tarea_o_404(db, tarea_id, tenant_id)
+    tarea = _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
+
+    # Gerencia puede dejar comentarios, pero mover el avance es planeacion y
+    # su rol es de consulta.
+    if avance_pct_nuevo is not None and current_user.rol == "gerencia":
+        raise HTTPException(
+            status_code=403,
+            detail="Tu usuario puede comentar, pero no modificar el avance de una tarea.",
+        )
 
     if avance_pct_nuevo is not None and not (0 <= avance_pct_nuevo <= 100):
         raise HTTPException(status_code=400, detail="avance_pct_nuevo debe estar entre 0 y 100.")
@@ -447,9 +679,18 @@ async def agregar_actualizacion(
     db.add(actualizacion)
 
     if avance_pct_nuevo is not None:
+        antes = instantanea(tarea, "tarea")
         tarea.avance_pct = avance_pct_nuevo
         if avance_pct_nuevo >= 100:
             tarea.estado = "completada"
+        _sincronizar_cierre(tarea)
+        # También pasa por el historial: llegar al 100% desde aquí mueve el
+        # estado igual que hacerlo a mano, y gerencia tiene que verlo igual.
+        registrar_cambios(
+            db, "tarea", tarea.id, tarea.proyecto_id,
+            antes, instantanea(tarea, "tarea"), current_user.id,
+            entidad_nombre=tarea.titulo,
+        )
 
     db.commit()
     db.refresh(actualizacion)
@@ -461,8 +702,9 @@ def listar_actualizaciones(
     tarea_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
 ):
-    _get_tarea_o_404(db, tarea_id, tenant_id)
+    _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
     return (
         db.query(TareaActualizacion)
         .filter(TareaActualizacion.tarea_id == tarea_id)

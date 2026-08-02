@@ -5,31 +5,41 @@ import {
   inicioDia, lunesDeLaSemana, mismoDia, rangoTarea, rejillaMes, sumarDias,
 } from "../constants"
 import { calcularBarras, contarOcultasPorDia } from "../calendarioLayout"
+import CalendarioHoras from "./CalendarioHoras"
 
 const FILAS_VISIBLES_POR_DIA = 3
 const ALTO_CARRIL = 24 // px que ocupa cada carril de barras
 
+const MODOS = [
+  { id: 'mes',    label: 'Mes' },
+  { id: 'semana', label: 'Semana' },
+  { id: 'dia',    label: 'Día' },
+]
+
 /**
- * Calendario tipo Notion: cada tarea es una barra continua desde su fecha
- * de inicio hasta su fecha de fin, así se ve la carga real de cada persona
- * y no solo el día de entrega. Las tareas sin fechas no aparecen (se avisa
- * al pie cuántas quedaron fuera).
+ * Calendario con tres modos:
  *
- * El layout se calcula por semana: a cada tarea se le asigna un "carril"
- * (fila) que respeta a lo largo de toda la semana, para que la barra se
- * lea como una sola pieza en vez de saltar de altura entre días.
+ *  - Mes: cada tarea es una barra continua de su fecha de inicio a su fecha
+ *    de fin, para ver la carga a lo largo del mes. El layout se calcula por
+ *    semana asignando a cada tarea un "carril" que respeta de lunes a
+ *    domingo, para que la barra se lea como una sola pieza.
+ *  - Semana y Día: rejilla de horas al estilo Teams (ver CalendarioHoras),
+ *    donde sí importa a qué hora ocurre cada cosa.
+ *
+ * Las tareas sin fechas no se pueden ubicar; se avisa al pie cuántas son.
  */
 export default function CalendarioTareas({ tareas, onSelect }) {
-  const [modo, setModo] = useState('mes')       // mes | semana
+  // 'mes' usa barras por día; 'semana' y 'dia' usan la rejilla de horas
+  // estilo Teams, que es donde tiene sentido ver la franja horaria.
+  const [modo, setModo] = useState('mes')
   const [ancla, setAncla] = useState(() => new Date())
   const [expandido, setExpandido] = useState({}) // { 'YYYY-MM-DD': true }
 
-  const dias = useMemo(
-    () => (modo === 'mes'
-      ? rejillaMes(ancla)
-      : Array.from({ length: 7 }, (_, i) => sumarDias(lunesDeLaSemana(ancla), i))),
-    [modo, ancla],
-  )
+  const dias = useMemo(() => {
+    if (modo === 'mes') return rejillaMes(ancla)
+    if (modo === 'dia') return [inicioDia(ancla)]
+    return Array.from({ length: 7 }, (_, i) => sumarDias(lunesDeLaSemana(ancla), i))
+  }, [modo, ancla])
 
   const conFechas = useMemo(() => tareas.filter(t => rangoTarea(t)), [tareas])
   const sinFechas = tareas.length - conFechas.length
@@ -40,14 +50,16 @@ export default function CalendarioTareas({ tareas, onSelect }) {
     return bloques.map(semana => ({ dias: semana, barras: calcularBarras(conFechas, semana) }))
   }, [dias, conFechas])
 
-  const navegar = (paso) => setAncla(prev =>
-    modo === 'mes'
-      ? new Date(prev.getFullYear(), prev.getMonth() + paso, 1)
-      : sumarDias(prev, paso * 7))
+  const navegar = (paso) => setAncla(prev => {
+    if (modo === 'mes') return new Date(prev.getFullYear(), prev.getMonth() + paso, 1)
+    return sumarDias(prev, paso * (modo === 'dia' ? 1 : 7))
+  })
 
   const titulo = modo === 'mes'
     ? `${MESES[ancla.getMonth()]} ${ancla.getFullYear()}`
-    : rotuloSemana(dias)
+    : modo === 'dia'
+      ? `${DIAS_SEMANA[(ancla.getDay() + 6) % 7]} ${ancla.getDate()} de ${MESES[ancla.getMonth()]} ${ancla.getFullYear()}`
+      : rotuloSemana(dias)
 
   return (
     <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm overflow-hidden">
@@ -63,14 +75,19 @@ export default function CalendarioTareas({ tareas, onSelect }) {
         </div>
 
         <div className="inline-flex rounded-lg border border-[#D6E0F0] p-1 bg-[#F7F9FC]">
-          {['mes', 'semana'].map(m => (
-            <button key={m} onClick={() => setModo(m)}
-              className={`px-4 py-1.5 rounded-md text-sm font-semibold capitalize transition ${
-                modo === m ? 'bg-white text-[#0D2B5E] shadow-sm' : 'text-[#6B7EA8]'
-              }`}>{m}</button>
+          {MODOS.map(m => (
+            <button key={m.id} onClick={() => setModo(m.id)}
+              className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${
+                modo === m.id ? 'bg-white text-[#0D2B5E] shadow-sm' : 'text-[#6B7EA8]'
+              }`}>{m.label}</button>
           ))}
         </div>
       </div>
+
+      {modo !== 'mes' ? (
+        <CalendarioHoras dias={dias} tareas={conFechas} onSelect={onSelect} />
+      ) : (
+      <>
 
       <div className="grid grid-cols-7 border-b border-[#D6E0F0] bg-[#F7F9FC]">
         {DIAS_SEMANA.map(d => (
@@ -85,14 +102,16 @@ export default function CalendarioTareas({ tareas, onSelect }) {
           <SemanaFila
             key={i}
             semana={semana}
-            mesActual={modo === 'mes' ? ancla.getMonth() : null}
-            altoMinimo={modo === 'semana' ? 320 : 128}
+            mesActual={ancla.getMonth()}
+            altoMinimo={128}
             expandido={expandido}
             onToggleExpandir={(clave) => setExpandido(p => ({ ...p, [clave]: !p[clave] }))}
             onSelect={onSelect}
           />
         ))}
       </div>
+      </>
+      )}
 
       <div className="px-5 py-3 border-t border-[#D6E0F0] flex flex-wrap items-center gap-4 text-[11px] text-[#6B7EA8]">
         {Object.entries(ESTADOS_TAREA).map(([v, cfg]) => (
