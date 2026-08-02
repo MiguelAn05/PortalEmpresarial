@@ -26,7 +26,8 @@ from app.modules.pqrs.router import router as pqrs_router
 from app.modules.pqrs.router_public import router as pqrs_public_router
 from app.modules.autorizaciones.router import router as autorizaciones_router
 from app.modules.master_planner.router import router as master_planner_router
-from app.models import tenant, user, pqrs, autorizacion, master_planner  # noqa: F401
+from app.modules.indicadores.router import router as indicadores_router
+from app.models import tenant, user, pqrs, autorizacion, master_planner, indicadores  # noqa: F401
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -92,3 +93,4 @@ app.include_router(pqrs_router)
 app.include_router(pqrs_public_router)
 app.include_router(autorizaciones_router)
 app.include_router(master_planner_router)
+app.include_router(indicadores_router)

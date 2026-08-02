@@ -1,0 +1,307 @@
+import { useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { crearIndicador, actualizarIndicador, obtenerCatalogo } from "../api"
+import { UNIDADES, TIPOS_CAPTURA, DIRECCIONES, formatValor } from "../constants"
+
+const AREAS = ['TI', 'Comercial', 'Calidad', 'Logística', 'Servicio al cliente', 'Talento Humano']
+
+const VACIO = {
+  nombre: "", descripcion: "", formula_texto: "",
+  unidad: "porcentaje", tipo_captura: "razon", fuente_automatica: "",
+  etiqueta_numerador: "", etiqueta_denominador: "",
+  area: "", responsable_id: "",
+  meta: "", direccion: "arriba", umbral_verde: "", umbral_amarillo: "",
+  requiere_evidencia: false,
+}
+
+function aFormulario(ind) {
+  if (!ind) return VACIO
+  return Object.fromEntries(
+    Object.entries(VACIO).map(([k, def]) => [k, ind[k] ?? def]),
+  )
+}
+
+/**
+ * Crear o editar la ficha de un indicador. Es la pantalla que decide si el
+ * módulo "es fácil de agregar": por eso va explicando en cada paso qué
+ * implica cada opción, en vez de asumir que quien lo llena sabe de métricas.
+ */
+export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGuardado }) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState(() => aFormulario(indicador))
+  const [error, setError] = useState(null)
+
+  const { data: catalogo = [] } = useQuery({
+    queryKey: ["ind-catalogo"],
+    queryFn: obtenerCatalogo,
+  })
+
+  const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
+  const esAutomatico = form.tipo_captura === "automatico"
+  const esRazon = form.tipo_captura === "razon"
+
+  /** Elegir una fuente del catálogo rellena nombre, fórmula y unidad sugeridos. */
+  const elegirFuente = (clave) => {
+    const f = catalogo.find(c => c.clave === clave)
+    if (!f) { setForm({ ...form, fuente_automatica: "" }); return }
+    setForm({
+      ...form,
+      fuente_automatica: clave,
+      nombre: form.nombre || f.nombre,
+      descripcion: form.descripcion || f.descripcion,
+      formula_texto: f.formula,
+      unidad: f.unidad,
+      direccion: f.direccion,
+    })
+  }
+
+  const mut = useMutation({
+    mutationFn: () => {
+      const numero = (v) => (v === "" || v === null ? null : Number(v))
+      const payload = {
+        ...form,
+        responsable_id: form.responsable_id ? Number(form.responsable_id) : null,
+        meta: numero(form.meta),
+        umbral_verde: numero(form.umbral_verde),
+        umbral_amarillo: numero(form.umbral_amarillo),
+        area: form.area || null,
+        fuente_automatica: esAutomatico ? form.fuente_automatica : null,
+      }
+      return indicador ? actualizarIndicador(indicador.id, payload) : crearIndicador(payload)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ind-tablero"] })
+      queryClient.invalidateQueries({ queryKey: ["ind-lista"] })
+      onGuardado()
+    },
+    onError: (e) => setError(e?.response?.data?.detail || "No se pudo guardar el indicador."),
+  })
+
+  const completo = form.nombre && (!esAutomatico || form.fuente_automatica)
+  const comparador = form.direccion === "arriba" ? "≥" : "≤"
+
+  return (
+    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onCerrar}>
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-gradient-to-r from-[#0D2B5E] to-[#1A4FA0] rounded-t-2xl p-6 text-white sticky top-0 z-10">
+          <button onClick={onCerrar} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
+          <h2 className="text-lg font-bold">{indicador ? 'Editar indicador' : 'Nuevo indicador'}</h2>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {error && (
+            <p className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{error}</p>
+          )}
+
+          {/* Paso 1: de dónde sale el dato */}
+          <Seccion numero="1" titulo="¿De dónde sale el dato?">
+            <div className="space-y-2">
+              {Object.entries(TIPOS_CAPTURA).map(([valor, cfg]) => (
+                <label key={valor}
+                  className={`flex gap-3 items-start rounded-xl border p-3 cursor-pointer transition ${
+                    form.tipo_captura === valor
+                      ? 'border-[#1A4FA0] bg-[#EAF0FB]' : 'border-[#D6E0F0] hover:border-[#1A4FA0]/50'
+                  }`}>
+                  <input type="radio" name="tipo_captura" value={valor}
+                    checked={form.tipo_captura === valor}
+                    onChange={set('tipo_captura')}
+                    className="mt-0.5 accent-[#1A4FA0]" />
+                  <div>
+                    <p className="text-sm font-semibold text-[#0D2B5E]">{cfg.label}</p>
+                    <p className="text-xs text-[#6B7EA8] mt-0.5">{cfg.ayuda}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {esAutomatico && (
+              <div className="mt-3">
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+                  ¿Cuál de los que el sistema ya sabe calcular?
+                </label>
+                <select value={form.fuente_automatica}
+                  onChange={(e) => elegirFuente(e.target.value)}
+                  className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                  <option value="">Elige una fuente...</option>
+                  {['PQRS', 'Master Planner'].map(modulo => (
+                    <optgroup key={modulo} label={modulo}>
+                      {catalogo.filter(c => c.modulo === modulo).map(c => (
+                        <option key={c.clave} value={c.clave}>{c.nombre}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+            )}
+          </Seccion>
+
+          {/* Paso 2: qué es */}
+          <Seccion numero="2" titulo="¿Qué mide?">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Nombre</label>
+                <input value={form.nombre} onChange={set('nombre')}
+                  placeholder="Oportunidad en la respuesta de PQRS"
+                  className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+                  Qué mide, en una frase
+                </label>
+                <input value={form.descripcion} onChange={set('descripcion')}
+                  placeholder="Qué tanto respondemos dentro del plazo comprometido"
+                  className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Fórmula</label>
+                <textarea value={form.formula_texto} onChange={set('formula_texto')} rows={2}
+                  disabled={esAutomatico}
+                  placeholder="(PQRS cerradas a tiempo ÷ PQRS cerradas) × 100"
+                  className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm resize-none disabled:bg-[#F7F9FC] disabled:text-[#6B7EA8]" />
+              </div>
+
+              {esRazon && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+                      Cómo llamar al numerador
+                    </label>
+                    <input value={form.etiqueta_numerador} onChange={set('etiqueta_numerador')}
+                      placeholder="PQRS cerradas a tiempo"
+                      className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+                      Y al denominador
+                    </label>
+                    <input value={form.etiqueta_denominador} onChange={set('etiqueta_denominador')}
+                      placeholder="PQRS cerradas"
+                      className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Unidad</label>
+                  <select value={form.unidad} onChange={set('unidad')} disabled={esAutomatico}
+                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm disabled:bg-[#F7F9FC]">
+                    {Object.entries(UNIDADES).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Área</label>
+                  <select value={form.area} onChange={set('area')}
+                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                    <option value="">Sin área</option>
+                    {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Responsable</label>
+                  <select value={form.responsable_id} onChange={set('responsable_id')}
+                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                    <option value="">Sin asignar</option>
+                    {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </Seccion>
+
+          {/* Paso 3: contra qué se juzga */}
+          <Seccion numero="3" titulo="¿Cuándo está bien y cuándo está mal?">
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(DIRECCIONES).map(([valor, cfg]) => (
+                  <label key={valor}
+                    className={`rounded-xl border p-3 cursor-pointer transition ${
+                      form.direccion === valor
+                        ? 'border-[#1A4FA0] bg-[#EAF0FB]' : 'border-[#D6E0F0] hover:border-[#1A4FA0]/50'
+                    }`}>
+                    <input type="radio" name="direccion" value={valor}
+                      checked={form.direccion === valor} onChange={set('direccion')}
+                      className="accent-[#1A4FA0] mr-2" />
+                    <span className="text-sm font-semibold text-[#0D2B5E]">{cfg.label}</span>
+                    <p className="text-[11px] text-[#6B7EA8] mt-0.5">{cfg.ayuda}</p>
+                  </label>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Meta</label>
+                  <input type="number" step="any" value={form.meta} onChange={set('meta')}
+                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-green-700 uppercase mb-1">Cumple si</label>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-[#6B7EA8] w-4">{comparador}</span>
+                    <input type="number" step="any" value={form.umbral_verde} onChange={set('umbral_verde')}
+                      className="w-full rounded-lg border border-green-200 px-3 py-2 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-amber-800 uppercase mb-1">Alerta si</label>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-[#6B7EA8] w-4">{comparador}</span>
+                    <input type="number" step="any" value={form.umbral_amarillo} onChange={set('umbral_amarillo')}
+                      className="w-full rounded-lg border border-amber-200 px-3 py-2 text-sm" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Traducción en palabras de lo que se acaba de configurar */}
+              {form.umbral_verde !== "" && form.umbral_amarillo !== "" && (
+                <p className="text-xs text-[#6B7EA8] bg-[#F7F9FC] rounded-lg px-3 py-2">
+                  Quedará así: <strong>cumple</strong> con {comparador} {formatValor(Number(form.umbral_verde), form.unidad)},
+                  {' '}<strong>en alerta</strong> con {comparador} {formatValor(Number(form.umbral_amarillo), form.unidad)},
+                  {' '}y <strong>no cumple</strong> por debajo de eso.
+                </p>
+              )}
+              {(form.umbral_verde === "" || form.umbral_amarillo === "") && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Sin umbrales, el semáforo solo dirá "cumple o no cumple" comparando contra la meta.
+                </p>
+              )}
+
+              <label className="flex items-center gap-2 text-sm text-[#6B7EA8] cursor-pointer select-none">
+                <input type="checkbox" checked={form.requiere_evidencia}
+                  onChange={(e) => setForm({ ...form, requiere_evidencia: e.target.checked })}
+                  className="rounded border-[#D6E0F0] accent-[#1A4FA0]" />
+                Exigir evidencia adjunta al registrar el valor
+              </label>
+            </div>
+          </Seccion>
+        </div>
+
+        <div className="flex gap-2 px-6 py-4 bg-[#F7F9FC] border-t border-[#EDF2F7] sticky bottom-0">
+          <button onClick={onCerrar}
+            className="flex-1 border border-[#D6E0F0] bg-white hover:bg-gray-50 text-sm font-semibold text-[#0D2B5E] py-2.5 rounded-lg transition">
+            Cancelar
+          </button>
+          <button onClick={() => { setError(null); mut.mutate() }}
+            disabled={!completo || mut.isPending}
+            className="flex-1 bg-[#1A4FA0] hover:bg-[#0D2B5E] disabled:opacity-40 text-white text-sm font-semibold py-2.5 rounded-lg transition">
+            {mut.isPending ? 'Guardando...' : indicador ? 'Guardar cambios' : 'Crear indicador'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Seccion({ numero, titulo, children }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-6 h-6 rounded-full bg-[#0D2B5E] text-white text-xs font-bold flex items-center justify-center shrink-0">
+          {numero}
+        </span>
+        <h3 className="text-sm font-bold text-[#0D2B5E]">{titulo}</h3>
+      </div>
+      {children}
+    </div>
+  )
+}

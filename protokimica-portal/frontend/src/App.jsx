@@ -9,6 +9,7 @@ import SeguimientoPQRS from './modules/publico/SeguimientoPQRS.jsx'
 import EncuestaPQRS from './modules/publico/EncuestaPQRS.jsx'
 import Admin from './modules/admin/Admin.jsx'
 import MasterPlanner from './modules/masterPlanner/MasterPlanner.jsx'
+import Indicadores from './modules/indicadores/Indicadores.jsx'
 
 
 function PrivateRoute({ children }) {
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="pqrs/:id" element={<PQRSDetail />} />
         <Route path="admin" element={<Admin />} />
         <Route path="master-planner" element={<MasterPlanner />} />
+        <Route path="indicadores" element={<Indicadores />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

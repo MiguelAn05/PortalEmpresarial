@@ -7,9 +7,7 @@ const navItems = [
   { to: '/',        icon: '🏠', label: 'Inicio',          exact: true  },
   { to: '/pqrs', icon: '📨', label: 'PQRS' },
   { to: '/master-planner', icon: '🗂️', label:'Master Planner'},
-  
-  // Cuando agregues Indicadores, solo añades una línea aquí:
-  //{ to: '/indicadores', icon: '📈', label: 'Indicadores' },
+  { to: '/indicadores', icon: '📈', label: 'Indicadores' },
 ]
 
 export default function Layout() {
@@ -101,7 +99,6 @@ export default function Layout() {
 
           {[
             //{ to: '/reportes',    icon: '📊', label: 'Reportes'      },
-            {to: '/indicadores', icon: '📈', label: 'Indicadores'},
             {to: '/fichas de seguridad', icon:'📋', label:'Fichas de Seguridad'},
             {to: '/documentos',  icon: '📁', label: 'Documentación' },
             
