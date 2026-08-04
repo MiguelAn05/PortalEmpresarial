@@ -1,0 +1,4 @@
+# Dependencias solo para desarrollo y pruebas. No van en la imagen de producción.
+-r requirements.txt
+
+pytest==8.3.3

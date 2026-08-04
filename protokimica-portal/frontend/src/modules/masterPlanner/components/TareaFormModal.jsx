@@ -2,6 +2,8 @@ import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { crearTarea } from "../api"
 import { AREAS, PRIORIDADES, datetimeLocalAIso } from "../constants"
+import { useCierreSeguro } from "../../../core/components/cierreSeguro"
+import { tieneDatos } from "../../../core/components/tieneDatos"
 
 const VACIO = {
   titulo: "", descripcion: "", area: "", asignado_a: "",
@@ -13,6 +15,9 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], proyecto
   // Si se abre desde dentro de un proyecto, ese proyecto ya viene fijo.
   const [proyectoId, setProyectoId] = useState(proyectoIdInicial ?? proyectos[0]?.id ?? "")
   const [form, setForm] = useState(VACIO)
+
+  const hayCambios = tieneDatos(form, VACIO)
+  const { intentarCerrar, dialogoDescarte } = useCierreSeguro({ hayCambios, onCerrar: onClose })
 
   const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
 
@@ -35,10 +40,10 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], proyecto
     : null
 
   return (
-    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={intentarCerrar}>
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="bg-gradient-to-r from-[#0D2B5E] to-[#1A4FA0] rounded-t-2xl p-6 text-white sticky top-0">
-          <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
+          <button onClick={intentarCerrar} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
           <h2 className="text-lg font-bold">Nueva tarea</h2>
           {proyectoFijo && <p className="text-xs text-white/70 mt-1">en {proyectoFijo.nombre}</p>}
         </div>
@@ -122,6 +127,8 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], proyecto
           )}
         </div>
       </div>
+
+      {dialogoDescarte}
     </div>
   )
 }

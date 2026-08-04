@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import api from '../../core/api.js'
+import { AREAS } from '../../core/areas.js'
 
 // ── Constantes ─────────────────────────────────────────────────────
 const TIPOS = [
@@ -678,7 +679,7 @@ export default function FormularioPQRS() {
                 <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Área relacionada</label>
                 <select name="area_responsable" value={form.area_responsable} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition">
                   <option value="">No sé / No aplica</option>
-                  {['Comercial','Logística','Calidad','HSEQ','Facturación','Servicio al cliente'].map(a => (
+                  {AREAS.map(a => (
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>

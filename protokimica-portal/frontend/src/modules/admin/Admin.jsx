@@ -2,11 +2,9 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
+import { AREAS, areasParaSelect } from '../../core/areas.js'
 
-const AREAS = [
-  'Comercial', 'Logística', 'Calidad',
-  'TI', 'Facturación', 'Servicio al cliente', 'Contabilidad',
-]
+// Las áreas viven en un solo sitio: src/core/areas.js
 
 function TiposAutorizacion() {
   const queryClient = useQueryClient()
@@ -298,7 +296,7 @@ function GestionUsuarios() {
                 className="text-xs border border-[#D6E0F0] rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
               >
                 <option value="">Sin área</option>
-                {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                {areasParaSelect(u.area).map(a => <option key={a} value={a}>{a}</option>)}
               </select>
 
               <button

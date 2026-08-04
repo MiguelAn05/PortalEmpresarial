@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
+import { AREAS } from '../../core/areas.js'
 
 const TIPOS = {
   peticion: { label: 'Petición',   color: 'bg-purple-100 text-purple-700' },
@@ -38,7 +39,9 @@ const PUNTOS_VENTA = [
   { prefijo: 'VI',   label: 'Venta institucional'       },
 ]
 
-const AREAS_CAUSANTES = ['Comercial', 'Logística', 'Calidad', 'TI', 'Facturación', 'Servicio al cliente']
+// AREAS_CAUSANTES y AREAS_PQRS eran la misma lista repetida: ahora las dos
+// salen de src/core/areas.js
+const AREAS_CAUSANTES = AREAS
 
 // Compara el prefijo exacto del radicado (evita que "PVC" matchee "PVCR0010")
 function coincidePuntoVenta(codigo, prefijo) {
@@ -99,7 +102,7 @@ const DEPARTAMENTOS = [
   'Santander','Sucre','Tolima','Valle del Cauca','Vaupés','Vichada',
 ]
 
-const AREAS_PQRS = ['Comercial', 'Logística', 'Calidad', 'TI', 'Facturación', 'Servicio al cliente']
+const AREAS_PQRS = AREAS
 const PRESENTACIONES = ['Unidad', 'Kilo', 'Gramo', 'Litro', 'Mililitro']
 
 // ── Modal para crear PQRS ──────────────────────────────────────────

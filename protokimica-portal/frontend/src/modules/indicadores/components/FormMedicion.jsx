@@ -2,6 +2,8 @@ import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { registrarMedicion } from "../api"
 import { MESES, formatValor } from "../constants"
+import { useCierreSeguro } from "../../../core/components/cierreSeguro"
+import { tieneDatos } from "../../../core/components/tieneDatos"
 
 /**
  * Registro del valor de un mes. En los indicadores de razón se piden los dos
@@ -21,6 +23,17 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
   const [error, setError] = useState(null)
 
   const esRazon = indicador.tipo_captura === "razon"
+
+  const inicial = {
+    valor: indicador.valor ?? "",
+    numerador: indicador.numerador ?? "",
+    denominador: indicador.denominador ?? "",
+    observacion: indicador.observacion ?? "",
+    motivo: "",
+  }
+  const hayCambios = tieneDatos(form, inicial) || evidencia !== null
+  const { intentarCerrar, dialogoDescarte } = useCierreSeguro({ hayCambios, onCerrar })
+
   const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
 
   // Vista previa del resultado, con la misma cuenta que hará el servidor.
@@ -57,7 +70,7 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
     : form.valor !== ""
 
   return (
-    <div className="fixed inset-0 bg-[#0D2B5E]/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]" onClick={onCerrar}>
+    <div className="fixed inset-0 bg-[#0D2B5E]/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]" onClick={intentarCerrar}>
       <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-[#EDF2F7]">
           <h3 className="text-base font-bold text-[#0D2B5E]">
@@ -147,7 +160,7 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
         </div>
 
         <div className="flex gap-2 px-6 py-4 bg-[#F7F9FC] border-t border-[#EDF2F7]">
-          <button onClick={onCerrar}
+          <button onClick={intentarCerrar}
             className="flex-1 border border-[#D6E0F0] bg-white hover:bg-gray-50 text-sm font-semibold text-[#0D2B5E] py-2.5 rounded-lg transition">
             Cancelar
           </button>
@@ -158,6 +171,8 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
           </button>
         </div>
       </div>
+
+      {dialogoDescarte}
     </div>
   )
 }

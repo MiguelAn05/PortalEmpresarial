@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
+import { AREAS } from '../../core/areas.js'
 
 const TIPOS = {
   peticion:   { label: 'Petición',   color: 'bg-purple-100 text-purple-700' },
@@ -37,7 +38,7 @@ const EVENTOS = {
   autorizacion_respondida: { icon: '✅', label: 'Autorización respondida'},
 }
 
-const AREAS = ['Comercial','Logística','Calidad','TI','Facturación','Servicio al cliente']
+// Las áreas viven en un solo sitio: src/core/areas.js
 
 function Badge({ map, value }) {
   const item = map[value] || { label: value, color: 'bg-gray-100 text-gray-600' }

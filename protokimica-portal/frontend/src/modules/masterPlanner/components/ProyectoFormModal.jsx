@@ -5,6 +5,8 @@ import {
   listarPresupuesto, agregarItemPresupuesto, eliminarItemPresupuesto,
 } from "../api"
 import { AREAS, ESTADOS_PROYECTO, PRIORIDADES, formatMoneda, isoADateInput } from "../constants"
+import { useCierreSeguro } from "../../../core/components/cierreSeguro"
+import { tieneDatos } from "../../../core/components/tieneDatos"
 
 const VACIO = {
   nombre: "", objetivo: "", alcance: "", lider_id: "", area: "",
@@ -36,6 +38,11 @@ export default function ProyectoFormModal({ proyecto, usuarios = [], onClose }) 
   const [form, setForm] = useState(() => aFormulario(proyecto))
   const [proyectoId, setProyectoId] = useState(proyecto?.id ?? null)
   const [itemForm, setItemForm] = useState({ concepto: "", detalle: "", valor_unitario: "", cantidad: "1" })
+
+  // Una vez el proyecto existe ya no hay nada que perder al cerrar: lo
+  // escrito quedo guardado y el presupuesto se guarda item por item.
+  const hayCambios = !proyectoId && tieneDatos(form, aFormulario(proyecto))
+  const { intentarCerrar, dialogoDescarte } = useCierreSeguro({ hayCambios, onCerrar: onClose })
 
   const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
 
@@ -87,10 +94,10 @@ export default function ProyectoFormModal({ proyecto, usuarios = [], onClose }) 
   })
 
   return (
-    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={intentarCerrar}>
       <div className="bg-white rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="bg-gradient-to-r from-[#0D2B5E] to-[#1A4FA0] rounded-t-2xl p-6 text-white sticky top-0">
-          <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
+          <button onClick={intentarCerrar} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
           <h2 className="text-lg font-bold">{proyectoId ? "Editar proyecto" : "Nuevo proyecto"}</h2>
         </div>
 
@@ -256,6 +263,8 @@ export default function ProyectoFormModal({ proyecto, usuarios = [], onClose }) 
           )}
         </div>
       </div>
+
+      {dialogoDescarte}
     </div>
   )
 }

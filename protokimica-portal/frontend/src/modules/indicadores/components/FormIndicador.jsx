@@ -2,8 +2,11 @@ import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { crearIndicador, actualizarIndicador, obtenerCatalogo } from "../api"
 import { UNIDADES, TIPOS_CAPTURA, DIRECCIONES, formatValor } from "../constants"
+import { useCierreSeguro } from "../../../core/components/cierreSeguro"
+import { AREAS } from "../../../core/areas.js"
+import { tieneDatos } from "../../../core/components/tieneDatos"
 
-const AREAS = ['TI', 'Comercial', 'Calidad', 'Logística', 'Servicio al cliente', 'Talento Humano']
+
 
 const VACIO = {
   nombre: "", descripcion: "", formula_texto: "",
@@ -35,6 +38,9 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
     queryKey: ["ind-catalogo"],
     queryFn: obtenerCatalogo,
   })
+
+  const hayCambios = tieneDatos(form, aFormulario(indicador))
+  const { intentarCerrar, dialogoDescarte } = useCierreSeguro({ hayCambios, onCerrar: onCerrar })
 
   const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
   const esAutomatico = form.tipo_captura === "automatico"
@@ -81,10 +87,10 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
   const comparador = form.direccion === "arriba" ? "≥" : "≤"
 
   return (
-    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onCerrar}>
+    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={intentarCerrar}>
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="bg-gradient-to-r from-[#0D2B5E] to-[#1A4FA0] rounded-t-2xl p-6 text-white sticky top-0 z-10">
-          <button onClick={onCerrar} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
+          <button onClick={intentarCerrar} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
           <h2 className="text-lg font-bold">{indicador ? 'Editar indicador' : 'Nuevo indicador'}</h2>
         </div>
 
@@ -288,6 +294,8 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
           </button>
         </div>
       </div>
+
+      {dialogoDescarte}
     </div>
   )
 }

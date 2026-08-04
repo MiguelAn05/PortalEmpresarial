@@ -23,7 +23,8 @@ export const PRIORIDADES = {
   critica: { label: 'Crítica', color: 'bg-red-100 text-red-700'    },
 }
 
-export const AREAS = ['TI', 'Comercial', 'Calidad', 'Logística', 'Servicio al cliente', 'Talento Humano']
+// Las áreas viven en un solo sitio: src/core/areas.js
+export { AREAS } from '../../core/areas.js'
 
 export const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
