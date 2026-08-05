@@ -358,6 +358,7 @@ export default function FormularioPQRS() {
     lote: '',
     factura_numero: '',
     cantidad_factura: '',
+    cantidad_reclamo: '',
     presentacion: '',
     cantidad_presentacion: '',
     canal_atencion: '',
@@ -463,6 +464,7 @@ export default function FormularioPQRS() {
         formData.append('lote', form.lote)
         formData.append('factura_numero', form.factura_numero)
         formData.append('cantidad_factura', form.cantidad_factura)
+        formData.append('cantidad_reclamo', form.cantidad_reclamo)
         if (adjuntoProducto) formData.append('adjunto_producto', adjuntoProducto)
         if (adjuntoFactura)  formData.append('adjunto_factura', adjuntoFactura)
         if (adjuntoVideo)    formData.append('adjunto_video', adjuntoVideo)
@@ -485,8 +487,8 @@ export default function FormularioPQRS() {
     setForm({
       tipo: '', empresa: '', nit_cedula: '', cliente_nombre: '',
       cliente_email: '', cliente_telefono: '', ciudad: '', departamento: '',
-      lote: '', factura_numero: '', cantidad_factura: '', presentacion: '',
-      cantidad_presentacion: '',
+      lote: '', factura_numero: '', cantidad_factura: '', cantidad_reclamo: '',
+      presentacion: '', cantidad_presentacion: '',
       canal_atencion: '',
       descripcion: '', comentario: '',
     })
@@ -670,9 +672,15 @@ export default function FormularioPQRS() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Cant. en factura <span className="text-red-500">*</span></label>
-                <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Cant. en factura <span className="text-red-500">*</span></label>
+                  <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Cant. en reclamo</label>
+                  <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                </div>
               </div>
 
               <div>

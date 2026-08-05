@@ -495,6 +495,7 @@ export default function PQRSDetail() {
                 { label: 'Lote',             value: pqrs.lote             },
                 { label: 'Factura',          value: pqrs.factura_numero   },
                 { label: 'Cant. factura',    value: pqrs.cantidad_factura },
+                { label: 'Cant. reclamo',    value: pqrs.cantidad_reclamo },
               ].map(({ label, value }) => value && (
                 <div key={label}>
                   <div className="text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide">{label}</div>

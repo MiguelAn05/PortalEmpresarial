@@ -127,6 +127,7 @@ function ModalCrear({ onClose, onCreated }) {
     lote: '',
     factura_numero: '',
     cantidad_factura: '',
+    cantidad_reclamo: '',
     area_responsable: '',
     descripcion: '',
   }
@@ -293,6 +294,10 @@ function ModalCrear({ onClose, onCreated }) {
                 <div>
                   <label className={labelCls}>Cant. en factura</label>
                   <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Cant. en reclamo</label>
+                  <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className={inputCls} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
