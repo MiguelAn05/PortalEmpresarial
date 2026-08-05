@@ -4,10 +4,10 @@ import { useAuth } from '../AuthContext.jsx'
 import CambiarPasswordModal from './CambiarPasswordModal.jsx'
 
 const navItems = [
-  { to: '/',        icon: '🏠', label: 'Inicio',          exact: true  },
-  { to: '/pqrs', icon: '📨', label: 'PQRS' },
-  { to: '/master-planner', icon: '🗂️', label:'Master Planner'},
-  { to: '/indicadores', icon: '📈', label: 'Indicadores' },
+  { to: '/',        icon: '/icons/INICIO.png', label: 'Inicio',          exact: true  },
+  { to: '/pqrs', icon: '/icons/PQRS.png', label: 'PQRS'},
+  { to: '/master-planner', icon: '/icons/PROYECTOS.png', label:'Master Planner', },
+  { to: '/indicadores', icon: 'icons/INDICADORES.png', label: 'Indicadores', },
 ]
 
 export default function Layout() {
@@ -66,7 +66,9 @@ export default function Layout() {
           {!collapsed && (
             <div className="px-4 py-2 text-white/30 text-xs font-semibold uppercase tracking-widest">
               Gestión
+              
             </div>
+
           )}
 
           {navItems.map((item) => (
@@ -84,7 +86,11 @@ export default function Layout() {
                 }
               `}
             >
-              <span className="text-base flex-shrink-0">{item.icon}</span>
+              <img
+                src={item.icon}
+                alt={item.label}
+                className="w-18 h-18 object-contain flex-shrink-0"
+              />
               {!collapsed && (
                 <span className="text-sm truncate">{item.label}</span>
               )}
@@ -98,7 +104,7 @@ export default function Layout() {
           )}
 
           {[
-            //{ to: '/reportes',    icon: '📊', label: 'Reportes'      },
+            { to: '/reportes',    icon: '📊', label: 'Reportes'      },
             {to: '/fichas de seguridad', icon:'📋', label:'Fichas de Seguridad'},
             {to: '/documentos',  icon: '📁', label: 'Documentación' },
             
@@ -109,7 +115,11 @@ export default function Layout() {
               className="flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg
                 text-white/30 border-l-2 border-transparent cursor-not-allowed"
             >
-              <span className="text-base flex-shrink-0">{item.icon}</span>
+              <img
+                src={item.icon}
+                alt={item.label}
+                className="w-18 h-18 object-contain flex-shrink-0"
+              />
               {!collapsed && <span className="text-sm truncate">{item.label}</span>}
               {!collapsed && (
                 <span className="ml-auto text-xs bg-white/10 text-white/30 px-1.5 py-0.5 rounded-full">
@@ -137,7 +147,7 @@ export default function Layout() {
               }
             `}
           >
-            <span className="text-base flex-shrink-0">⚙️</span>
+            <span className="text-base flex-shrink-0"></span>
             {!collapsed && <span className="text-sm truncate">Administración</span>}
           </NavLink>
           
