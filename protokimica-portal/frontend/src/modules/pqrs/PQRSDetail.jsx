@@ -5,6 +5,8 @@ import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
 import { AREAS } from '../../core/areas.js'
 
+const AREA_SERVICIO_CLIENTE = 'Servicio al cliente'
+
 const TIPOS = {
   peticion:   { label: 'Petición',   color: 'bg-purple-100 text-purple-700' },
   queja:      { label: 'Queja',      color: 'bg-red-100 text-red-700'       },
@@ -393,6 +395,10 @@ export default function PQRSDetail() {
   )
 
   const puedeEditar = user?.rol !== 'lectura'
+  // Cerrar y reclasificar son de Servicio al cliente: el tipo que elige el
+  // cliente al radicar suele estar mal, y esa clasificacion alimenta los
+  // indicadores. Admin siempre puede, para destrabar.
+  const esServicioCliente = user?.rol === 'admin' || user?.area === AREA_SERVICIO_CLIENTE
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -588,6 +594,11 @@ export default function PQRSDetail() {
             </div>
           )}
 
+          {/* Reclasificar el tipo — solo Servicio al cliente y antes de cerrar */}
+          {esServicioCliente && pqrs.estado !== 'cerrado' && (
+            <ReclasificarTipo pqrs={pqrs} />
+          )}
+
           {/* Cambiar estado */}
           {puedeEditar && pqrs.estado !== 'cerrado' && (
             <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
@@ -607,11 +618,20 @@ export default function PQRSDetail() {
                     <option value="">Seleccionar estado...</option>
                     {Object.entries(ESTADOS)
                       .filter(([key]) => key !== pqrs.estado)
+                      // 'cerrado' solo aparece si la persona puede cerrar:
+                      // mejor no ofrecerlo que dar un 403 al guardar.
+                      .filter(([key]) => key !== 'cerrado' || esServicioCliente)
                       .map(([key, { label }]) => (
                         <option key={key} value={key}>{label}</option>
                       ))
                     }
                   </select>
+                  {!esServicioCliente && (
+                    <p className="text-xs text-[#6B7EA8] bg-[#F7F9FC] rounded-lg px-3 py-2 mb-3 -mt-1">
+                      Marcala como <strong>Resuelto</strong> cuando termines. El cierre lo hace
+                      Servicio al cliente, que revisa y clasifica antes de cerrar.
+                    </p>
+                  )}
                   <textarea
                     value={comentario}
                     onChange={(e) => setComentario(e.target.value)}
@@ -734,6 +754,127 @@ export default function PQRSDetail() {
             )}
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Corrige el tipo de una PQRS antes de cerrarla.
+ *
+ * El cliente casi nunca acierta al radicar: pone "petición" lo que en
+ * realidad es un reclamo. Y esa clasificación es la que alimenta los
+ * indicadores y los reportes de Calidad, así que Servicio al cliente la
+ * ajusta como paso previo al cierre.
+ *
+ * El motivo es obligatorio y queda en la trazabilidad de la PQRS.
+ */
+function ReclasificarTipo({ pqrs }) {
+  const queryClient = useQueryClient()
+  const [abierto, setAbierto] = useState(false)
+  const [tipo, setTipo] = useState(pqrs.tipo)
+  const [motivo, setMotivo] = useState('')
+  const [error, setError] = useState('')
+
+  const mut = useMutation({
+    mutationFn: () => {
+      const fd = new FormData()
+      fd.append('tipo', tipo)
+      fd.append('motivo', motivo)
+      return api.patch(`/pqrs/${pqrs.id}/tipo`, fd)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pqrs', String(pqrs.id)] })
+      queryClient.invalidateQueries({ queryKey: ['pqrs'] })
+      setAbierto(false); setMotivo(''); setError('')
+    },
+    onError: (e) => setError(e.response?.data?.detail || 'No se pudo reclasificar.'),
+  })
+
+  const cambio = tipo !== pqrs.tipo
+  // El SLA y la prioridad se recalculan solos en el servidor; se avisa aquí
+  // para que nadie se sorprenda al ver la fecha límite moverse.
+  const avisoSLA = cambio
+    ? 'Se recalculará la fecha límite con el plazo del tipo nuevo, contando desde que se radicó. Puede quedar vencida.'
+    : null
+
+  if (!abierto) {
+    return (
+      <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
+        <h3 className="font-semibold text-[#0D2B5E] mb-1 text-sm">🏷️ Clasificación</h3>
+        <p className="text-xs text-[#6B7EA8] mb-3">
+          Está registrada como <strong>{TIPOS[pqrs.tipo]?.label || pqrs.tipo}</strong>.
+          Si no corresponde, corrígela antes de cerrar.
+        </p>
+        <button
+          onClick={() => setAbierto(true)}
+          className="w-full border border-[#D6E0F0] hover:bg-[#F7F9FC] text-[#0D2B5E] font-semibold py-2.5 rounded-lg text-sm transition"
+        >
+          Cambiar tipo de solicitud
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-[#1A4FA0] p-5">
+      <h3 className="font-semibold text-[#0D2B5E] mb-3 text-sm">🏷️ Reclasificar</h3>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700 mb-3">
+          {error}
+        </div>
+      )}
+
+      <label className="block text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-1">
+        ¿Qué fue en realidad?
+      </label>
+      <select
+        value={tipo}
+        onChange={(e) => setTipo(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] mb-3"
+      >
+        {Object.entries(TIPOS).map(([key, { label }]) => (
+          <option key={key} value={key}>
+            {label}{key === pqrs.tipo ? ' — actual' : ''}
+          </option>
+        ))}
+      </select>
+
+      <label className="block text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-1">
+        ¿Por qué? <span className="text-red-500">·  obligatorio</span>
+      </label>
+      <textarea
+        value={motivo}
+        onChange={(e) => setMotivo(e.target.value)}
+        placeholder="Ej: el cliente pide devolución de dinero, es un reclamo"
+        rows={2}
+        className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] resize-none mb-2"
+      />
+
+      {avisoSLA && (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          {avisoSLA}
+        </p>
+      )}
+      <p className="text-xs text-[#9BACC8] mb-3">
+        Queda registrado en el seguimiento con tu nombre y la fecha.
+      </p>
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => { setAbierto(false); setTipo(pqrs.tipo); setMotivo(''); setError('') }}
+          className="flex-1 border border-[#D6E0F0] hover:bg-gray-50 text-[#0D2B5E] font-semibold py-2.5 rounded-lg text-sm transition"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => { setError(''); mut.mutate() }}
+          disabled={!cambio || !motivo.trim() || mut.isPending}
+          className="flex-1 bg-[#0D2B5E] hover:bg-[#1A4FA0] disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-sm transition"
+        >
+          {mut.isPending ? 'Guardando...' : 'Reclasificar'}
+        </button>
       </div>
     </div>
   )

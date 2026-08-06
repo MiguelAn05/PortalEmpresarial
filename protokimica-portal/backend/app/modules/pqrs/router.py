@@ -17,10 +17,11 @@ from app.modules.pqrs.schemas import (
     PQRSOut, PQRSDetailOut, PQRSAsignar,
     PQRSAsignarArea, PQRSAreaCausante,
 )
+from app.modules.pqrs.permisos import solo_servicio_al_cliente, es_servicio_al_cliente
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
     generar_codigo_seguimiento, generar_radicado_calidad, guardar_archivo,
-    EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB,
+    EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB, SLA_DIAS_POR_TIPO,
 )
 from app.modules.pqrs.notificaciones import (
     notificar_cliente_creacion, notificar_cliente_cierre, notificar_area,
@@ -289,6 +290,98 @@ def asignar_area_causante(
     return solicitud
 
 
+@router.patch("/{pqrs_id}/tipo", response_model=PQRSOut)
+def reclasificar_tipo_pqrs(
+    pqrs_id: int,
+    tipo: str = Form(...),
+    motivo: str = Form(...),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_servicio_al_cliente),
+):
+    """
+    Corrige el tipo de una PQRS. El cliente casi nunca acierta al radicar, y
+    esa clasificacion es la que alimenta los indicadores y los reportes de
+    Calidad, asi que Servicio al cliente la ajusta antes de cerrar.
+
+    Al cambiar el tipo se recalcula la fecha limite del SLA DESDE LA
+    RADICACION, no desde hoy: si en realidad era un reclamo, el plazo que
+    aplicaba fue siempre el del reclamo. Puede quedar vencida al instante, y
+    eso es correcto — refleja el incumplimiento real.
+    """
+    tipos_validos = set(SLA_DIAS_POR_TIPO) | {"felicitacion"}
+    if tipo not in tipos_validos:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo invalido. Usa uno de: {', '.join(sorted(tipos_validos))}.",
+        )
+
+    solicitud = (
+        db.query(PQRSSolicitud)
+        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
+        .first()
+    )
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+
+    # Una PQRS cerrada ya se reporto y su tipo entro en los indicadores del
+    # mes. Reclasificar despues cambiaria cifras ya presentadas.
+    if solicitud.estado == "cerrado":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No se puede reclasificar una PQRS cerrada. El tipo se corrige "
+                "antes de cerrarla."
+            ),
+        )
+
+    tipo_anterior = solicitud.tipo
+    if tipo_anterior == tipo:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La PQRS ya esta clasificada como '{tipo}'.",
+        )
+
+    if not motivo.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Escribe por que se reclasifica: queda en la trazabilidad de la PQRS.",
+        )
+
+    prioridad_anterior = solicitud.prioridad
+    limite_anterior = solicitud.fecha_limite_sla
+
+    solicitud.tipo = tipo
+    solicitud.fecha_limite_sla = calcular_fecha_limite_sla(tipo, solicitud.fecha_creacion)
+
+    # La prioridad se ajusta al tipo nuevo SOLO si nadie la habia tocado a
+    # mano: si alguien la subio por conocer el caso, ese criterio manda.
+    prioridad_automatica_anterior = calcular_prioridad(tipo_anterior)
+    if prioridad_anterior == prioridad_automatica_anterior:
+        solicitud.prioridad = calcular_prioridad(tipo)
+
+    detalle = [f"Tipo: {tipo_anterior} -> {tipo}."]
+    if solicitud.prioridad != prioridad_anterior:
+        detalle.append(f"Prioridad: {prioridad_anterior} -> {solicitud.prioridad}.")
+    else:
+        detalle.append(f"Prioridad sin cambio ({prioridad_anterior}).")
+    if limite_anterior and solicitud.fecha_limite_sla:
+        detalle.append(
+            f"Fecha limite: {limite_anterior.date()} -> {solicitud.fecha_limite_sla.date()}."
+        )
+    detalle.append(f"Motivo: {motivo.strip()}")
+
+    db.add(PQRSSeguimiento(
+        pqrs_id=solicitud.id,
+        usuario_id=current_user.id,
+        tipo_evento="reclasificacion",
+        comentario=" ".join(detalle),
+    ))
+    db.commit()
+    db.refresh(solicitud)
+    return solicitud
+
+
 @router.patch("/{pqrs_id}/estado", response_model=PQRSOut)
 async def cambiar_estado_pqrs(
     pqrs_id: int,
@@ -311,6 +404,17 @@ async def cambiar_estado_pqrs(
     )
     if not solicitud:
         raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+
+    # Cerrar es la unica transicion restringida: es la que dispara la
+    # encuesta al cliente y congela la PQRS para los indicadores.
+    if estado == "cerrado" and not es_servicio_al_cliente(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Solo el area de Servicio al cliente puede cerrar una PQRS. "
+                "Marcala como 'resuelto' y ellos la revisan y la cierran."
+            ),
+        )
 
     if estado == "cerrado":
         hay_pendiente = db.query(AutorizacionPQRS).filter(

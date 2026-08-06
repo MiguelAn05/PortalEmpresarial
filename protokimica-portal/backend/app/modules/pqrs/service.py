@@ -10,9 +10,12 @@ import httpx
 from fastapi import HTTPException, UploadFile
 
 from app.core.config import settings
+from app.core.dias_habiles import limite_en_habiles
 
 logger = logging.getLogger("pqrs.n8n")
 
+# Dias HABILES (lunes a viernes, sin festivos), no calendario.
+# Ver app/core/dias_habiles.py.
 SLA_DIAS_POR_TIPO = {
     "peticion":   15,
     "queja":       5,
@@ -78,9 +81,21 @@ async def guardar_archivo(
     return f"/uploads/{subfolder}/{nombre_unico}"
 
 
-def calcular_fecha_limite_sla(tipo: str) -> datetime:
+def calcular_fecha_limite_sla(tipo: str, desde: datetime | None = None) -> datetime:
+    """
+    Fecha limite del SLA, en DIAS HABILES.
+
+    Los 15 dias de una peticion salen de la Ley 1755 de 2015, que habla de
+    dias habiles. Contarlos corridos hacia que el sistema declarara vencido
+    algo que legalmente no lo estaba, y el indicador de oportunidad media
+    contra un plazo equivocado.
+
+    `desde` permite recalcular el plazo de una PQRS ya radicada tomando su
+    fecha original, no la de hoy: si se reclasifica el tipo, el plazo que
+    aplicaba fue siempre el del tipo correcto.
+    """
     dias = SLA_DIAS_POR_TIPO.get(tipo, 10)
-    return datetime.now(timezone.utc) + timedelta(days=dias)
+    return limite_en_habiles(desde or datetime.now(timezone.utc), dias)
 
 
 def calcular_prioridad(tipo: str) -> str:

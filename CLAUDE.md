@@ -106,6 +106,14 @@ el servidor no tiene internet estable para `npm ci`.
 - `puede_comentar` solo bloquea a `lectura`. Es para comentarios y
   actualizaciones de seguimiento.
 
+**PQRS — cerrar y reclasificar:** solo el área `Servicio al cliente` (más
+`admin`). Se resuelve por ÁREA, no por rol, porque el área ya existe y así se
+administra desde Admin › Usuarios. Ver `modules/pqrs/permisos.py`.
+El tipo (petición/queja/reclamo/…) se corrige **antes de cerrar**: el cliente
+casi nunca acierta al radicar y esa clasificación alimenta los indicadores.
+Al reclasificar se recalcula el SLA **desde la radicación** y la prioridad se
+ajusta al tipo nuevo salvo que alguien la haya cambiado a mano.
+
 **Visibilidad por área (solo Master Planner):** ves un proyecto si es de tu
 área, tu área participa en él, lo lideras, tienes una tarea asignada ahí, o el
 proyecto no tiene área. Se responde **404, no 403**, para no confirmar que
@@ -149,6 +157,10 @@ declarar una lista de áreas dentro de un componente.
 - **Cascadas.** Borrar un proyecto arrastra tareas, actualizaciones, historial
   y presupuesto. Toda relación nueva que apunte a `mp_proyectos` necesita su
   cascada o el borrado falla contra la llave foránea.
+- **Los plazos de PQRS son en días HÁBILES**, no calendario: los 15 días de
+  una petición salen de la Ley 1755 de 2015. Usar `core/dias_habiles.py`,
+  que calcula los festivos colombianos (incluida la Ley Emiliani que los
+  corre al lunes). Contarlos corridos declaraba vencido lo que no lo estaba.
 - **Un mes sin datos no es un cero.** En indicadores y en cumplimiento, la
   ausencia de dato se muestra como "sin dato" y no baja los porcentajes.
 
