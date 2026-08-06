@@ -14,13 +14,20 @@ export const AREAS = [
   'SST',
   'Controlados',
   'Facturación',
-  'Ventas institucionales',
+  'Ventas Institucionales',
   'Mercadeo',
-  'Servicio al cliente',
+  'Servicio al Cliente',
   'Infraestructura',
   'Logística',
-  'Gestión humana',
+  'Gestión Humana',
   'Contabilidad',
+  'Producción',
+  'Control Interno',
+  'Control Interno',
+  'Aseguramiento',
+  'Abastecimiento',
+  'Comercial',
+
 ]
 
 /**
