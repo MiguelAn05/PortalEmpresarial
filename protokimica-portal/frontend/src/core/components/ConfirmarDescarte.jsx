@@ -1,7 +1,18 @@
-/** Aviso antes de perder lo escrito al cerrar un formulario. */
+/**
+ * Aviso antes de perder lo escrito al cerrar un formulario.
+ *
+ * El `stopPropagation` no es decorativo: este diálogo se dibuja dentro del
+ * modal que está protegiendo, y ese modal cierra al hacer clic en su fondo.
+ * Sin frenar el clic aquí, pulsar "Seguir editando" llegaba también al fondo,
+ * que volvía a abrir el aviso al instante — se veía como si el botón no
+ * funcionara y solo "Descartar" cerraba.
+ */
 export default function ConfirmarDescarte({ onSeguir, onDescartar }) {
   return (
-    <div className="fixed inset-0 bg-[#0D2B5E]/50 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
+    <div
+      className="fixed inset-0 bg-[#0D2B5E]/50 backdrop-blur-sm flex items-center justify-center p-4 z-[70]"
+      onClick={(e) => e.stopPropagation()}
+    >
       <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
         <div className="px-6 py-5">
           <h3 className="text-base font-bold text-[#0D2B5E]">Tienes datos sin guardar</h3>

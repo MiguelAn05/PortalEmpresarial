@@ -13,7 +13,7 @@ import {
  * Detalle de un indicador: el valor del periodo, contra qué se compara, la
  * tendencia del año, los acumulados y quién ha tocado el número.
  */
-export default function IndicadorDetalle({ indicadorId, anio, mes, editable, onCerrar }) {
+export default function IndicadorDetalle({ indicadorId, anio, mes, editable, onEditar, onCerrar }) {
   const queryClient = useQueryClient()
   const [registrando, setRegistrando] = useState(false)
 
@@ -76,6 +76,14 @@ export default function IndicadorDetalle({ indicadorId, anio, mes, editable, onC
                 </div>
 
                 <div className="flex gap-2">
+                  {editable && (
+                    <button
+                      onClick={() => onEditar(ficha)}
+                      className="border border-[#D6E0F0] hover:bg-gray-50 text-[#0D2B5E] text-sm font-semibold px-4 py-2.5 rounded-xl transition"
+                    >
+                      Editar ficha
+                    </button>
+                  )}
                   {editable && ficha.es_automatico && (
                     <button
                       onClick={() => mutRecalcular.mutate()}
@@ -117,6 +125,10 @@ export default function IndicadorDetalle({ indicadorId, anio, mes, editable, onC
 
               {/* Ficha técnica */}
               <div className="bg-[#F7F9FC] rounded-xl p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {ficha.tipo_captura === 'razon' && (
+                  <Campo titulo="Cómo se divide"
+                    valor={`(${ficha.etiqueta_numerador || 'lo logrado'} ÷ ${ficha.etiqueta_denominador || 'el total'})`} />
+                )}
                 <Campo titulo="Fórmula" valor={ficha.formula_texto} />
                 <Campo titulo="Cómo se captura" valor={TIPOS_CAPTURA[ficha.tipo_captura]?.label} />
                 <Campo titulo="Meta"

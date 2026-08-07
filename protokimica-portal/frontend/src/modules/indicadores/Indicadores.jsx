@@ -195,7 +195,9 @@ export default function Indicadores() {
       {abierto && (
         <IndicadorDetalle
           indicadorId={abierto} anio={periodo.anio} mes={periodo.mes}
-          editable={editable} onCerrar={() => setAbierto(null)}
+          editable={editable}
+          onEditar={(ficha) => setEditando(ficha)}
+          onCerrar={() => setAbierto(null)}
         />
       )}
 

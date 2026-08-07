@@ -194,8 +194,15 @@ def resumen_indicador(indicador: Indicador, anio: int, mes: int) -> dict:
         "tipo_captura": indicador.tipo_captura,
         "fuente_automatica": indicador.fuente_automatica,
         "es_automatico": indicador.es_automatico,
+        # Las etiquetas y el responsable van aquí para que el formulario de
+        # edición pueda abrirse desde el detalle sin perder esos campos.
+        "etiqueta_numerador": indicador.etiqueta_numerador,
+        "etiqueta_denominador": indicador.etiqueta_denominador,
         "area": indicador.area,
+        "responsable_id": indicador.responsable_id,
         "responsable_nombre": indicador.responsable_nombre,
+        "orden": indicador.orden,
+        "activo": indicador.activo,
         "meta": _f(indicador.meta),
         "direccion": indicador.direccion,
         "umbral_verde": _f(indicador.umbral_verde),

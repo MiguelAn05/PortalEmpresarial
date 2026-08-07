@@ -45,6 +45,15 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
     return indicador.unidad === "porcentaje" ? bruto * 100 : bruto
   })()
 
+  // Solo tiene sentido avisar en indicadores de porcentaje: en una razon
+  // (satisfaccion de 1 a 5, por ejemplo) pasar de 1 es normal.
+  const sospechaInvertido =
+    indicador.unidad === 'porcentaje' && previa !== null && previa > 100
+
+  const invertir = () => setForm({
+    ...form, numerador: form.denominador, denominador: form.numerador,
+  })
+
   const mut = useMutation({
     mutationFn: () => {
       const fd = new FormData()
@@ -86,18 +95,19 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
 
           {esRazon ? (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-end">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
-                    {indicador.etiqueta_numerador || 'Numerador'}
+                  <label className="block text-xs font-semibold text-green-700 uppercase mb-1">
+                    {indicador.etiqueta_numerador || 'Lo que se logró'}
                   </label>
                   <input type="number" value={form.numerador} onChange={set('numerador')}
                     autoFocus
                     className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
                 </div>
+                <div className="text-xl text-[#9BACC8] pb-2">÷</div>
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
-                    {indicador.etiqueta_denominador || 'Denominador'}
+                    {indicador.etiqueta_denominador || 'De un total de'}
                   </label>
                   <input type="number" value={form.denominador} onChange={set('denominador')}
                     className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
@@ -110,6 +120,24 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
                   {previa !== null ? formatValor(Math.round(previa * 100) / 100, indicador.unidad) : '—'}
                 </p>
               </div>
+
+              {/* Un porcentaje por encima de 100 casi siempre significa que
+                  los dos números se escribieron al revés. Se avisa antes de
+                  guardar, no se bloquea: hay casos legítimos (sobrecumplir
+                  una meta de ventas, por ejemplo). */}
+              {sospechaInvertido && (
+                <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  El resultado da más de 100%. ¿Seguro que no están al revés?
+                  Arriba va <strong>{indicador.etiqueta_numerador || 'lo que se logró'}</strong>{' '}
+                  ({Math.min(Number(form.numerador), Number(form.denominador))}) y abajo{' '}
+                  <strong>{indicador.etiqueta_denominador || 'el total'}</strong>{' '}
+                  ({Math.max(Number(form.numerador), Number(form.denominador))}).
+                  <button type="button" onClick={invertir}
+                    className="block mt-1.5 font-semibold text-[#1A4FA0] hover:underline">
+                    Intercambiar los dos números
+                  </button>
+                </p>
+              )}
 
               <p className="text-[11px] text-[#9BACC8]">
                 Se guardan los dos números, no solo el resultado: es lo que permite que

@@ -166,26 +166,7 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
                   className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm resize-none disabled:bg-[#F7F9FC] disabled:text-[#6B7EA8]" />
               </div>
 
-              {esRazon && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
-                      Cómo llamar al numerador
-                    </label>
-                    <input value={form.etiqueta_numerador} onChange={set('etiqueta_numerador')}
-                      placeholder="PQRS cerradas a tiempo"
-                      className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
-                      Y al denominador
-                    </label>
-                    <input value={form.etiqueta_denominador} onChange={set('etiqueta_denominador')}
-                      placeholder="PQRS cerradas"
-                      className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
-                  </div>
-                </div>
-              )}
+              {esRazon && <CamposDeLaDivision form={form} set={set} />}
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -310,6 +291,68 @@ function Seccion({ numero, titulo, children }) {
         <h3 className="text-sm font-bold text-[#0D2B5E]">{titulo}</h3>
       </div>
       {children}
+    </div>
+  )
+}
+
+
+/**
+ * Los dos lados de la división, en lenguaje llano.
+ *
+ * Pedir "numerador" y "denominador" es jerga: la gente los escribe en el
+ * orden en que ocurre el proceso (primero se reciben los casos, después se
+ * atienden) y termina con la fracción al revés — 30/20 = 150% en vez de
+ * 20/30 = 67%. Aquí se pregunta "qué se logró" y "de cuántos", que es como
+ * se piensa, y debajo se muestra la fórmula y un ejemplo con números para
+ * que el error sea visible antes de guardar.
+ */
+function CamposDeLaDivision({ form, set }) {
+  const logrado = form.etiqueta_numerador || 'lo que se logró'
+  const total = form.etiqueta_denominador || 'el total'
+  const esPorcentaje = form.unidad === 'porcentaje'
+
+  return (
+    <div className="bg-[#F7F9FC] rounded-xl p-4 space-y-3">
+      <p className="text-xs text-[#6B7EA8]">
+        Este indicador es una división. Escribe qué se cuenta en cada lado.
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-end">
+        <div>
+          <label className="block text-xs font-semibold text-green-700 uppercase mb-1">
+            Lo que se logró
+          </label>
+          <input value={form.etiqueta_numerador} onChange={set('etiqueta_numerador')}
+            placeholder="casos atendidos"
+            className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+          <p className="text-[11px] text-[#9BACC8] mt-1">La parte. Va arriba.</p>
+        </div>
+
+        <div className="text-center text-2xl text-[#9BACC8] pb-6 hidden md:block">÷</div>
+
+        <div>
+          <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+            De un total de
+          </label>
+          <input value={form.etiqueta_denominador} onChange={set('etiqueta_denominador')}
+            placeholder="casos recibidos"
+            className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+          <p className="text-[11px] text-[#9BACC8] mt-1">El total. Va abajo.</p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg border border-[#D6E0F0] px-3 py-2.5">
+        <p className="text-[11px] font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1">
+          Así quedará la fórmula
+        </p>
+        <p className="text-sm text-[#1A2B47]">
+          ({logrado} ÷ {total}){esPorcentaje && ' × 100'}
+        </p>
+        <p className="text-xs text-[#6B7EA8] mt-1.5">
+          Por ejemplo: 20 {logrado} de 30 {total} ={' '}
+          <strong>{esPorcentaje ? '66.67%' : '0.67'}</strong>
+        </p>
+      </div>
     </div>
   )
 }
