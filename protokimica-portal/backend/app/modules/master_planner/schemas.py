@@ -52,7 +52,11 @@ class ProyectoOut(BaseModel):
     fecha_fin_real: datetime | None
     archivado: bool
     presupuesto_total: float
-    presupuesto_ejecutado: float
+    presupuesto_aprobado: float
+    presupuesto_pagado: float
+    presupuesto_pendiente: float
+    pagado_pct: float
+    items_por_aprobar: int
     avance_pct: float
     total_tareas: int
     tareas_completadas: int
@@ -69,17 +73,43 @@ class ItemPresupuestoCreate(BaseModel):
     detalle: str | None = None
     valor_unitario: float = 0
     cantidad: float = 1
-    valor_ejecutado: float = 0
     observaciones: str | None = None
 
 
 class ItemPresupuestoUpdate(BaseModel):
+    """El valor aprobado y los pagos NO se tocan aquí: tienen su propio
+    endpoint porque cada uno exige un área distinta."""
     concepto: str | None = None
     detalle: str | None = None
     valor_unitario: float | None = None
     cantidad: float | None = None
-    valor_ejecutado: float | None = None
     observaciones: str | None = None
+
+
+class AprobacionIn(BaseModel):
+    valor_aprobado: float
+    nota: str | None = None
+
+
+class PagoIn(BaseModel):
+    valor: float
+    fecha: datetime | None = None      # por defecto, hoy
+    concepto: str | None = None
+
+
+class PagoOut(BaseModel):
+    id: int
+    item_id: int
+    valor: float
+    fecha: datetime
+    concepto: str | None
+    soporte: str | None
+    registrado_por: int | None
+    registrado_por_nombre: str | None = None
+    registrado_en: datetime | None
+
+    class Config:
+        from_attributes = True
 
 
 class ItemPresupuestoOut(BaseModel):
@@ -90,7 +120,21 @@ class ItemPresupuestoOut(BaseModel):
     valor_unitario: float
     cantidad: float
     valor_total: float
-    valor_ejecutado: float
+
+    # Aprobación
+    valor_aprobado: float | None
+    esta_aprobado: bool
+    aprobado_por_nombre: str | None = None
+    aprobado_en: datetime | None
+    nota_aprobacion: str | None
+
+    # Pago
+    valor_pagado: float
+    pendiente_de_pago: float
+    pagado_pct: float
+    estado_pago: str
+    pagos: list[PagoOut] = []
+
     disponible: float
     observaciones: str | None
 

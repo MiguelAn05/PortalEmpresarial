@@ -79,8 +79,37 @@ class Proyecto(Base):
         return sum((item.valor_total or 0) for item in self.items_presupuesto)
 
     @property
+    def presupuesto_aprobado(self) -> float:
+        return sum(float(i.valor_aprobado or 0) for i in self.items_presupuesto)
+
+    @property
+    def presupuesto_pagado(self) -> float:
+        return sum(i.valor_pagado for i in self.items_presupuesto)
+
+    @property
+    def presupuesto_pendiente(self) -> float:
+        """Aprobado que aún no se ha desembolsado."""
+        return sum(i.pendiente_de_pago for i in self.items_presupuesto)
+
+    @property
+    def pagado_pct(self) -> float:
+        """
+        Porcentaje pagado sobre lo APROBADO, no sobre lo planeado: es lo que
+        de verdad se debe. Lo planeado puede no aprobarse nunca.
+        """
+        aprobado = self.presupuesto_aprobado
+        return round((self.presupuesto_pagado / aprobado) * 100, 1) if aprobado else 0.0
+
+    @property
+    def items_por_aprobar(self) -> int:
+        return sum(1 for i in self.items_presupuesto if not i.esta_aprobado)
+
+    # Nombre anterior de `presupuesto_pagado`. Se conserva para no romper el
+    # indicador automático de ejecución presupuestal, que ya está creado en
+    # las bases con esa clave.
+    @property
     def presupuesto_ejecutado(self) -> float:
-        return sum(float(item.valor_ejecutado or 0) for item in self.items_presupuesto)
+        return self.presupuesto_pagado
 
     @property
     def _tareas_raiz(self) -> list["Tarea"]:
@@ -134,14 +163,27 @@ class ItemPresupuesto(Base):
     detalle = Column(String(300), nullable=True)
     valor_unitario = Column(Numeric(14, 2), nullable=False, default=0)
     cantidad = Column(Numeric(10, 2), nullable=False, default=1)
-    # Lo realmente gastado contra este ítem. Se captura a mano; mientras esté
-    # en 0 el ítem cuenta como planeado pero no ejecutado.
-    valor_ejecutado = Column(Numeric(14, 2), nullable=False, default=0, server_default="0")
+
+    # El dinero recorre tres etapas: planeado -> aprobado -> pagado.
+    #   planeado: valor_unitario × cantidad, lo que se presupuestó.
+    #   aprobado: lo que Administración autorizó desembolsar. En NULL mientras
+    #             nadie lo haya aprobado — distinto de aprobar cero.
+    #   pagado:   la suma de los abonos que registró Tesorería.
+    valor_aprobado = Column(Numeric(14, 2), nullable=True)
+    aprobado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    aprobado_en = Column(DateTime(timezone=True), nullable=True)
+    nota_aprobacion = Column(Text, nullable=True)
+
     observaciones = Column(Text, nullable=True)
 
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     proyecto = relationship("Proyecto", back_populates="items_presupuesto")
+    aprobador = relationship("User", foreign_keys=[aprobado_por])
+    pagos = relationship(
+        "PagoItem", back_populates="item",
+        cascade="all, delete-orphan", order_by="PagoItem.fecha",
+    )
 
     @property
     def valor_total(self) -> float:
@@ -149,9 +191,87 @@ class ItemPresupuesto(Base):
         return float(self.valor_unitario or 0) * float(self.cantidad or 0)
 
     @property
+    def esta_aprobado(self) -> bool:
+        return self.valor_aprobado is not None
+
+    @property
+    def aprobado_por_nombre(self):
+        return self.aprobador.nombre if self.aprobador else None
+
+    @property
+    def valor_pagado(self) -> float:
+        """
+        Suma de los abonos. Se deriva y no se guarda aparte: un campo que se
+        actualiza a mano en paralelo a los abonos termina desincronizado.
+        """
+        return sum(float(p.valor or 0) for p in self.pagos)
+
+    @property
+    def pendiente_de_pago(self) -> float:
+        """
+        Lo aprobado que aún no se ha desembolsado. Sin aprobación no hay nada
+        pendiente: todavía no es una obligación.
+        """
+        if not self.esta_aprobado:
+            return 0.0
+        return float(self.valor_aprobado) - self.valor_pagado
+
+    @property
+    def pagado_pct(self) -> float:
+        aprobado = float(self.valor_aprobado or 0)
+        return round((self.valor_pagado / aprobado) * 100, 1) if aprobado else 0.0
+
+    @property
+    def estado_pago(self) -> str:
+        """por_aprobar | aprobado | parcial | pagado"""
+        if not self.esta_aprobado:
+            return "por_aprobar"
+        pagado = self.valor_pagado
+        if pagado <= 0:
+            return "aprobado"
+        # Se compara con tolerancia de un peso: los decimales de un abono
+        # calculado como porcentaje no tienen por qué cuadrar al centavo.
+        if pagado + 1 >= float(self.valor_aprobado):
+            return "pagado"
+        return "parcial"
+
+    @property
     def disponible(self) -> float:
         """Puede ser negativo: es la señal de que el ítem se pasó del presupuesto."""
-        return self.valor_total - float(self.valor_ejecutado or 0)
+        return self.valor_total - self.valor_pagado
+
+
+class PagoItem(Base):
+    """
+    Un abono contra un ítem de presupuesto.
+
+    Se guardan los abonos en vez de un solo campo "pagado" porque los pagos
+    reales van por partes: anticipo, contra entrega, saldo. Con el detalle se
+    puede responder cuándo se pagó cada cosa y con qué soporte; con un solo
+    número, no.
+    """
+    __tablename__ = "mp_pagos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(
+        Integer, ForeignKey("mp_items_presupuesto.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+
+    valor = Column(Numeric(14, 2), nullable=False)
+    fecha = Column(DateTime(timezone=True), nullable=False)
+    concepto = Column(String(200), nullable=True)   # "Anticipo 50%", "Saldo"...
+    soporte = Column(String(255), nullable=True)    # comprobante adjunto
+
+    registrado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    registrado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    item = relationship("ItemPresupuesto", back_populates="pagos")
+    registrador = relationship("User", foreign_keys=[registrado_por])
+
+    @property
+    def registrado_por_nombre(self):
+        return self.registrador.nombre if self.registrador else None
 
 
 class Tarea(Base):

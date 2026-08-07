@@ -105,19 +105,19 @@ function Presupuesto({ total, porArea }) {
   return (
     <Panel
       titulo="Presupuesto"
-      subtitulo="Planeado contra realmente ejecutado. El detalle por ítem está dentro de cada proyecto."
+      subtitulo="El recorrido de la plata: presupuestado, aprobado por Administración y pagado por Tesorería. El detalle por ítem está dentro de cada proyecto."
     >
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-px bg-[#EDF2F7] border-b border-[#D6E0F0]">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-[#EDF2F7] border-b border-[#D6E0F0]">
         <Cifra titulo="Planeado" valor={formatMoneda(total.planeado)} />
-        <Cifra titulo="Ejecutado" valor={formatMoneda(total.ejecutado)} />
-        <Cifra
-          titulo="Disponible" valor={formatMoneda(total.disponible)}
-          alerta={total.disponible < 0}
-        />
-        <Cifra
-          titulo="% de ejecución" valor={`${total.ejecucion_pct}%`}
-          alerta={sobreEjecutado}
-        />
+        <Cifra titulo="Aprobado" valor={formatMoneda(total.aprobado)}
+          nota={total.por_aprobar > 0 ? `${formatMoneda(total.por_aprobar)} sin aprobar` : null} />
+        <Cifra titulo="Pagado" valor={formatMoneda(total.pagado)} />
+        <Cifra titulo="Pendiente de pago" valor={formatMoneda(total.pendiente)}
+          alerta={total.pendiente > 0} />
+        {/* El % se mide sobre lo aprobado: es la deuda real, no el plan. */}
+        <Cifra titulo="% pagado" valor={total.aprobado ? `${total.pagado_pct}%` : '—'}
+          nota={total.aprobado ? 'de lo aprobado' : 'nada aprobado'}
+          alerta={sobreEjecutado} />
       </div>
 
       {porArea.length === 0 ? (
@@ -131,9 +131,10 @@ function Presupuesto({ total, porArea }) {
               <tr className="text-xs uppercase tracking-wider text-[#6B7EA8]">
                 <th className="text-left px-5 py-3">Área</th>
                 <th className="text-right px-5 py-3">Planeado</th>
-                <th className="text-right px-5 py-3">Ejecutado</th>
-                <th className="text-right px-5 py-3">Disponible</th>
-                <th className="text-left px-5 py-3 w-56">% ejecutado</th>
+                <th className="text-right px-5 py-3">Aprobado</th>
+                <th className="text-right px-5 py-3">Pagado</th>
+                <th className="text-right px-5 py-3">Pendiente</th>
+                <th className="text-left px-5 py-3 w-48">% pagado</th>
               </tr>
             </thead>
             <tbody>
@@ -146,14 +147,15 @@ function Presupuesto({ total, porArea }) {
                     </p>
                   </td>
                   <td className="px-5 py-3 text-right text-sm whitespace-nowrap">{formatMoneda(a.planeado)}</td>
+                  <td className="px-5 py-3 text-right text-sm whitespace-nowrap">{formatMoneda(a.aprobado)}</td>
                   <td className="px-5 py-3 text-right text-sm whitespace-nowrap">{formatMoneda(a.ejecutado)}</td>
                   <td className={`px-5 py-3 text-right text-sm whitespace-nowrap font-semibold ${
-                    a.disponible < 0 ? 'text-red-600' : 'text-[#1A2B47]'
+                    a.pendiente > 0 ? 'text-amber-700' : 'text-[#9BACC8]'
                   }`}>
-                    {formatMoneda(a.disponible)}
+                    {formatMoneda(a.pendiente)}
                   </td>
                   <td className="px-5 py-3">
-                    <BarraEjecucion pct={a.ejecucion_pct} sobrepasado={a.sobrepasado} />
+                    <BarraEjecucion pct={a.pagado_pct} sobrepasado={a.sobrepasado} />
                   </td>
                 </tr>
               ))}

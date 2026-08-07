@@ -95,31 +95,31 @@ def test_resumen_gerencial(entorno, v):
     v.check("y queda registrado en el historial",
           any(x["campo"] == "estado" for x in portal.get(f"/master-planner/tareas/{T2}/historial").json()))
 
-    # ── Presupuesto ejecutado ──
+    # ── Presupuesto: aprobar y pagar ──
+    # El flujo detallado se prueba en test_pagos.py; aqui solo lo necesario
+    # para que el resumen tenga cifras de plata que agregar.
     I = portal.post(f"/master-planner/proyectos/{P}/presupuesto", json={
         "concepto": "Licencias", "valor_unitario": 1000000, "cantidad": 4,
     }).json()
     v.check("crear ítem calcula el total", I["valor_total"] == 4000000, I)
-    v.check("arranca sin ejecutar", I["valor_ejecutado"] == 0, I)
-    v.check("todo el presupuesto está disponible", I["disponible"] == 4000000, I)
+    v.check("arranca sin aprobar", I["esta_aprobado"] is False, I)
+    v.check("y sin pagar", I["valor_pagado"] == 0, I)
 
-    r = portal.patch(f"/master-planner/presupuesto/{I['id']}", json={"valor_ejecutado": 2500000})
-    v.check("registrar ejecución -> 200", r.status_code == 200, r.text)
-    v.check("el disponible baja", r.json()["disponible"] == 1500000, r.json())
+    r = portal.patch(f"/master-planner/presupuesto/{I['id']}/aprobar",
+                     json={"valor_aprobado": 4000000})
+    v.check("aprobar -> 200", r.status_code == 200, r.text[:150])
+
+    r = portal.post(f"/master-planner/presupuesto/{I['id']}/pagos", data={"valor": 2500000})
+    v.check("registrar pago -> 201", r.status_code == 201, r.text[:150])
 
     proy = portal.get(f"/master-planner/proyectos/{P}").json()
     v.check("el proyecto suma lo planeado", proy["presupuesto_total"] == 4000000, proy)
-    v.check("el proyecto suma lo ejecutado", proy["presupuesto_ejecutado"] == 2500000, proy)
+    v.check("el proyecto suma lo pagado", proy["presupuesto_pagado"] == 2500000, proy)
+    v.check("y lo que queda pendiente", proy["presupuesto_pendiente"] == 1500000, proy)
 
     hpres = [x for x in portal.get(f"/master-planner/proyectos/{P}/historial").json()
-             if x["campo"].startswith("presupuesto")]
-    v.check("agregar y ejecutar presupuesto quedan en el historial", len(hpres) == 2, hpres)
-
-    # Sobreejecución: el disponible tiene que poder ser negativo, no recortarse a 0
-    portal.patch(f"/master-planner/presupuesto/{I['id']}", json={"valor_ejecutado": 5000000})
-    v.check("se puede pasar del presupuesto y el disponible sale negativo",
-          portal.get(f"/master-planner/proyectos/{P}/presupuesto").json()[0]["disponible"] == -1000000)
-    portal.patch(f"/master-planner/presupuesto/{I['id']}", json={"valor_ejecutado": 2500000})
+             if "presupuesto" in x["campo"] or "pago" in x["campo"]]
+    v.check("agregar, aprobar y pagar quedan en el historial", len(hpres) == 3, hpres)
 
     # ── Resumen gerencial ──
     # Segundo proyecto, otra área, atrasado
@@ -127,9 +127,11 @@ def test_resumen_gerencial(entorno, v):
         "nombre": "Auditoría ISO", "area": "Calidad", "estado": "en_ejecucion",
         "fecha_inicio": en(-80), "fecha_fin_estimada": en(-10),
     }).json()["id"]
-    portal.post(f"/master-planner/proyectos/{P2}/presupuesto", json={
-        "concepto": "Consultoría", "valor_unitario": 2000000, "cantidad": 1, "valor_ejecutado": 500000,
-    })
+    I2 = portal.post(f"/master-planner/proyectos/{P2}/presupuesto", json={
+        "concepto": "Consultoría", "valor_unitario": 2000000, "cantidad": 1,
+    }).json()["id"]
+    portal.patch(f"/master-planner/presupuesto/{I2}/aprobar", json={"valor_aprobado": 2000000})
+    portal.post(f"/master-planner/presupuesto/{I2}/pagos", data={"valor": 500000})
     T3 = portal.post(f"/master-planner/proyectos/{P2}/tareas", json={
         "titulo": "Levantar hallazgos", "asignado_a": portal.ids["calidad"], "prioridad": "critica", "fecha_fin": en(-2),
     }).json()["id"]

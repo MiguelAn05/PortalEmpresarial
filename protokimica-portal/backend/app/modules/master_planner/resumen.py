@@ -167,14 +167,19 @@ def construir_resumen(
     for p in proyectos_con_plata:
         clave = p.area or SIN_AREA
         acumulado = por_area.setdefault(clave, {
-            "area": clave, "planeado": 0.0, "ejecutado": 0.0, "proyectos": 0,
+            "area": clave, "planeado": 0.0, "aprobado": 0.0,
+            "ejecutado": 0.0, "pendiente": 0.0, "proyectos": 0,
         })
         acumulado["planeado"] += p.presupuesto_total
-        acumulado["ejecutado"] += p.presupuesto_ejecutado
+        acumulado["aprobado"] += p.presupuesto_aprobado
+        acumulado["ejecutado"] += p.presupuesto_pagado
+        acumulado["pendiente"] += p.presupuesto_pendiente
         acumulado["proyectos"] += 1
 
     total_planeado = sum(a["planeado"] for a in por_area.values())
+    total_aprobado = sum(a["aprobado"] for a in por_area.values())
     total_ejecutado = sum(a["ejecutado"] for a in por_area.values())
+    total_pendiente = sum(a["pendiente"] for a in por_area.values())
 
     presupuesto_por_area = sorted(
         (
@@ -182,6 +187,9 @@ def construir_resumen(
                 **a,
                 "disponible": a["planeado"] - a["ejecutado"],
                 "ejecucion_pct": _pct(a["ejecutado"], a["planeado"]),
+                # Pagado sobre lo APROBADO: es lo que de verdad se debe.
+                # Lo planeado puede no aprobarse nunca.
+                "pagado_pct": _pct(a["ejecutado"], a["aprobado"]),
                 "participacion_pct": _pct(a["planeado"], total_planeado),
                 "sobrepasado": a["ejecutado"] > a["planeado"],
             }
@@ -221,9 +229,14 @@ def construir_resumen(
             # se leería como "este proyecto no tiene plata asignada".
             "presupuesto_visible": presupuesto_visible[p.id],
             "planeado": p.presupuesto_total if presupuesto_visible[p.id] else None,
-            "ejecutado": p.presupuesto_ejecutado if presupuesto_visible[p.id] else None,
+            "aprobado": p.presupuesto_aprobado if presupuesto_visible[p.id] else None,
+            "pagado": p.presupuesto_pagado if presupuesto_visible[p.id] else None,
+            "pendiente_pago": p.presupuesto_pendiente if presupuesto_visible[p.id] else None,
+            "pagado_pct": p.pagado_pct if presupuesto_visible[p.id] else None,
+            "items_por_aprobar": p.items_por_aprobar if presupuesto_visible[p.id] else None,
+            "ejecutado": p.presupuesto_pagado if presupuesto_visible[p.id] else None,
             "ejecucion_pct": (
-                _pct(p.presupuesto_ejecutado, p.presupuesto_total)
+                _pct(p.presupuesto_pagado, p.presupuesto_total)
                 if presupuesto_visible[p.id] else None
             ),
         })
@@ -298,9 +311,14 @@ def construir_resumen(
         },
         "presupuesto": {
             "planeado": total_planeado,
-            "ejecutado": total_ejecutado,
+            "aprobado": total_aprobado,
+            "ejecutado": total_ejecutado,      # = pagado, nombre conservado
+            "pagado": total_ejecutado,
+            "pendiente": total_pendiente,
             "disponible": total_planeado - total_ejecutado,
             "ejecucion_pct": _pct(total_ejecutado, total_planeado),
+            "pagado_pct": _pct(total_ejecutado, total_aprobado),
+            "por_aprobar": total_planeado - total_aprobado,
         },
         "presupuesto_por_area": presupuesto_por_area,
         "proyectos": filas_proyectos,

@@ -15,11 +15,13 @@ from app.core.deps import (
 )
 from app.models.user import User
 from app.models.master_planner import (
-    Proyecto, ProyectoArea, ItemPresupuesto, Tarea, TareaActualizacion, HistorialCambio,
+    Proyecto, ProyectoArea, ItemPresupuesto, PagoItem, Tarea, TareaActualizacion,
+    HistorialCambio,
 )
 from app.modules.master_planner.schemas import (
     ProyectoCreate, ProyectoUpdate, ProyectoOut,
     ItemPresupuestoCreate, ItemPresupuestoUpdate, ItemPresupuestoOut,
+    AprobacionIn, PagoIn, PagoOut,
     TareaCreate, TareaUpdate, TareaOut, SubtareaCreate,
     TareaActualizacionOut, UsuarioAsignableOut, HistorialCambioOut,
 )
@@ -28,6 +30,7 @@ from app.modules.master_planner.historial import (
 )
 from app.modules.master_planner.permisos import (
     aplicar_filtro_proyectos, puede_ver_proyecto, puede_ver_presupuesto, ve_todo,
+    solo_aprueba_pagos, solo_registra_pagos,
 )
 from app.modules.master_planner.resumen import construir_resumen
 from app.modules.pqrs.service import disparar_webhook_n8n, guardar_archivo
@@ -330,6 +333,185 @@ def listar_presupuesto(
     )
 
 
+@router.patch("/presupuesto/{item_id}/aprobar", response_model=ItemPresupuestoOut)
+def aprobar_item_presupuesto(
+    item_id: int,
+    payload: AprobacionIn,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_aprueba_pagos),
+):
+    """
+    Administracion autoriza cuanto se puede desembolsar por este item.
+
+    El valor aprobado no tiene que ser igual al planeado: se puede aprobar
+    menos de lo presupuestado. Lo que no se admite es aprobar por debajo de
+    lo que ya se pago, porque dejaria el item con un saldo negativo.
+    """
+    item = _get_item_presupuesto_o_404(db, item_id, tenant_id, current_user)
+
+    if payload.valor_aprobado < 0:
+        raise HTTPException(status_code=400, detail="El valor aprobado no puede ser negativo.")
+
+    ya_pagado = item.valor_pagado
+    if payload.valor_aprobado < ya_pagado:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"No se puede aprobar {payload.valor_aprobado:,.0f} si ya se pagaron "
+                f"{ya_pagado:,.0f}. Elimina primero los pagos que sobren."
+            ),
+        )
+
+    anterior = float(item.valor_aprobado) if item.esta_aprobado else None
+    item.valor_aprobado = payload.valor_aprobado
+    item.aprobado_por = current_user.id
+    item.aprobado_en = datetime.now(timezone.utc)
+    item.nota_aprobacion = payload.nota
+
+    registrar_evento(
+        db, "proyecto", item.proyecto_id, item.proyecto_id,
+        "presupuesto_aprobado", current_user.id,
+        valor_anterior=(f"{item.concepto} · {anterior:.0f}" if anterior is not None else None),
+        valor_nuevo=f"{item.concepto} · {payload.valor_aprobado:.0f}",
+        entidad_nombre=item.proyecto.nombre,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/presupuesto/{item_id}/aprobar", response_model=ItemPresupuestoOut)
+def revocar_aprobacion(
+    item_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_aprueba_pagos),
+):
+    """Deja el item sin aprobar. No se puede si ya tiene pagos registrados."""
+    item = _get_item_presupuesto_o_404(db, item_id, tenant_id, current_user)
+
+    if item.pagos:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Este item ya tiene {len(item.pagos)} pago(s) registrados. "
+                "Elimina los pagos antes de revocar la aprobacion."
+            ),
+        )
+
+    anterior = float(item.valor_aprobado) if item.esta_aprobado else None
+    item.valor_aprobado = None
+    item.aprobado_por = None
+    item.aprobado_en = None
+    item.nota_aprobacion = None
+
+    registrar_evento(
+        db, "proyecto", item.proyecto_id, item.proyecto_id,
+        "aprobacion_revocada", current_user.id,
+        valor_anterior=(f"{item.concepto} · {anterior:.0f}" if anterior is not None else None),
+        entidad_nombre=item.proyecto.nombre,
+    )
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.post("/presupuesto/{item_id}/pagos", response_model=PagoOut,
+             status_code=status.HTTP_201_CREATED)
+async def registrar_pago(
+    item_id: int,
+    valor: float = Form(...),
+    fecha: datetime | None = Form(None),
+    concepto: str | None = Form(None),
+    soporte: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_registra_pagos),
+):
+    """
+    Tesoreria registra un abono contra un item ya aprobado.
+
+    Se guardan los abonos uno por uno y no un total editable: los pagos
+    reales van por partes (anticipo, contra entrega, saldo) y asi queda
+    cuando se pago cada cosa y con que soporte.
+    """
+    item = _get_item_presupuesto_o_404(db, item_id, tenant_id, current_user)
+
+    if not item.esta_aprobado:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Este item todavia no esta aprobado. Administracion tiene que "
+                "aprobar el pago antes de que Tesoreria lo registre."
+            ),
+        )
+    if valor <= 0:
+        raise HTTPException(status_code=400, detail="El valor del pago tiene que ser mayor que cero.")
+
+    pendiente = item.pendiente_de_pago
+    if valor > pendiente + 1:  # un peso de tolerancia por decimales
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"El pago de {valor:,.0f} supera lo que falta por pagar "
+                f"({pendiente:,.0f}). Si el valor aprobado cambio, pidele a "
+                "Administracion que lo actualice."
+            ),
+        )
+
+    ruta = await guardar_archivo(soporte, "pagos") if soporte is not None else None
+
+    pago = PagoItem(
+        item_id=item.id,
+        valor=valor,
+        fecha=fecha or datetime.now(timezone.utc),
+        concepto=concepto,
+        soporte=ruta,
+        registrado_por=current_user.id,
+    )
+    db.add(pago)
+    db.flush()
+
+    registrar_evento(
+        db, "proyecto", item.proyecto_id, item.proyecto_id,
+        "pago_registrado", current_user.id,
+        valor_nuevo=f"{item.concepto} · {valor:.0f}",
+        entidad_nombre=item.proyecto.nombre,
+    )
+    db.commit()
+    db.refresh(pago)
+    return pago
+
+
+@router.delete("/pagos/{pago_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_pago(
+    pago_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_registra_pagos),
+):
+    """Anula un abono mal registrado. Queda en el historial del proyecto."""
+    pago = (
+        db.query(PagoItem)
+        .join(ItemPresupuesto, PagoItem.item_id == ItemPresupuesto.id)
+        .join(Proyecto, ItemPresupuesto.proyecto_id == Proyecto.id)
+        .filter(PagoItem.id == pago_id, Proyecto.tenant_id == tenant_id)
+        .first()
+    )
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado.")
+
+    registrar_evento(
+        db, "proyecto", pago.item.proyecto_id, pago.item.proyecto_id,
+        "pago_anulado", current_user.id,
+        valor_anterior=f"{pago.item.concepto} · {float(pago.valor):.0f}",
+        entidad_nombre=pago.item.proyecto.nombre,
+    )
+    db.delete(pago)
+    db.commit()
+
+
 @router.delete("/presupuesto/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_item_presupuesto(
     item_id: int,
@@ -338,6 +520,18 @@ def eliminar_item_presupuesto(
     current_user: User = Depends(solo_lectura_no),
 ):
     item = _get_item_presupuesto_o_404(db, item_id, tenant_id, current_user)
+
+    # Borrar un item con pagos borraria el rastro de una plata que ya salio.
+    if item.pagos:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Este item tiene {len(item.pagos)} pago(s) registrados por "
+                f"{item.valor_pagado:,.0f}. No se puede eliminar sin borrar antes "
+                "esos pagos."
+            ),
+        )
+
     registrar_evento(
         db, "proyecto", item.proyecto_id, item.proyecto_id, "presupuesto_eliminado",
         current_user.id, valor_anterior=f"{item.concepto} · {item.valor_total:.0f}",

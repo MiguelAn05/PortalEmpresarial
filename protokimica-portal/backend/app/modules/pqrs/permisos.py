@@ -12,10 +12,18 @@ persona, sin un rol paralelo que pueda contradecirla.
 """
 from fastapi import Depends, HTTPException, status
 
+from app.core.areas import AREAS
 from app.core.deps import get_current_user
 from app.models.user import User
 
-AREA_SERVICIO_CLIENTE = "Servicio al cliente"
+# Se toma de la lista de areas y no se escribe a mano: si alguien cambia
+# como se escribe el area, esto tiene que moverse con ella o el cierre de
+# PQRS deja de funcionar en silencio.
+AREA_SERVICIO_CLIENTE = "Servicio al Cliente"
+assert AREA_SERVICIO_CLIENTE in AREAS, (
+    f"'{AREA_SERVICIO_CLIENTE}' ya no esta en app/core/areas.py. "
+    "Actualiza esta constante o nadie podra cerrar PQRS."
+)
 
 
 def es_servicio_al_cliente(usuario: User) -> bool:
@@ -32,8 +40,8 @@ def solo_servicio_al_cliente(current_user: User = Depends(get_current_user)) -> 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                "Solo el área de Servicio al cliente puede hacer esto. "
-                "Si la PQRS ya está resuelta, pídele a Servicio al cliente que la cierre."
+                "Solo el área de Servicio al Cliente puede hacer esto. "
+                "Si la PQRS ya está resuelta, pídele a Servicio al Cliente que la cierre."
             ),
         )
     return current_user

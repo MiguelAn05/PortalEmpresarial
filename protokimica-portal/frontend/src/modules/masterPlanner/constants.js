@@ -91,6 +91,26 @@ export function puedeReportarAvance(usuario) {
   return puedeEditar(usuario)
 }
 
+// ── Aprobación y pago del presupuesto ─────────────────────────
+export const AREA_APRUEBA_PAGOS = 'Administración'
+export const AREA_REGISTRA_PAGOS = 'Tesorería'
+
+export function puedeAprobarPagos(usuario) {
+  return usuario?.rol === 'admin' || usuario?.area === AREA_APRUEBA_PAGOS
+}
+
+export function puedeRegistrarPagos(usuario) {
+  return usuario?.rol === 'admin' || usuario?.area === AREA_REGISTRA_PAGOS
+}
+
+/** Estado de un ítem en el recorrido planeado → aprobado → pagado. */
+export const ESTADOS_PAGO = {
+  por_aprobar: { label: 'Por aprobar', chip: 'bg-gray-100 text-gray-600 border-gray-200', punto: '#9BACC8' },
+  aprobado:    { label: 'Aprobado',    chip: 'bg-blue-50 text-blue-700 border-blue-200',  punto: '#1A4FA0' },
+  parcial:     { label: 'Pago parcial', chip: 'bg-amber-50 text-amber-800 border-amber-200', punto: '#F5A800' },
+  pagado:      { label: 'Pagado',      chip: 'bg-green-50 text-green-700 border-green-200', punto: '#2E9E6B' },
+}
+
 // ── Semáforo de proyectos ─────────────────────────────────────
 // Lo calcula el backend comparando avance real contra plazo consumido.
 export const SALUD = {

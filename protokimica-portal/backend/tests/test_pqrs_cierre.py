@@ -46,7 +46,7 @@ def _con_area(portal, clave, area):
 
 def test_solo_servicio_al_cliente_cierra(entorno, v):
     portal = entorno
-    _con_area(portal, "calidad", "Servicio al cliente")
+    _con_area(portal, "calidad", "Servicio al Cliente")
     pid = _crear_pqrs(portal)
 
     # Alguien de otra area no puede cerrar
@@ -54,7 +54,7 @@ def test_solo_servicio_al_cliente_cierra(entorno, v):
     r = portal.patch(f"/pqrs/{pid}/estado", data={"estado": "cerrado"})
     v.check("Logistica no puede cerrar -> 403", r.status_code == 403, r.text[:120])
     v.check("el mensaje dice a quien pedirle",
-            "Servicio al cliente" in r.json().get("detail", ""), r.json())
+            "Servicio al Cliente" in r.json().get("detail", ""), r.json())
 
     # Pero si puede mover la PQRS a otros estados
     r = portal.patch(f"/pqrs/{pid}/estado", data={"estado": "resuelto"})
@@ -75,7 +75,7 @@ def test_solo_servicio_al_cliente_cierra(entorno, v):
 
 def test_reclasificar_tipo(entorno, v):
     portal = entorno
-    _con_area(portal, "calidad", "Servicio al cliente")
+    _con_area(portal, "calidad", "Servicio al Cliente")
     # Radicada hace 10 dias como peticion (SLA 15 habiles)
     pid = _crear_pqrs(portal, tipo="peticion", dias_atras=10)
 
@@ -103,7 +103,7 @@ def test_reclasificar_tipo(entorno, v):
 
 def test_la_reclasificacion_queda_en_la_trazabilidad(entorno, v):
     portal = entorno
-    _con_area(portal, "calidad", "Servicio al cliente")
+    _con_area(portal, "calidad", "Servicio al Cliente")
     pid = _crear_pqrs(portal, tipo="peticion")
     portal.como("calidad")
 
@@ -124,7 +124,7 @@ def test_la_reclasificacion_queda_en_la_trazabilidad(entorno, v):
 
 def test_la_prioridad_puesta_a_mano_se_respeta(entorno, v):
     portal = entorno
-    _con_area(portal, "calidad", "Servicio al cliente")
+    _con_area(portal, "calidad", "Servicio al Cliente")
     pid = _crear_pqrs(portal, tipo="peticion")
 
     # Alguien la sube a critica por conocer el caso
@@ -148,7 +148,7 @@ def test_la_prioridad_puesta_a_mano_se_respeta(entorno, v):
 
 def test_no_se_reclasifica_una_pqrs_cerrada(entorno, v):
     portal = entorno
-    _con_area(portal, "calidad", "Servicio al cliente")
+    _con_area(portal, "calidad", "Servicio al Cliente")
     pid = _crear_pqrs(portal)
     portal.como("calidad")
     portal.patch(f"/pqrs/{pid}/estado", data={"estado": "cerrado"})
@@ -161,7 +161,7 @@ def test_no_se_reclasifica_una_pqrs_cerrada(entorno, v):
 
 def test_validaciones_de_la_reclasificacion(entorno, v):
     portal = entorno
-    _con_area(portal, "calidad", "Servicio al cliente")
+    _con_area(portal, "calidad", "Servicio al Cliente")
     pid = _crear_pqrs(portal, tipo="peticion")
     portal.como("calidad")
 
@@ -185,7 +185,7 @@ def test_el_sla_se_recalcula_desde_la_radicacion(entorno, v):
     principio — y puede quedar vencida, que es lo correcto.
     """
     portal = entorno
-    _con_area(portal, "calidad", "Servicio al cliente")
+    _con_area(portal, "calidad", "Servicio al Cliente")
     # Radicada hace 20 dias como peticion; como reclamo (8 habiles) ya vencio
     pid = _crear_pqrs(portal, tipo="peticion", dias_atras=20)
     portal.como("calidad")

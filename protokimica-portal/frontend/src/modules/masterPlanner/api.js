@@ -33,9 +33,23 @@ export const listarPresupuesto = (proyectoId) =>
 export const agregarItemPresupuesto = (proyectoId, payload) =>
   api.post(`/master-planner/proyectos/${proyectoId}/presupuesto`, payload).then(r => r.data)
 
-/** Se usa sobre todo para registrar el valor ejecutado (lo realmente gastado). */
 export const actualizarItemPresupuesto = (itemId, payload) =>
   api.patch(`/master-planner/presupuesto/${itemId}`, payload).then(r => r.data)
+
+// ── Aprobación y pago ─────────────────────────────────────────
+// Administración aprueba cuánto se puede desembolsar; Tesorería registra los
+// abonos. Son dos manos distintas y cada endpoint exige su área.
+export const aprobarItem = (itemId, payload) =>
+  api.patch(`/master-planner/presupuesto/${itemId}/aprobar`, payload).then(r => r.data)
+
+export const revocarAprobacion = (itemId) =>
+  api.delete(`/master-planner/presupuesto/${itemId}/aprobar`).then(r => r.data)
+
+export const registrarPago = (itemId, formData) =>
+  api.post(`/master-planner/presupuesto/${itemId}/pagos`, formData).then(r => r.data)
+
+export const anularPago = (pagoId) =>
+  api.delete(`/master-planner/pagos/${pagoId}`)
 
 export const eliminarItemPresupuesto = (itemId) =>
   api.delete(`/master-planner/presupuesto/${itemId}`)

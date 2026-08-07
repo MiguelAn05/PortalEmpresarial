@@ -5,7 +5,7 @@ import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
 import { AREAS } from '../../core/areas.js'
 
-const AREA_SERVICIO_CLIENTE = 'Servicio al cliente'
+const AREA_SERVICIO_CLIENTE = 'Servicio al Cliente'
 
 const TIPOS = {
   peticion:   { label: 'Petición',   color: 'bg-purple-100 text-purple-700' },
@@ -629,7 +629,7 @@ export default function PQRSDetail() {
                   {!esServicioCliente && (
                     <p className="text-xs text-[#6B7EA8] bg-[#F7F9FC] rounded-lg px-3 py-2 mb-3 -mt-1">
                       Marcala como <strong>Resuelto</strong> cuando termines. El cierre lo hace
-                      Servicio al cliente, que revisa y clasifica antes de cerrar.
+                      Servicio al Cliente, que revisa y clasifica antes de cerrar.
                     </p>
                   )}
                   <textarea

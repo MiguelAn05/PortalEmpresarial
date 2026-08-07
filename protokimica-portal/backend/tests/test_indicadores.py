@@ -27,7 +27,7 @@ def test_indicadores(entorno, v):
     r = portal.post("/indicadores", json={
         "nombre": "Cumplimiento de capacitaciones", "unidad": "porcentaje",
         "tipo_captura": "razon", "etiqueta_numerador": "Capacitaciones realizadas",
-        "etiqueta_denominador": "Capacitaciones programadas", "area": "Gestión humana",
+        "etiqueta_denominador": "Capacitaciones programadas", "area": "Gestión Humana",
         "meta": 90, "direccion": "arriba", "umbral_verde": 90, "umbral_amarillo": 75,
         "requiere_evidencia": False,
     })
@@ -38,7 +38,7 @@ def test_indicadores(entorno, v):
     # Manual de valor directo, mejor hacia abajo
     r = portal.post("/indicadores", json={
         "nombre": "Accidentes de trabajo", "unidad": "cantidad", "tipo_captura": "valor",
-        "area": "Gestión humana", "meta": 0, "direccion": "abajo",
+        "area": "Gestión Humana", "meta": 0, "direccion": "abajo",
         "umbral_verde": 0, "umbral_amarillo": 1,
     })
     I_ACC = r.json()["id"]
@@ -182,18 +182,18 @@ def test_indicadores(entorno, v):
     v.check("cuenta verdes y rojos",
           tab["resumen"]["verde"] == 1 and tab["resumen"]["rojo"] == 2, tab["resumen"])
     v.check("cumplimiento = 1 de 3 = 33.3%", tab["resumen"]["cumplimiento_pct"] == 33.3, tab["resumen"])
-    v.check("agrupa por area", {a["area"] for a in tab["por_area"]} == {"Gestión humana", "Calidad"},
+    v.check("agrupa por area", {a["area"] for a in tab["por_area"]} == {"Gestión Humana", "Calidad"},
           [a["area"] for a in tab["por_area"]])
     v.check("ofrece las areas para filtrar",
-          set(tab["areas_disponibles"]) == {"Gestión humana", "Calidad"}, tab["areas_disponibles"])
+          set(tab["areas_disponibles"]) == {"Gestión Humana", "Calidad"}, tab["areas_disponibles"])
     v.check("cada indicador trae su serie", all("serie" in i for i in tab["indicadores"]))
 
-    tab_th = portal.get(f"/indicadores/tablero?anio={A}&mes={M}&area=Gestión humana").json()
+    tab_th = portal.get(f"/indicadores/tablero?anio={A}&mes={M}&area=Gestión Humana").json()
     v.check("filtra por area", tab_th["resumen"]["total"] == 2, tab_th["resumen"])
 
     # Pendientes de registro: un manual sin valor en el periodo
     portal.post("/indicadores", json={"nombre": "Rotacion de personal", "unidad": "porcentaje",
-                                 "tipo_captura": "valor", "area": "Gestión humana", "meta": 5,
+                                 "tipo_captura": "valor", "area": "Gestión Humana", "meta": 5,
                                  "direccion": "abajo"})
     tab = portal.get(f"/indicadores/tablero?anio={A}&mes={M}").json()
     v.check("avisa cuales faltan por registrar", tab["resumen"]["pendientes_registro"] == 1, tab["resumen"])

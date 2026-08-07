@@ -8,12 +8,12 @@ import KPICards from "../components/KPICards"
 import PriorityBadge from "../components/PriorityBadge"
 import Avatar from "../components/Avatar"
 import HistorialPanel from "../components/HistorialPanel"
+import PanelPresupuesto from "../components/PanelPresupuesto"
 import ConfirmarCambios from "../components/ConfirmarCambios"
 import { useAuth } from "../../../core/AuthContext"
 import {
   obtenerProyecto, listarTareasDeProyecto, actualizarTarea, actualizarProyecto,
-  listarPresupuesto, agregarItemPresupuesto, actualizarItemPresupuesto,
-  eliminarItemPresupuesto, listarHistorialProyecto,
+  listarHistorialProyecto,
 } from "../api"
 import {
   ESTADOS_PROYECTO, ESTADOS_TAREA, PRIORIDADES,
@@ -151,10 +151,11 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
             <Dato titulo="Presupuesto">
               {formatMoneda(proyecto.presupuesto_total)}
               {proyecto.presupuesto_total > 0 && (
-                <span className={`block text-[11px] font-semibold ${
-                  proyecto.presupuesto_ejecutado > proyecto.presupuesto_total ? 'text-red-600' : 'text-[#9BACC8]'
-                }`}>
-                  {Math.round((proyecto.presupuesto_ejecutado / proyecto.presupuesto_total) * 100)}% ejecutado
+                <span className="block text-[11px] text-[#9BACC8]">
+                  {proyecto.presupuesto_aprobado > 0
+                    ? `${proyecto.pagado_pct}% pagado de lo aprobado`
+                    : 'sin aprobar'}
+                  {proyecto.items_por_aprobar > 0 && ` · ${proyecto.items_por_aprobar} por aprobar`}
                 </span>
               )}
             </Dato>
@@ -316,197 +317,6 @@ function Campo({ titulo, valor }) {
       <p className="text-[11px] font-semibold text-[#9BACC8] uppercase tracking-wide mb-1">{titulo}</p>
       <p className="text-sm text-[#1A2B47] whitespace-pre-line">{valor || <span className="text-[#C3CFE2] italic">Sin definir</span>}</p>
     </div>
-  )
-}
-
-function PanelPresupuesto({ proyectoId, editable, onCambio }) {
-  const queryClient = useQueryClient()
-  const [itemForm, setItemForm] = useState({ concepto: "", detalle: "", valor_unitario: "", cantidad: "1" })
-
-  const { data: items = [] } = useQuery({
-    queryKey: ["mp-presupuesto", proyectoId],
-    queryFn: () => listarPresupuesto(proyectoId),
-  })
-  const total = items.reduce((s, i) => s + i.valor_total, 0)
-  const ejecutado = items.reduce((s, i) => s + i.valor_ejecutado, 0)
-  const disponible = total - ejecutado
-  const ejecucionPct = total ? Math.round((ejecutado / total) * 100) : 0
-
-  const refrescar = () => {
-    queryClient.invalidateQueries({ queryKey: ["mp-presupuesto", proyectoId] })
-    onCambio()
-  }
-
-  const mutAgregar = useMutation({
-    mutationFn: () => agregarItemPresupuesto(proyectoId, {
-      ...itemForm,
-      valor_unitario: Number(itemForm.valor_unitario) || 0,
-      cantidad: Number(itemForm.cantidad) || 1,
-    }),
-    onSuccess: () => { setItemForm({ concepto: "", detalle: "", valor_unitario: "", cantidad: "1" }); refrescar() },
-  })
-
-  const mutEliminar = useMutation({
-    mutationFn: (id) => eliminarItemPresupuesto(id),
-    onSuccess: refrescar,
-  })
-
-  const mutEjecutado = useMutation({
-    mutationFn: ({ id, valor_ejecutado }) => actualizarItemPresupuesto(id, { valor_ejecutado }),
-    onSuccess: refrescar,
-  })
-
-  return (
-    <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-[#D6E0F0]">
-        <h3 className="text-sm font-bold text-[#0D2B5E]">Presupuesto del proyecto</h3>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[#EDF2F7] border-b border-[#D6E0F0]">
-        <ResumenCifra titulo="Planeado" valor={formatMoneda(total)} />
-        <ResumenCifra titulo="Ejecutado" valor={formatMoneda(ejecutado)} />
-        <ResumenCifra titulo="Disponible" valor={formatMoneda(disponible)} alerta={disponible < 0} />
-        <ResumenCifra titulo="% ejecutado" valor={`${ejecucionPct}%`} alerta={ejecucionPct > 100} />
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="min-w-full">
-          <thead className="bg-[#F7F9FC] border-b border-[#D6E0F0]">
-            <tr className="text-xs uppercase tracking-wider text-[#6B7EA8]">
-              <th className="text-left px-6 py-3">Concepto</th>
-              <th className="text-right px-6 py-3">Valor unitario</th>
-              <th className="text-right px-6 py-3">Cant.</th>
-              <th className="text-right px-6 py-3">Planeado</th>
-              <th className="text-right px-6 py-3 w-44">Ejecutado</th>
-              <th className="text-right px-6 py-3">Disponible</th>
-              <th className="px-6 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 && (
-              <tr><td colSpan={7} className="px-6 py-10 text-center text-sm text-[#9BACC8]">
-                Sin ítems de presupuesto todavía.
-              </td></tr>
-            )}
-            {items.map(item => (
-              <tr key={item.id} className="border-b border-[#EDF2F7]">
-                <td className="px-6 py-3">
-                  <p className="text-sm font-medium text-[#1A2B47]">{item.concepto}</p>
-                  {item.detalle && <p className="text-xs text-[#9BACC8]">{item.detalle}</p>}
-                </td>
-                <td className="px-6 py-3 text-right text-sm whitespace-nowrap">{formatMoneda(item.valor_unitario)}</td>
-                <td className="px-6 py-3 text-right text-sm">{item.cantidad}</td>
-                <td className="px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{formatMoneda(item.valor_total)}</td>
-                <td className="px-6 py-3">
-                  <CampoEjecutado
-                    item={item}
-                    editable={editable}
-                    guardando={mutEjecutado.isPending}
-                    onGuardar={(valor) => mutEjecutado.mutate({ id: item.id, valor_ejecutado: valor })}
-                  />
-                </td>
-                <td className={`px-6 py-3 text-right text-sm font-semibold whitespace-nowrap ${
-                  item.disponible < 0 ? 'text-red-600' : 'text-[#1A2B47]'
-                }`}>
-                  {formatMoneda(item.disponible)}
-                </td>
-                <td className="px-6 py-3 text-right">
-                  {editable && (
-                    <button
-                      onClick={() => { if (confirm(`¿Quitar "${item.concepto}" del presupuesto?`)) mutEliminar.mutate(item.id) }}
-                      className="text-xs text-red-500 hover:text-red-700 font-semibold"
-                    >
-                      Quitar
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {editable && (
-      <div className="p-6 border-t border-[#D6E0F0] bg-[#F7F9FC]">
-        <p className="text-xs font-semibold text-[#6B7EA8] uppercase mb-2">Agregar ítem</p>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-          <input
-            placeholder="Concepto" value={itemForm.concepto}
-            onChange={(e) => setItemForm({ ...itemForm, concepto: e.target.value })}
-            className="md:col-span-2 rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
-          />
-          <input
-            placeholder="Detalle (opcional)" value={itemForm.detalle}
-            onChange={(e) => setItemForm({ ...itemForm, detalle: e.target.value })}
-            className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
-          />
-          <input
-            placeholder="Valor unitario" type="number" value={itemForm.valor_unitario}
-            onChange={(e) => setItemForm({ ...itemForm, valor_unitario: e.target.value })}
-            className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
-          />
-          <input
-            placeholder="Cantidad" type="number" value={itemForm.cantidad}
-            onChange={(e) => setItemForm({ ...itemForm, cantidad: e.target.value })}
-            className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
-          />
-        </div>
-        <button
-          onClick={() => mutAgregar.mutate()}
-          disabled={!itemForm.concepto || mutAgregar.isPending}
-          className="mt-3 bg-[#1A4FA0] hover:bg-[#0D2B5E] disabled:opacity-40 text-white text-sm font-semibold px-5 py-2 rounded-lg transition"
-        >
-          + Agregar ítem
-        </button>
-      </div>
-      )}
-    </div>
-  )
-}
-
-function ResumenCifra({ titulo, valor, alerta }) {
-  return (
-    <div className="bg-white px-6 py-4">
-      <p className="text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide">{titulo}</p>
-      <p className={`text-lg font-bold mt-1 ${alerta ? 'text-[#D93B3B]' : 'text-[#0D2B5E]'}`}>{valor}</p>
-    </div>
-  )
-}
-
-/**
- * Campo editable del valor ejecutado. Guarda al salir del campo o con Enter
- * en vez de en cada tecla, para no disparar una petición por dígito.
- */
-function CampoEjecutado({ item, editable, guardando, onGuardar }) {
-  const [valor, setValor] = useState(String(item.valor_ejecutado ?? 0))
-  const [editando, setEditando] = useState(false)
-
-  const confirmar = () => {
-    setEditando(false)
-    const numero = Number(valor)
-    if (isNaN(numero) || numero === item.valor_ejecutado) {
-      setValor(String(item.valor_ejecutado ?? 0))
-      return
-    }
-    onGuardar(numero)
-  }
-
-  return (
-    <input
-      type="number" min={0}
-      value={editando ? valor : String(item.valor_ejecutado ?? 0)}
-      disabled={guardando || !editable}
-      onFocus={() => { setValor(String(item.valor_ejecutado ?? 0)); setEditando(true) }}
-      onChange={(e) => setValor(e.target.value)}
-      onBlur={confirmar}
-      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-      title="Cuánto se ha gastado realmente de este ítem"
-      className={`w-full rounded-lg border px-3 py-1.5 text-sm text-right transition ${
-        item.valor_ejecutado > item.valor_total
-          ? 'border-red-300 bg-red-50 text-red-700 font-semibold'
-          : 'border-[#D6E0F0] focus:border-[#1A4FA0]'
-      }`}
-    />
   )
 }
 

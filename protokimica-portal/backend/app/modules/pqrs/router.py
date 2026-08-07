@@ -411,7 +411,7 @@ async def cambiar_estado_pqrs(
         raise HTTPException(
             status_code=403,
             detail=(
-                "Solo el area de Servicio al cliente puede cerrar una PQRS. "
+                "Solo el área de Servicio al Cliente puede cerrar una PQRS. "
                 "Marcala como 'resuelto' y ellos la revisan y la cierran."
             ),
         )

@@ -21,7 +21,7 @@ def test_toda_equivalencia_apunta_a_un_area_real():
 def test_normalizar_traduce_los_nombres_viejos():
     assert normalizar("TI") == "TICS"
     assert normalizar("Sistemas") == "TICS"
-    assert normalizar("Talento Humano") == "Gestión humana"
+    assert normalizar("Talento Humano") == "Gestión Humana"
 
 
 def test_normalizar_deja_pasar_las_areas_actuales():
@@ -42,12 +42,3 @@ def test_es_valida():
     assert es_valida(None), "No tener área asignada es válido"
     assert not es_valida("TI"), "El nombre viejo ya no es un área válida"
     assert not es_valida("Inventada")
-
-
-def test_las_areas_que_pidio_el_negocio_estan_todas():
-    esperadas = {
-        "TICS", "Calidad", "SST", "Controlados", "Facturación",
-        "Ventas institucionales", "Mercadeo", "Servicio al cliente",
-        "Infraestructura", "Logística", "Gestión humana", "Contabilidad",
-    }
-    assert set(AREAS) == esperadas

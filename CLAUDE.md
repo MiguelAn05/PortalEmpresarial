@@ -114,6 +114,14 @@ casi nunca acierta al radicar y esa clasificación alimenta los indicadores.
 Al reclasificar se recalcula el SLA **desde la radicación** y la prioridad se
 ajusta al tipo nuevo salvo que alguien la haya cambiado a mano.
 
+**Master Planner — aprobar y pagar:** el presupuesto recorre
+`planeado → aprobado → pagado`. `Administración` aprueba cuánto se desembolsa
+y `Tesorería` registra los abonos: dos manos distintas a propósito. Las dos
+áreas ven TODOS los proyectos (si no, no podrían hacer su trabajo), pero eso
+no les da permiso de editarlos. Ver `modules/master_planner/permisos.py`.
+Los pagos se guardan uno por uno (`mp_pagos`) y `valor_pagado` es su suma —
+nunca un campo aparte que se edite en paralelo.
+
 **Visibilidad por área (solo Master Planner):** ves un proyecto si es de tu
 área, tu área participa en él, lo lideras, tienes una tarea asignada ahí, o el
 proyecto no tiene área. Se responde **404, no 403**, para no confirmar que
@@ -161,6 +169,12 @@ declarar una lista de áreas dentro de un componente.
   una petición salen de la Ley 1755 de 2015. Usar `core/dias_habiles.py`,
   que calcula los festivos colombianos (incluida la Ley Emiliani que los
   corre al lunes). Contarlos corridos declaraba vencido lo que no lo estaba.
+- **El % pagado se mide sobre lo APROBADO, no sobre lo planeado.** Lo
+  planeado puede no aprobarse nunca; la deuda real es lo aprobado.
+- **La escritura del área importa.** Se compara como texto para decidir
+  permisos (`Servicio al Cliente`, `Administración`, `Tesorería`). Cambiar
+  mayúsculas o tildes rompe permisos en silencio: va con migración de datos
+  y las constantes de `permisos.py` lo verifican al arrancar.
 - **Un mes sin datos no es un cero.** En indicadores y en cumplimiento, la
   ausencia de dato se muestra como "sin dato" y no baja los porcentajes.
 

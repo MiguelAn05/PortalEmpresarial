@@ -23,11 +23,11 @@ export const AREAS = [
   'Contabilidad',
   'Producción',
   'Control Interno',
-  'Control Interno',
   'Aseguramiento',
   'Abastecimiento',
   'Comercial',
-
+  'Administración',
+  'Tesorería',
 ]
 
 /**
@@ -38,7 +38,10 @@ export const AREAS = [
 export const EQUIVALENCIAS_HISTORICAS = {
   'TI': 'TICS',
   'Sistemas': 'TICS',
-  'Talento Humano': 'Gestión humana',
+  'Talento Humano': 'Gestión Humana',
+  'Gestión humana': 'Gestión Humana',
+  'Servicio al cliente': 'Servicio al Cliente',
+  'Ventas institucionales': 'Ventas Institucionales',
 }
 
 export function normalizarArea(area) {

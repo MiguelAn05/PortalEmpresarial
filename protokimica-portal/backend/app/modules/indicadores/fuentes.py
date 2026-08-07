@@ -209,7 +209,7 @@ def mp_ejecucion_presupuestal(db, tenant_id, anio, mes) -> Resultado:
         .all()
     )
     planeado = sum(p.presupuesto_total for p in proyectos)
-    ejecutado = sum(p.presupuesto_ejecutado for p in proyectos)
+    ejecutado = sum(p.presupuesto_pagado for p in proyectos)
     if not planeado:
         return Resultado(valor=None, numerador=0, denominador=0,
                          detalle="Ningún proyecto activo tiene presupuesto cargado")
