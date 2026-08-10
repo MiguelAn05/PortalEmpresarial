@@ -33,6 +33,9 @@ from app.modules.master_planner.permisos import (
     solo_aprueba_pagos, solo_registra_pagos,
 )
 from app.modules.master_planner.resumen import construir_resumen
+from app.modules.master_planner.outlook import (
+    sincronizar_tarea, borrar_evento_de_tarea, borrar_evento_en_calendario_de,
+)
 from app.modules.pqrs.service import disparar_webhook_n8n, guardar_archivo
 
 router = APIRouter(prefix="/master-planner", tags=["Master Planner"])
@@ -623,6 +626,7 @@ def crear_tarea(
             "asignado_a": tarea.asignado_a,
         })
 
+    sincronizar_tarea(db, tarea, proyecto.nombre)
     return tarea
 
 
@@ -757,6 +761,14 @@ def actualizar_tarea(
             "asignado_a": tarea.asignado_a,
         })
 
+    # Si cambió de responsable, el evento viejo queda en el calendario del
+    # anterior: hay que quitarlo de ahí antes de crear el nuevo.
+    if asignado_anterior and tarea.asignado_a != asignado_anterior and tarea.outlook_evento_id:
+        borrar_evento_en_calendario_de(db, asignado_anterior, tarea.outlook_evento_id)
+        tarea.outlook_evento_id = None
+        db.commit()
+
+    sincronizar_tarea(db, tarea, tarea.proyecto.nombre)
     return tarea
 
 
@@ -768,6 +780,8 @@ def eliminar_tarea(
     current_user: User = Depends(solo_lectura_no),
 ):
     tarea = _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
+    # Antes del delete: después ya no se sabe de quién era ni qué evento tenía.
+    borrar_evento_de_tarea(db, tarea)
     db.delete(tarea)
     db.commit()
 

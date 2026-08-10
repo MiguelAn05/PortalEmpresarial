@@ -304,6 +304,12 @@ class Tarea(Base):
     # cumplimiento: sin esto solo se sabe que está hecha, no si llegó a tiempo.
     fecha_completada = Column(DateTime(timezone=True), nullable=True)
 
+    # Id del evento en el calendario de Outlook, si se sincronizó. Sin esto
+    # no se puede distinguir "crear" de "actualizar": cada cambio de fecha
+    # dejaría un evento nuevo en la agenda de la persona en vez de mover el
+    # que ya estaba. Vacío = esa tarea no tiene evento (o Graph está apagado).
+    outlook_evento_id = Column(String(255), nullable=True)
+
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     proyecto = relationship("Proyecto", back_populates="tareas")

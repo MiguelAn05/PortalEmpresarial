@@ -23,6 +23,33 @@ from app.modules.auth.schemas import (
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 
+def validar_dominio_email(email: str) -> None:
+    """
+    Solo se crean usuarios con correo de la empresa. No es una formalidad:
+    quien entra con un correo personal no tiene buzón corporativo, así que
+    nada de lo que dependa de la cuenta de la empresa (calendario de
+    Outlook, notificaciones) le va a llegar nunca.
+
+    Se configura con DOMINIOS_EMAIL_PERMITIDOS; vacío = se acepta cualquiera.
+    """
+    dominios = settings.dominios_email_list
+    if not dominios:
+        return
+
+    dominio = email.rsplit("@", 1)[-1].lower()
+    if dominio not in dominios:
+        permitidos = ", ".join("@" + d for d in dominios)
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"El correo debe ser corporativo ({permitidos}). "
+                f"Pídele a la persona su cuenta de la empresa; si de verdad "
+                f"necesita entrar con otro dominio, agrégalo a "
+                f"DOMINIOS_EMAIL_PERMITIDOS en el .env del servidor."
+            ),
+        )
+
+
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     # Sin llave configurada en el servidor, o si no coincide, el endpoint
@@ -30,6 +57,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     # internet pueda crearse una cuenta (incluso de administrador) sola.
     if not settings.REGISTER_SETUP_KEY or payload.setup_key != settings.REGISTER_SETUP_KEY:
         raise HTTPException(status_code=403, detail="No autorizado para registrar usuarios por esta vía.")
+
+    validar_dominio_email(payload.email)
 
     tenant = db.query(Tenant).filter(Tenant.slug == payload.tenant_slug).first()
     if not tenant:
@@ -128,6 +157,8 @@ def crear_usuario(
             status_code=400,
             detail=f"Rol inválido. Usa uno de: {', '.join(sorted(ROLES_VALIDOS))}."
         )
+
+    validar_dominio_email(payload.email)
 
     existing = (
         db.query(User)
