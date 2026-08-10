@@ -19,7 +19,7 @@ import httpx
 
 from app.core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("outlook.graph")
 
 GRAPH_URL = "https://graph.microsoft.com/v1.0"
 TIMEOUT = 15.0

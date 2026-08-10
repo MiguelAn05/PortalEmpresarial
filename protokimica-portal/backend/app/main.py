@@ -21,6 +21,10 @@ logging.basicConfig(
 # producción — es la única forma de confirmar que un correo SÍ salió,
 # no solo cuando falla.
 logging.getLogger("pqrs.n8n").setLevel(logging.INFO)
+# Lo mismo para la sincronización con Outlook: sin un rastro del caso que
+# SÍ funcionó, un calendario vacío y una integración apagada se ven igual
+# en el log, y no hay manera de distinguirlos.
+logging.getLogger("outlook").setLevel(logging.INFO)
 from app.modules.auth.router import router as auth_router
 from app.modules.pqrs.router import router as pqrs_router
 from app.modules.pqrs.router_public import router as pqrs_public_router

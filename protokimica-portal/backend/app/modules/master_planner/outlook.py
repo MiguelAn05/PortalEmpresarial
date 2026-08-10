@@ -12,6 +12,7 @@ no hay calendario donde ponerlo; sin fecha no hay dónde ubicarlo.
 """
 import logging
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -20,9 +21,25 @@ from app.core.config import settings
 from app.models.master_planner import Tarea
 from app.models.user import User
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("outlook.sync")
 
 CATEGORIA = "Master Planner"
+
+
+def _a_hora_local(dt):
+    """
+    Pasa la fecha a la zona con la que se le declara el evento a Outlook.
+
+    Postgres las devuelve en UTC. Si se manda ese 21:00 diciéndole a Graph
+    que es hora de Bogotá, el evento aparece 5 horas más tarde de lo que
+    la persona escribió — que es exactamente el bug que esto arregla.
+
+    Las que vienen sin zona (SQLite, en las pruebas) ya se consideran hora
+    local: no hay nada que convertir y forzarlas movería la hora dos veces.
+    """
+    if dt.tzinfo is None:
+        return dt
+    return dt.astimezone(ZoneInfo(settings.MS_ZONA_HORARIA))
 
 
 def _formato_graph(dt) -> str:
@@ -59,10 +76,13 @@ def construir_evento(tarea: Tarea, proyecto_nombre: str | None = None) -> dict |
 
     Devuelve None si la tarea no da para un evento.
     """
-    inicio = tarea.fecha_inicio
-    fin = tarea.fecha_fin
-    if not inicio and not fin:
+    if not tarea.fecha_inicio and not tarea.fecha_fin:
         return None
+
+    # Se convierte ANTES de decidir nada: el día completo también depende de
+    # la hora local (medianoche en Bogotá no es medianoche en UTC).
+    inicio = _a_hora_local(tarea.fecha_inicio) if tarea.fecha_inicio else None
+    fin = _a_hora_local(tarea.fecha_fin) if tarea.fecha_fin else None
 
     if inicio and fin:
         todo_el_dia = False
@@ -102,6 +122,11 @@ def sincronizar_tarea(db: Session, tarea: Tarea, proyecto_nombre: str | None = N
     falla, la tarea ya quedó guardada y eso es lo que importa.
     """
     if not graph.graph_configurado():
+        logger.info(
+            "Tarea %s: Outlook está apagado (faltan MS_TENANT_ID, MS_CLIENT_ID "
+            "o MS_CLIENT_SECRET en el .env). No se toca ningún calendario.",
+            tarea.id,
+        )
         return
 
     try:
@@ -112,13 +137,22 @@ def sincronizar_tarea(db: Session, tarea: Tarea, proyecto_nombre: str | None = N
         if evento is None:
             if tarea.outlook_evento_id and email:
                 graph.borrar_evento(email, tarea.outlook_evento_id)
+                logger.info("Tarea %s: evento quitado del calendario de %s.",
+                            tarea.id, email)
             if tarea.outlook_evento_id:
                 tarea.outlook_evento_id = None
                 db.commit()
+            else:
+                motivo = "no tiene responsable" if not email else "no tiene fechas"
+                logger.info(
+                    "Tarea %s: no va al calendario porque %s.", tarea.id, motivo
+                )
             return
 
         if tarea.outlook_evento_id:
             if graph.actualizar_evento(email, tarea.outlook_evento_id, evento):
+                logger.info("Tarea %s: evento actualizado en el calendario de %s.",
+                            tarea.id, email)
                 return
             # El evento se borró a mano en Outlook: se crea de nuevo en vez
             # de dejar la tarea sin nada en el calendario.
@@ -128,6 +162,13 @@ def sincronizar_tarea(db: Session, tarea: Tarea, proyecto_nombre: str | None = N
         if evento_id:
             tarea.outlook_evento_id = evento_id
             db.commit()
+            logger.info("Tarea %s: evento creado en el calendario de %s.",
+                        tarea.id, email)
+        else:
+            logger.error(
+                "Tarea %s: Microsoft no creó el evento para %s. El detalle del "
+                "porqué está en la línea anterior del log.", tarea.id, email,
+            )
 
     except Exception:
         logger.exception(

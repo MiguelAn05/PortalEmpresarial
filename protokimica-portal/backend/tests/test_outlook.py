@@ -112,6 +112,46 @@ def test_un_fin_anterior_al_inicio_no_genera_evento_invalido(v):
     )
 
 
+def test_la_hora_se_convierte_de_utc_a_hora_local(v):
+    """
+    Postgres devuelve las fechas en UTC. Mandarlas tal cual diciéndole a
+    Graph que son hora de Bogotá corría los eventos 5 horas: una tarea de
+    las 4 pm aparecía en Teams a las 9 pm.
+    """
+    from datetime import timezone
+
+    inicio = datetime(2026, 8, 11, 21, 0, tzinfo=timezone.utc)   # 4 pm en Colombia
+    evento = outlook.construir_evento(
+        _tarea(fecha_inicio=inicio, fecha_fin=inicio + timedelta(hours=1))
+    )
+    v.check(
+        "las 21:00 UTC salen como las 16:00",
+        evento["start"]["dateTime"] == "2026-08-11T16:00:00",
+        evento["start"],
+    )
+    v.check(
+        "y el fin acompaña",
+        evento["end"]["dateTime"] == "2026-08-11T17:00:00",
+        evento["end"],
+    )
+
+
+def test_el_dia_completo_usa_el_dia_local_no_el_utc(v):
+    """
+    Una tarea del 11 a las 7 pm hora de Colombia son las 00:00 UTC del 12.
+    Sin convertir, el evento de día completo caía el día equivocado.
+    """
+    from datetime import timezone
+
+    fin = datetime(2026, 8, 12, 0, 0, tzinfo=timezone.utc)  # 11 ago, 7 pm en Colombia
+    evento = outlook.construir_evento(_tarea(fecha_fin=fin))
+    v.check(
+        "el evento queda el 11, que es el día que ve la persona",
+        evento["start"]["dateTime"] == "2026-08-11T00:00:00",
+        evento["start"],
+    )
+
+
 def test_el_cuerpo_lleva_proyecto_y_enlace(v):
     evento = outlook.construir_evento(
         _tarea(fecha_fin=datetime(2026, 8, 12)), proyecto_nombre="Planta 2"
