@@ -1,8 +1,37 @@
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import CalendarioTareas from "../components/CalendarioTareas"
-import { listarTareas } from "../api"
+import { listarTareas, listarEventosOutlook } from "../api"
 import { AREAS, ESTADOS_TAREA, filtrarTareas } from "../constants"
+
+// Se pide una ventana amplia de una sola vez (mes anterior y tres
+// siguientes) en vez de recargar cada vez que alguien pasa de mes: moverse
+// por el calendario es lo más común que se hace aquí, y una espera en cada
+// flecha se siente rota.
+function ventanaConsulta() {
+  const hoy = new Date()
+  const desde = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)
+  const hasta = new Date(hoy.getFullYear(), hoy.getMonth() + 4, 0)
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T00:00:00`
+  return { desde: iso(desde), hasta: iso(hasta) }
+}
+
+// Los eventos de Outlook se disfrazan de tarea para que el calendario los
+// pinte con el mismo layout de barras y rejilla, sin duplicar esa lógica.
+// La marca `es_outlook` es lo que cambia el estilo y el clic.
+function comoTarea(evento) {
+  return {
+    id: `outlook-${evento.id}`,
+    titulo: evento.titulo,
+    fecha_inicio: evento.inicio,
+    fecha_fin: evento.fin,
+    estado: null,
+    es_outlook: true,
+    privado: evento.privado,
+    enlace: evento.enlace_teams || evento.enlace_outlook,
+    es_reunion_teams: evento.es_reunion_teams,
+  }
+}
 
 // El calendario responde a "¿quién está haciendo qué y cuándo?", así que
 // filtra por persona y proyecto, no por todo lo que filtra el tablero.
@@ -11,6 +40,17 @@ const FILTROS_VACIOS = { busqueda: "", proyecto_id: "", asignado_a: "", area: ""
 export default function CalendarioView({ proyectos, usuarios, onSelectTarea }) {
   const [filtros, setFiltros] = useState(FILTROS_VACIOS)
   const [ocultarCompletadas, setOcultarCompletadas] = useState(false)
+  const [verOutlook, setVerOutlook] = useState(true)
+  const ventana = useMemo(() => ventanaConsulta(), [])
+
+  // Si Microsoft 365 no está configurado, el backend devuelve lista vacía:
+  // el calendario funciona igual y el interruptor simplemente no muestra nada.
+  const { data: eventos = [] } = useQuery({
+    queryKey: ["mp-outlook", ventana],
+    queryFn: () => listarEventosOutlook(ventana.desde, ventana.hasta),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
 
   const { data: tareas = [], isLoading } = useQuery({
     queryKey: ["mp-tareas", { calendario: true }],
@@ -25,6 +65,14 @@ export default function CalendarioView({ proyectos, usuarios, onSelectTarea }) {
     const base = filtrarTareas(tareas, filtros)
     return ocultarCompletadas ? base.filter(t => t.estado !== 'completada') : base
   }, [tareas, filtros, ocultarCompletadas])
+
+  // Los filtros de arriba (responsable, proyecto, área) son de tareas y no
+  // aplican a un evento de Outlook, que no tiene ninguno de esos datos.
+  // Por eso los eventos se agregan al final y se controlan con su interruptor.
+  const enElCalendario = useMemo(
+    () => verOutlook ? [...visibles, ...eventos.map(comoTarea)] : visibles,
+    [visibles, eventos, verOutlook],
+  )
 
   if (isLoading) {
     return <div className="text-center py-16 text-[#9BACC8] text-sm">Cargando calendario...</div>
@@ -74,13 +122,32 @@ export default function CalendarioView({ proyectos, usuarios, onSelectTarea }) {
             />
             Ocultar completadas
           </label>
+
+          {eventos.length > 0 && (
+            <label className="flex items-center gap-2 text-sm text-[#6B7EA8] cursor-pointer select-none">
+              <input
+                type="checkbox" checked={verOutlook}
+                onChange={(e) => setVerOutlook(e.target.checked)}
+                className="rounded border-[#D6E0F0] accent-[#1A4FA0]"
+              />
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  className="inline-block w-3 h-3 rounded-sm border-2 border-dashed border-[#6B7EA8]"
+                  aria-hidden="true"
+                />
+                Mi calendario de Outlook
+              </span>
+            </label>
+          )}
+
           <span className="text-xs text-[#9BACC8]">
             {visibles.length} de {tareas.length} tarea{tareas.length === 1 ? '' : 's'}
+            {verOutlook && eventos.length > 0 && ` · ${eventos.length} evento${eventos.length === 1 ? '' : 's'} de Outlook`}
           </span>
         </div>
       </div>
 
-      <CalendarioTareas tareas={visibles} onSelect={onSelectTarea} />
+      <CalendarioTareas tareas={enElCalendario} onSelect={onSelectTarea} />
     </div>
   )
 }

@@ -274,6 +274,105 @@ def test_un_fallo_de_graph_no_tumba_la_operacion(entorno, monkeypatch, v):
     db.close()
 
 
+# ── Traer el calendario de Outlook al portal ─────────────────────────────
+
+def _evento_graph(**kwargs):
+    base = {
+        "id": "evt-abc",
+        "subject": "Reunión con proveedor",
+        "start": {"dateTime": "2026-08-12T09:00:00.0000000"},
+        "end": {"dateTime": "2026-08-12T10:00:00.0000000"},
+        "isAllDay": False,
+        "sensitivity": "normal",
+        "showAs": "busy",
+        "isOnlineMeeting": True,
+        "onlineMeeting": {"joinUrl": "https://teams.microsoft.com/l/meetup-join/xyz"},
+        "webLink": "https://outlook.office.com/calendar/item/abc",
+        "organizer": {"emailAddress": {"name": "Miguel"}},
+    }
+    base.update(kwargs)
+    return base
+
+
+def test_un_evento_normal_se_ve_completo(v):
+    e = outlook._evento_para_el_portal(_evento_graph())
+    v.check("conserva el título", e["titulo"] == "Reunión con proveedor", e["titulo"])
+    v.check("marca que es reunión de Teams", e["es_reunion_teams"] is True)
+    v.check("trae el enlace para entrar", "teams.microsoft.com" in e["enlace_teams"],
+            e["enlace_teams"])
+
+
+def test_un_evento_privado_solo_muestra_ocupado(v):
+    """
+    Lo importante: que no se filtre nada de un evento que la persona marcó
+    como privado en Outlook. Ni título, ni enlaces, ni organizador.
+    """
+    e = outlook._evento_para_el_portal(_evento_graph(sensitivity="private"))
+    v.check("el título se reemplaza", e["titulo"] == "Ocupado", e["titulo"])
+    v.check("marcado como privado", e["privado"] is True)
+    v.check("sin enlace de Teams", e["enlace_teams"] is None, e["enlace_teams"])
+    v.check("sin enlace de Outlook", e["enlace_outlook"] is None, e["enlace_outlook"])
+    v.check("sin organizador", e["organizador"] is None, e["organizador"])
+    v.check("pero conserva el horario, que es lo que sirve para planear",
+            e["inicio"] == "2026-08-12T09:00:00.0000000", e["inicio"])
+
+
+def test_confidencial_y_personal_tambien_se_ocultan(v):
+    for marca in ("confidential", "personal", "PRIVATE"):
+        e = outlook._evento_para_el_portal(_evento_graph(sensitivity=marca))
+        v.check(f"'{marca}' se trata como privado", e["titulo"] == "Ocupado", e)
+
+
+def test_un_evento_sin_titulo_no_queda_vacio(v):
+    e = outlook._evento_para_el_portal(_evento_graph(subject=None))
+    v.check("muestra algo legible", e["titulo"] == "(sin título)", e["titulo"])
+
+
+def test_sin_credenciales_el_calendario_llega_vacio(monkeypatch, v):
+    monkeypatch.setattr(outlook.graph, "graph_configurado", lambda: False)
+    v.check(
+        "devuelve lista vacía en vez de reventar la vista",
+        outlook.eventos_del_usuario("x@protokimica.com", "2026-08-01", "2026-08-31") == [],
+    )
+
+
+def test_si_graph_falla_el_calendario_no_se_cae(monkeypatch, v):
+    def explota(*a, **k):
+        raise RuntimeError("Graph caído")
+
+    monkeypatch.setattr(outlook.graph, "graph_configurado", lambda: True)
+    monkeypatch.setattr(outlook.graph, "listar_eventos", explota)
+    v.check(
+        "el calendario sigue mostrando las tareas aunque Outlook falle",
+        outlook.eventos_del_usuario("x@protokimica.com", "2026-08-01", "2026-08-31") == [],
+    )
+
+
+def test_el_endpoint_solo_devuelve_el_calendario_propio(entorno, monkeypatch, v):
+    """
+    No hay forma de pedir el calendario de otra persona: el endpoint no
+    acepta un usuario, usa el del token. Es la barrera que impide convertir
+    el portal en una ventana a la agenda ajena.
+    """
+    pedidos = []
+
+    def falso_listar(email, desde, hasta, zona):
+        pedidos.append(email)
+        return []
+
+    monkeypatch.setattr(outlook.graph, "graph_configurado", lambda: True)
+    monkeypatch.setattr(outlook.graph, "listar_eventos", falso_listar)
+
+    e = entorno
+    e.como("tics")
+    r = e.get("/master-planner/calendario/outlook",
+              params={"desde": "2026-08-01T00:00:00", "hasta": "2026-08-31T23:59:59"})
+
+    v.check("responde bien", r.status_code == 200, r.text)
+    v.check("pidió el calendario del usuario del token",
+            pedidos == ["tics@p.com"], pedidos)
+
+
 def test_graph_apagado_por_defecto(v):
     """Sin las tres variables en el .env, la integración no se activa sola."""
     v.check(

@@ -75,7 +75,13 @@ def _obtener_token() -> str | None:
         return None
 
 
-def _peticion(metodo: str, ruta: str, json: dict | None = None) -> dict | None:
+def _peticion(
+    metodo: str,
+    ruta: str,
+    json: dict | None = None,
+    params: dict | None = None,
+    headers_extra: dict | None = None,
+) -> dict | None:
     """
     Llama a Graph y devuelve el JSON de respuesta, o None si algo falló.
     `ruta` va sin el host, empezando por barra: "/users/x@y.com/events".
@@ -84,12 +90,17 @@ def _peticion(metodo: str, ruta: str, json: dict | None = None) -> dict | None:
     if not token:
         return None
 
+    cabeceras = {"Authorization": f"Bearer {token}"}
+    if headers_extra:
+        cabeceras.update(headers_extra)
+
     try:
         r = httpx.request(
             metodo,
             f"{GRAPH_URL}{ruta}",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=cabeceras,
             json=json,
+            params=params,
             timeout=TIMEOUT,
         )
     except Exception:
@@ -140,3 +151,34 @@ def actualizar_evento(email_usuario: str, evento_id: str, evento: dict) -> bool:
 def borrar_evento(email_usuario: str, evento_id: str) -> bool:
     respuesta = _peticion("DELETE", f"/users/{email_usuario}/events/{evento_id}")
     return respuesta is not None
+
+
+def listar_eventos(email_usuario: str, desde: str, hasta: str, zona: str) -> list[dict]:
+    """
+    Los eventos del calendario entre dos fechas (ISO 8601).
+
+    Usa calendarView y no /events porque calendarView expande las series
+    repetidas: una reunión semanal aparece como sus ocurrencias reales en
+    el rango, que es lo que hay que pintar en un calendario. Con /events
+    llegaría una sola entrada con su regla de repetición, y habría que
+    recalcular a mano las fechas de cada ocurrencia.
+
+    La cabecera Prefer hace que Graph devuelva las horas ya en la zona
+    pedida, en vez de en UTC.
+    """
+    respuesta = _peticion(
+        "GET",
+        f"/users/{email_usuario}/calendarView",
+        params={
+            "startDateTime": desde,
+            "endDateTime": hasta,
+            "$select": "id,subject,start,end,isAllDay,sensitivity,showAs,"
+                       "isOnlineMeeting,onlineMeeting,webLink,organizer",
+            "$orderby": "start/dateTime",
+            "$top": "200",
+        },
+        headers_extra={"Prefer": f'outlook.timezone="{zona}"'},
+    )
+    if not respuesta:
+        return []
+    return respuesta.get("value", [])

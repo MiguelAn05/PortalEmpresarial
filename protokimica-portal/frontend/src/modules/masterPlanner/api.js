@@ -99,3 +99,9 @@ export const agregarActualizacion = (tareaId, formData) =>
 // ── Usuarios asignables ──────────────────────────────────────
 export const listarUsuariosAsignables = () =>
   api.get('/master-planner/usuarios-asignables').then(r => r.data)
+
+// ── Calendario de Outlook ────────────────────────────────────
+// Siempre el propio: el backend lo saca del token y no acepta otro usuario.
+export const listarEventosOutlook = (desde, hasta) =>
+  api.get('/master-planner/calendario/outlook', { params: { desde, hasta } })
+    .then(r => r.data)

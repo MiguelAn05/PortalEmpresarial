@@ -135,21 +135,30 @@ export default function CalendarioHoras({ dias, tareas, onSelect }) {
 }
 
 function ChipTodoElDia({ tarea, desdeCol, hastaCol, columnas, onSelect }) {
-  const alerta = alertaVencimiento(tarea)
+  const esOutlook = tarea.es_outlook
+  const alerta = esOutlook ? null : alertaVencimiento(tarea)
   const color = alerta === 'vencida' ? '#EF4444' : (ESTADOS_TAREA[tarea.estado]?.barra || '#94A3B8')
   const ancho = hastaCol - desdeCol + 1
 
+  const abrir = () => {
+    if (!esOutlook) return onSelect(tarea)
+    if (tarea.enlace) window.open(tarea.enlace, '_blank', 'noopener,noreferrer')
+  }
+
   return (
     <button
-      onClick={() => onSelect(tarea)}
-      title={`${tarea.titulo}${tarea.asignado_nombre ? ` · ${tarea.asignado_nombre}` : ''}`}
-      className="block text-left text-white text-[11px] font-medium px-2 py-[3px] rounded truncate hover:brightness-110 transition"
+      onClick={abrir}
+      title={`${tarea.titulo}${esOutlook ? ' · Outlook' : ''}${tarea.asignado_nombre ? ` · ${tarea.asignado_nombre}` : ''}`}
+      className={`block text-left text-[11px] font-medium px-2 py-[3px] rounded truncate transition ${esOutlook ? 'text-[#42557A] hover:bg-[#EEF3FA]' : 'text-white hover:brightness-110'}`}
       style={{
         marginLeft: `${(desdeCol / columnas) * 100}%`,
         width: `${(ancho / columnas) * 100}%`,
-        background: color,
+        ...(esOutlook
+          ? { background: '#F7F9FC', border: '1.5px dashed #6B7EA8' }
+          : { background: color }),
       }}
     >
+      {esOutlook && <span className="opacity-70 mr-1" aria-hidden="true">◇</span>}
       {tarea.titulo}
       {tarea.asignado_nombre && <span className="opacity-80"> · {tarea.asignado_nombre}</span>}
     </button>
@@ -158,31 +167,41 @@ function ChipTodoElDia({ tarea, desdeCol, hastaCol, columnas, onSelect }) {
 
 function BloqueHora({ bloque, onSelect }) {
   const { tarea, inicio, fin, carril, carriles } = bloque
-  const alerta = alertaVencimiento(tarea)
+  const esOutlook = tarea.es_outlook
+  const alerta = esOutlook ? null : alertaVencimiento(tarea)
   const color = alerta === 'vencida' ? '#EF4444' : (ESTADOS_TAREA[tarea.estado]?.barra || '#94A3B8')
 
   const minutosDesde = (inicio.getHours() - HORA_INICIO) * 60 + inicio.getMinutes()
   const duracion = Math.max(30, (fin - inicio) / 60000)
   const anchoPct = 100 / carriles
 
+  const abrir = () => {
+    if (!esOutlook) return onSelect(tarea)
+    if (tarea.enlace) window.open(tarea.enlace, '_blank', 'noopener,noreferrer')
+  }
+
   return (
     <button
-      onClick={() => onSelect(tarea)}
-      title={`${formatHora(inicio)}–${formatHora(fin)} · ${tarea.titulo}${tarea.asignado_nombre ? ` · ${tarea.asignado_nombre}` : ''}${alerta ? ` · ${ALERTAS[alerta].label}` : ''}`}
-      className="absolute text-left rounded-md px-1.5 py-1 overflow-hidden hover:brightness-110 transition border-l-[3px] z-[5]"
+      onClick={abrir}
+      title={`${formatHora(inicio)}–${formatHora(fin)} · ${tarea.titulo}${esOutlook ? ' · Outlook' : ''}${tarea.asignado_nombre ? ` · ${tarea.asignado_nombre}` : ''}${alerta ? ` · ${ALERTAS[alerta].label}` : ''}`}
+      className={`absolute text-left rounded-md px-1.5 py-1 overflow-hidden transition z-[5] ${esOutlook ? 'hover:bg-[#EEF3FA]' : 'hover:brightness-110 border-l-[3px]'}`}
       style={{
         top: (minutosDesde / 60) * ALTO_HORA,
         height: Math.max(22, (duracion / 60) * ALTO_HORA - 2),
         left: `calc(${carril * anchoPct}% + 2px)`,
         width: `calc(${anchoPct}% - 4px)`,
-        background: `${color}22`,
-        borderLeftColor: color,
+        ...(esOutlook
+          ? { background: '#F7F9FC', border: '1.5px dashed #6B7EA8' }
+          : { background: `${color}22`, borderLeftColor: color }),
       }}
     >
-      <p className="text-[11px] font-semibold text-[#1A2B47] truncate leading-tight">{tarea.titulo}</p>
+      <p className="text-[11px] font-semibold text-[#1A2B47] truncate leading-tight">
+        {esOutlook && <span className="text-[#6B7EA8] mr-1" aria-hidden="true">◇</span>}
+        {tarea.titulo}
+      </p>
       <p className="text-[10px] text-[#6B7EA8] truncate leading-tight">
         {formatHora(inicio)}
-        {tarea.asignado_nombre && ` · ${tarea.asignado_nombre}`}
+        {esOutlook ? ' · Outlook' : (tarea.asignado_nombre && ` · ${tarea.asignado_nombre}`)}
       </p>
     </button>
   )

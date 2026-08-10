@@ -35,6 +35,7 @@ from app.modules.master_planner.permisos import (
 from app.modules.master_planner.resumen import construir_resumen
 from app.modules.master_planner.outlook import (
     sincronizar_tarea, borrar_evento_de_tarea, borrar_evento_en_calendario_de,
+    eventos_del_usuario,
 )
 from app.modules.pqrs.service import disparar_webhook_n8n, guardar_archivo
 
@@ -564,6 +565,25 @@ def listar_usuarios_asignables(
         .order_by(User.nombre)
         .all()
     )
+
+
+@router.get("/calendario/outlook")
+def mi_calendario_de_outlook(
+    desde: str,
+    hasta: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Los eventos de Outlook de QUIEN PIDE, para pintarlos junto a las tareas.
+
+    Siempre el calendario propio: no recibe un usuario por parámetro a
+    propósito. Poder consultar el de otro convertiría el portal en una
+    ventana a la agenda personal de los compañeros, y el permiso de
+    aplicación que tiene el backend no pondría ninguna objeción.
+
+    `desde` y `hasta` van en ISO 8601 (2026-08-01T00:00:00).
+    """
+    return eventos_del_usuario(current_user.email, desde, hasta)
 
 
 @router.get("/tareas", response_model=list[TareaOut])

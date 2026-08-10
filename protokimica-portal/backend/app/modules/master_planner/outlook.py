@@ -177,6 +177,59 @@ def sincronizar_tarea(db: Session, tarea: Tarea, proyecto_nombre: str | None = N
         )
 
 
+# ── Traer el calendario de Outlook al portal (solo lectura) ──────────────
+
+# Outlook marca así lo que la persona consideró privado. Se respeta: en el
+# portal se ve que el tiempo está ocupado, pero no de qué se trata.
+SENSIBILIDADES_PRIVADAS = {"private", "confidential", "personal"}
+
+
+def _evento_para_el_portal(evento: dict) -> dict:
+    """
+    Deja el evento en lo mínimo que el calendario necesita pintar.
+
+    Si la persona lo marcó como privado en Outlook, del título no queda
+    nada: solo "Ocupado" y el bloque de tiempo. La agenda del portal sirve
+    para saber cuándo alguien está libre, no para leerle la vida.
+    """
+    privado = (evento.get("sensitivity") or "normal").lower() in SENSIBILIDADES_PRIVADAS
+    en_linea = evento.get("onlineMeeting") or {}
+
+    return {
+        "id": evento.get("id"),
+        "titulo": "Ocupado" if privado else (evento.get("subject") or "(sin título)"),
+        "inicio": (evento.get("start") or {}).get("dateTime"),
+        "fin": (evento.get("end") or {}).get("dateTime"),
+        "todo_el_dia": bool(evento.get("isAllDay")),
+        "privado": privado,
+        "estado": evento.get("showAs"),
+        "es_reunion_teams": bool(evento.get("isOnlineMeeting")) and not privado,
+        "enlace_teams": None if privado else en_linea.get("joinUrl"),
+        "enlace_outlook": None if privado else evento.get("webLink"),
+        "organizador": None if privado else (
+            ((evento.get("organizer") or {}).get("emailAddress") or {}).get("name")
+        ),
+    }
+
+
+def eventos_del_usuario(email: str, desde: str, hasta: str) -> list[dict]:
+    """
+    El calendario de Outlook de esa persona, listo para pintar.
+
+    Solo lectura y sin guardar nada: se le pide a Graph cada vez. Guardarlo
+    en la base obligaría a mantenerlo sincronizado, que es justo el problema
+    que este diseño evita.
+    """
+    if not graph.graph_configurado():
+        return []
+    try:
+        crudos = graph.listar_eventos(email, desde, hasta, settings.MS_ZONA_HORARIA)
+        return [_evento_para_el_portal(e) for e in crudos]
+    except Exception:
+        logger.exception("No se pudo leer el calendario de Outlook de %s.", email)
+        return []
+
+
 def borrar_evento_en_calendario_de(db: Session, usuario_id: int, evento_id: str) -> None:
     """
     Quita un evento del calendario de un usuario concreto.

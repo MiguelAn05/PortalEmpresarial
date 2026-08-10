@@ -190,22 +190,41 @@ function SemanaFila({ semana, mesActual, altoMinimo, expandido, onToggleExpandir
 
 function BarraTarea({ barra, onSelect }) {
   const { tarea, desdeCol, hastaCol, carril, continuaAntes, continuaDespues } = barra
-  const alerta = alertaVencimiento(tarea)
+  const esOutlook = tarea.es_outlook
+  const alerta = esOutlook ? null : alertaVencimiento(tarea)
   const color = alerta === 'vencida' ? '#EF4444' : (ESTADOS_TAREA[tarea.estado]?.barra || '#94A3B8')
   const ancho = hastaCol - desdeCol + 1
   const hora = tieneHora(tarea.fecha_inicio) ? formatHora(tarea.fecha_inicio) : null
 
+  // Los eventos de Outlook no se pueden confundir con tareas: van en hueco
+  // y con borde punteado, no solo en otro color. Un daltónico vería dos
+  // barras idénticas si la única diferencia fuera el tono.
+  const estiloOutlook = {
+    background: '#F7F9FC',
+    border: '1.5px dashed #6B7EA8',
+    color: '#42557A',
+  }
+
+  const abrir = () => {
+    if (!esOutlook) return onSelect(tarea)
+    if (tarea.enlace) window.open(tarea.enlace, '_blank', 'noopener,noreferrer')
+  }
+
+  const titulo = esOutlook
+    ? `${tarea.titulo}${tarea.privado ? ' (evento privado)' : ''} · Outlook${tarea.enlace ? ' · clic para abrirlo' : ''}`
+    : `${tarea.titulo}${tarea.asignado_nombre ? ` · ${tarea.asignado_nombre}` : ''}${alerta ? ` · ${ALERTAS[alerta].label}` : ''}`
+
   return (
     <button
-      onClick={() => onSelect(tarea)}
-      title={`${tarea.titulo}${tarea.asignado_nombre ? ` · ${tarea.asignado_nombre}` : ''}${alerta ? ` · ${ALERTAS[alerta].label}` : ''}`}
-      className="absolute pointer-events-auto text-left text-white text-[11px] font-medium px-2 py-[3px] truncate hover:brightness-110 transition"
+      onClick={abrir}
+      title={titulo}
+      className={`absolute pointer-events-auto text-left text-[11px] font-medium px-2 py-[3px] truncate transition ${esOutlook ? 'hover:bg-[#EEF3FA]' : 'text-white hover:brightness-110'}`}
       style={{
         left: `calc(${(desdeCol * 100) / 7}% + 3px)`,
         width: `calc(${(ancho * 100) / 7}% - 6px)`,
         top: carril * ALTO_CARRIL,
         height: ALTO_CARRIL - 4,
-        background: color,
+        ...(esOutlook ? estiloOutlook : { background: color }),
         borderTopLeftRadius: continuaAntes ? 0 : 6,
         borderBottomLeftRadius: continuaAntes ? 0 : 6,
         borderTopRightRadius: continuaDespues ? 0 : 6,
@@ -214,6 +233,7 @@ function BarraTarea({ barra, onSelect }) {
     >
       {continuaAntes && '‹ '}
       {hora && <span className="opacity-80 mr-1">{hora}</span>}
+      {esOutlook && <span className="opacity-70 mr-1" aria-hidden="true">◇</span>}
       {tarea.titulo}
       {tarea.asignado_nombre && <span className="opacity-80"> · {tarea.asignado_nombre}</span>}
     </button>
