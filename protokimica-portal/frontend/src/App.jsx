@@ -7,9 +7,11 @@ import PQRSDetail from './modules/pqrs/PQRSDetail.jsx'
 import FormularioPQRS from './modules/publico/FormularioPQRS.jsx'
 import SeguimientoPQRS from './modules/publico/SeguimientoPQRS.jsx'
 import EncuestaPQRS from './modules/publico/EncuestaPQRS.jsx'
+import EncuestaPublica from './modules/publico/EncuestaPublica.jsx'
 import Admin from './modules/admin/Admin.jsx'
 import MasterPlanner from './modules/masterPlanner/MasterPlanner.jsx'
 import Indicadores from './modules/indicadores/Indicadores.jsx'
+import Encuestas from './modules/encuestas/Encuestas.jsx'
 
 
 function PrivateRoute({ children }) {
@@ -25,6 +27,8 @@ export default function App() {
       <Route path="/formulario"  element={<FormularioPQRS />} />
       <Route path="/seguimiento" element={<SeguimientoPQRS />} />
       <Route path="/encuesta/:codigo" element={<EncuestaPQRS />} />
+      {/* Corta a propósito: va impresa en el QR de un punto de venta. */}
+      <Route path="/e/:slug" element={<EncuestaPublica />} />
 
       {/* ── Rutas protegidas (empleados) ── */}
       <Route path="/" element={
@@ -38,6 +42,7 @@ export default function App() {
         <Route path="admin" element={<Admin />} />
         <Route path="master-planner" element={<MasterPlanner />} />
         <Route path="indicadores" element={<Indicadores />} />
+        <Route path="encuestas" element={<Encuestas />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

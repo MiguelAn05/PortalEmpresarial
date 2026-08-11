@@ -8,6 +8,7 @@ const navItems = [
   { to: '/pqrs', icon: '📨', label: 'PQRS' },
   { to: '/master-planner', icon: '🗂️', label:'Master Planner'},
   { to: '/indicadores', icon: '📈', label: 'Indicadores' },
+  { to: '/encuestas', icon: '⭐', label: 'Encuestas' },
 ]
 
 export default function Layout() {
