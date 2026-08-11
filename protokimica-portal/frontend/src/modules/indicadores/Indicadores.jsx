@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import TarjetaIndicador from "./components/TarjetaIndicador"
+import ComoVamos from "./components/ComoVamos"
 import IndicadorDetalle from "./components/IndicadorDetalle"
 import FormIndicador from "./components/FormIndicador"
 import { BarrasPorArea, ChipSemaforo } from "./components/Graficas"
@@ -8,7 +9,7 @@ import { obtenerTablero, recalcularPeriodo } from "./api"
 import { listarUsuariosAsignables } from "../masterPlanner/api"
 import { puedeEditar } from "../masterPlanner/constants"
 import { useAuth } from "../../core/AuthContext"
-import { MESES, periodoPorDefecto, periodoAnterior, periodoSiguiente } from "./constants"
+import { MESES, periodoPorDefecto, periodoAnterior, periodoSiguiente, pestanaInicial } from "./constants"
 
 /**
  * Tablero de indicadores. Todo el cálculo (semáforo, acumulados,
@@ -19,6 +20,7 @@ export default function Indicadores() {
   const { user } = useAuth()
   const editable = puedeEditar(user)
 
+  const [pestana, setPestana] = useState(() => pestanaInicial(user))
   const [periodo, setPeriodo] = useState(periodoPorDefecto)
   const [area, setArea] = useState("")
   const [abierto, setAbierto] = useState(null)      // id del indicador en detalle
@@ -106,11 +108,39 @@ export default function Indicadores() {
         </div>
       </div>
 
+      {/* Dos usos del mismo módulo: leer el estado, o registrar y consultar. */}
+      <div className="flex gap-1 border-b border-[#D6E0F0]" role="tablist">
+        {[['como-vamos', 'Cómo vamos'], ['tablero', 'Tablero']].map(([id, label]) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={pestana === id}
+            onClick={() => setPestana(id)}
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition ${
+              pestana === id
+                ? 'border-[#1A4FA0] text-[#1A4FA0]'
+                : 'border-transparent text-[#6B7EA8] hover:text-[#1A4FA0]'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {esFuturo && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3">
           Este mes todavía no ha cerrado. Los valores que veas están incompletos.
         </div>
       )}
+
+      {pestana === 'como-vamos' && (
+        <ComoVamos
+          periodo={periodo}
+          onVerIndicador={(id) => { setPestana('tablero'); setAbierto(id) }}
+        />
+      )}
+
+      {pestana === 'tablero' && <>
 
       {isError && (
         <div className="text-center py-16 text-red-500 text-sm">No se pudo cargar el tablero.</div>
@@ -191,6 +221,8 @@ export default function Indicadores() {
           )}
         </>
       )}
+
+      </>}
 
       {abierto && (
         <IndicadorDetalle

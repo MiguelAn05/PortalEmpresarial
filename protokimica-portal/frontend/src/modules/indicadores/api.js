@@ -9,6 +9,15 @@ export const obtenerTablero = (params = {}) =>
 export const obtenerCatalogo = () =>
   api.get('/indicadores/catalogo').then(r => r.data)
 
+/**
+ * La portada gerencial: estado del mes, qué se movió, cómo va cada área y el
+ * año en matriz. `alcance` es 'empresa' o 'area'; si a quien pregunta no le
+ * corresponde la empresa, el servidor devuelve su área y lo dice en la
+ * respuesta — aquí no se decide nada de eso.
+ */
+export const obtenerComoVamos = (params = {}) =>
+  api.get('/indicadores/como-vamos', { params }).then(r => r.data)
+
 // ── Definición de indicadores ─────────────────────────────────
 export const listarIndicadores = (params = {}) =>
   api.get('/indicadores', { params }).then(r => r.data)

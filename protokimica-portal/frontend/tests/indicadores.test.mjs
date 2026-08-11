@@ -2,7 +2,7 @@
 const BASE = '../src/modules/indicadores/constants.js'
 const {
   formatValor, formatVariacion, tonoVariacion,
-  periodoAnterior, periodoSiguiente, periodoPorDefecto,
+  periodoAnterior, periodoSiguiente, periodoPorDefecto, pestanaInicial,
   SEMAFOROS, UNIDADES, TIPOS_CAPTURA, DIRECCIONES, MESES, MESES_CORTOS,
 } = await import(BASE)
 
@@ -76,6 +76,20 @@ check('cada tipo de captura se explica', Object.values(TIPOS_CAPTURA).every(t =>
 check('las dos direcciones existen', DIRECCIONES.arriba && DIRECCIONES.abajo)
 check('hay 12 meses', MESES.length === 12 && MESES_CORTOS.length === 12)
 check('los meses cortos son de 3 letras', MESES_CORTOS.every(m => m.length === 3))
+
+console.log('\n== Pestaña con la que abre cada rol ==')
+check('gerencia entra a leer como va la empresa',
+  pestanaInicial({ rol: 'gerencia' }) === 'como-vamos', pestanaInicial({ rol: 'gerencia' }))
+check('un lider entra donde registra',
+  pestanaInicial({ rol: 'lider' }) === 'tablero', pestanaInicial({ rol: 'lider' }))
+check('un agente tambien',
+  pestanaInicial({ rol: 'agente' }) === 'tablero', pestanaInicial({ rol: 'agente' }))
+check('admin entra al tablero: tambien opera',
+  pestanaInicial({ rol: 'admin' }) === 'tablero', pestanaInicial({ rol: 'admin' }))
+check('lectura entra al tablero',
+  pestanaInicial({ rol: 'lectura' }) === 'tablero', pestanaInicial({ rol: 'lectura' }))
+check('sin usuario no revienta',
+  pestanaInicial(undefined) === 'tablero', pestanaInicial(undefined))
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

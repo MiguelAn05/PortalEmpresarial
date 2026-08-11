@@ -49,6 +49,20 @@ export const MESES = [
 
 export const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
+/**
+ * Con qué pestaña abre el módulo cada quien.
+ *
+ * Gerencia viene a leer cómo va la empresa; Calidad y los líderes vienen a
+ * registrar. Mandar a todos a la misma pantalla obliga a la mitad a navegar
+ * cada vez que entran.
+ *
+ * Vive aquí y no en el componente para poder probarse: es una regla de
+ * negocio, no una decisión de presentación.
+ */
+export function pestanaInicial(usuario) {
+  return usuario?.rol === 'gerencia' ? 'como-vamos' : 'tablero'
+}
+
 /** Formatea un valor según la unidad del indicador. */
 export function formatValor(valor, unidad) {
   if (valor === null || valor === undefined) return '—'
