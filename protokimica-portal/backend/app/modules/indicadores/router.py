@@ -15,6 +15,7 @@ from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_
 from app.models.indicadores import Indicador, Medicion, HistorialMedicion
 from app.models.user import User
 from app.modules.indicadores import fuentes, service
+from app.modules.indicadores.como_vamos import construir_como_vamos
 from app.modules.indicadores.schemas import (
     IndicadorCreate, IndicadorUpdate, IndicadorOut, MedicionOut, HistorialOut,
 )
@@ -69,6 +70,30 @@ def tablero(
         anio, mes = anio or anio_def, mes or mes_def
     _validar_periodo(anio, mes)
     return service.construir_tablero(db, tenant_id, anio, mes, area)
+
+
+@router.get("/como-vamos")
+def como_vamos(
+    anio: int | None = None,
+    mes: int | None = None,
+    alcance: str | None = None,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    usuario: User = Depends(get_current_user),
+):
+    """
+    La portada gerencial: estado del mes, qué se movió, cómo va cada área y
+    el año en matriz. Todo calculado aquí — el frontend solo pinta.
+
+    `alcance` es "empresa" o "area". A quien no le corresponde ver la empresa
+    se le devuelve su área sin protestar; la respuesta trae `puede_cambiar`
+    para que la interfaz sepa si mostrar el interruptor.
+    """
+    if anio is None or mes is None:
+        anio_def, mes_def = service.periodo_por_defecto()
+        anio, mes = anio or anio_def, mes or mes_def
+    _validar_periodo(anio, mes)
+    return construir_como_vamos(db, tenant_id, anio, mes, usuario, alcance)
 
 
 # ── Definición de indicadores ───────────────────────────────────

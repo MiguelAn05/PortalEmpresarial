@@ -221,6 +221,10 @@ def resumen_indicador(indicador: Indicador, anio: int, mes: int) -> dict:
         "registrado_en": actual.registrado_en if actual else None,
 
         "valor_mes_anterior": valor_anterior,
+        # El semáforo del mes pasado se resuelve aquí y no en quien consume la
+        # ficha: comparar estados es lo que permite decir "esto empeoró", y
+        # recalcularlo afuera significaría repetir la regla de los umbrales.
+        "semaforo_mes_anterior": semaforo(indicador, valor_anterior),
         "variacion_mes": variacion(valor_anterior),
         "valor_anio_anterior": valor_hace_un_anio,
         "variacion_anio": variacion(valor_hace_un_anio),
