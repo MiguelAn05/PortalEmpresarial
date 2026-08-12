@@ -237,6 +237,95 @@ def test_el_panel_junta_las_encuestas_nuevas_con_las_de_pqrs(entorno, v):
     v.check("filtrar por origen funciona", solo["resumen"]["total"] == 1, solo["resumen"])
 
 
+# ── Lista cerrada de qué se califica ─────────────────────────────────────
+
+PLANTILLA_PUNTOS = {
+    "nombre": "Atención en punto de venta",
+    "slug": "puntos",
+    "sujeto_tipo": "punto de venta",
+    "sujetos": "Sede Centro|Sede Norte|Sede Sur",
+    "preguntas": [
+        {"texto": "¿Cómo fue la atención?", "tipo": "escala", "orden": 1},
+    ],
+}
+
+
+def test_con_lista_cerrada_hay_que_elegir_de_la_lista(entorno, v):
+    """
+    El texto libre rompe el reporte: "Centro", "centro" y "Sede Centro"
+    entrarían como tres puntos distintos y ninguno tendría datos suficientes.
+    """
+    portal = entorno
+    plantilla = _crear_plantilla(portal, PLANTILLA_PUNTOS)
+    pid = plantilla["preguntas"][0]["id"]
+
+    r = portal.get("/public/encuestas/puntos")
+    v.check("el formulario trae las opciones",
+            r.json()["sujetos"] == ["Sede Centro", "Sede Norte", "Sede Sur"], r.json())
+
+    # Inventarse un punto que no está en la lista.
+    r = portal.post("/public/encuestas/puntos", json={
+        "sujeto_nombre": "centro", "respuestas": {str(pid): 5},
+    })
+    v.check("se rechaza lo que no está en la lista", r.status_code == 400, r.status_code)
+    v.check("y el error dice cuáles valen",
+            "Sede Centro" in r.json()["detail"], r.json())
+
+    # No elegir nada.
+    r = portal.post("/public/encuestas/puntos", json={"respuestas": {str(pid): 5}})
+    v.check("tampoco se puede omitir", r.status_code == 400, r.status_code)
+
+    # Elegir bien.
+    r = portal.post("/public/encuestas/puntos", json={
+        "sujeto_nombre": "Sede Norte", "respuestas": {str(pid): 4},
+    })
+    v.check("una opción de la lista sí entra", r.status_code == 200, r.text[:150])
+
+
+def test_sin_lista_el_sujeto_llega_por_el_enlace(entorno, v):
+    """Un QR por punto: el cliente no elige nada y el dato entra limpio igual."""
+    portal = entorno
+    plantilla = _crear_plantilla(portal)
+    ids = {p["texto"]: p["id"] for p in plantilla["preguntas"]}
+
+    r = portal.post("/public/encuestas/vendedores", json={
+        "sujeto_ref": "PV-03", "sujeto_nombre": "Sede Sur",
+        "respuestas": {
+            str(ids["¿Cómo calificas la atención?"]): 5,
+            str(ids["¿Encontraste lo que buscabas?"]): "Sí",
+            str(ids["¿Nos recomendarías?"]): "si",
+        },
+    })
+    v.check("se acepta sin lista", r.status_code == 200, r.text[:150])
+
+    datos = portal.get("/encuestas/panel").json()
+    v.check("y queda amarrada al punto",
+            datos["por_sujeto"][0]["sujeto"] == "Sede Sur", datos["por_sujeto"])
+
+
+def test_se_pueden_agregar_puntos_a_una_encuesta_ya_respondida(entorno, v):
+    """
+    Abrir una sede nueva no puede obligar a rehacer la encuesta: agregar
+    opciones no invalida ninguna respuesta anterior.
+    """
+    portal = entorno
+    plantilla = _crear_plantilla(portal, PLANTILLA_PUNTOS)
+    pid = plantilla["preguntas"][0]["id"]
+    portal.post("/public/encuestas/puntos", json={
+        "sujeto_nombre": "Sede Centro", "respuestas": {str(pid): 5},
+    })
+
+    r = portal.patch(f"/encuestas/{plantilla['id']}", json={
+        "sujetos": "Sede Centro|Sede Norte|Sede Sur|Sede Occidente",
+    })
+    v.check("agregar una sede sí se puede", r.status_code == 200, r.text[:200])
+
+    r = portal.post("/public/encuestas/puntos", json={
+        "sujeto_nombre": "Sede Occidente", "respuestas": {str(pid): 3},
+    })
+    v.check("y la nueva ya recibe respuestas", r.status_code == 200, r.text[:150])
+
+
 def test_el_ranking_pone_primero_al_peor_calificado(v):
     """Un ranking sirve para actuar sobre la cola, no para felicitar al primero."""
     from app.modules.encuestas.origenes import RespuestaVista

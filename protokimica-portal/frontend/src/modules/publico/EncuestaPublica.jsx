@@ -20,6 +20,7 @@ export default function EncuestaPublica() {
   const [params] = useSearchParams()
 
   const [respuestas, setRespuestas] = useState({})
+  const [sujeto, setSujeto] = useState('')
   const [error, setError] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [listo, setListo] = useState(null)   // mensaje final cuando ya respondió
@@ -30,6 +31,11 @@ export default function EncuestaPublica() {
     retry: false,
   })
 
+  // El enlace del QR puede traer ya a quién califica; si lo trae, no se le
+  // pregunta nada al cliente, que es lo más limpio de todo. Si no, y la
+  // encuesta tiene lista, se elige de ahí — nunca se escribe a mano.
+  const hayQueElegirSujeto = !params.get('nombre') && (encuesta?.sujetos?.length > 0)
+
   const responder = (preguntaId, valor) => {
     setRespuestas(r => ({ ...r, [preguntaId]: valor }))
     setError('')
@@ -38,6 +44,14 @@ export default function EncuestaPublica() {
   const enviar = async (e) => {
     e.preventDefault()
     setError('')
+
+    // Si la encuesta trae lista y el enlace no dice a quién califica, hay
+    // que elegirlo. Escribirlo a mano no es opción: el reporte por punto de
+    // venta se rompe con cada variante de escritura.
+    if (hayQueElegirSujeto && !sujeto) {
+      setError(`Elige ${encuesta.sujeto_tipo || 'una opción'} de la lista.`)
+      return
+    }
 
     const faltan = encuesta.preguntas.filter(
       p => p.obligatoria && (respuestas[p.id] === undefined || respuestas[p.id] === '')
@@ -51,7 +65,7 @@ export default function EncuestaPublica() {
     try {
       const data = await responderEncuestaPublica(slug, {
         sujeto_ref: params.get('ref'),
-        sujeto_nombre: params.get('nombre'),
+        sujeto_nombre: params.get('nombre') || sujeto || null,
         respuestas,
       })
       setListo(data.mensaje)
@@ -108,6 +122,25 @@ export default function EncuestaPublica() {
             </p>
           )}
         </header>
+
+        {/* Lista cerrada, nunca texto libre: cada forma distinta de escribir
+            el mismo punto de venta lo convertiría en otro lugar en el reporte. */}
+        {hayQueElegirSujeto && (
+          <fieldset className="border-0 p-0 m-0">
+            <legend className="text-base font-semibold text-[#1A2B47] mb-2">
+              ¿{encuesta.sujeto_tipo ? `Cuál ${encuesta.sujeto_tipo}` : 'Dónde'} te atendió?
+              <span className="text-[#D93B3B] ml-1" aria-hidden="true">*</span>
+            </legend>
+            <select
+              value={sujeto}
+              onChange={(e) => { setSujeto(e.target.value); setError('') }}
+              className="w-full rounded-xl border border-[#D6E0F0] px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+            >
+              <option value="">Selecciona una opción</option>
+              {encuesta.sujetos.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </fieldset>
+        )}
 
         {encuesta.preguntas.map(p => (
           <fieldset key={p.id} className="border-0 p-0 m-0">

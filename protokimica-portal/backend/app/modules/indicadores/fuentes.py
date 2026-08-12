@@ -335,16 +335,179 @@ CATALOGO = {
 }
 
 
+# ── Encuestas: fuentes que no se pueden escribir de antemano ─────────────
+#
+# Las de arriba son fijas porque los módulos que miden son fijos. Las
+# encuestas no: se crean desde la interfaz, y una fuente por encuesta escrita
+# a mano significaría tocar este archivo y desplegar cada vez que Calidad
+# arma una encuesta nueva. Por eso estas se generan leyendo las plantillas
+# que existan.
+#
+# La clave lleva el slug dentro ("encuesta:vendedores:promedio") para que el
+# indicador siga apuntando a la misma encuesta aunque le cambien el nombre.
+
+PREFIJO_ENCUESTA = "encuesta"
+
+
+def _respuestas_encuesta_del_mes(db: Session, tenant_id: int, slug: str,
+                                 anio: int, mes: int) -> list:
+    from app.models.encuestas import Plantilla, Respuesta
+
+    desde, hasta = _rango_mes(anio, mes)
+    respuestas = (
+        db.query(Respuesta)
+        .join(Plantilla, Respuesta.plantilla_id == Plantilla.id)
+        .filter(Respuesta.tenant_id == tenant_id, Plantilla.slug == slug)
+        .all()
+    )
+    return [
+        r for r in respuestas
+        if r.respondida_en and desde <= _aware(r.respondida_en) <= hasta
+    ]
+
+
+def _notas_del_mes(db: Session, tenant_id: int, slug: str,
+                   anio: int, mes: int) -> list[float]:
+    """
+    Las calificaciones del mes, usando la misma regla que el módulo de
+    Encuestas: el promedio de las preguntas de escala de cada respuesta.
+    Se importa en vez de recalcularse para que el indicador y el panel no
+    puedan dar números distintos.
+    """
+    from app.modules.encuestas.origenes import calificacion_principal
+
+    notas = [
+        calificacion_principal(r)
+        for r in _respuestas_encuesta_del_mes(db, tenant_id, slug, anio, mes)
+    ]
+    return [n for n in notas if n is not None]
+
+
+def encuesta_promedio(db, tenant_id, anio, mes, slug) -> Resultado:
+    notas = _notas_del_mes(db, tenant_id, slug, anio, mes)
+    if not notas:
+        return Resultado(valor=None, detalle="Sin respuestas en el periodo")
+    return Resultado(
+        valor=round(sum(notas) / len(notas), 2),
+        detalle=f"Promedio de {len(notas)} respuesta(s)",
+    )
+
+
+def encuesta_detractores(db, tenant_id, anio, mes, slug) -> Resultado:
+    notas = _notas_del_mes(db, tenant_id, slug, anio, mes)
+    malas = [n for n in notas if n <= 2]
+    return _proporcion(len(malas), len(notas),
+                       f"{len(malas)} de {len(notas)} calificaron 1 o 2")
+
+
+def encuesta_respuestas(db, tenant_id, anio, mes, slug) -> Resultado:
+    total = len(_respuestas_encuesta_del_mes(db, tenant_id, slug, anio, mes))
+    return Resultado(valor=total, detalle=f"{total} respuesta(s) en el mes")
+
+
+METRICAS_ENCUESTA = {
+    "promedio": {
+        "sufijo": "— calificación promedio",
+        "descripcion": "Calificación promedio de la encuesta, de 1 a 5.",
+        "formula": "Promedio de las calificaciones recibidas en el mes",
+        "unidad": "razon", "direccion": "arriba", "fn": encuesta_promedio,
+    },
+    "detractores": {
+        "sufijo": "— clientes insatisfechos",
+        "descripcion": "Porcentaje de personas que calificaron 1 o 2 de 5.",
+        "formula": "(Respuestas con nota ≤ 2 ÷ respuestas calificadas) × 100",
+        "unidad": "porcentaje", "direccion": "abajo", "fn": encuesta_detractores,
+    },
+    "respuestas": {
+        "sufijo": "— respuestas recibidas",
+        "descripcion": "Cuántas personas respondieron la encuesta en el mes.",
+        "formula": "Conteo de respuestas con fecha dentro del mes",
+        "unidad": "cantidad", "direccion": "arriba", "fn": encuesta_respuestas,
+    },
+}
+
+
+def _partir_clave_encuesta(clave: str) -> tuple[str, str] | None:
+    """'encuesta:vendedores:promedio' -> ('vendedores', 'promedio')"""
+    partes = clave.split(":")
+    if len(partes) != 3 or partes[0] != PREFIJO_ENCUESTA:
+        return None
+    return partes[1], partes[2]
+
+
 def calcular(clave: str, db: Session, tenant_id: int, anio: int, mes: int) -> Resultado:
+    encuesta = _partir_clave_encuesta(clave)
+    if encuesta:
+        slug, metrica = encuesta
+        cfg = METRICAS_ENCUESTA.get(metrica)
+        if not cfg:
+            raise ValueError(
+                f"La métrica '{metrica}' no existe. "
+                f"Usa una de: {', '.join(sorted(METRICAS_ENCUESTA))}."
+            )
+        return cfg["fn"](db, tenant_id, anio, mes, slug)
+
     fuente = CATALOGO.get(clave)
     if not fuente:
         raise ValueError(f"No existe la fuente automática '{clave}'.")
     return fuente["fn"](db, tenant_id, anio, mes)
 
 
-def catalogo_publico() -> list[dict]:
-    """El catálogo sin las funciones, para exponerlo por la API."""
-    return [
+def _fuentes_de_encuestas(db: Session, tenant_id: int) -> list[dict]:
+    """Tres fuentes por cada encuesta activa: promedio, insatisfechos y volumen."""
+    from app.models.encuestas import Plantilla
+
+    plantillas = db.query(Plantilla).filter(
+        Plantilla.tenant_id == tenant_id, Plantilla.activa.is_(True),
+    ).order_by(Plantilla.nombre).all()
+
+    salida = []
+    for p in plantillas:
+        for metrica, cfg in METRICAS_ENCUESTA.items():
+            salida.append({
+                "clave": f"{PREFIJO_ENCUESTA}:{p.slug}:{metrica}",
+                "nombre": f"{p.nombre} {cfg['sufijo']}",
+                "modulo": "Encuestas",
+                "descripcion": cfg["descripcion"],
+                "formula": cfg["formula"],
+                "unidad": cfg["unidad"],
+                "direccion": cfg["direccion"],
+            })
+    return salida
+
+
+def catalogo_publico(db: Session | None = None, tenant_id: int | None = None) -> list[dict]:
+    """
+    El catálogo sin las funciones, para exponerlo por la API.
+
+    Con `db` agrega las fuentes de las encuestas existentes. Sin él devuelve
+    solo las fijas, que es lo que necesitan las pruebas y cualquier consulta
+    que no dependa de qué encuestas haya creadas.
+    """
+    fijas = [
         {"clave": clave, **{k: v for k, v in cfg.items() if k != "fn"}}
         for clave, cfg in CATALOGO.items()
     ]
+    if db is None or tenant_id is None:
+        return fijas
+    return fijas + _fuentes_de_encuestas(db, tenant_id)
+
+
+def existe_fuente(clave: str, db: Session, tenant_id: int) -> bool:
+    """
+    ¿Se puede calcular esta clave? Para validar al crear el indicador, en vez
+    de dejar que falle meses después cuando alguien pida el cálculo.
+    """
+    if clave in CATALOGO:
+        return True
+    encuesta = _partir_clave_encuesta(clave)
+    if not encuesta:
+        return False
+
+    from app.models.encuestas import Plantilla
+    slug, metrica = encuesta
+    if metrica not in METRICAS_ENCUESTA:
+        return False
+    return db.query(Plantilla).filter(
+        Plantilla.tenant_id == tenant_id, Plantilla.slug == slug,
+    ).first() is not None

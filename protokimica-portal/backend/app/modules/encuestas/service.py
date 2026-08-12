@@ -154,6 +154,10 @@ def construir_panel(db: Session, tenant_id: int, origen: str | None = None,
 
 # ── Responder una encuesta ───────────────────────────────────────────────
 
+def opciones_de_sujeto(plantilla: Plantilla) -> list[str]:
+    """Lo que se puede calificar, si la encuesta trae lista cerrada."""
+    return [s.strip() for s in (plantilla.sujetos or "").split("|") if s.strip()]
+
 def guardar_respuesta(db: Session, plantilla: Plantilla, payload: dict) -> Respuesta:
     """
     Registra una respuesta validando contra las preguntas de la plantilla.
@@ -176,6 +180,23 @@ def guardar_respuesta(db: Session, plantilla: Plantilla, payload: dict) -> Respu
             "Faltan respuestas obligatorias: " + "; ".join(faltantes) +
             ". Complétalas y vuelve a enviar."
         )
+
+    # Si la encuesta tiene lista cerrada, el sujeto tiene que salir de ahí.
+    # Es lo que evita que el mismo punto de venta llegue escrito de cinco
+    # formas y el reporte lo cuente como cinco lugares.
+    opciones_sujeto = opciones_de_sujeto(plantilla)
+    if opciones_sujeto:
+        elegido = (payload.get("sujeto_nombre") or "").strip()
+        if not elegido:
+            raise ValueError(
+                f"Falta indicar {plantilla.sujeto_tipo or 'a quién califica'}. "
+                "Elige una opción de la lista."
+            )
+        if elegido not in opciones_sujeto:
+            raise ValueError(
+                f"«{elegido}» no está en la lista. "
+                f"Elige una de: {', '.join(opciones_sujeto)}."
+            )
 
     respuesta = Respuesta(
         tenant_id=plantilla.tenant_id,

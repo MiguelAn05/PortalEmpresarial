@@ -28,6 +28,9 @@ class PlantillaCreate(BaseModel):
     descripcion: str | None = None
     slug: str
     sujeto_tipo: str | None = None
+    # Separados por "|". Con lista, el cliente elige; sin lista, el sujeto
+    # llega por el enlace del QR.
+    sujetos: str | None = None
     mensaje_final: str | None = None
     activa: bool = True
     preguntas: list[PreguntaCreate] = []
@@ -37,6 +40,9 @@ class PlantillaUpdate(BaseModel):
     nombre: str | None = None
     descripcion: str | None = None
     sujeto_tipo: str | None = None
+    # Sí se puede editar con respuestas ya recibidas: agregar un punto de
+    # venta nuevo no invalida lo que se contestó de los anteriores.
+    sujetos: str | None = None
     mensaje_final: str | None = None
     activa: bool | None = None
     # Si viene, reemplaza TODAS las preguntas. Editar una encuesta que ya
@@ -51,6 +57,7 @@ class PlantillaOut(BaseModel):
     descripcion: str | None
     slug: str
     sujeto_tipo: str | None
+    sujetos: str | None
     mensaje_final: str | None
     activa: bool
     creado_en: datetime | None

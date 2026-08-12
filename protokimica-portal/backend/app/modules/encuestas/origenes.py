@@ -89,7 +89,7 @@ def _respuestas_de_pqrs(db: Session, tenant_id: int) -> list[RespuestaVista]:
 
 # ── Origen: las plantillas del propio módulo ─────────────────────────────
 
-def _calificacion_principal(respuesta: Respuesta) -> float | None:
+def calificacion_principal(respuesta: Respuesta) -> float | None:
     """
     La nota que representa a toda la respuesta.
 
@@ -128,7 +128,7 @@ def _respuestas_de_plantillas(db: Session, tenant_id: int) -> list[RespuestaVist
             origen=r.plantilla.slug,
             origen_nombre=r.plantilla.nombre,
             respondida_en=r.respondida_en,
-            calificacion=_calificacion_principal(r),
+            calificacion=calificacion_principal(r),
             comentario=_comentario_principal(r),
             sujeto=r.sujeto_nombre,
             referencia=r.sujeto_ref,

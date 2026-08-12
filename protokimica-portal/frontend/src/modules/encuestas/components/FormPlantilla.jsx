@@ -24,6 +24,7 @@ export default function FormPlantilla({ plantilla, onCerrar }) {
     descripcion: plantilla?.descripcion || '',
     slug: plantilla?.slug || '',
     sujeto_tipo: plantilla?.sujeto_tipo || '',
+    sujetos: plantilla?.sujetos || '',
     mensaje_final: plantilla?.mensaje_final || '',
     activa: plantilla?.activa ?? true,
   }))
@@ -192,6 +193,22 @@ export default function FormPlantilla({ plantilla, onCerrar }) {
                 Déjalo vacío si no califica a nadie en particular.
               </p>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+              Opciones a calificar <span className="normal-case font-normal">(separadas por |)</span>
+            </label>
+            <input
+              value={form.sujetos} onChange={set('sujetos')}
+              placeholder="Sede Centro|Sede Norte|Sede Sur"
+              className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+            />
+            <p className="text-[11px] text-[#9BACC8] mt-1">
+              Si las llenas, el cliente elige de una lista en vez de escribir. Evita que el
+              mismo punto llegue como «Centro», «centro» y «Sede Centro» y termine contado
+              como tres lugares distintos. Puedes agregar opciones después sin problema.
+            </p>
           </div>
 
           {/* Preguntas */}

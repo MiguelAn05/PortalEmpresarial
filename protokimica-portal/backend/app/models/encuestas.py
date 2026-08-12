@@ -50,6 +50,17 @@ class Plantilla(Base):
     # particular (clima laboral, por ejemplo).
     sujeto_tipo = Column(String(40), nullable=True)
 
+    # La lista cerrada de qué se puede calificar, separada por "|".
+    #
+    # Existe por limpieza de datos, y no es un detalle menor: si el cliente
+    # escribe a mano dónde lo atendieron, "Centro", "centro" y "Sede Centro"
+    # entran como tres lugares distintos y el reporte por punto de venta deja
+    # de servir. Eso no se arregla después: los datos ya entraron mal.
+    #
+    # Vacío = el sujeto llega por el enlace (?ref=&nombre=), que es lo más
+    # limpio de todo porque el cliente no elige nada.
+    sujetos = Column(Text, nullable=True)
+
     # Texto de agradecimiento al enviar. Cada encuesta cierra distinto.
     mensaje_final = Column(Text, nullable=True)
 

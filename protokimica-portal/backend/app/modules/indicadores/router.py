@@ -43,12 +43,19 @@ def _validar_periodo(anio: int, mes: int) -> None:
 # ── Catálogo y tablero ──────────────────────────────────────────
 
 @router.get("/catalogo")
-def catalogo_automatico():
+def catalogo_automatico(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(get_current_user),
+):
     """
     Indicadores que el portal sabe calcular solo, con su fórmula y unidad
     sugerida. Alimenta el desplegable al crear un indicador automático.
+
+    Incluye una entrada por cada encuesta activa: esas no se pueden escribir
+    de antemano porque se crean desde la interfaz, así que se leen de la base.
     """
-    return fuentes.catalogo_publico()
+    return fuentes.catalogo_publico(db, tenant_id)
 
 
 @router.get("/tablero")
@@ -124,7 +131,9 @@ def crear_indicador(
                 status_code=400,
                 detail="Un indicador automático necesita una fuente del catálogo.",
             )
-        if payload.fuente_automatica not in fuentes.CATALOGO:
+        # Se valida contra el catálogo COMPLETO, que incluye las encuestas:
+        # esas no están en CATALOGO porque se crean desde la interfaz.
+        if not fuentes.existe_fuente(payload.fuente_automatica, db, tenant_id):
             raise HTTPException(
                 status_code=400,
                 detail=f"La fuente '{payload.fuente_automatica}' no existe en el catálogo.",
@@ -168,7 +177,7 @@ def actualizar_indicador(
 
     fuente = cambios.get("fuente_automatica", indicador.fuente_automatica)
     captura = cambios.get("tipo_captura", indicador.tipo_captura)
-    if captura == "automatico" and fuente not in fuentes.CATALOGO:
+    if captura == "automatico" and not fuentes.existe_fuente(fuente or "", db, tenant_id):
         raise HTTPException(
             status_code=400,
             detail="Un indicador automático necesita una fuente válida del catálogo.",

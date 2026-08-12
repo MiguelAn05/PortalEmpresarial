@@ -49,6 +49,10 @@ def ver_encuesta(slug: str, db: Session = Depends(get_db)):
         "nombre": plantilla.nombre,
         "descripcion": plantilla.descripcion,
         "sujeto_tipo": plantilla.sujeto_tipo,
+        # Si viene con opciones, el formulario muestra un desplegable en vez
+        # de un campo de texto: es lo que mantiene limpio el reporte por
+        # punto de venta.
+        "sujetos": service.opciones_de_sujeto(plantilla),
         "preguntas": [
             {
                 "id": p.id,
