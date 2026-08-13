@@ -57,6 +57,18 @@ services:
       dockerfile: Dockerfile
     container_name: protokimica_frontend
     restart: unless-stopped
+    # Puerta directa por la red interna, para entrar por la VPN sin pasar por
+    # Cloudflare: http://<ip-de-zeus>:8080
+    #
+    # Sin esto el portal SOLO se alcanza por el túnel, incluso estando dentro
+    # de la red — no hay nada escuchando en el servidor. Por eso la VPN sola
+    # no bastaba.
+    #
+    # Es seguro porque zeus es una VM interna sin cara a internet. Si algún
+    # día se le pone una IP pública, hay que restringirlo a la interfaz
+    # interna ("192.168.x.x:8080:80") o cerrarlo por firewall.
+    ports:
+      - "8080:80"
     depends_on:
       - backend
 
