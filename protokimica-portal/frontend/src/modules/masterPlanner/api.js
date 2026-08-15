@@ -18,6 +18,18 @@ export const archivarProyecto = (id, archivado = true) =>
   api.patch(`/master-planner/proyectos/${id}`, { archivado }).then(r => r.data)
 
 /** Solo funciona si el proyecto no tiene tareas; si las tiene, el backend responde 409. */
+// ── Cierre de proyectos ──────────────────────────────────────
+/** Finaliza o cancela. Va como FormData porque puede llevar evidencia. */
+export const cerrarProyecto = (id, formData) =>
+  api.post(`/master-planner/proyectos/${id}/cerrar`, formData).then(r => r.data)
+
+/** Vuelve a ejecución. El acta anterior queda anulada, no se borra. */
+export const retomarProyecto = (id) =>
+  api.post(`/master-planner/proyectos/${id}/retomar`).then(r => r.data)
+
+export const listarCierres = (id) =>
+  api.get(`/master-planner/proyectos/${id}/cierres`).then(r => r.data)
+
 export const eliminarProyecto = (id) =>
   api.delete(`/master-planner/proyectos/${id}`)
 

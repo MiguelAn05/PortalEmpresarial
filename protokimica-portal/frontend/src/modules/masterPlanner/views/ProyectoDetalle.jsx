@@ -10,6 +10,8 @@ import Avatar from "../components/Avatar"
 import HistorialPanel from "../components/HistorialPanel"
 import PanelPresupuesto from "../components/PanelPresupuesto"
 import ConfirmarCambios from "../components/ConfirmarCambios"
+import CierreProyectoModal from "../components/CierreProyectoModal"
+import PanelCierre from "../components/PanelCierre"
 import { useAuth } from "../../../core/AuthContext"
 import {
   obtenerProyecto, listarTareasDeProyecto, actualizarTarea, actualizarProyecto,
@@ -29,7 +31,19 @@ const SUBVISTAS = [
   { id: 'presupuesto', label: '💰 Presupuesto' },
   { id: 'historial',   label: '🕓 Historial' },
   { id: 'informacion', label: 'ℹ️ Información' },
+  { id: 'cierre',      label: '🏁 Cierre' },
 ]
+
+/**
+ * Quién puede finalizar o cancelar: el líder del proyecto, y admin.
+ *
+ * Es la misma regla que aplica el backend. Aquí solo decide si se muestra el
+ * botón — quien lo intente igual pasa por la validación del servidor.
+ */
+function puedeCerrarProyecto(user, proyecto) {
+  if (!user || !proyecto) return false
+  return user.rol === 'admin' || proyecto.lider_id === user.id
+}
 
 export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSelectTarea, onNuevaTarea, onEditar }) {
   const queryClient = useQueryClient()
@@ -38,6 +52,7 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
   const [subvista, setSubvista] = useState('tablero')
   const [filtros, setFiltros] = useState(FILTROS_TAREAS_VACIOS)
   const [confirmacion, setConfirmacion] = useState(null)
+  const [cerrando, setCerrando] = useState(false)
 
   const { data: proyecto, isLoading: cargandoProyecto } = useQuery({
     queryKey: ["mp-proyecto", proyectoId],
@@ -128,6 +143,16 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
 
             {editable && (
               <div className="flex gap-2 shrink-0">
+                {/* Solo mientras siga abierto: un proyecto cerrado se retoma
+                    desde su acta, no se vuelve a cerrar. */}
+                {!proyecto.cierre_tipo && puedeCerrarProyecto(user, proyecto) && (
+                  <button
+                    onClick={() => setCerrando(true)}
+                    className="border border-[#D6E0F0] hover:bg-gray-50 text-[#0D2B5E] text-sm font-semibold px-4 py-2.5 rounded-xl transition"
+                  >
+                    Cerrar proyecto
+                  </button>
+                )}
                 <button
                   onClick={() => onEditar(proyecto)}
                   className="border border-[#D6E0F0] hover:bg-gray-50 text-[#0D2B5E] text-sm font-semibold px-4 py-2.5 rounded-xl transition"
@@ -263,6 +288,9 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
           {subvista === 'presupuesto' && <PanelPresupuesto proyectoId={proyectoId} editable={editable} onCambio={invalidar} />}
           {subvista === 'historial' && <PanelHistorial proyectoId={proyectoId} />}
           {subvista === 'informacion' && <PanelInformacion proyecto={proyecto} editable={editable} onEditar={() => onEditar(proyecto)} />}
+          {subvista === 'cierre' && (
+            <PanelCierre proyecto={proyecto} puedeCerrar={editable && puedeCerrarProyecto(user, proyecto)} />
+          )}
         </>
       )}
 
@@ -273,6 +301,13 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
           guardando={mutCampoProyecto.isPending}
           onConfirmar={confirmacion.ejecutar}
           onCancelar={() => setConfirmacion(null)}
+        />
+      )}
+
+      {cerrando && (
+        <CierreProyectoModal
+          proyecto={proyecto}
+          onCerrar={() => { setCerrando(false); setSubvista('cierre') }}
         />
       )}
     </div>

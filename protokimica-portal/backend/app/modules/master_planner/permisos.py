@@ -159,3 +159,17 @@ def solo_registra_pagos(current_user: User = Depends(get_current_user)) -> User:
             ),
         )
     return current_user
+
+
+def puede_cerrar_proyecto(proyecto: Proyecto, usuario: User) -> bool:
+    """
+    Quién puede finalizar o cancelar un proyecto: su líder, y admin.
+
+    Se decide por quién lidera y no solo por el rol, porque cerrar un
+    proyecto es afirmar que se cumplió (o que se abandona), y eso le compete
+    a quien responde por él. Un líder de otra área puede editar tareas donde
+    participa, pero no dar por terminado un proyecto que no es suyo.
+    """
+    if usuario.rol == "admin":
+        return True
+    return proyecto.lider_id == usuario.id

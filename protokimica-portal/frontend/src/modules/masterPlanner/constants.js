@@ -14,6 +14,10 @@ export const ESTADOS_PROYECTO = {
   en_ejecucion: { label: 'En ejecución', color: 'bg-emerald-100 text-emerald-700' },
   pausado:      { label: 'Pausado',      color: 'bg-yellow-100 text-yellow-700' },
   cerrado:      { label: 'Cerrado',      color: 'bg-gray-200 text-gray-700' },
+  // Distinto de "cerrado" a propósito: uno terminó y el otro se abandonó.
+  // Si contaran igual, un proyecto que nadie sacó adelante se vería como uno
+  // cumplido en los indicadores.
+  cancelado:    { label: 'Cancelado',    color: 'bg-red-100 text-red-700' },
 }
 
 export const PRIORIDADES = {

@@ -28,7 +28,11 @@ class Proyecto(Base):
     # en `areas_participantes` y solo otorgan visibilidad.
     area = Column(String(100), nullable=True)
 
-    # planeacion | en_ejecucion | pausado | cerrado
+    # planeacion | en_ejecucion | pausado | cerrado | cancelado
+    #
+    # "cerrado" y "cancelado" son distintos a propósito: uno terminó y el otro
+    # se abandonó. Meterlos en el mismo estado haría que un proyecto que nadie
+    # sacó adelante contara igual que uno cumplido en los indicadores.
     estado = Column(String(20), nullable=False, default="planeacion")
     # baja | media | alta | critica
     prioridad = Column(String(20), nullable=False, default="media")
@@ -59,6 +63,23 @@ class Proyecto(Base):
     areas_extra = relationship(
         "ProyectoArea", back_populates="proyecto", cascade="all, delete-orphan"
     )
+    # Como el historial: sin la cascada, borrar un proyecto revienta contra la
+    # llave foránea de sus actas de cierre.
+    cierres = relationship(
+        "CierreProyecto", back_populates="proyecto",
+        cascade="all, delete-orphan", order_by="CierreProyecto.cerrado_en.desc()",
+    )
+
+    @property
+    def cierre_vigente(self) -> "CierreProyecto | None":
+        """El acta que manda hoy. Las anuladas quedan como historia."""
+        return next((c for c in self.cierres if c.anulado_en is None), None)
+
+    @property
+    def cierre_tipo(self) -> str | None:
+        """finalizado | cancelado | None si sigue abierto."""
+        acta = self.cierre_vigente
+        return acta.tipo if acta else None
 
     @property
     def areas_participantes(self) -> list[str]:
@@ -403,3 +424,66 @@ class HistorialCambio(Base):  # noqa: E303
     @property
     def usuario_nombre(self):
         return self.usuario.nombre if self.usuario else None
+
+
+class CierreProyecto(Base):
+    """
+    El acta de cierre: cómo terminó un proyecto y con qué números.
+
+    Existe como tabla aparte y no como campos del proyecto porque un acta se
+    firma una vez: guarda lo que era verdad EL DÍA que se cerró. Si los
+    números se recalcularan al abrirla, dentro de seis meses mostraría otras
+    cifras porque alguien corrigió un pago viejo, y un acta que cambia sola
+    no sirve para rendir cuentas.
+
+    Retomar un proyecto no borra su acta, la anula: el rastro de que estuvo
+    cancelado y por qué es justo lo que alguien busca cuando pregunta
+    "¿este proyecto no se había caído?".
+    """
+    __tablename__ = "mp_cierres"
+
+    id = Column(Integer, primary_key=True, index=True)
+    proyecto_id = Column(
+        Integer, ForeignKey("mp_proyectos.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+
+    # finalizado | cancelado
+    tipo = Column(String(20), nullable=False)
+
+    entregables = Column(Text, nullable=True)     # qué quedó (al finalizar)
+    motivo = Column(Text, nullable=True)          # por qué se cayó (al cancelar)
+    observaciones = Column(Text, nullable=True)
+    evidencia = Column(String(255), nullable=True)
+
+    # ── La foto de los números al momento de cerrar ──
+    tareas_total = Column(Integer, nullable=True)
+    tareas_completadas = Column(Integer, nullable=True)
+    presupuesto_planeado = Column(Numeric(16, 2), nullable=True)
+    presupuesto_aprobado = Column(Numeric(16, 2), nullable=True)
+    presupuesto_pagado = Column(Numeric(16, 2), nullable=True)
+    dias_de_duracion = Column(Integer, nullable=True)
+
+    cerrado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    cerrado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Se llenan al retomar el proyecto. Con esto puesto, el acta deja de ser
+    # la vigente pero sigue contando lo que pasó.
+    anulado_en = Column(DateTime(timezone=True), nullable=True)
+    anulado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    proyecto = relationship("Proyecto", back_populates="cierres")
+    responsable = relationship("User", foreign_keys=[cerrado_por])
+    anulador = relationship("User", foreign_keys=[anulado_por])
+
+    @property
+    def cerrado_por_nombre(self):
+        return self.responsable.nombre if self.responsable else None
+
+    @property
+    def anulado_por_nombre(self):
+        return self.anulador.nombre if self.anulador else None
+
+    @property
+    def vigente(self) -> bool:
+        return self.anulado_en is None

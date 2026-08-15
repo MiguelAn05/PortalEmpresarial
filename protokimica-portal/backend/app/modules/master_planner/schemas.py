@@ -61,6 +61,9 @@ class ProyectoOut(BaseModel):
     total_tareas: int
     tareas_completadas: int
     creado_en: datetime
+    # Cómo terminó, si terminó: "finalizado" o "cancelado". Va aquí para que
+    # la lista de proyectos pueda distinguirlos sin pedir el acta de cada uno.
+    cierre_tipo: str | None = None
 
     class Config:
         from_attributes = True

@@ -30,9 +30,10 @@ from app.modules.master_planner.historial import (
 )
 from app.modules.master_planner.permisos import (
     aplicar_filtro_proyectos, puede_ver_proyecto, puede_ver_presupuesto, ve_todo,
-    solo_aprueba_pagos, solo_registra_pagos,
+    solo_aprueba_pagos, solo_registra_pagos, puede_cerrar_proyecto,
 )
 from app.modules.master_planner.resumen import construir_resumen
+from app.modules.master_planner import cierre
 from app.modules.master_planner.outlook import (
     sincronizar_tarea, borrar_evento_de_tarea, borrar_evento_en_calendario_de,
     eventos_del_usuario,
@@ -231,6 +232,105 @@ def actualizar_proyecto(
     db.commit()
     db.refresh(proyecto)
     return proyecto
+
+
+@router.post("/proyectos/{proyecto_id}/cerrar")
+async def cerrar_proyecto(
+    proyecto_id: int,
+    tipo: str = Form(...),                      # finalizado | cancelado
+    entregables: str | None = Form(None),
+    motivo: str | None = Form(None),
+    observaciones: str | None = Form(None),
+    evidencia: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_lectura_no),
+):
+    """
+    Finaliza o cancela el proyecto dejando su acta.
+
+    Los dos casos archivan el proyecto —sale de las vistas del día a día—
+    pero no se borra nada: siempre se puede retomar.
+    """
+    proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
+
+    if not puede_cerrar_proyecto(proyecto, current_user):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Solo el líder del proyecto o un administrador pueden cerrarlo. "
+                "Pídele a quien lo lidera que lo haga."
+            ),
+        )
+
+    ruta = await guardar_archivo(evidencia, "cierres") if evidencia is not None else None
+    antes = instantanea(proyecto, "proyecto")
+
+    try:
+        acta = cierre.cerrar(
+            proyecto, current_user, tipo,
+            entregables=entregables, motivo=motivo,
+            observaciones=observaciones, evidencia=ruta,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    db.add(acta)
+    registrar_cambios(
+        db, "proyecto", proyecto.id, proyecto.id,
+        antes, instantanea(proyecto, "proyecto"), current_user.id,
+        entidad_nombre=proyecto.nombre,
+    )
+    db.commit()
+    db.refresh(acta)
+    return cierre.acta_a_dict(acta)
+
+
+@router.post("/proyectos/{proyecto_id}/retomar")
+def retomar_proyecto(
+    proyecto_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_lectura_no),
+):
+    """Vuelve a poner el proyecto en ejecución. El acta anterior queda anulada."""
+    proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
+
+    if not puede_cerrar_proyecto(proyecto, current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el líder del proyecto o un administrador pueden retomarlo.",
+        )
+
+    antes = instantanea(proyecto, "proyecto")
+    try:
+        cierre.retomar(proyecto, current_user)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    registrar_cambios(
+        db, "proyecto", proyecto.id, proyecto.id,
+        antes, instantanea(proyecto, "proyecto"), current_user.id,
+        entidad_nombre=proyecto.nombre,
+    )
+    db.commit()
+    db.refresh(proyecto)
+    return {"mensaje": "El proyecto volvió a ejecución.", "estado": proyecto.estado}
+
+
+@router.get("/proyectos/{proyecto_id}/cierres")
+def historial_de_cierres(
+    proyecto_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Las actas del proyecto, la vigente primero. Normalmente hay una sola;
+    hay varias cuando el proyecto se cerró, se retomó y se volvió a cerrar.
+    """
+    proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
+    return [cierre.acta_a_dict(a) for a in proyecto.cierres]
 
 
 @router.delete("/proyectos/{proyecto_id}", status_code=status.HTTP_204_NO_CONTENT)
