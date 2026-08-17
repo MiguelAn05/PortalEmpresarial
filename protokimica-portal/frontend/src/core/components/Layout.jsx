@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
+import { puedeVerModulo } from '../modulos.js'
 import CambiarPasswordModal from './CambiarPasswordModal.jsx'
 
+// Cada entrada dice de qué módulo es, para esconder la que el usuario no
+// puede abrir. Un menú que lleva a un 403 es peor que no tener el menú.
 const navItems = [
-  { to: '/',        icon: '🏠', label: 'Inicio',          exact: true  },
-  { to: '/pqrs', icon: '📨', label: 'PQRS' },
-  { to: '/master-planner', icon: '🗂️', label:'Master Planner'},
-  { to: '/indicadores', icon: '📈', label: 'Indicadores' },
-  { to: '/encuestas', icon: '⭐', label: 'Encuestas' },
+  { to: '/',        icon: '🏠', label: 'Inicio', modulo: 'inicio', exact: true },
+  { to: '/pqrs', icon: '📨', label: 'PQRS', modulo: 'pqrs' },
+  { to: '/master-planner', icon: '🗂️', label:'Master Planner', modulo: 'master_planner' },
+  { to: '/indicadores', icon: '📈', label: 'Indicadores', modulo: 'indicadores' },
+  { to: '/encuestas', icon: '⭐', label: 'Encuestas', modulo: 'encuestas' },
 ]
 
 export default function Layout() {
@@ -70,7 +73,7 @@ export default function Layout() {
             </div>
           )}
 
-          {navItems.map((item) => (
+          {navItems.filter(item => puedeVerModulo(user, item.modulo)).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -120,28 +123,33 @@ export default function Layout() {
             </div>
           ))}
 
-          {!collapsed && (
-            <div className="px-4 py-2 mt-3 text-white/30 text-xs font-semibold uppercase tracking-widest">
-              Sistema
-            </div>
-          )}
+          {/* Configuración: solo administradores. Desaparece la sección
+              entera, no nada más el enlace. */}
+          {puedeVerModulo(user, 'admin') && (
+            <>
+              {!collapsed && (
+                <div className="px-4 py-2 mt-3 text-white/30 text-xs font-semibold uppercase tracking-widest">
+                  Sistema
+                </div>
+              )}
 
-          <NavLink
-            to="/admin"
-            className={({ isActive }) => `
-              flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg
-              transition-all duration-150 cursor-pointer
-              border-l-2 ml-0 pl-4
-              ${isActive
-                ? 'bg-[#F5A800]/15 text-[#F5A800] border-[#F5A800] font-semibold'
-                : 'text-white/60 border-transparent hover:bg-white/7 hover:text-white'
-              }
-            `}
-          >
-            <span className="text-base flex-shrink-0">⚙️</span>
-            {!collapsed && <span className="text-sm truncate">Administración</span>}
-          </NavLink>
-          
+              <NavLink
+                to="/admin"
+                className={({ isActive }) => `
+                  flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg
+                  transition-all duration-150 cursor-pointer
+                  border-l-2 ml-0 pl-4
+                  ${isActive
+                    ? 'bg-[#F5A800]/15 text-[#F5A800] border-[#F5A800] font-semibold'
+                    : 'text-white/60 border-transparent hover:bg-white/7 hover:text-white'
+                  }
+                `}
+              >
+                <span className="text-base flex-shrink-0">⚙️</span>
+                {!collapsed && <span className="text-sm truncate">Administración</span>}
+              </NavLink>
+            </>
+          )}
         </nav>
 
         {/* Bottom: Copilot + usuario */}

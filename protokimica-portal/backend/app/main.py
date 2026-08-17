@@ -31,6 +31,7 @@ from app.modules.pqrs.router_public import router as pqrs_public_router
 from app.modules.autorizaciones.router import router as autorizaciones_router
 from app.modules.master_planner.router import router as master_planner_router
 from app.modules.indicadores.router import router as indicadores_router
+from app.modules.inicio.router import router as inicio_router
 from app.modules.encuestas.router import router as encuestas_router
 from app.modules.encuestas.router_public import router as encuestas_public_router
 from app.models import tenant, user, pqrs, autorizacion, master_planner, indicadores, encuestas  # noqa: F401
@@ -100,5 +101,6 @@ app.include_router(pqrs_public_router)
 app.include_router(autorizaciones_router)
 app.include_router(master_planner_router)
 app.include_router(indicadores_router)
+app.include_router(inicio_router)
 app.include_router(encuestas_router)
 app.include_router(encuestas_public_router)

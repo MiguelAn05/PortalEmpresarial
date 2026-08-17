@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
+from app.core.modulos import requiere_modulo, ve_todos_los_indicadores
 from app.models.indicadores import Indicador, Medicion, HistorialMedicion
 from app.models.user import User
 from app.modules.indicadores import fuentes, service
@@ -24,11 +25,20 @@ from app.modules.pqrs.service import guardar_archivo
 router = APIRouter(prefix="/indicadores", tags=["Indicadores"])
 
 
-def _get_indicador_o_404(db: Session, indicador_id: int, tenant_id: int) -> Indicador:
+def _get_indicador_o_404(
+    db: Session, indicador_id: int, tenant_id: int, usuario: User | None = None,
+) -> Indicador:
     indicador = db.query(Indicador).filter(
         Indicador.id == indicador_id, Indicador.tenant_id == tenant_id,
     ).first()
     if not indicador:
+        raise HTTPException(status_code=404, detail="Indicador no encontrado.")
+    # 404 y no 403: un 403 confirmaría que el indicador existe.
+    if (
+        usuario is not None
+        and not ve_todos_los_indicadores(usuario)
+        and indicador.area != usuario.area
+    ):
         raise HTTPException(status_code=404, detail="Indicador no encontrado.")
     return indicador
 
@@ -46,7 +56,7 @@ def _validar_periodo(anio: int, mes: int) -> None:
 def catalogo_automatico(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(get_current_user),
+    _: User = Depends(requiere_modulo("indicadores")),
 ):
     """
     Indicadores que el portal sabe calcular solo, con su fórmula y unidad
@@ -65,7 +75,7 @@ def tablero(
     area: str | None = None,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(requiere_modulo("indicadores")),
 ):
     """
     El tablero de un periodo. Sin parámetros abre en el último mes cerrado:
@@ -76,6 +86,12 @@ def tablero(
         anio_def, mes_def = service.periodo_por_defecto()
         anio, mes = anio or anio_def, mes or mes_def
     _validar_periodo(anio, mes)
+
+    # Un líder solo ve los indicadores de su área: son los que responde. El
+    # filtro se impone aquí y no se puede saltar mandando otro `area`.
+    if not ve_todos_los_indicadores(current_user):
+        area = current_user.area
+
     return service.construir_tablero(db, tenant_id, anio, mes, area)
 
 
@@ -110,9 +126,11 @@ def listar_indicadores(
     incluir_inactivos: bool = False,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(requiere_modulo("indicadores")),
 ):
     query = db.query(Indicador).filter(Indicador.tenant_id == tenant_id)
+    if not ve_todos_los_indicadores(current_user):
+        query = query.filter(Indicador.area == current_user.area)
     if not incluir_inactivos:
         query = query.filter(Indicador.activo.is_(True))
     return query.order_by(Indicador.orden, Indicador.nombre).all()
@@ -124,6 +142,7 @@ def crear_indicador(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(solo_lectura_no),
+    __: User = Depends(requiere_modulo("indicadores")),
 ):
     if payload.tipo_captura == "automatico":
         if not payload.fuente_automatica:
@@ -153,10 +172,10 @@ def obtener_indicador(
     mes: int | None = None,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(requiere_modulo("indicadores")),
 ):
     """Ficha completa con la serie del año, para la vista de detalle."""
-    indicador = _get_indicador_o_404(db, indicador_id, tenant_id)
+    indicador = _get_indicador_o_404(db, indicador_id, tenant_id, current_user)
     if anio is None or mes is None:
         anio_def, mes_def = service.periodo_por_defecto()
         anio, mes = anio or anio_def, mes or mes_def
@@ -171,8 +190,9 @@ def actualizar_indicador(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(requiere_modulo("indicadores")),
 ):
-    indicador = _get_indicador_o_404(db, indicador_id, tenant_id)
+    indicador = _get_indicador_o_404(db, indicador_id, tenant_id, current_user)
     cambios = payload.model_dump(exclude_unset=True)
 
     fuente = cambios.get("fuente_automatica", indicador.fuente_automatica)
@@ -196,6 +216,7 @@ def eliminar_indicador(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(requiere_modulo("indicadores")),
 ):
     """
     Borra el indicador y todo su histórico. Si ya tiene mediciones responde
@@ -203,7 +224,7 @@ def eliminar_indicador(
     siempre lo que se quiere es desactivarlo (`activo=false`), que lo saca
     del tablero conservando los datos.
     """
-    indicador = _get_indicador_o_404(db, indicador_id, tenant_id)
+    indicador = _get_indicador_o_404(db, indicador_id, tenant_id, current_user)
     total = db.query(Medicion).filter(Medicion.indicador_id == indicador_id).count()
     if total:
         raise HTTPException(
@@ -234,12 +255,13 @@ async def registrar_medicion(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(solo_lectura_no),
+    _: User = Depends(requiere_modulo("indicadores")),
 ):
     """
     Registra o corrige el valor de un mes. Si ya existía, se actualiza y el
     cambio queda en el historial con su motivo.
     """
-    indicador = _get_indicador_o_404(db, indicador_id, tenant_id)
+    indicador = _get_indicador_o_404(db, indicador_id, tenant_id, current_user)
     _validar_periodo(anio, mes)
 
     if indicador.es_automatico:
@@ -324,8 +346,9 @@ def calcular_indicador(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(requiere_modulo("indicadores")),
 ):
-    indicador = _get_indicador_o_404(db, indicador_id, tenant_id)
+    indicador = _get_indicador_o_404(db, indicador_id, tenant_id, current_user)
     if not indicador.es_automatico:
         raise HTTPException(
             status_code=400,
@@ -346,6 +369,7 @@ def calcular_periodo(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(solo_lectura_no),
+    __: User = Depends(requiere_modulo("indicadores")),
 ):
     """
     Recalcula de una sola vez todos los indicadores automáticos del periodo.
@@ -381,9 +405,9 @@ def historial_indicador(
     indicador_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(requiere_modulo("indicadores")),
 ):
-    _get_indicador_o_404(db, indicador_id, tenant_id)
+    _get_indicador_o_404(db, indicador_id, tenant_id, current_user)
     return (
         db.query(HistorialMedicion)
         .filter(HistorialMedicion.indicador_id == indicador_id)

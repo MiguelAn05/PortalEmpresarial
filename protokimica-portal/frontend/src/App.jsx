@@ -1,7 +1,9 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './core/AuthContext.jsx'
+import { moduloDeRuta, puedeVerModulo, RUTA_POR_DEFECTO } from './core/modulos.js'
 import Login from './modules/auth/Login.jsx'
 import Layout from './core/components/Layout.jsx'
+import Inicio from './modules/inicio/Inicio.jsx'
 import PQRSList from './modules/pqrs/PQRSList.jsx'
 import PQRSDetail from './modules/pqrs/PQRSDetail.jsx'
 import FormularioPQRS from './modules/publico/FormularioPQRS.jsx'
@@ -19,6 +21,24 @@ function PrivateRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />
 }
 
+/**
+ * Cierra la pantalla de un módulo que este rol no puede abrir.
+ *
+ * Es cortesía, no seguridad: quien escriba la URL a mano igual choca con el
+ * 403 del backend. Lo que evita es la pantalla rota —el módulo cargando,
+ * fallando y mostrando un error feo— cuando la respuesta ya se sabe.
+ */
+function RutaDeModulo({ children }) {
+  const { user } = useAuth()
+  const { pathname } = useLocation()
+  const modulo = moduloDeRuta(pathname)
+
+  if (modulo && !puedeVerModulo(user, modulo)) {
+    return <Navigate to={RUTA_POR_DEFECTO} replace />
+  }
+  return children
+}
+
 export default function App() {
   return (
     <Routes>
@@ -33,10 +53,12 @@ export default function App() {
       {/* ── Rutas protegidas (empleados) ── */}
       <Route path="/" element={
         <PrivateRoute>
-          <Layout />
+          <RutaDeModulo>
+            <Layout />
+          </RutaDeModulo>
         </PrivateRoute>
       }>
-        <Route index element={<Navigate to="/pqrs" replace />} />
+        <Route index element={<Inicio />} />
         <Route path="pqrs"     element={<PQRSList />} />
         <Route path="pqrs/:id" element={<PQRSDetail />} />
         <Route path="admin" element={<Admin />} />

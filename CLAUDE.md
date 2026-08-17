@@ -101,6 +101,23 @@ el servidor no tiene internet estable para `npm ci`.
 | `agente` | Opera lo que le asignan |
 | `lectura` | No escribe nada |
 
+**Qué módulo abre cada rol** — `backend/app/core/modulos.py` es la fuente, con
+gemelo en `frontend/src/core/modulos.js` (una prueba verifica que coincidan).
+
+| Módulo | admin | gerencia | lider | agente | lectura |
+|---|:-:|:-:|:-:|:-:|:-:|
+| Inicio, PQRS, Master Planner, Encuestas | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Indicadores | ✓ | ✓ | ✓ | — | — |
+| Administración | ✓ | — | — | — | — |
+
+**El rol decide a qué módulo entras; el área decide qué ves dentro.** Un líder
+entra a Indicadores pero solo ve los de su área — el filtro se impone en el
+servidor y mandar otro `?area=` no lo abre. Un indicador ajeno responde 404.
+
+Se aplica con `Depends(requiere_modulo("indicadores"))` en **todos** los
+endpoints del módulo, incluidas las lecturas. El menú del frontend también se
+filtra, pero eso es cortesía: esconder un botón no impide escribir la URL.
+
 - `solo_lectura_no` bloquea a `lectura` **y** a `gerencia`. Se usa en todo
   endpoint de escritura, lo que protege también los módulos viejos sin tocarlos.
 - `puede_comentar` solo bloquea a `lectura`. Es para comentarios y
