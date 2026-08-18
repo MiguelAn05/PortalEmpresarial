@@ -3,28 +3,34 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
 import { AREAS } from '../../core/areas.js'
+import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
+import {
+  IconoBuscar, IconoCerrar, IconoFiltro, IconoPQRS,
+} from '../../core/components/Iconos.jsx'
 
+// Un estado se llama y se pinta igual en la lista, en el filtro y en el
+// detalle. El color sube con la gravedad; no es un color por categoría.
 const TIPOS = {
-  peticion: { label: 'Petición',   color: 'bg-purple-100 text-purple-700' },
-  queja:    { label: 'Queja',      color: 'bg-red-100 text-red-700'       },
-  reclamo:  { label: 'Reclamo',    color: 'bg-orange-100 text-orange-700' },
-  sugerencia:{ label: 'Sugerencia',color: 'bg-blue-100 text-blue-700'   },
-  felicitacion: {label: 'Felicitacion', color:'bg-green-100 text-green-700'}
+  peticion:     { label: 'Petición',     color: 'bg-superficie-2 text-texto-2' },
+  queja:        { label: 'Queja',        color: 'bg-alerta-bg text-alerta'     },
+  reclamo:      { label: 'Reclamo',      color: 'bg-negativo-bg text-negativo' },
+  sugerencia:   { label: 'Sugerencia',   color: 'bg-info-bg text-info'         },
+  felicitacion: { label: 'Felicitación', color: 'bg-positivo-bg text-positivo' },
 }
 
 const ESTADOS = {
-  recibido:   { label: 'Recibido',    color: 'bg-gray-100 text-gray-600'   },
-  asignado:   { label: 'Asignado',    color: 'bg-blue-100 text-blue-700'   },
-  en_proceso: { label: 'En proceso',  color: 'bg-yellow-100 text-yellow-700'},
-  resuelto:   { label: 'Resuelto',    color: 'bg-teal-100 text-teal-700'   },
-  cerrado:    { label: 'Cerrado',     color: 'bg-green-100 text-green-700' },
+  recibido:   { label: 'Recibido',   color: 'bg-superficie-2 text-texto-2' },
+  asignado:   { label: 'Asignado',   color: 'bg-info-bg text-info'         },
+  en_proceso: { label: 'En proceso', color: 'bg-alerta-bg text-alerta'     },
+  resuelto:   { label: 'Resuelto',   color: 'bg-positivo-bg text-positivo' },
+  cerrado:    { label: 'Cerrado',    color: 'bg-superficie-2 text-texto-2' },
 }
 
 const PRIORIDADES = {
-  baja:    { label: 'Baja',    color: 'text-green-600'  },
-  media:   { label: 'Media',   color: 'text-yellow-600' },
-  alta:    { label: 'Alta',    color: 'text-orange-600' },
-  critica: { label: 'Crítica', color: 'text-red-600'    },
+  baja:    { label: 'Baja',    color: 'text-positivo' },
+  media:   { label: 'Media',   color: 'text-texto-2'  },
+  alta:    { label: 'Alta',    color: 'text-alerta'   },
+  critica: { label: 'Crítica', color: 'text-negativo' },
 }
 
 // Mismo mapeo que PREFIJOS_POR_CANAL en el backend (service.py) — se usa
@@ -50,7 +56,7 @@ function coincidePuntoVenta(codigo, prefijo) {
 }
 
 function Badge({ map, value }) {
-  const item = map[value] || { label: value, color: 'bg-gray-100 text-gray-600' }
+  const item = map[value] || { label: value, color: 'bg-superficie-2 text-texto-2' }
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${item.color}`}>
       {item.label}
@@ -63,10 +69,10 @@ function SLALabel({ fechaLimite }) {
   const diff = new Date(fechaLimite) - new Date()
   const dias = Math.ceil(diff / (1000 * 60 * 60 * 24))
 
-  if (dias < 0)  return <span className="text-xs font-semibold text-red-600">Vencida</span>
-  if (dias === 0) return <span className="text-xs font-semibold text-red-500">Vence hoy</span>
-  if (dias <= 2)  return <span className="text-xs font-semibold text-orange-500">Vence en {dias}d</span>
-  return <span className="text-xs text-[#6B7EA8]">Vence en {dias}d</span>
+  if (dias < 0)   return <span className="text-xs font-semibold text-negativo">Vencida</span>
+  if (dias === 0) return <span className="text-xs font-semibold text-negativo">Vence hoy</span>
+  if (dias <= 2)  return <span className="cifra text-xs font-semibold text-alerta">Vence en {dias}d</span>
+  return <span className="cifra text-xs text-texto-2">Vence en {dias}d</span>
 }
 
 const CANALES_ATENCION = [
@@ -160,18 +166,18 @@ function ModalCrear({ onClose, onCreated }) {
   const esQueja = form.tipo === 'queja'
   const mostrarProducto = !esFelicitacion && !esQueja
 
-  const inputCls = "w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
-  const labelCls = "block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5"
+  const inputCls = "w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento"
+  const labelCls = "block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5"
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#D6E0F0]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-borde">
           <div>
-            <h2 className="font-bold text-[#0D2B5E] text-lg">Registrar PQRS</h2>
-            <p className="text-xs text-[#6B7EA8] mt-0.5">Mismos datos que el formulario público del cliente.</p>
+            <h2 className="font-bold text-acento-fuerte text-lg">Registrar PQRS</h2>
+            <p className="text-xs text-texto-2 mt-0.5">Mismos datos que el formulario público del cliente.</p>
           </div>
-          <button onClick={onClose} className="text-[#6B7EA8] hover:text-[#0D2B5E] text-xl">✕</button>
+          <button onClick={onClose} aria-label="Cerrar" className="w-8 h-8 flex items-center justify-center rounded-lg text-texto-3 hover:bg-superficie-2 hover:text-texto transition-colors duration-150"><IconoCerrar tam={16} /></button>
         </div>
 
         <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
@@ -199,7 +205,7 @@ function ModalCrear({ onClose, onCreated }) {
 
           {/* Cliente */}
           <div>
-            <p className="text-xs font-bold text-[#0D2B5E] uppercase tracking-wide mb-2">Datos del cliente</p>
+            <p className="text-xs font-bold text-acento-fuerte uppercase tracking-wide mb-2">Datos del cliente</p>
             <div className="grid grid-cols-2 gap-4 mb-3">
               <div>
                 <label className={labelCls}>Empresa</label>
@@ -251,7 +257,7 @@ function ModalCrear({ onClose, onCreated }) {
           {/* Producto — no aplica a felicitaciones ni quejas */}
           {mostrarProducto && (
             <div>
-              <p className="text-xs font-bold text-[#0D2B5E] uppercase tracking-wide mb-2">Producto y factura</p>
+              <p className="text-xs font-bold text-acento-fuerte uppercase tracking-wide mb-2">Producto y factura</p>
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div>
                   <label className={labelCls}>Código de producto</label>
@@ -277,7 +283,7 @@ function ModalCrear({ onClose, onCreated }) {
                       onChange={handleChange}
                       disabled={!form.presentacion}
                       placeholder="Cant."
-                      className={`${inputCls} w-20 disabled:bg-[#F5F7FB] disabled:cursor-not-allowed`}
+                      className={`${inputCls} w-20 disabled:bg-superficie-2 disabled:cursor-not-allowed`}
                     />
                   </div>
                 </div>
@@ -303,11 +309,11 @@ function ModalCrear({ onClose, onCreated }) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelCls}>Foto del producto</label>
-                  <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoProducto(e.target.files[0] || null)} className="text-xs text-[#6B7EA8]" />
+                  <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoProducto(e.target.files[0] || null)} className="text-xs text-texto-2" />
                 </div>
                 <div>
                   <label className={labelCls}>Foto de la factura</label>
-                  <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoFactura(e.target.files[0] || null)} className="text-xs text-[#6B7EA8]" />
+                  <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoFactura(e.target.files[0] || null)} className="text-xs text-texto-2" />
                 </div>
               </div>
             </div>
@@ -321,9 +327,9 @@ function ModalCrear({ onClose, onCreated }) {
                 type="file"
                 accept="video/mp4,video/quicktime,video/webm"
                 onChange={(e) => setAdjuntoVideo(e.target.files[0] || null)}
-                className="text-xs text-[#6B7EA8]"
+                className="text-xs text-texto-2"
               />
-              <p className="text-xs text-[#9BACC8] mt-1">MP4, MOV o WEBM — máx. 20MB (~20-30 seg)</p>
+              <p className="text-xs text-texto-3 mt-1">MP4, MOV o WEBM — máx. 20MB (~20-30 seg)</p>
             </div>
           )}
 
@@ -344,23 +350,23 @@ function ModalCrear({ onClose, onCreated }) {
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+            <div className="bg-negativo-bg border border-negativo/25 rounded-lg px-4 py-3 text-sm text-negativo">
               {error}
             </div>
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-[#D6E0F0] flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-borde flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-[#D6E0F0] text-sm font-semibold text-[#6B7EA8] hover:bg-[#F0F4FA] transition"
+            className="px-4 py-2 rounded-lg border border-borde text-sm font-semibold text-texto-2 hover:bg-fondo transition"
           >
             Cancelar
           </button>
           <button
             onClick={() => mutation.mutate()}
             disabled={mutation.isPending || !form.cliente_nombre || (!esFelicitacion && !form.descripcion)}
-            className="px-4 py-2 rounded-lg bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] text-sm font-bold transition disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-ambar hover:bg-ambar-claro text-acento-fuerte text-sm font-bold transition disabled:opacity-50"
           >
             {mutation.isPending ? 'Creando...' : 'Crear PQRS'}
           </button>
@@ -387,14 +393,14 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#D6E0F0]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-borde">
           <div>
-            <h2 className="font-bold text-[#0D2B5E] text-lg">
+            <h2 className="font-bold text-acento-fuerte text-lg">
               {pqrs.codigo_seguimiento || `PQRS #${pqrs.id}`}
             </h2>
-            <p className="text-xs text-[#6B7EA8]">{pqrs.cliente_nombre}</p>
+            <p className="text-xs text-texto-2">{pqrs.cliente_nombre}</p>
           </div>
-          <button onClick={onClose} className="text-[#6B7EA8] hover:text-[#0D2B5E] text-xl">✕</button>
+          <button onClick={onClose} aria-label="Cerrar" className="w-8 h-8 flex items-center justify-center rounded-lg text-texto-3 hover:bg-superficie-2 hover:text-texto transition-colors duration-150"><IconoCerrar tam={16} /></button>
         </div>
 
         <div className="p-6 space-y-4">
@@ -406,41 +412,41 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
             </span>
           </div>
 
-          <div className="bg-[#F0F4FA] rounded-lg p-4 text-sm text-[#1A2B47]">
+          <div className="bg-fondo rounded-lg p-4 text-sm text-texto">
             {pqrs.descripcion}
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <span className="text-xs text-[#6B7EA8] block">Área</span>
+              <span className="text-xs text-texto-2 block">Área</span>
               <span className="font-medium">{pqrs.area_responsable || '—'}</span>
             </div>
             <div>
-              <span className="text-xs text-[#6B7EA8] block">SLA</span>
+              <span className="text-xs text-texto-2 block">SLA</span>
               <SLALabel fechaLimite={pqrs.fecha_limite_sla} />
             </div>
             {pqrs.cliente_email && (
               <div>
-                <span className="text-xs text-[#6B7EA8] block">Email cliente</span>
+                <span className="text-xs text-texto-2 block">Email cliente</span>
                 <span className="font-medium">{pqrs.cliente_email}</span>
               </div>
             )}
             {pqrs.cliente_telefono && (
               <div>
-                <span className="text-xs text-[#6B7EA8] block">Teléfono</span>
+                <span className="text-xs text-texto-2 block">Teléfono</span>
                 <span className="font-medium">{pqrs.cliente_telefono}</span>
               </div>
             )}
           </div>
 
-          <div className="border-t border-[#D6E0F0] pt-4">
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-2">
+          <div className="border-t border-borde pt-4">
+            <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-2">
               Cambiar estado
             </label>
             <select
               value={nuevoEstado}
               onChange={(e) => setNuevoEstado(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] mb-3"
+              className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento mb-3"
             >
               {Object.entries(ESTADOS).map(([key, { label }]) => (
                 <option key={key} value={key}>{label}</option>
@@ -451,22 +457,22 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
               onChange={(e) => setComentario(e.target.value)}
               placeholder="Comentario del cambio de estado (opcional)..."
               rows={3}
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] resize-none"
+              className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none"
             />
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-[#D6E0F0] flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-borde flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-[#D6E0F0] text-sm font-semibold text-[#6B7EA8] hover:bg-[#F0F4FA] transition"
+            className="px-4 py-2 rounded-lg border border-borde text-sm font-semibold text-texto-2 hover:bg-fondo transition"
           >
             Cerrar
           </button>
           <button
             onClick={() => mutation.mutate()}
             disabled={mutation.isPending || nuevoEstado === pqrs.estado}
-            className="px-4 py-2 rounded-lg bg-[#0D2B5E] hover:bg-[#1A4FA0] text-white text-sm font-bold transition disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-acento-fuerte hover:bg-acento text-white text-sm font-bold transition disabled:opacity-50"
           >
             {mutation.isPending ? 'Guardando...' : 'Guardar cambio'}
           </button>
@@ -541,51 +547,51 @@ export default function PQRSList() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-[#0D2B5E]">
+          <h1 className="text-xl font-bold text-acento-fuerte">
             PQRS — Peticiones, Quejas, Reclamos, Sugerencias y Felicitaciones
           </h1>
-          <p className="text-sm text-[#6B7EA8] mt-1">
+          <p className="text-sm text-texto-2 mt-1">
             Gestión de solicitudes 
           </p>
         </div>
         <button
           onClick={() => setModalCrear(true)}
-          className="flex items-center gap-2 bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-bold px-4 py-2.5 rounded-lg text-sm transition"
+          className="flex items-center gap-2 bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold px-4 py-2.5 rounded-lg text-sm transition"
         >
           + Registrar PQRS
         </button>
       </div>
 
-      {/* Tarjetas de resumen */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        {[
-          { label: 'Total',         value: total,    color: 'border-t-[#0D2B5E]' },
-          { label: 'Abiertas',      value: abiertas, color: 'border-t-[#1A4FA0]' },
-          { label: 'Alta prioridad',value: criticas, color: 'border-t-[#F5A800]' },
-          { label: 'Vencidas SLA',  value: vencidas, color: 'border-t-[#D93B3B]' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className={`bg-white rounded-xl border border-[#D6E0F0] border-t-4 ${color} p-4`}>
-            <div className="text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide">{label}</div>
-            <div className="text-3xl font-bold text-[#0D2B5E] mt-1">{value}</div>
-          </div>
-        ))}
+      {/* Tarjetas de resumen — las mismas de Master Planner e Inicio. */}
+      <div className="mb-6">
+        <TarjetasKPI tarjetas={[
+          { label: 'Total', value: total, nota: `${abiertas} sin cerrar` },
+          { label: 'Abiertas', value: abiertas,
+            nota: abiertas > 0 ? 'esperan respuesta' : 'ninguna pendiente' },
+          { label: 'Alta prioridad', value: criticas,
+            nota: criticas > 0 ? 'atender primero' : 'ninguna' },
+          { label: 'Vencidas SLA', value: vencidas,
+            alerta: vencidas > 0,
+            nota: vencidas > 0 ? 'fuera del plazo de ley' : 'todas dentro del plazo' },
+        ]} />
       </div>
 
       {/* Buscador por radicado */}
       <div className="relative mb-4">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9BACC8] text-sm">🔍</span>
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-3"><IconoBuscar tam={16} /></span>
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           placeholder="Buscar por radicado (PK-2026-0001), cliente, NIT o empresa..."
-          className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+          className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 bg-white focus:outline-none focus:ring-2 focus:ring-acento transition"
         />
         {busqueda && (
           <button
             onClick={() => setBusqueda('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9BACC8] hover:text-[#6B7EA8] text-sm"
+            aria-label="Limpiar la búsqueda"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-texto-3 hover:text-texto-2"
           >
-            ✕
+            <IconoCerrar tam={14} />
           </button>
         )}
       </div>
@@ -605,32 +611,32 @@ export default function PQRSList() {
                 onClick={() => setPanelFiltrosAbierto(v => !v)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition ${
                   panelFiltrosAbierto || hayFiltrosActivos
-                    ? 'border-[#1A4FA0] text-[#1A4FA0] bg-[#F0F4FA]'
-                    : 'border-[#D6E0F0] text-[#6B7EA8] bg-white hover:bg-[#F0F4FA]'
+                    ? 'border-acento text-acento bg-fondo'
+                    : 'border-borde text-texto-2 bg-white hover:bg-fondo'
                 }`}
               >
-                🔧 Filtros {hayFiltrosActivos && <span className="w-1.5 h-1.5 rounded-full bg-[#1A4FA0]" />}
+                <IconoFiltro tam={15} /> Filtros {hayFiltrosActivos && <span className="w-1.5 h-1.5 rounded-full bg-acento" />}
                 <span className="text-xs">{panelFiltrosAbierto ? '▲' : '▼'}</span>
               </button>
 
               {hayFiltrosActivos && (
                 <button
                   onClick={limpiarTodo}
-                  className="px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#6B7EA8] bg-white hover:bg-[#F0F4FA] transition"
+                  className="px-3 py-2 rounded-lg border border-borde text-sm text-texto-2 bg-white hover:bg-fondo transition"
                 >
-                  ✕ Limpiar filtros
+                  <IconoCerrar tam={13} /> Limpiar filtros
                 </button>
               )}
             </div>
 
             {panelFiltrosAbierto && (
-              <div className="mt-3 p-4 bg-white rounded-xl border border-[#D6E0F0] grid grid-cols-3 gap-4">
+              <div className="mt-3 p-4 bg-white rounded-xl border border-borde grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Estado</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Estado</label>
                   <select
                     value={filtroEstado}
                     onChange={(e) => setFiltroEstado(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
                   >
                     <option value="">Todos los estados</option>
                     {Object.entries(ESTADOS).map(([key, { label }]) => (
@@ -640,11 +646,11 @@ export default function PQRSList() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Tipo</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Tipo</label>
                   <select
                     value={filtroTipo}
                     onChange={(e) => setFiltroTipo(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
                   >
                     <option value="">Todos los tipos</option>
                     {Object.entries(TIPOS).map(([key, { label }]) => (
@@ -654,11 +660,11 @@ export default function PQRSList() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Punto de venta</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Punto de venta</label>
                   <select
                     value={filtroPuntoVenta}
                     onChange={(e) => setFiltroPuntoVenta(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
                   >
                     <option value="">Todos</option>
                     {PUNTOS_VENTA.map(({ prefijo, label }) => (
@@ -668,11 +674,11 @@ export default function PQRSList() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Área causante</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Área causante</label>
                   <select
                     value={filtroAreaCausante}
                     onChange={(e) => setFiltroAreaCausante(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
                   >
                     <option value="">Todas</option>
                     {AREAS_CAUSANTES.map(a => (
@@ -682,22 +688,22 @@ export default function PQRSList() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Fecha desde</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Fecha desde</label>
                   <input
                     type="date"
                     value={filtroFechaDesde}
                     onChange={(e) => setFiltroFechaDesde(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Fecha hasta</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Fecha hasta</label>
                   <input
                     type="date"
                     value={filtroFechaHasta}
                     onChange={(e) => setFiltroFechaHasta(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
                   />
                 </div>
               </div>
@@ -707,33 +713,33 @@ export default function PQRSList() {
       })()}
 
       {/* Tabla */}
-      <div className="bg-white rounded-xl border border-[#D6E0F0] overflow-hidden">
+      <div className="bg-white rounded-xl border border-borde overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center py-16 text-[#6B7EA8] text-sm">
+          <div className="flex items-center justify-center py-16 text-texto-2 text-sm">
             Cargando solicitudes...
           </div>
         ) : isError ? (
-          <div className="flex items-center justify-center py-16 text-red-500 text-sm">
+          <div className="flex items-center justify-center py-16 text-negativo text-sm">
             Error al cargar las PQRS. Verifica tu conexión.
           </div>
         ) : pqrsList.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-[#6B7EA8]">
-            <span className="text-4xl mb-3">📭</span>
+          <div className="flex flex-col items-center justify-center py-16 text-texto-2">
+            <IconoPQRS tam={26} className="mb-3 text-texto-3" />
             <span className="text-sm font-medium">No hay PQRS registradas</span>
             <span className="text-xs mt-1">Crea la primera con el botón "Registrar PQRS"</span>
           </div>
         ) : pqrsFiltrada.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-[#6B7EA8]">
-            <span className="text-4xl mb-3">🔍</span>
+          <div className="flex flex-col items-center justify-center py-16 text-texto-2">
+            <IconoBuscar tam={26} className="mb-3 text-texto-3" />
             <span className="text-sm font-medium">Sin resultados para "{busqueda}"</span>
             <span className="text-xs mt-1">Verifica el radicado o intenta con otro término</span>
           </div>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="bg-[#F0F4FA] border-b border-[#D6E0F0]">
+              <tr className="bg-fondo border-b border-borde">
                 {['Radicado', 'Tipo', 'Cliente', 'Área', 'Prioridad', 'SLA', 'Estado', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide">
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-texto-2 uppercase tracking-wide">
                     {h}
                   </th>
                 ))}
@@ -743,20 +749,20 @@ export default function PQRSList() {
               {pqrsFiltrada.map((pqrs) => (
                 <tr
                   key={pqrs.id}
-                  className="border-b border-[#F0F4FA] hover:bg-[#F8FAFD] transition cursor-pointer"
+                  className="border-b border-borde hover:bg-superficie-2 transition cursor-pointer"
                   onClick={() => navigate(`/pqrs/${pqrs.id}`)}
                 >
-                  <td className="px-4 py-3 text-xs text-[#1A4FA0] font-mono font-semibold">
+                  <td className="px-4 py-3 text-xs text-acento font-mono font-semibold">
                     {pqrs.codigo_seguimiento || `#${pqrs.id}`}
                   </td>
                   <td className="px-4 py-3"><Badge map={TIPOS} value={pqrs.tipo} /></td>
                   <td className="px-4 py-3">
-                    <div className="text-sm font-semibold text-[#1A2B47]">{pqrs.cliente_nombre}</div>
+                    <div className="text-sm font-semibold text-texto">{pqrs.cliente_nombre}</div>
                     {pqrs.cliente_email && (
-                      <div className="text-xs text-[#6B7EA8]">{pqrs.cliente_email}</div>
+                      <div className="text-xs text-texto-2">{pqrs.cliente_email}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-[#6B7EA8]">{pqrs.area_responsable || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-texto-2">{pqrs.area_responsable || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-semibold ${PRIORIDADES[pqrs.prioridad]?.color}`}>
                       ● {PRIORIDADES[pqrs.prioridad]?.label}
@@ -765,7 +771,7 @@ export default function PQRSList() {
                   <td className="px-4 py-3"><SLALabel fechaLimite={pqrs.fecha_limite_sla} /></td>
                   <td className="px-4 py-3"><Badge map={ESTADOS} value={pqrs.estado} /></td>
                   <td className="px-4 py-3">
-                    <button className="text-xs text-[#1A4FA0] font-semibold hover:underline">
+                    <button className="text-xs text-acento font-semibold hover:underline">
                       Ver
                     </button>
                   </td>

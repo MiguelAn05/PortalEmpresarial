@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../../core/api.js'
+import {
+  IconoCheck, IconoEstrella, IconoFelicitacion, IconoReloj,
+} from '../../core/components/Iconos.jsx'
 
 const TIPOS = [
   { value: 'peticion',     label: 'Petición'     },
@@ -39,8 +42,8 @@ const RECOMENDARIA = [
 // ── Bloque genérico de selección tipo botones ───────────────────────
 function OpcionesPregunta({ numero, pregunta, opciones, valor, onChange }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6">
-      <p className="text-sm font-semibold text-[#0D2B5E] mb-4">
+    <div className="bg-white rounded-2xl shadow-sm border border-borde p-6">
+      <p className="text-sm font-semibold text-acento-fuerte mb-4">
         {numero}. {pregunta}
       </p>
       <div className="flex flex-wrap gap-2">
@@ -51,8 +54,8 @@ function OpcionesPregunta({ numero, pregunta, opciones, valor, onChange }) {
             onClick={() => onChange(op.value)}
             className={`px-4 py-2.5 rounded-xl text-sm font-semibold border transition ${
               valor === op.value
-                ? 'bg-[#0D2B5E] border-[#0D2B5E] text-white'
-                : 'bg-white border-[#D6E0F0] text-[#1A2B47] hover:border-[#1A4FA0]'
+                ? 'bg-acento-fuerte border-acento-fuerte text-white'
+                : 'bg-white border-borde text-texto hover:border-acento'
             }`}
           >
             {op.label}
@@ -121,7 +124,7 @@ export default function EncuestaPQRS() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F4FA] p-4 pb-10">
+    <div className="min-h-screen bg-fondo p-4 pb-10">
       <div className="w-full max-w-lg mx-auto">
 
         {/* Header */}
@@ -129,50 +132,62 @@ export default function EncuestaPQRS() {
           <div className="flex justify-center mb-3">
             <img src="/logo.png" alt="Protokimica" className="h-16 w-auto object-contain" />
           </div>
-          <h1 className="text-xl font-bold text-[#0D2B5E]">Encuesta de satisfacción</h1>
-          <p className="text-sm text-[#6B7EA8] mt-1">
+          <h1 className="text-xl font-bold text-acento-fuerte">Encuesta de satisfacción</h1>
+          <p className="text-sm text-texto-2 mt-1">
             Gracias por permitirnos atender su solicitud. Su opinión nos ayuda a mejorar.
           </p>
         </div>
 
         {estado === 'cargando' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6 text-center text-sm text-[#6B7EA8]">
+          <div className="bg-white rounded-2xl shadow-sm border border-borde p-6 text-center text-sm text-texto-2">
             Cargando...
           </div>
         )}
 
         {estado === 'error' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6 text-center text-sm text-red-600">
+          <div className="bg-white rounded-2xl shadow-sm border border-borde p-6 text-center text-sm text-negativo">
             No encontramos ninguna solicitud con ese código.
           </div>
         )}
 
         {estado === 'no_disponible' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6 text-center">
-            <div className="text-2xl mb-2">⏳</div>
-            <p className="text-sm text-[#1A2B47]">
+          <div className="bg-superficie rounded-2xl shadow-sm border border-borde p-6 text-center">
+            <div className="flex justify-center mb-2 text-texto-3">
+              <IconoReloj tam={22} />
+            </div>
+            <p className="text-sm text-texto">
               Esta solicitud aún no tiene una encuesta disponible.
             </p>
           </div>
         )}
 
         {estado === 'ya_respondida' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6 text-center">
-            <div className="text-2xl mb-2">✅</div>
-            <p className="text-sm font-semibold text-[#0D2B5E] mb-1">
+          <div className="bg-superficie rounded-2xl shadow-sm border border-borde p-6 text-center">
+            <div className="flex justify-center mb-2">
+              <span className="w-11 h-11 rounded-full bg-positivo-bg text-positivo
+                flex items-center justify-center">
+                <IconoCheck tam={22} />
+              </span>
+            </div>
+            <p className="text-sm font-semibold text-texto mb-1">
               Ya registramos tu respuesta
             </p>
-            <p className="text-xs text-[#6B7EA8]">¡Gracias por tu tiempo!</p>
+            <p className="text-xs text-texto-2">¡Gracias por tu tiempo!</p>
           </div>
         )}
 
         {estado === 'enviada' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6 text-center">
-            <div className="text-2xl mb-2">🙌</div>
-            <p className="text-sm font-semibold text-[#0D2B5E] mb-1">
+          <div className="bg-superficie rounded-2xl shadow-sm border border-borde p-6 text-center">
+            <div className="flex justify-center mb-2">
+              <span className="w-11 h-11 rounded-full bg-positivo-bg text-positivo
+                flex items-center justify-center">
+                <IconoFelicitacion tam={22} />
+              </span>
+            </div>
+            <p className="text-sm font-semibold text-texto mb-1">
               ¡Gracias por su tiempo!
             </p>
-            <p className="text-xs text-[#6B7EA8]">
+            <p className="text-xs text-texto-2">
               Sus respuestas nos ayudan a mejorar nuestro servicio.
             </p>
           </div>
@@ -181,7 +196,7 @@ export default function EncuestaPQRS() {
         {estado === 'disponible' && (
           <div className="space-y-4">
             {contexto?.cliente_nombre && (
-              <p className="text-center text-xs text-[#6B7EA8]">
+              <p className="text-center text-xs text-texto-2">
                 Hola {contexto.cliente_nombre}, cuéntanos cómo te fue.
               </p>
             )}
@@ -195,8 +210,8 @@ export default function EncuestaPQRS() {
             />
 
             {/* Calificación con estrellas */}
-            <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6">
-              <p className="text-sm font-semibold text-[#0D2B5E] mb-4">
+            <div className="bg-white rounded-2xl shadow-sm border border-borde p-6">
+              <p className="text-sm font-semibold text-acento-fuerte mb-4">
                 2. ¿Cómo califica la atención recibida?
               </p>
               <div className="flex justify-between items-center">
@@ -207,10 +222,16 @@ export default function EncuestaPQRS() {
                     onClick={() => actualizar('calificacion', c.value)}
                     className="flex flex-col items-center gap-1 group"
                   >
-                    <span className={`text-3xl transition ${
-                      c.value <= form.calificacion ? 'text-yellow-400' : 'text-gray-200 group-hover:text-yellow-200'
-                    }`}>★</span>
-                    <span className="text-[10px] text-[#6B7EA8] text-center leading-tight">{c.label}</span>
+                    <IconoEstrella
+                      tam={30}
+                      relleno={c.value <= form.calificacion}
+                      className={`transition-colors duration-150 ease-suave ${
+                        c.value <= form.calificacion
+                          ? 'text-ambar'
+                          : 'text-borde-fuerte group-hover:text-ambar/60'
+                      }`}
+                    />
+                    <span className="text-[10px] text-texto-2 text-center leading-tight">{c.label}</span>
                   </button>
                 ))}
               </div>
@@ -241,27 +262,27 @@ export default function EncuestaPQRS() {
             />
 
             {/* Comentario opcional */}
-            <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6">
-              <p className="text-sm font-semibold text-[#0D2B5E] mb-3">
-                6. ¿Tiene algún comentario o sugerencia para mejorar nuestro servicio? <span className="font-normal text-[#6B7EA8]">(Opcional)</span>
+            <div className="bg-white rounded-2xl shadow-sm border border-borde p-6">
+              <p className="text-sm font-semibold text-acento-fuerte mb-3">
+                6. ¿Tiene algún comentario o sugerencia para mejorar nuestro servicio? <span className="font-normal text-texto-2">(Opcional)</span>
               </p>
               <textarea
                 value={form.comentario}
                 onChange={(e) => actualizar('comentario', e.target.value)}
                 rows={4}
                 placeholder="Escribe aquí tu comentario..."
-                className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none"
               />
             </div>
 
             {error && (
-              <p className="text-sm text-red-600 text-center">{error}</p>
+              <p className="text-sm text-negativo text-center">{error}</p>
             )}
 
             <button
               onClick={enviar}
               disabled={enviando}
-              className="w-full bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-bold py-3.5 rounded-xl text-sm transition disabled:opacity-60"
+              className="w-full bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold py-3.5 rounded-xl text-sm transition disabled:opacity-60"
             >
               {enviando ? 'Enviando...' : 'Enviar respuestas'}
             </button>

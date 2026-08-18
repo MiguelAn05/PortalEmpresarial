@@ -1,14 +1,28 @@
 import { useState, useRef } from 'react'
 import api from '../../core/api.js'
 import { AREAS } from '../../core/areas.js'
+import {
+  IconoAlerta, IconoBuscar, IconoCheck, IconoCopiar, IconoFelicitacion,
+  IconoFicha, IconoFoto, IconoIdea, IconoPaquete, IconoPeticion, IconoQueja,
+  IconoRecibo, IconoVideo,
+} from '../../core/components/Iconos.jsx'
 
 // ── Constantes ─────────────────────────────────────────────────────
+// Cada tipo se distingue por su ICONO, no por un color de fondo distinto.
+// Cinco tarjetas de cinco colores obligan a leerlas todas para encontrar la
+// que se quiere; con una sola forma por tipo se reconocen de un vistazo, y
+// además funciona para quien no distingue el morado del rojo.
 const TIPOS = [
-  { value: 'peticion',   label: 'Petición',    descripcion: 'Solicitar información, documentos o servicios', icon: '📋', color: 'border-purple-200 bg-purple-50', colorActivo: 'border-purple-500 bg-purple-100 ring-2 ring-purple-300' },
-  { value: 'queja',      label: 'Queja',       descripcion: 'Expresar inconformidad con nuestro servicio',   icon: '😟', color: 'border-red-200 bg-red-50',       colorActivo: 'border-red-500 bg-red-100 ring-2 ring-red-300'       },
-  { value: 'reclamo',    label: 'Reclamo',     descripcion: 'Exigir solución por producto o servicio',       icon: '⚠️', color: 'border-orange-200 bg-orange-50', colorActivo: 'border-orange-500 bg-orange-100 ring-2 ring-orange-300'},
-  { value: 'sugerencia', label: 'Sugerencia',  descripcion: 'Proponer mejoras a nuestros productos',         icon: '💡', color: 'border-blue-200 bg-blue-50',  colorActivo: 'border-blue-500 bg-blue-100 ring-2 ring-blue-300'  },
-  { value: 'felicitacion',label:'Felicitacion',descripcion: 'Nos importa conocer tu opinion de nuestros servicios',   icon: '🤩', color: 'border-green-200 bg-green-50', colorActivo: 'border-green-500 bg-green-100 ring-2 ring-green-300'}
+  { value: 'peticion', label: 'Petición', Icono: IconoPeticion,
+    descripcion: 'Solicitar información, documentos o servicios' },
+  { value: 'queja', label: 'Queja', Icono: IconoQueja,
+    descripcion: 'Expresar inconformidad con nuestro servicio' },
+  { value: 'reclamo', label: 'Reclamo', Icono: IconoAlerta,
+    descripcion: 'Exigir solución por producto o servicio' },
+  { value: 'sugerencia', label: 'Sugerencia', Icono: IconoIdea,
+    descripcion: 'Proponer mejoras a nuestros productos' },
+  { value: 'felicitacion', label: 'Felicitación', Icono: IconoFelicitacion,
+    descripcion: 'Nos importa conocer tu opinión de nuestros servicios' },
 ]
 
 const DEPARTAMENTOS = [
@@ -58,7 +72,7 @@ const PRODUCTOS_PRUEBA = [
 ]
 
 // ── Componente: campo de adjunto ───────────────────────────────────
-function CampoAdjunto({ label, descripcion, icono, onChange, archivo, obligatorio, accept = 'image/*,.pdf', hint = 'JPG, PNG, PDF — máx. 10MB' }) {
+function CampoAdjunto({ label, descripcion, Icono = IconoFoto, onChange, archivo, obligatorio, accept = 'image/*,.pdf', hint = 'JPG, PNG, PDF — máx. 10MB' }) {
   const inputRef = useRef(null)
 
   const handleChange = (e) => {
@@ -74,18 +88,19 @@ function CampoAdjunto({ label, descripcion, icono, onChange, archivo, obligatori
 
   return (
     <div>
-      <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-        {label} {obligatorio && <span className="text-red-500">*</span>}
+      <label className="etiqueta block mb-1.5">
+        {label} {obligatorio && <span className="text-negativo">*</span>}
       </label>
       <div
         onClick={() => inputRef.current?.click()}
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
         className={`
-          border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition
+          border-2 border-dashed rounded-xl p-5 text-center cursor-pointer
+          transition-colors duration-150 ease-suave
           ${archivo
-            ? 'border-green-400 bg-green-50'
-            : 'border-[#D6E0F0] bg-[#F8FAFD] hover:border-[#1A4FA0] hover:bg-[#F0F4FA]'
+            ? 'border-positivo-vivo bg-positivo-bg'
+            : 'border-borde-fuerte bg-superficie-2 hover:border-acento hover:bg-acento-suave'
           }
         `}
       >
@@ -104,18 +119,19 @@ function CampoAdjunto({ label, descripcion, icono, onChange, archivo, obligatori
                 muted
               />
             ) : (
-              <div className="w-16 h-16 bg-green-100 rounded-lg flex items-center justify-center text-2xl">
-                📄
+              <div className="w-16 h-16 bg-superficie rounded-lg border border-borde
+                flex items-center justify-center text-positivo">
+                <IconoFicha tam={24} />
               </div>
             )}
             <div className="text-left">
-              <div className="text-sm font-semibold text-green-700">{archivo.name}</div>
-              <div className="text-xs text-green-600 mt-0.5">
+              <div className="text-sm font-semibold text-positivo">{archivo.name}</div>
+              <div className="cifra text-xs text-texto-2 mt-0.5">
                 {(archivo.size / 1024 / 1024).toFixed(2)} MB
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); onChange(null) }}
-                className="text-xs text-red-500 hover:underline mt-1"
+                className="text-xs text-negativo hover:underline mt-1"
               >
                 Cambiar archivo
               </button>
@@ -123,12 +139,14 @@ function CampoAdjunto({ label, descripcion, icono, onChange, archivo, obligatori
           </div>
         ) : (
           <div>
-            <div className="text-3xl mb-2">{icono}</div>
-            <div className="text-sm font-semibold text-[#1A2B47] mb-1">{descripcion}</div>
-            <div className="text-xs text-[#9BACC8]">
+            <div className="flex justify-center mb-2 text-texto-3">
+              <Icono tam={26} />
+            </div>
+            <div className="text-sm font-semibold text-texto mb-1">{descripcion}</div>
+            <div className="text-xs text-texto-3">
               Toca para seleccionar o arrastra aquí
             </div>
-            <div className="text-xs text-[#9BACC8] mt-1">
+            <div className="text-xs text-texto-3 mt-1">
               {hint}
             </div>
           </div>
@@ -181,21 +199,21 @@ function BuscadorProducto({ value, onChange }) {
 
   return (
     <div className="relative">
-      <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-        Producto <span className="text-red-500">*</span>
+      <label className="etiqueta block mb-1.5">
+        Producto <span className="text-negativo">*</span>
       </label>
 
       {value ? (
         // Producto seleccionado
-        <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-300 rounded-xl">
-          <div className="text-2xl">📦</div>
-          <div className="flex-1">
-            <div className="text-sm font-bold text-[#1A2B47]">{value.nombre}</div>
-            <div className="text-xs text-[#6B7EA8] font-mono mt-0.5">{value.codigo}</div>
+        <div className="flex items-center gap-3 p-3 bg-positivo-bg border border-positivo/30 rounded-xl">
+          <IconoPaquete tam={22} className="text-positivo" />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-texto">{value.nombre}</div>
+            <div className="text-xs text-texto-2 font-mono mt-0.5">{value.codigo}</div>
           </div>
           <button
             onClick={limpiar}
-            className="text-xs text-red-500 hover:underline flex-shrink-0"
+            className="text-xs text-negativo hover:underline flex-shrink-0"
           >
             Cambiar
           </button>
@@ -204,28 +222,34 @@ function BuscadorProducto({ value, onChange }) {
         // Buscador
         <div>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9BACC8] text-sm">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-3">
+              <IconoBuscar tam={16} />
+            </span>
             <input
               value={busqueda}
               onChange={(e) => buscar(e.target.value)}
               onFocus={() => busqueda.length >= 2 && setAbierto(true)}
-              placeholder="Escribe el nombre o código del producto..."
-              className="w-full pl-9 pr-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+              placeholder="Escribe el nombre o código del producto…"
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-borde-fuerte text-sm
+                text-texto placeholder-texto-3 focus:outline-none focus:border-acento
+                focus:ring-2 focus:ring-acento/25 transition"
             />
           </div>
 
           {abierto && resultados.length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-[#D6E0F0] rounded-xl shadow-lg overflow-hidden">
+            <div className="absolute z-20 w-full mt-1 bg-superficie border border-borde
+              rounded-xl shadow-lg overflow-hidden">
               {resultados.map((p) => (
                 <button
                   key={p.codigo}
                   onClick={() => seleccionar(p)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#F0F4FA] transition text-left"
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-superficie-2
+                    transition-colors duration-150 ease-suave text-left"
                 >
-                  <span className="text-lg">📦</span>
+                  <IconoPaquete tam={18} className="text-texto-3" />
                   <div>
-                    <div className="text-sm font-semibold text-[#1A2B47]">{p.nombre}</div>
-                    <div className="text-xs text-[#9BACC8] font-mono">{p.codigo}</div>
+                    <div className="text-sm font-medium text-texto">{p.nombre}</div>
+                    <div className="text-xs text-texto-3 font-mono">{p.codigo}</div>
                   </div>
                 </button>
               ))}
@@ -233,8 +257,10 @@ function BuscadorProducto({ value, onChange }) {
           )}
 
           {abierto && busqueda.length >= 2 && resultados.length === 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-[#D6E0F0] rounded-xl shadow-lg px-4 py-3 text-sm text-[#6B7EA8]">
-              No encontramos productos con ese nombre o código.
+            <div className="absolute z-20 w-full mt-1 bg-superficie border border-borde
+              rounded-xl shadow-lg px-4 py-3 text-sm text-texto-2">
+              No encontramos productos con ese nombre o código. Escríbelo en la
+              descripción y nosotros lo identificamos.
             </div>
           )}
         </div>
@@ -254,51 +280,56 @@ function Confirmacion({ codigo, tipo, onNueva }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F4FA] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-fondo flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-8 text-center">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
-            <span className="text-4xl">✅</span>
+        <div className="bg-superficie rounded-2xl shadow-md border border-borde p-8 text-center">
+          <div className="w-16 h-16 bg-positivo-bg text-positivo rounded-full
+            flex items-center justify-center mx-auto mb-5">
+            <IconoCheck tam={30} />
           </div>
-          <h2 className="text-xl font-bold text-[#0D2B5E] mb-2">¡Solicitud radicada!</h2>
-          <p className="text-sm text-[#6B7EA8] mb-6">
-            Tu {tipo} fue recibida exitosamente. Guarda tu código para consultar el estado.
+          <h2 className="text-xl font-semibold text-texto mb-2">¡Solicitud radicada!</h2>
+          <p className="text-sm text-texto-2 mb-6">
+            Tu {tipo} quedó registrada. Guarda el código: es lo único que
+            necesitas para consultar el estado.
           </p>
 
-          <div className="bg-[#F0F4FA] rounded-xl p-5 mb-6">
-            <p className="text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-2">
-              Código de seguimiento
-            </p>
-            <div className="text-3xl font-black text-[#0D2B5E] tracking-wider mb-3 font-mono">
+          <div className="bg-superficie-2 border border-borde rounded-xl p-5 mb-6">
+            <p className="etiqueta mb-2">Código de seguimiento</p>
+            <div className="cifra text-3xl font-semibold text-texto tracking-wider mb-3 font-mono">
               {codigo}
             </div>
             <button
               onClick={copiar}
-              className="text-sm text-[#1A4FA0] font-semibold hover:underline flex items-center gap-1.5 mx-auto"
+              className={`text-sm font-medium hover:underline flex items-center gap-1.5 mx-auto
+                ${copiado ? 'text-positivo' : 'text-acento'}`}
             >
-              {copiado ? '✓ Copiado' : '📋 Copiar código'}
+              {copiado
+                ? <><IconoCheck tam={14} /> Copiado</>
+                : <><IconoCopiar tam={14} /> Copiar código</>}
             </button>
           </div>
 
-          <div className="bg-[#FFF4E0] border border-[#F5A800]/30 rounded-xl p-4 mb-6 text-left">
-            <p className="text-xs font-semibold text-[#B87700] mb-1">¿Qué sigue?</p>
-            <ul className="text-xs text-[#6B7EA8] space-y-1.5">
-              <li>• Nuestro equipo revisará tu solicitud</li>
-              <li>• Recibirás respuesta en el tiempo establecido</li>
-              <li>• Con tu código puedes consultar el estado en cualquier momento</li>
+          <div className="bg-alerta-bg border border-ambar/30 rounded-xl p-4 mb-6 text-left">
+            <p className="text-xs font-semibold text-ambar-texto mb-1.5">¿Qué sigue?</p>
+            <ul className="text-xs text-texto-2 space-y-1.5">
+              <li>· Nuestro equipo revisará tu solicitud</li>
+              <li>· Recibirás respuesta dentro del plazo de ley</li>
+              <li>· Con tu código puedes consultar el estado cuando quieras</li>
             </ul>
           </div>
 
           <div className="flex flex-col gap-3">
             <a
               href="/seguimiento"
-              className="w-full bg-[#0D2B5E] hover:bg-[#1A4FA0] text-white font-bold py-3 rounded-xl text-sm transition text-center block"
+              className="w-full bg-acento-fuerte hover:bg-acento text-white font-semibold
+                py-3 rounded-xl text-sm transition-colors duration-150 ease-suave text-center block"
             >
               Consultar estado de mi solicitud
             </a>
             <button
               onClick={onNueva}
-              className="w-full border border-[#D6E0F0] text-[#6B7EA8] hover:bg-[#F0F4FA] font-semibold py-3 rounded-xl text-sm transition"
+              className="w-full border border-borde-fuerte text-texto-2 hover:bg-superficie-2
+                font-medium py-3 rounded-xl text-sm transition-colors duration-150 ease-suave"
             >
               Radicar otra solicitud
             </button>
@@ -321,21 +352,23 @@ function BarraPasos({ pasoActual, totalPasos, labels }) {
           return (
             <div key={n} className="flex flex-col items-center flex-1">
               <div className={`
-                w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1
-                ${completado ? 'bg-green-500 text-white' : activo ? 'bg-[#0D2B5E] text-white' : 'bg-[#D6E0F0] text-[#9BACC8]'}
+                w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold mb-1
+                ${completado
+                  ? 'bg-positivo text-white'
+                  : activo ? 'bg-acento-fuerte text-white' : 'bg-superficie-2 text-texto-3'}
               `}>
-                {completado ? '✓' : n}
+                {completado ? <IconoCheck tam={14} /> : n}
               </div>
-              <span className={`text-xs font-medium ${activo ? 'text-[#0D2B5E]' : 'text-[#9BACC8]'}`}>
+              <span className={`text-xs font-medium ${activo ? 'text-texto' : 'text-texto-3'}`}>
                 {label}
               </span>
             </div>
           )
         })}
       </div>
-      <div className="h-1.5 bg-[#D6E0F0] rounded-full overflow-hidden">
+      <div className="h-1.5 bg-superficie-2 rounded-full overflow-hidden">
         <div
-          className="h-full bg-[#0D2B5E] rounded-full transition-all duration-500"
+          className="h-full bg-acento-fuerte rounded-full transition-all duration-500"
           style={{ width: `${((pasoActual - 1) / (totalPasos - 1)) * 100}%` }}
         />
       </div>
@@ -506,7 +539,7 @@ export default function FormularioPQRS() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F4FA] p-4 pb-10">
+    <div className="min-h-screen bg-fondo p-4 pb-10">
       <div className="w-full max-w-lg mx-auto">
 
         {/* Header */}
@@ -519,39 +552,50 @@ export default function FormularioPQRS() {
          />
        </div>
 
-        <h1 className="text-2xl font-bold text-[#0D2B5E]">
+        <h1 className="text-2xl font-bold text-acento-fuerte">
          Protokimica
         </h1>
 
-        <p className="text-sm text-[#6B7EA8] mt-1">
+        <p className="text-sm text-texto-2 mt-1">
          Portal de Radicación de PQRS
        </p>
        </div>
 
         <BarraPasos pasoActual={paso} totalPasos={totalPasosActual} labels={labelsActuales} />
 
-        <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-borde overflow-hidden">
 
           {/* ── PASO 1: Tipo ── */}
           {paso === 1 && (
             <div className="p-6">
-              <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">¿Qué tipo de solicitud quieres radicar?</h2>
-              <p className="text-sm text-[#6B7EA8] mb-5">Selecciona la opción que mejor describe tu caso.</p>
-              <div className="grid grid-cols-1 gap-3">
-                {TIPOS.map((tipo) => (
-                  <button
-                    key={tipo.value}
-                    onClick={() => { setForm({ ...form, tipo: tipo.value }); setError('') }}
-                    className={`flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all ${form.tipo === tipo.value ? tipo.colorActivo : tipo.color}`}
-                  >
-                    <span className="text-3xl flex-shrink-0">{tipo.icon}</span>
-                    <div>
-                      <div className="font-bold text-[#1A2B47] text-sm">{tipo.label}</div>
-                      <div className="text-xs text-[#6B7EA8] mt-0.5">{tipo.descripcion}</div>
-                    </div>
-                    {form.tipo === tipo.value && <span className="ml-auto text-[#0D2B5E] text-lg">✓</span>}
-                  </button>
-                ))}
+              <h2 className="text-lg font-bold text-acento-fuerte mb-1">¿Qué tipo de solicitud quieres radicar?</h2>
+              <p className="text-sm text-texto-2 mb-5">Selecciona la opción que mejor describe tu caso.</p>
+              <div className="grid grid-cols-1 gap-2">
+                {TIPOS.map(({ value, label, descripcion, Icono }) => {
+                  const elegido = form.tipo === value
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => { setForm({ ...form, tipo: value }); setError('') }}
+                      aria-pressed={elegido}
+                      className={`flex items-center gap-4 p-4 rounded-xl border text-left
+                        transition-all duration-150 ease-suave
+                        ${elegido
+                          ? 'border-acento bg-acento-suave shadow-sm'
+                          : 'border-borde hover:border-borde-fuerte hover:bg-superficie-2'}`}
+                    >
+                      <span className={`w-10 h-10 rounded-lg flex items-center justify-center
+                        flex-shrink-0 ${elegido ? 'bg-acento text-white' : 'bg-superficie-2 text-texto-2'}`}>
+                        <Icono tam={20} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-texto text-sm">{label}</div>
+                        <div className="text-xs text-texto-2 mt-0.5">{descripcion}</div>
+                      </div>
+                      {elegido && <IconoCheck tam={18} className="ml-auto text-acento" />}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -560,44 +604,44 @@ export default function FormularioPQRS() {
           {paso === 2 && (
             <div className="p-6 space-y-4">
               <div>
-                <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Datos de la empresa / persona</h2>
-                <p className="text-sm text-[#6B7EA8]">Información del cliente que realiza la solicitud.</p>
+                <h2 className="text-lg font-bold text-acento-fuerte mb-1">Datos de la empresa / persona</h2>
+                <p className="text-sm text-texto-2">Información del cliente que realiza la solicitud.</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Empresa / Persona <span className="text-red-500">*</span></label>
-                <input name="empresa" value={form.empresa} onChange={handleChange} placeholder="Nombre de la empresa" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Empresa / Persona <span className="text-negativo">*</span></label>
+                <input name="empresa" value={form.empresa} onChange={handleChange} placeholder="Nombre de la empresa" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">NIT / Cédula <span className="text-red-500">*</span></label>
-                <input name="nit_cedula" value={form.nit_cedula} onChange={handleChange} placeholder="Ej: 900123456-1" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">NIT / Cédula <span className="text-negativo">*</span></label>
+                <input name="nit_cedula" value={form.nit_cedula} onChange={handleChange} placeholder="Ej: 900123456-1" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Nombre del contacto <span className="text-red-500">*</span></label>
-                <input name="cliente_nombre" value={form.cliente_nombre} onChange={handleChange} placeholder="Nombre completo" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Nombre del contacto <span className="text-negativo">*</span></label>
+                <input name="cliente_nombre" value={form.cliente_nombre} onChange={handleChange} placeholder="Nombre completo" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Teléfono <span className="text-red-500">*</span></label>
-                  <input name="cliente_telefono" value={form.cliente_telefono} onChange={handleChange} placeholder="3001234567" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Teléfono <span className="text-negativo">*</span></label>
+                  <input name="cliente_telefono" value={form.cliente_telefono} onChange={handleChange} placeholder="3001234567" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Correo</label>
-                  <input name="cliente_email" type="email" value={form.cliente_email} onChange={handleChange} placeholder="correo@empresa.com" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Correo</label>
+                  <input name="cliente_email" type="email" value={form.cliente_email} onChange={handleChange} placeholder="correo@empresa.com" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Ciudad <span className="text-red-500">*</span></label>
-                  <input name="ciudad" value={form.ciudad} onChange={handleChange} placeholder="Ej: Medellín" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Ciudad <span className="text-negativo">*</span></label>
+                  <input name="ciudad" value={form.ciudad} onChange={handleChange} placeholder="Ej: Medellín" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Departamento <span className="text-red-500">*</span></label>
-                  <select name="departamento" value={form.departamento} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition">
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Departamento <span className="text-negativo">*</span></label>
+                  <select name="departamento" value={form.departamento} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition">
                     <option value="">Selecciona...</option>
                     {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
@@ -610,8 +654,8 @@ export default function FormularioPQRS() {
           {paso === 3 && requiereProducto && (
             <div className="p-6 space-y-4">
               <div>
-                <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Información del producto</h2>
-                <p className="text-sm text-[#6B7EA8]">Datos del producto y la factura relacionada.</p>
+                <h2 className="text-lg font-bold text-acento-fuerte mb-1">Información del producto</h2>
+                <p className="text-sm text-texto-2">Datos del producto y la factura relacionada.</p>
               </div>
 
               <BuscadorProducto
@@ -621,7 +665,7 @@ export default function FormularioPQRS() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
                     Presentación
                   </label>
                   <div className="flex gap-2">
@@ -629,7 +673,7 @@ export default function FormularioPQRS() {
                       name="presentacion"
                       value={form.presentacion}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+                      className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                     >
                       <option value="">Selecciona...</option>
                       {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
@@ -641,19 +685,19 @@ export default function FormularioPQRS() {
                       onChange={handleChange}
                       disabled={!form.presentacion}
                       placeholder="Cant."
-                      className="w-20 px-3 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition disabled:bg-[#F5F7FB] disabled:cursor-not-allowed"
+                      className="w-20 px-3 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition disabled:bg-superficie-2 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
                     Canal de atención
                   </label>
                   <select
                     name="canal_atencion"
                     value={form.canal_atencion}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+                    className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                   >
                     <option value="">Selecciona...</option>
                     {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
@@ -663,29 +707,29 @@ export default function FormularioPQRS() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Lote <span className="text-red-500">*</span></label>
-                  <input name="lote" value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Lote <span className="text-negativo">*</span></label>
+                  <input name="lote" value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">N° Factura <span className="text-red-500">*</span></label>
-                  <input name="factura_numero" value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">N° Factura <span className="text-negativo">*</span></label>
+                  <input name="factura_numero" value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Cant. en factura <span className="text-red-500">*</span></label>
-                  <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Cant. en factura <span className="text-negativo">*</span></label>
+                  <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Cant. en reclamo</label>
-                  <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition" />
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Cant. en reclamo</label>
+                  <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Área relacionada</label>
-                <select name="area_responsable" value={form.area_responsable} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition">
+                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Área relacionada</label>
+                <select name="area_responsable" value={form.area_responsable} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition">
                   <option value="">No sé / No aplica</option>
                   {AREAS.map(a => (
                     <option key={a} value={a}>{a}</option>
@@ -699,19 +743,19 @@ export default function FormularioPQRS() {
           {paso === 3 && esQueja && (
             <div className="p-6 space-y-4">
               <div>
-                <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Cuéntanos qué pasó</h2>
-                <p className="text-sm text-[#6B7EA8]">Las quejas son sobre el servicio recibido, no requieren un producto asociado.</p>
+                <h2 className="text-lg font-bold text-acento-fuerte mb-1">Cuéntanos qué pasó</h2>
+                <p className="text-sm text-texto-2">Las quejas son sobre el servicio recibido, no requieren un producto asociado.</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-                  Canal de atención <span className="text-red-500">*</span>
+                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
+                  Canal de atención <span className="text-negativo">*</span>
                 </label>
                 <select
                   name="canal_atencion"
                   value={form.canal_atencion}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+                  className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                 >
                   <option value="">Selecciona...</option>
                   {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
@@ -719,8 +763,8 @@ export default function FormularioPQRS() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-                  Descripción detallada <span className="text-red-500">*</span>
+                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
+                  Descripción detallada <span className="text-negativo">*</span>
                 </label>
                 <textarea
                   name="descripcion"
@@ -728,14 +772,14 @@ export default function FormularioPQRS() {
                   onChange={handleChange}
                   placeholder="Cuéntanos qué ocurrió, cuándo fue y quién te atendió..."
                   rows={5}
-                  className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition resize-none"
                 />
               </div>
 
               <CampoAdjunto
                 label="Video o foto de evidencia"
                 descripcion="Si tienes alguna evidencia, adjúntala aquí"
-                icono="🎥"
+                Icono={IconoVideo}
                 accept="image/*,video/mp4,video/quicktime,video/webm"
                 hint="Imagen o video — video máx. 20MB"
                 archivo={adjuntoVideo}
@@ -748,19 +792,19 @@ export default function FormularioPQRS() {
           {paso === 3 && esFelicitacion && (
             <div className="p-6 space-y-4">
               <div>
-                <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">¡Gracias por tu felicitación! 🤩</h2>
-                <p className="text-sm text-[#6B7EA8]">Cuéntanos por dónde nos conociste y, si quieres, déjanos un comentario.</p>
+                <h2 className="text-lg font-bold text-acento-fuerte mb-1">¡Gracias por tu felicitación!</h2>
+                <p className="text-sm text-texto-2">Cuéntanos por dónde nos conociste y, si quieres, déjanos un comentario.</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-                  Canal de atención <span className="text-red-500">*</span>
+                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
+                  Canal de atención <span className="text-negativo">*</span>
                 </label>
                 <select
                   name="canal_atencion"
                   value={form.canal_atencion}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition"
+                  className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                 >
                   <option value="">Selecciona...</option>
                   {CANALES_ATENCION_FELICITACION.map(c => <option key={c} value={c}>{c}</option>)}
@@ -768,8 +812,8 @@ export default function FormularioPQRS() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-                  Comentario <span className="font-normal normal-case text-[#9BACC8]">(opcional)</span>
+                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
+                  Comentario <span className="font-normal normal-case text-texto-3">(opcional)</span>
                 </label>
                 <textarea
                   name="comentario"
@@ -777,7 +821,7 @@ export default function FormularioPQRS() {
                   onChange={handleChange}
                   placeholder="Cuéntanos qué te gustó..."
                   rows={4}
-                  className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition resize-none"
                 />
               </div>
             </div>
@@ -787,13 +831,13 @@ export default function FormularioPQRS() {
           {paso === 4 && requiereProducto && (
             <div className="p-6 space-y-4">
               <div>
-                <h2 className="text-lg font-bold text-[#0D2B5E] mb-1">Descripción y evidencias</h2>
-                <p className="text-sm text-[#6B7EA8]">Cuéntanos qué ocurrió y adjunta las fotos.</p>
+                <h2 className="text-lg font-bold text-acento-fuerte mb-1">Descripción y evidencias</h2>
+                <p className="text-sm text-texto-2">Cuéntanos qué ocurrió y adjunta las fotos.</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
-                  Descripción detallada <span className="text-red-500">*</span>
+                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
+                  Descripción detallada <span className="text-negativo">*</span>
                 </label>
                 <textarea
                   name="descripcion"
@@ -801,14 +845,14 @@ export default function FormularioPQRS() {
                   onChange={handleChange}
                   placeholder="Describe detalladamente qué ocurrió, cuándo fue y cómo podemos ayudarte..."
                   rows={5}
-                  className="w-full px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition resize-none"
                 />
               </div>
 
               <CampoAdjunto
                 label="Foto del producto"
                 descripcion="Toma una foto clara del producto con el problema"
-                icono="📷"
+                Icono={IconoFoto}
                 obligatorio
                 archivo={adjuntoProducto}
                 onChange={setAdjuntoProducto}
@@ -817,7 +861,7 @@ export default function FormularioPQRS() {
               <CampoAdjunto
                 label="Foto o imagen de la factura"
                 descripcion="Adjunta la factura de compra del producto"
-                icono="🧾"
+                Icono={IconoRecibo}
                 obligatorio
                 archivo={adjuntoFactura}
                 onChange={setAdjuntoFactura}
@@ -826,7 +870,7 @@ export default function FormularioPQRS() {
               <CampoAdjunto
                 label="Video (opcional)"
                 descripcion="Si quieres, adjunta un video corto del problema"
-                icono="🎥"
+                Icono={IconoVideo}
                 accept="video/mp4,video/quicktime,video/webm"
                 hint="MP4, MOV o WEBM — máx. 20MB (~20-30 seg)"
                 archivo={adjuntoVideo}
@@ -837,7 +881,7 @@ export default function FormularioPQRS() {
 
           {/* Error */}
           {error && (
-            <div className="mx-6 mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            <div className="mx-6 mb-4 bg-negativo-bg border border-negativo/25 rounded-xl px-4 py-3 text-sm text-negativo">
               {error}
             </div>
           )}
@@ -847,7 +891,7 @@ export default function FormularioPQRS() {
             {paso > 1 && (
               <button
                 onClick={() => { setPaso(paso - 1); setError('') }}
-                className="flex-1 border border-[#D6E0F0] text-[#6B7EA8] hover:bg-[#F0F4FA] font-semibold py-3 rounded-xl text-sm transition"
+                className="flex-1 border border-borde text-texto-2 hover:bg-fondo font-semibold py-3 rounded-xl text-sm transition"
               >
                 ← Atrás
               </button>
@@ -855,7 +899,7 @@ export default function FormularioPQRS() {
             {paso < totalPasosActual ? (
               <button
                 onClick={siguientePaso}
-                className="flex-1 bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-bold py-3 rounded-xl text-sm transition"
+                className="flex-1 bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold py-3 rounded-xl text-sm transition"
               >
                 Continuar →
               </button>
@@ -863,15 +907,15 @@ export default function FormularioPQRS() {
               <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex-1 bg-[#0D2B5E] hover:bg-[#1A4FA0] text-white font-bold py-3 rounded-xl text-sm transition disabled:opacity-60"
+                className="flex-1 bg-acento-fuerte hover:bg-acento text-white font-bold py-3 rounded-xl text-sm transition disabled:opacity-60"
               >
-                {loading ? 'Enviando...' : 'Enviar solicitud ✓'}
+                {loading ? 'Enviando…' : 'Enviar solicitud'}
               </button>
             )}
           </div>
         </div>
 
-        <p className="text-center text-xs text-[#9BACC8] mt-4">
+        <p className="text-center text-xs text-texto-3 mt-4">
           Al enviar aceptas que tus datos sean usados para gestionar tu solicitud.
         </p>
       </div>

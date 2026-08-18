@@ -26,22 +26,22 @@ export default function KanbanBoard({ tareas, onChangeEstado, onSelect, mostrarP
               setOverEstado(null)
             }}
             className={`flex-shrink-0 w-72 rounded-2xl border transition-colors ${
-              isOver ? "border-[#1A4FA0] bg-[#F0F4FA]" : "border-[#D6E0F0] bg-[#F7F9FC]"
+              isOver ? "border-acento bg-fondo" : "border-borde bg-superficie-2"
             }`}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#D6E0F0]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-borde">
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${dot}`} />
-                <span className="text-sm font-semibold text-[#0D2B5E]">{label}</span>
+                <span className="text-sm font-semibold text-acento-fuerte">{label}</span>
               </div>
-              <span className="text-xs font-semibold text-[#6B7EA8] bg-white border border-[#D6E0F0] rounded-full px-2 py-0.5">
+              <span className="text-xs font-semibold text-texto-2 bg-white border border-borde rounded-full px-2 py-0.5">
                 {items.length}
               </span>
             </div>
 
             <div className="p-3 space-y-3 min-h-[120px]">
               {items.length === 0 && (
-                <div className="text-xs text-[#9BACC8] text-center py-6 border border-dashed border-[#D6E0F0] rounded-xl">
+                <div className="text-xs text-texto-3 text-center py-6 border border-dashed border-borde rounded-xl">
                   Sin tareas
                 </div>
               )}

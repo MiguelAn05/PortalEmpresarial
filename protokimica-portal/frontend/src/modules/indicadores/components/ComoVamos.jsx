@@ -3,6 +3,9 @@ import { useQuery } from "@tanstack/react-query"
 import { obtenerComoVamos } from "../api"
 import { SEMAFOROS, MESES, formatValor } from "../constants"
 import { GraficaTendencia } from "./Graficas"
+import {
+  IconoAlerta, IconoCerrar, IconoCheck,
+} from '../../../core/components/Iconos.jsx'
 
 /**
  * La portada de "cómo vamos": el estado de la empresa en una pantalla.
@@ -18,14 +21,23 @@ import { GraficaTendencia } from "./Graficas"
 // El símbolo va además del color, nunca en su lugar: el ámbar de la marca no
 // alcanza el contraste mínimo, y un semáforo que solo es color no se lee en
 // un proyector malo, impreso en gris, ni por quien no distingue rojo y verde.
-const GLIFO = { verde: '✓', amarillo: '!', rojo: '✕', sin_datos: '–' }
+//
+// Cada estado tiene una FORMA distinta —palomita, triángulo, equis— y no solo
+// un color: es lo único que sobrevive a una fotocopia en blanco y negro.
+const GLIFO = { verde: IconoCheck, amarillo: IconoAlerta, rojo: IconoCerrar }
+
+function Glifo({ estado, tam = 11 }) {
+  const Icono = GLIFO[estado]
+  if (!Icono) return <span aria-hidden="true">–</span>
+  return <Icono tam={tam} className="inline-block flex-shrink-0" />
+}
 
 const ORDEN_TARJETAS = ['verde', 'amarillo', 'rojo', 'sin_datos']
 const BORDE = {
-  verde: 'border-t-[#2E9E6B]',
-  amarillo: 'border-t-[#F5A800]',
-  rojo: 'border-t-[#D93B3B]',
-  sin_datos: 'border-t-[#C3CFE2]',
+  verde: 'border-t-positivo-vivo',
+  amarillo: 'border-t-ambar',
+  rojo: 'border-t-negativo-vivo',
+  sin_datos: 'border-t-borde-fuerte',
 }
 const ROTULO = {
   verde: 'Cumplen', amarillo: 'En alerta', rojo: 'No cumplen', sin_datos: 'Sin reportar',
@@ -42,10 +54,10 @@ export default function ComoVamos({ periodo, onVerIndicador }) {
   })
 
   if (isLoading) {
-    return <div className="text-center py-16 text-[#9BACC8] text-sm">Cargando...</div>
+    return <div className="text-center py-16 text-texto-3 text-sm">Cargando...</div>
   }
   if (isError || !data) {
-    return <div className="text-center py-16 text-red-500 text-sm">No se pudo cargar el resumen.</div>
+    return <div className="text-center py-16 text-negativo text-sm">No se pudo cargar el resumen.</div>
   }
 
   const { resumen, movimientos, por_area: porArea, matriz } = data
@@ -59,14 +71,14 @@ export default function ComoVamos({ periodo, onVerIndicador }) {
           no puede ver la empresa, no se le muestra un control que no va a poder usar. */}
       {data.alcance.puede_cambiar && (
         <div className="flex items-center gap-2">
-          <div className="inline-flex bg-white border border-[#D6E0F0] rounded-full p-1">
+          <div className="inline-flex bg-white border border-borde rounded-full p-1">
             {[['empresa', 'Empresa'], ['area', data.alcance.area || 'Mi área']].map(([valor, label]) => (
               <button
                 key={valor}
                 onClick={() => setAlcance(valor)}
                 aria-pressed={alcance === valor}
                 className={`px-4 py-1.5 text-sm font-semibold rounded-full transition ${
-                  alcance === valor ? 'bg-[#1A4FA0] text-white' : 'text-[#6B7EA8] hover:text-[#1A4FA0]'
+                  alcance === valor ? 'bg-acento text-white' : 'text-texto-2 hover:text-acento'
                 }`}
               >
                 {label}
@@ -78,12 +90,12 @@ export default function ComoVamos({ periodo, onVerIndicador }) {
 
       {/* Estado del mes */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-xl border border-[#D6E0F0] border-t-4 border-t-[#1A4FA0] p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7EA8]">Cumplimiento</p>
-          <p className="text-3xl font-bold text-[#0D2B5E] mt-1 tabular-nums">
+        <div className="bg-white rounded-xl border border-borde border-t-4 border-t-acento p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-texto-2">Cumplimiento</p>
+          <p className="text-3xl font-bold text-acento-fuerte mt-1 tabular-nums">
             {resumen.cumplimiento_pct !== null ? `${resumen.cumplimiento_pct}%` : '—'}
           </p>
-          <p className="text-xs text-[#6B7EA8] mt-1">
+          <p className="text-xs text-texto-2 mt-1">
             {juzgados > 0 ? `${resumen.verde} de ${juzgados} con meta` : 'sin datos del periodo'}
           </p>
         </div>
@@ -94,15 +106,15 @@ export default function ComoVamos({ periodo, onVerIndicador }) {
             type="button"
             onClick={() => setFiltro(filtro === estado ? null : estado)}
             aria-pressed={filtro === estado}
-            className={`bg-white rounded-xl border border-[#D6E0F0] border-t-4 ${BORDE[estado]} p-4 text-left
+            className={`bg-white rounded-xl border border-borde border-t-4 ${BORDE[estado]} p-4 text-left
               transition hover:-translate-y-0.5 hover:shadow-md
-              ${filtro === estado ? 'ring-2 ring-[#1A4FA0] ring-offset-1' : ''}`}
+              ${filtro === estado ? 'ring-2 ring-acento ring-offset-1' : ''}`}
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7EA8]">{ROTULO[estado]}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-texto-2">{ROTULO[estado]}</p>
             <p className={`text-3xl font-bold mt-1 tabular-nums ${SEMAFOROS[estado].texto}`}>
               {resumen[estado]}
             </p>
-            <p className="text-xs text-[#1A4FA0] font-semibold mt-1">
+            <p className="text-xs text-acento font-semibold mt-1">
               {filtro === estado ? 'Ocultar' : 'Ver cuáles'}
             </p>
           </button>
@@ -145,31 +157,31 @@ function Chip({ estado }) {
   const cfg = SEMAFOROS[estado]
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold ${cfg.chip}`}>
-      <span aria-hidden="true">{GLIFO[estado]}</span> {cfg.label}
+      <Glifo estado={estado} /> {cfg.label}
     </span>
   )
 }
 
 function ListaFiltrada({ estado, indicadores, onCerrar, onVer }) {
   return (
-    <section className="bg-white rounded-xl border border-[#D6E0F0] p-5">
+    <section className="bg-white rounded-xl border border-borde p-5">
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h3 className="font-bold text-[#0D2B5E]">{ROTULO[estado]} este mes</h3>
-        <button onClick={onCerrar} className="text-sm text-[#6B7EA8] hover:text-[#1A4FA0]">Cerrar</button>
+        <h3 className="font-bold text-acento-fuerte">{ROTULO[estado]} este mes</h3>
+        <button onClick={onCerrar} className="text-sm text-texto-2 hover:text-acento">Cerrar</button>
       </div>
       {indicadores.length === 0 ? (
-        <p className="text-sm text-[#6B7EA8]">Ninguno en este estado.</p>
+        <p className="text-sm text-texto-2">Ninguno en este estado.</p>
       ) : (
-        <ul className="divide-y divide-[#D6E0F0]">
+        <ul className="divide-y divide-borde">
           {indicadores.map(ind => (
             <li key={ind.id}>
               <button
                 onClick={() => onVer?.(ind.id)}
-                className="w-full flex items-center justify-between gap-3 py-2.5 text-left hover:bg-[#F7F9FC] rounded px-2 -mx-2"
+                className="w-full flex items-center justify-between gap-3 py-2.5 text-left hover:bg-superficie-2 rounded px-2 -mx-2"
               >
                 <span>
-                  <span className="block text-sm font-semibold text-[#1A2B47]">{ind.nombre}</span>
-                  <span className="block text-xs text-[#6B7EA8]">{ind.area || 'Sin área'}</span>
+                  <span className="block text-sm font-semibold text-texto">{ind.nombre}</span>
+                  <span className="block text-xs text-texto-2">{ind.area || 'Sin área'}</span>
                 </span>
                 <Chip estado={estado} />
               </button>
@@ -191,37 +203,37 @@ function Movimientos({ movimientos, mes, onVer }) {
   const anterior = MESES[(mes + 10) % 12]
 
   return (
-    <section className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-      <h3 className="font-bold text-[#0D2B5E]">Qué se movió</h3>
-      <p className="text-xs text-[#6B7EA8] mb-3">
+    <section className="bg-white rounded-xl border border-borde p-5">
+      <h3 className="font-bold text-acento-fuerte">Qué se movió</h3>
+      <p className="text-xs text-texto-2 mb-3">
         Cambios de semáforo contra {anterior.toLowerCase()}. Lo demás sigue igual.
       </p>
 
       {movimientos.length === 0 ? (
-        <p className="text-sm text-[#6B7EA8] py-2">Ningún indicador cambió de estado este mes.</p>
+        <p className="text-sm text-texto-2 py-2">Ningún indicador cambió de estado este mes.</p>
       ) : (
-        <ul className="divide-y divide-[#D6E0F0]">
+        <ul className="divide-y divide-borde">
           {movimientos.map(m => (
             <li key={m.id}>
               <button
                 onClick={() => onVer?.(m.id)}
-                className="w-full flex items-center justify-between gap-3 py-2.5 text-left hover:bg-[#F7F9FC] rounded px-2 -mx-2"
+                className="w-full flex items-center justify-between gap-3 py-2.5 text-left hover:bg-superficie-2 rounded px-2 -mx-2"
               >
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-[#1A2B47] truncate">{m.nombre}</span>
-                  <span className="block text-xs text-[#6B7EA8]">{m.area || 'Sin área'}</span>
+                  <span className="block text-sm font-semibold text-texto truncate">{m.nombre}</span>
+                  <span className="block text-xs text-texto-2">{m.area || 'Sin área'}</span>
                 </span>
                 <span className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-[#6B7EA8] tabular-nums">
+                  <span className="text-xs text-texto-2 tabular-nums">
                     {formatValor(m.valor_anterior, m.unidad)} → {formatValor(m.valor, m.unidad)}
                   </span>
                   <span
-                    className={`text-sm ${m.empeoro ? 'text-[#D93B3B]' : 'text-[#2E9E6B]'}`}
+                    className={`text-sm ${m.empeoro ? 'text-negativo-vivo' : 'text-positivo-vivo'}`}
                     aria-hidden="true"
                   >
                     {m.empeoro ? '▼' : '▲'}
                   </span>
-                  <span className={`text-[11px] font-bold uppercase ${m.empeoro ? 'text-[#D93B3B]' : 'text-[#2E9E6B]'}`}>
+                  <span className={`text-[11px] font-bold uppercase ${m.empeoro ? 'text-negativo-vivo' : 'text-positivo-vivo'}`}>
                     {m.empeoro ? 'Empeoró' : 'Mejoró'}
                   </span>
                 </span>
@@ -242,26 +254,26 @@ function Movimientos({ movimientos, mes, onVer }) {
  */
 function PorArea({ areas }) {
   return (
-    <section className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-      <h3 className="font-bold text-[#0D2B5E]">Cumplimiento por área</h3>
-      <p className="text-xs text-[#6B7EA8] mb-3">
+    <section className="bg-white rounded-xl border border-borde p-5">
+      <h3 className="font-bold text-acento-fuerte">Cumplimiento por área</h3>
+      <p className="text-xs text-texto-2 mb-3">
         Proporción de indicadores en meta. Las áreas con algo en rojo van primero.
       </p>
 
       {areas.length === 0 ? (
-        <p className="text-sm text-[#6B7EA8] py-2">Todavía no hay áreas con indicadores medidos.</p>
+        <p className="text-sm text-texto-2 py-2">Todavía no hay áreas con indicadores medidos.</p>
       ) : (
         <div className="space-y-2.5">
           {areas.map(a => (
             <div key={a.area} className="grid grid-cols-[minmax(0,7rem)_1fr_2.5rem] gap-2.5 items-center">
-              <span className="text-xs text-[#42557A] text-right truncate" title={a.area}>{a.area}</span>
-              <span className="relative h-4 bg-[#EEF2F8] rounded overflow-hidden">
+              <span className="text-xs text-texto-2 text-right truncate" title={a.area}>{a.area}</span>
+              <span className="relative h-4 bg-superficie-2 rounded overflow-hidden">
                 <span
-                  className="absolute inset-y-0 left-0 bg-[#1A4FA0] rounded"
+                  className="absolute inset-y-0 left-0 bg-acento rounded"
                   style={{ width: `${a.cumplimiento_pct ?? 0}%` }}
                 />
               </span>
-              <span className="text-xs font-bold tabular-nums text-right text-[#1A2B47]">
+              <span className="text-xs font-bold tabular-nums text-right text-texto">
                 {a.cumplimiento_pct !== null ? `${Math.round(a.cumplimiento_pct)}%` : '—'}
               </span>
               <span className="col-start-2 col-span-2 flex gap-1.5 flex-wrap">
@@ -281,7 +293,7 @@ function PorArea({ areas }) {
 function MiniChip({ estado, n }) {
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 rounded-full border text-[10px] font-bold tabular-nums ${SEMAFOROS[estado].chip}`}>
-      <span aria-hidden="true">{GLIFO[estado]}</span>{n}
+      <Glifo estado={estado} tam={10} />{n}
     </span>
   )
 }
@@ -295,32 +307,32 @@ function MiniChip({ estado, n }) {
  */
 function Matriz({ matriz, seleccionado, onSeleccionar }) {
   const CELDA = {
-    verde: 'bg-green-50 text-green-700 border-green-200',
-    amarillo: 'bg-amber-50 text-amber-800 border-amber-200',
-    rojo: 'bg-red-50 text-red-700 border-red-200',
-    sin_datos: 'bg-gray-50 text-gray-400 border-gray-200 border-dashed',
-    futuro: 'border-[#E8EEF7] border-dotted text-transparent',
+    verde: 'bg-positivo-bg text-positivo border-positivo/25',
+    amarillo: 'bg-alerta-bg text-alerta border-ambar/30',
+    rojo: 'bg-negativo-bg text-negativo border-negativo/25',
+    sin_datos: 'bg-superficie-2 text-borde-fuerte border-borde border-dashed',
+    futuro: 'border-borde border-dotted text-transparent',
   }
 
   return (
-    <section className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-      <h3 className="font-bold text-[#0D2B5E]">El año completo</h3>
-      <p className="text-xs text-[#6B7EA8] mb-3">
+    <section className="bg-white rounded-xl border border-borde p-5">
+      <h3 className="font-bold text-acento-fuerte">El año completo</h3>
+      <p className="text-xs text-texto-2 mb-3">
         Cada celda es un mes. Elige una fila para ver su tendencia abajo.
       </p>
 
       {matriz.length === 0 ? (
-        <p className="text-sm text-[#6B7EA8] py-2">No hay indicadores en este alcance.</p>
+        <p className="text-sm text-texto-2 py-2">No hay indicadores en este alcance.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] border-separate border-spacing-[3px]">
             <thead>
               <tr>
-                <th className="text-left text-[10px] font-bold uppercase tracking-wide text-[#6B7EA8] w-56 pb-1">
+                <th className="text-left text-[10px] font-bold uppercase tracking-wide text-texto-2 w-56 pb-1">
                   Indicador
                 </th>
                 {matriz[0].meses.map(m => (
-                  <th key={m.mes} className="text-[10px] font-bold uppercase text-[#6B7EA8] pb-1">
+                  <th key={m.mes} className="text-[10px] font-bold uppercase text-texto-2 pb-1">
                     {m.etiqueta}
                   </th>
                 ))}
@@ -334,11 +346,11 @@ function Matriz({ matriz, seleccionado, onSeleccionar }) {
                   className="cursor-pointer group"
                 >
                   <td className="text-sm">
-                    <span className={`block font-semibold leading-tight group-hover:text-[#1A4FA0]
-                      ${seleccionado === fila.id ? 'text-[#1A4FA0]' : 'text-[#1A2B47]'}`}>
+                    <span className={`block font-semibold leading-tight group-hover:text-acento
+                      ${seleccionado === fila.id ? 'text-acento' : 'text-texto'}`}>
                       {fila.nombre}
                     </span>
-                    <span className="block text-[11px] text-[#6B7EA8]">{fila.area || 'Sin área'}</span>
+                    <span className="block text-[11px] text-texto-2">{fila.area || 'Sin área'}</span>
                   </td>
                   {fila.meses.map(m => (
                     <td
@@ -349,7 +361,7 @@ function Matriz({ matriz, seleccionado, onSeleccionar }) {
                     >
                       {m.semaforo !== 'futuro' && (
                         <>
-                          <span aria-hidden="true" className="opacity-80">{GLIFO[m.semaforo]}</span>{' '}
+                          <Glifo estado={m.semaforo} tam={10} />{' '}
                           {m.valor === null ? '' : formatValor(m.valor, '')}
                         </>
                       )}
@@ -362,14 +374,14 @@ function Matriz({ matriz, seleccionado, onSeleccionar }) {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3 mt-3 text-xs text-[#42557A]">
+      <div className="flex flex-wrap gap-3 mt-3 text-xs text-texto-2">
         {['verde', 'amarillo', 'rojo', 'sin_datos'].map(e => (
           <span key={e} className="inline-flex items-center gap-1.5">
             <Chip estado={e} />
           </span>
         ))}
-        <span className="inline-flex items-center gap-1.5 text-[#6B7EA8]">
-          <span className="inline-block w-4 h-4 rounded border border-dotted border-[#C3CFE2]" aria-hidden="true" />
+        <span className="inline-flex items-center gap-1.5 text-texto-2">
+          <span className="inline-block w-4 h-4 rounded border border-dotted border-borde-fuerte" aria-hidden="true" />
           Mes que aún no llega
         </span>
       </div>
@@ -388,23 +400,23 @@ function Tendencia({ fila, mes, onVer }) {
   const actual = fila.meses.find(m => m.mes === mes)
 
   return (
-    <section className="bg-white rounded-xl border border-[#D6E0F0] p-5">
+    <section className="bg-white rounded-xl border border-borde p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3 mb-3">
         <div>
-          <h3 className="font-bold text-[#0D2B5E]">{fila.nombre}</h3>
-          <p className="text-xs text-[#6B7EA8]">
+          <h3 className="font-bold text-acento-fuerte">{fila.nombre}</h3>
+          <p className="text-xs text-texto-2">
             {fila.area || 'Sin área'}
             {fila.meta !== null && ` · meta ${formatValor(fila.meta, fila.unidad)}`}
             {fila.direccion === 'arriba' ? ' · más alto es mejor' : ' · más bajo es mejor'}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold tabular-nums text-[#0D2B5E]">
+          <span className="text-2xl font-bold tabular-nums text-acento-fuerte">
             {formatValor(actual?.valor ?? null, fila.unidad)}
           </span>
           <button
             onClick={() => onVer?.(fila.id)}
-            className="text-sm font-semibold text-[#1A4FA0] hover:underline"
+            className="text-sm font-semibold text-acento hover:underline"
           >
             Ver detalle →
           </button>

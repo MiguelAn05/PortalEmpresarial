@@ -3,16 +3,16 @@
 // que el estado NUNCA se comunica solo con color: cada semáforo lleva punto
 // + etiqueta de texto. Es la misma razón por la que hay `label` aquí.
 export const SEMAFOROS = {
-  verde:     { label: 'Cumple',      punto: '#2E9E6B', chip: 'bg-green-50 text-green-700 border-green-200', texto: 'text-green-700' },
-  amarillo:  { label: 'En alerta',   punto: '#F5A800', chip: 'bg-amber-50 text-amber-800 border-amber-200', texto: 'text-amber-800' },
-  rojo:      { label: 'No cumple',   punto: '#D93B3B', chip: 'bg-red-50 text-red-700 border-red-200',       texto: 'text-red-700' },
-  sin_datos: { label: 'Sin dato',    punto: '#C3CFE2', chip: 'bg-gray-50 text-gray-500 border-gray-200',    texto: 'text-gray-500' },
+  verde:     { label: 'Cumple',      punto: 'var(--color-positivo-vivo)', chip: 'bg-positivo-bg text-positivo border-positivo/25', texto: 'text-positivo' },
+  amarillo:  { label: 'En alerta',   punto: 'var(--color-ambar)', chip: 'bg-alerta-bg text-alerta border-ambar/30', texto: 'text-alerta' },
+  rojo:      { label: 'No cumple',   punto: 'var(--color-negativo-vivo)', chip: 'bg-negativo-bg text-negativo border-negativo/25',       texto: 'text-negativo' },
+  sin_datos: { label: 'Sin dato',    punto: 'var(--color-borde-fuerte)', chip: 'bg-superficie-2 text-texto-2 border-borde',    texto: 'text-texto-2' },
 }
 
 // Color único de la serie en las gráficas. Una sola serie no necesita paleta
 // categórica ni leyenda: el título ya dice qué es.
-export const COLOR_SERIE = '#1A4FA0'
-export const COLOR_META = '#9BACC8'
+export const COLOR_SERIE = 'var(--color-acento)'
+export const COLOR_META = 'var(--color-texto-3)'
 
 export const UNIDADES = {
   porcentaje: { label: 'Porcentaje (%)', sufijo: '%' },
@@ -90,9 +90,9 @@ export function formatVariacion(v, unidad) {
  * indicador: subir los accidentes es malo, subir la satisfacción es bueno.
  */
 export function tonoVariacion(v, direccion) {
-  if (v === null || v === undefined || v === 0) return 'text-[#9BACC8]'
+  if (v === null || v === undefined || v === 0) return 'text-texto-3'
   const mejora = direccion === 'arriba' ? v > 0 : v < 0
-  return mejora ? 'text-green-700' : 'text-red-700'
+  return mejora ? 'text-positivo' : 'text-negativo'
 }
 
 export function periodoAnterior(anio, mes) {

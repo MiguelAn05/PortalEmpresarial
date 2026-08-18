@@ -4,46 +4,54 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
 import { AREAS } from '../../core/areas.js'
+import {
+  IconoAlDia, IconoAlerta, IconoBuscar, IconoCandado, IconoClip,
+  IconoComentario, IconoEmpresa, IconoEscalar, IconoEstrella, IconoEtiqueta,
+  IconoRecargar, IconoRechazo, IconoRecibo, IconoReloj, IconoUsuario,
+} from '../../core/components/Iconos.jsx'
 
 const AREA_SERVICIO_CLIENTE = 'Servicio al Cliente'
 
+// El color de un badge es una escala de gravedad, no un arcoíris: morado,
+// naranja y teal elegidos al azar obligan a mirar la palabra igual, así que
+// el color no estaba diciendo nada. Ahora sube con la gravedad real.
 const TIPOS = {
-  peticion:   { label: 'Petición',   color: 'bg-purple-100 text-purple-700' },
-  queja:      { label: 'Queja',      color: 'bg-red-100 text-red-700'       },
-  reclamo:    { label: 'Reclamo',    color: 'bg-orange-100 text-orange-700' },
-  sugerencia: { label: 'Sugerencia', color: 'bg-blue-100 text-blue-700'   },
-  felicitacion: {label: 'Felicitacion', color: 'bg-green-100 text-green-700' }
+  peticion:     { label: 'Petición',     color: 'bg-superficie-2 text-texto-2' },
+  queja:        { label: 'Queja',        color: 'bg-alerta-bg text-alerta'     },
+  reclamo:      { label: 'Reclamo',      color: 'bg-negativo-bg text-negativo' },
+  sugerencia:   { label: 'Sugerencia',   color: 'bg-info-bg text-info'         },
+  felicitacion: { label: 'Felicitación', color: 'bg-positivo-bg text-positivo' },
 }
 
 const ESTADOS = {
-  recibido:   { label: 'Recibido',   color: 'bg-gray-100 text-gray-600'    },
-  asignado:   { label: 'Asignado',   color: 'bg-blue-100 text-blue-700'    },
-  en_proceso: { label: 'En proceso', color: 'bg-yellow-100 text-yellow-700' },
-  resuelto:   { label: 'Resuelto',   color: 'bg-teal-100 text-teal-700'    },
-  cerrado:    { label: 'Cerrado',    color: 'bg-green-100 text-green-700'  },
+  recibido:   { label: 'Recibido',   color: 'bg-superficie-2 text-texto-2' },
+  asignado:   { label: 'Asignado',   color: 'bg-info-bg text-info'         },
+  en_proceso: { label: 'En proceso', color: 'bg-alerta-bg text-alerta'     },
+  resuelto:   { label: 'Resuelto',   color: 'bg-positivo-bg text-positivo' },
+  cerrado:    { label: 'Cerrado',    color: 'bg-superficie-2 text-texto-2' },
 }
 
 const PRIORIDADES = {
-  baja:    { label: 'Baja',    color: 'text-green-600'  },
-  media:   { label: 'Media',   color: 'text-yellow-600' },
-  alta:    { label: 'Alta',    color: 'text-orange-600' },
-  critica: { label: 'Crítica', color: 'text-red-600'    },
+  baja:    { label: 'Baja',    color: 'text-positivo' },
+  media:   { label: 'Media',   color: 'text-texto-2'  },
+  alta:    { label: 'Alta',    color: 'text-alerta'   },
+  critica: { label: 'Crítica', color: 'text-negativo' },
 }
 
 const EVENTOS = {
-  cambio_estado:           { icon: '🔄', label: 'Cambio de estado'      },
-  asignacion:              { icon: '👤', label: 'Asignación'            },
-  asignacion_area:         { icon: '🏢', label: 'Área asignada'         },
-  comentario:              { icon: '💬', label: 'Comentario'            },
-  escalamiento:            { icon: '🚨', label: 'Escalamiento'          },
-  autorizacion_solicitada: { icon: '🔐', label: 'Autorización solicitada'},
-  autorizacion_respondida: { icon: '✅', label: 'Autorización respondida'},
+  cambio_estado:           { Icono: IconoRecargar,  label: 'Cambio de estado'       },
+  asignacion:              { Icono: IconoUsuario,   label: 'Asignación'             },
+  asignacion_area:         { Icono: IconoEmpresa,   label: 'Área asignada'          },
+  comentario:              { Icono: IconoComentario,label: 'Comentario'             },
+  escalamiento:            { Icono: IconoEscalar,   label: 'Escalamiento'           },
+  autorizacion_solicitada: { Icono: IconoCandado,   label: 'Autorización solicitada'},
+  autorizacion_respondida: { Icono: IconoAlDia,     label: 'Autorización respondida'},
 }
 
 // Las áreas viven en un solo sitio: src/core/areas.js
 
 function Badge({ map, value }) {
-  const item = map[value] || { label: value, color: 'bg-gray-100 text-gray-600' }
+  const item = map[value] || { label: value, color: 'bg-superficie-2 text-texto-2' }
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${item.color}`}>
       {item.label}
@@ -63,10 +71,17 @@ function SLALabel({ fechaLimite, cerrado }) {
   if (!fechaLimite || cerrado) return null
   const diff = new Date(fechaLimite) - new Date()
   const dias = Math.ceil(diff / (1000 * 60 * 60 * 24))
-  if (dias < 0)   return <span className="text-sm font-semibold text-red-600">⚠️ Vencida hace {Math.abs(dias)} día(s)</span>
-  if (dias === 0) return <span className="text-sm font-semibold text-red-500">⚠️ Vence hoy</span>
-  if (dias <= 2)  return <span className="text-sm font-semibold text-orange-500">⏰ Vence en {dias} día(s)</span>
-  return <span className="text-sm text-green-600">✅ Vence en {dias} días</span>
+  // Punto y palabra, no solo color: el rojo no se lee en voz alta.
+  const linea = (Icono, clase, texto) => (
+    <span className={`inline-flex items-center gap-1.5 text-sm ${clase}`}>
+      <Icono tam={15} />
+      {texto}
+    </span>
+  )
+  if (dias < 0)   return linea(IconoAlerta, 'font-semibold text-negativo', `Vencida hace ${Math.abs(dias)} día(s)`)
+  if (dias === 0) return linea(IconoAlerta, 'font-semibold text-negativo', 'Vence hoy')
+  if (dias <= 2)  return linea(IconoReloj, 'font-semibold text-alerta', `Vence en ${dias} día(s)`)
+  return linea(IconoAlDia, 'text-positivo', `Vence en ${dias} días`)
 }
 
 // ── Panel de autorizaciones ────────────────────────────────────────
@@ -101,11 +116,11 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
   const puedeSolicitar = user?.rol !== 'lectura'
 
   return (
-    <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-      <h3 className="font-semibold text-[#0D2B5E] mb-4 text-sm flex items-center gap-2">
-        🔐 Autorizaciones
+    <div className="bg-white rounded-xl border border-borde p-5">
+      <h3 className="font-semibold text-acento-fuerte mb-4 text-sm flex items-center gap-2">
+        Autorizaciones
         {hayPendiente && (
-          <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">
+          <span className="bg-alerta-bg text-alerta text-xs font-bold px-2 py-0.5 rounded-full">
             Pendiente — PQRS bloqueada
           </span>
         )}
@@ -116,33 +131,33 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
         <div className="space-y-3 mb-4">
           {autorizaciones.map((aut) => (
             <div key={aut.id} className={`rounded-xl p-4 border ${
-              aut.estado === 'pendiente'  ? 'bg-orange-50 border-orange-200' :
-              aut.estado === 'aprobada'   ? 'bg-green-50 border-green-200'  :
-                                            'bg-red-50 border-red-200'
+              aut.estado === 'pendiente'  ? 'bg-alerta-bg border-ambar/30' :
+              aut.estado === 'aprobada'   ? 'bg-positivo-bg border-positivo/25'  :
+                                            'bg-negativo-bg border-negativo/25'
             }`}>
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
-                  <div className="text-sm font-bold text-[#1A2B47]">{aut.tipo.nombre}</div>
-                  <div className="text-xs text-[#6B7EA8]">Área: {aut.tipo.area_autorizadora}</div>
+                  <div className="text-sm font-bold text-texto">{aut.tipo.nombre}</div>
+                  <div className="text-xs text-texto-2">Área: {aut.tipo.area_autorizadora}</div>
                 </div>
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
-                  aut.estado === 'pendiente'  ? 'bg-orange-200 text-orange-800' :
-                  aut.estado === 'aprobada'   ? 'bg-green-200 text-green-800'  :
-                                                'bg-red-200 text-red-800'
+                  aut.estado === 'pendiente'  ? 'bg-alerta-bg text-alerta' :
+                  aut.estado === 'aprobada'   ? 'bg-positivo-bg text-positivo'  :
+                                                'bg-negativo-bg text-negativo'
                 }`}>
-                  {aut.estado === 'pendiente' ? '⏳ Pendiente' :
-                   aut.estado === 'aprobada'  ? '✅ Aprobada'  : '❌ Rechazada'}
+                  {aut.estado === 'pendiente' ? 'Pendiente' :
+                   aut.estado === 'aprobada' ? 'Aprobada' : 'Rechazada'}
                 </span>
               </div>
 
               {aut.comentario_solicitud && (
-                <p className="text-xs text-[#6B7EA8] mb-2">
+                <p className="text-xs text-texto-2 mb-2">
                   Solicitud: {aut.comentario_solicitud}
                 </p>
               )}
 
               {aut.comentario_respuesta && (
-                <p className="text-xs text-[#6B7EA8]">
+                <p className="text-xs text-texto-2">
                   Respuesta: {aut.comentario_respuesta}
                 </p>
               )}
@@ -155,7 +170,7 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
                     onChange={(e) => setRespuesta({ id: aut.id, decision: respuesta.decision, comentario: e.target.value })}
                     placeholder="Comentario de la decisión (opcional)..."
                     rows={2}
-                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-xs text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] resize-none"
+                    className="w-full px-3 py-2 rounded-lg border border-borde text-xs text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none"
                   />
                   <div className="flex gap-2">
                     <button
@@ -165,9 +180,9 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
                         comentario: respuesta.id === aut.id ? respuesta.comentario : '',
                       })}
                       disabled={mutResponder.isPending}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg text-xs transition disabled:opacity-50"
+                      className="flex-1 bg-positivo-vivo hover:bg-positivo-vivo text-white font-bold py-2 rounded-lg text-xs transition disabled:opacity-50"
                     >
-                      ✅ Aprobar
+                      <IconoAlDia tam={15} /> Aprobar
                     </button>
                     <button
                       onClick={() => mutResponder.mutate({
@@ -176,9 +191,9 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
                         comentario: respuesta.id === aut.id ? respuesta.comentario : '',
                       })}
                       disabled={mutResponder.isPending}
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-lg text-xs transition disabled:opacity-50"
+                      className="flex-1 bg-negativo-vivo hover:bg-negativo-vivo text-white font-bold py-2 rounded-lg text-xs transition disabled:opacity-50"
                     >
-                      ❌ Rechazar
+                      <IconoRechazo tam={15} /> Rechazar
                     </button>
                   </div>
                 </div>
@@ -190,14 +205,14 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
 
       {/* Solicitar nueva autorización */}
       {puedeSolicitar && pqrsEstado !== 'cerrado' && !hayPendiente && (
-        <div className="border-t border-[#D6E0F0] pt-4">
-          <p className="text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-3">
+        <div className="border-t border-borde pt-4">
+          <p className="text-xs font-semibold text-texto-2 uppercase tracking-wide mb-3">
             Solicitar autorización
           </p>
           <select
             value={tipoId}
             onChange={(e) => setTipoId(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] mb-3"
+            className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento mb-3"
           >
             <option value="">Seleccionar tipo...</option>
             {tipos.map(t => (
@@ -211,20 +226,20 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
             onChange={(e) => setComentario(e.target.value)}
             placeholder="Motivo de la solicitud (opcional)..."
             rows={2}
-            className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] resize-none mb-3"
+            className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none mb-3"
           />
           <button
             onClick={() => mutSolicitar.mutate()}
             disabled={!tipoId || mutSolicitar.isPending}
-            className="w-full bg-[#0D2B5E] hover:bg-[#1A4FA0] text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+            className="w-full bg-acento-fuerte hover:bg-acento text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
           >
-            {mutSolicitar.isPending ? 'Solicitando...' : '🔐 Solicitar autorización'}
+            {mutSolicitar.isPending ? 'Solicitando…' : 'Solicitar autorización'}
           </button>
         </div>
       )}
 
       {tipos.length === 0 && (
-        <p className="text-xs text-[#9BACC8] text-center py-2">
+        <p className="text-xs text-texto-3 text-center py-2">
           No hay tipos de autorización configurados. Ve a Administración para crearlos.
         </p>
       )}
@@ -253,9 +268,9 @@ function EncuestaSection({ encuesta }) {
     // igual vale la pena que el agente lo sepa de un vistazo.
     if (encuesta) {
       return (
-        <div className="bg-[#F0F4FA] rounded-xl p-5">
-          <h3 className="font-semibold text-[#0D2B5E] mb-1 text-sm">⭐ Encuesta de satisfacción</h3>
-          <p className="text-xs text-[#6B7EA8]">Enviada al cliente, esperando respuesta.</p>
+        <div className="bg-fondo rounded-xl p-5">
+          <h3 className="font-semibold text-acento-fuerte mb-1 text-sm">Encuesta de satisfacción</h3>
+          <p className="text-xs text-texto-2">Enviada al cliente, esperando respuesta.</p>
         </div>
       )
     }
@@ -263,49 +278,54 @@ function EncuestaSection({ encuesta }) {
   }
 
   return (
-    <div className="bg-[#F0F4FA] rounded-xl overflow-hidden">
+    <div className="bg-fondo rounded-xl overflow-hidden">
       <button
         onClick={() => setAbierta(!abierta)}
         className="w-full flex items-center justify-between p-5 text-left"
       >
         <div>
-          <h3 className="font-semibold text-[#0D2B5E] text-sm mb-1">⭐ Encuesta de satisfacción</h3>
+          <h3 className="font-semibold text-acento-fuerte text-sm mb-1">Encuesta de satisfacción</h3>
           <div className="flex items-center gap-1">
             {[1,2,3,4,5].map(n => (
-              <span key={n} className={`text-lg ${n <= encuesta.calificacion ? 'text-yellow-400' : 'text-gray-300'}`}>★</span>
+              <IconoEstrella
+                key={n}
+                tam={17}
+                relleno={n <= encuesta.calificacion}
+                className={n <= encuesta.calificacion ? 'text-ambar' : 'text-borde-fuerte'}
+              />
             ))}
-            <span className="text-xs text-[#6B7EA8] ml-1">
+            <span className="text-xs text-texto-2 ml-1">
               {encuesta.calificacion}/5 · respondida el {formatFecha(encuesta.respondida_en)}
             </span>
           </div>
         </div>
-        <span className={`text-[#6B7EA8] transition-transform ${abierta ? 'rotate-180' : ''}`}>▾</span>
+        <span className={`text-texto-2 transition-transform ${abierta ? 'rotate-180' : ''}`}>▾</span>
       </button>
 
       {abierta && (
-        <div className="px-5 pb-5 space-y-3 border-t border-[#D6E0F0] pt-4">
+        <div className="px-5 pb-5 space-y-3 border-t border-borde pt-4">
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
-              <span className="text-[#6B7EA8] font-semibold uppercase tracking-wide block mb-0.5">Tipo de solicitud</span>
-              <span className="text-[#1A2B47] font-medium">{TIPO_ENCUESTA_LABEL[encuesta.tipo_solicitud] || encuesta.tipo_solicitud}</span>
+              <span className="text-texto-2 font-semibold uppercase tracking-wide block mb-0.5">Tipo de solicitud</span>
+              <span className="text-texto font-medium">{TIPO_ENCUESTA_LABEL[encuesta.tipo_solicitud] || encuesta.tipo_solicitud}</span>
             </div>
             <div>
-              <span className="text-[#6B7EA8] font-semibold uppercase tracking-wide block mb-0.5">¿Solucionada?</span>
-              <span className="text-[#1A2B47] font-medium">{SOLUCIONADA_LABEL[encuesta.solucionada] || '—'}</span>
+              <span className="text-texto-2 font-semibold uppercase tracking-wide block mb-0.5">¿Solucionada?</span>
+              <span className="text-texto font-medium">{SOLUCIONADA_LABEL[encuesta.solucionada] || '—'}</span>
             </div>
             <div>
-              <span className="text-[#6B7EA8] font-semibold uppercase tracking-wide block mb-0.5">Tiempo de respuesta</span>
-              <span className="text-[#1A2B47] font-medium">{TIEMPO_LABEL[encuesta.calificacion_tiempo_respuesta] || '—'}</span>
+              <span className="text-texto-2 font-semibold uppercase tracking-wide block mb-0.5">Tiempo de respuesta</span>
+              <span className="text-texto font-medium">{TIEMPO_LABEL[encuesta.calificacion_tiempo_respuesta] || '—'}</span>
             </div>
             <div>
-              <span className="text-[#6B7EA8] font-semibold uppercase tracking-wide block mb-0.5">¿Recomendaría?</span>
-              <span className="text-[#1A2B47] font-medium">{encuesta.recomendaria ? 'Sí' : 'No'}</span>
+              <span className="text-texto-2 font-semibold uppercase tracking-wide block mb-0.5">¿Recomendaría?</span>
+              <span className="text-texto font-medium">{encuesta.recomendaria ? 'Sí' : 'No'}</span>
             </div>
           </div>
           {encuesta.comentario && (
             <div>
-              <span className="text-[#6B7EA8] font-semibold uppercase tracking-wide block mb-1 text-xs">Comentario</span>
-              <p className="text-sm text-[#1A2B47] italic">"{encuesta.comentario}"</p>
+              <span className="text-texto-2 font-semibold uppercase tracking-wide block mb-1 text-xs">Comentario</span>
+              <p className="text-sm text-texto italic">"{encuesta.comentario}"</p>
             </div>
           )}
         </div>
@@ -384,13 +404,13 @@ export default function PQRSDetail() {
   })
 
   if (isLoading) return (
-    <div className="flex items-center justify-center py-20 text-[#6B7EA8] text-sm">Cargando...</div>
+    <div className="flex items-center justify-center py-20 text-texto-2 text-sm">Cargando...</div>
   )
   if (isError || !pqrs) return (
-    <div className="flex flex-col items-center justify-center py-20 text-[#6B7EA8]">
-      <span className="text-4xl mb-3">😕</span>
-      <span className="text-sm">No se encontró la PQRS.</span>
-      <button onClick={() => navigate('/pqrs')} className="mt-4 text-[#1A4FA0] text-sm underline">Volver</button>
+    <div className="flex flex-col items-center justify-center py-20 text-texto-2">
+      <IconoBuscar tam={26} className="mb-3 text-texto-3" />
+      <span className="text-sm">No se encontró esta PQRS. Puede que la hayan borrado o que el enlace esté mal.</span>
+      <button onClick={() => navigate('/pqrs')} className="mt-4 text-acento text-sm font-medium hover:underline">Volver al listado</button>
     </div>
   )
 
@@ -402,12 +422,12 @@ export default function PQRSDetail() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <button onClick={() => navigate('/pqrs')} className="flex items-center gap-2 text-sm text-[#6B7EA8] hover:text-[#0D2B5E] mb-5 transition">
+      <button onClick={() => navigate('/pqrs')} className="flex items-center gap-2 text-sm text-texto-2 hover:text-acento-fuerte mb-5 transition">
         ← Volver a PQRS
       </button>
 
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#0D2B5E] to-[#1A4FA0] rounded-2xl p-6 mb-5 text-white">
+      <div className="bg-gradient-to-r from-acento-fuerte to-acento rounded-2xl p-6 mb-5 text-white">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">
@@ -425,12 +445,12 @@ export default function PQRSDetail() {
                 ● {PRIORIDADES[pqrs.prioridad]?.label}
               </span>
               {hayPendiente && (
-                <span className="bg-orange-400/30 text-orange-200 text-xs font-bold px-2 py-0.5 rounded-full">
-                  🔐 Autorización pendiente
+                <span className="bg-ambar/30 text-ambar text-xs font-bold px-2 py-0.5 rounded-full">
+                  Autorización pendiente
                 </span>
               )}
               <span className="bg-white/10 text-white/70 text-xs px-2 py-0.5 rounded-full">
-                {pqrs.origen_publico === 'publico' ? '🌐 Formulario web' : '🏢 Interno'}
+                {pqrs.origen_publico === 'publico' ? 'Formulario web' : 'Interno'}
               </span>
             </div>
           </div>
@@ -449,8 +469,8 @@ export default function PQRSDetail() {
                 className="mt-2 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg px-2 py-1 border border-white/20 focus:outline-none cursor-pointer transition"
                 title="Área causante del problema (uso interno)"
               >
-                <option value="" className="text-[#1A2B47]">Área causante: sin definir</option>
-                {AREAS.map(a => <option key={a} value={a} className="text-[#1A2B47]">Causante: {a}</option>)}
+                <option value="" className="text-texto">Área causante: sin definir</option>
+                {AREAS.map(a => <option key={a} value={a} className="text-texto">Causante: {a}</option>)}
               </select>
             ) : (
               pqrs.area_causante && (
@@ -467,8 +487,8 @@ export default function PQRSDetail() {
         <div className="col-span-1 space-y-5">
 
           {/* Datos del cliente */}
-          <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-            <h3 className="font-semibold text-[#0D2B5E] mb-4 text-sm">📋 Datos del cliente</h3>
+          <div className="bg-white rounded-xl border border-borde p-5">
+            <h3 className="font-semibold text-acento-fuerte mb-4 text-sm">Datos del cliente</h3>
             <div className="space-y-3">
               {[
                 { label: 'Empresa',        value: pqrs.empresa          },
@@ -480,16 +500,16 @@ export default function PQRSDetail() {
                 { label: 'Departamento',   value: pqrs.departamento     },
               ].map(({ label, value }) => value && (
                 <div key={label}>
-                  <div className="text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide">{label}</div>
-                  <div className="text-sm text-[#1A2B47] font-medium mt-0.5">{value}</div>
+                  <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide">{label}</div>
+                  <div className="text-sm text-texto font-medium mt-0.5">{value}</div>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Datos del producto */}
-          <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-            <h3 className="font-semibold text-[#0D2B5E] mb-4 text-sm">📦 Producto y factura</h3>
+          <div className="bg-white rounded-xl border border-borde p-5">
+            <h3 className="font-semibold text-acento-fuerte mb-4 text-sm">Producto y factura</h3>
             <div className="space-y-3">
               {[
                 { label: 'Producto',         value: pqrs.producto_nombre  },
@@ -504,8 +524,8 @@ export default function PQRSDetail() {
                 { label: 'Cant. reclamo',    value: pqrs.cantidad_reclamo },
               ].map(({ label, value }) => value && (
                 <div key={label}>
-                  <div className="text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide">{label}</div>
-                  <div className="text-sm text-[#1A2B47] font-medium mt-0.5">{value}</div>
+                  <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide">{label}</div>
+                  <div className="text-sm text-texto font-medium mt-0.5">{value}</div>
                 </div>
               ))}
             </div>
@@ -513,19 +533,19 @@ export default function PQRSDetail() {
 
           {/* Adjuntos */}
           {(pqrs.adjunto_producto || pqrs.adjunto_factura || pqrs.adjunto_video) && (
-            <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-              <h3 className="font-semibold text-[#0D2B5E] mb-4 text-sm">📎 Evidencias adjuntas</h3>
+            <div className="bg-white rounded-xl border border-borde p-5">
+              <h3 className="font-semibold text-acento-fuerte mb-4 text-sm">Evidencias adjuntas</h3>
               <div className="space-y-3">
                 {pqrs.adjunto_producto && (
                   <div>
-                    <div className="text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-2">
+                    <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide mb-2">
                       Foto del producto
                     </div>
                     <a href={`${pqrs.adjunto_producto}`} target="_blank" rel="noreferrer">
                       <img
                         src={`${pqrs.adjunto_producto}`}
                         alt="Producto"
-                        className="w-full rounded-lg border border-[#D6E0F0] object-cover max-h-40 hover:opacity-90 transition cursor-pointer"
+                        className="w-full rounded-lg border border-borde object-cover max-h-40 hover:opacity-90 transition cursor-pointer"
                         onError={(e) => { e.target.style.display='none' }}
                       />
                     </a>
@@ -533,7 +553,7 @@ export default function PQRSDetail() {
                 )}
                 {pqrs.adjunto_factura && (
                   <div>
-                    <div className="text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-2">
+                    <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide mb-2">
                       Factura
                     </div>
                     
@@ -541,22 +561,22 @@ export default function PQRSDetail() {
                       href={`${pqrs.adjunto_factura}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-2 p-3 bg-[#F0F4FA] rounded-lg hover:bg-[#D6E0F0] transition"
+                      className="flex items-center gap-2 p-3 bg-fondo rounded-lg hover:bg-borde transition"
                     >
-                      <span className="text-2xl">🧾</span>
-                      <span className="text-sm font-medium text-[#1A4FA0] underline">Ver factura adjunta</span>
+                      <IconoRecibo tam={20} className="text-texto-2" />
+                      <span className="text-sm font-medium text-acento underline">Ver factura adjunta</span>
                     </a>
                   </div>
                 )}
                 {pqrs.adjunto_video && (
                   <div>
-                    <div className="text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-2">
+                    <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide mb-2">
                       Video de evidencia
                     </div>
                     <video
                       src={`${pqrs.adjunto_video}`}
                       controls
-                      className="w-full rounded-lg border border-[#D6E0F0] max-h-52"
+                      className="w-full rounded-lg border border-borde max-h-52"
                     />
                   </div>
                 )}
@@ -566,20 +586,20 @@ export default function PQRSDetail() {
 
           {/* Asignar área */}
           {puedeEditar && pqrs.estado !== 'cerrado' && (user?.rol === 'admin' || user?.rol === 'lider') && (
-            <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-              <h3 className="font-semibold text-[#0D2B5E] mb-3 text-sm">🏢 Asignar área</h3>
-              <div className="text-xs text-[#6B7EA8] mb-2">
+            <div className="bg-white rounded-xl border border-borde p-5">
+              <h3 className="font-semibold text-acento-fuerte mb-3 text-sm">Asignar área</h3>
+              <div className="text-xs text-texto-2 mb-2">
                 Área actual: <strong>{pqrs.area_responsable || 'Sin asignar'}</strong>
               </div>
               {pqrs.radicado_calidad && (
-                <div className="text-xs text-[#6B7EA8] mb-2">
+                <div className="text-xs text-texto-2 mb-2">
                   Radicado de Calidad: <strong>{pqrs.radicado_calidad}</strong>
                 </div>
               )}
               <select
                 value={nuevaArea}
                 onChange={(e) => setNuevaArea(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] mb-3"
+                className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento mb-3"
               >
                 <option value="">Seleccionar área...</option>
                 {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
@@ -587,7 +607,7 @@ export default function PQRSDetail() {
               <button
                 onClick={() => mutArea.mutate()}
                 disabled={!nuevaArea || mutArea.isPending}
-                className="w-full bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+                className="w-full bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
               >
                 {mutArea.isPending ? 'Asignando...' : 'Asignar área'}
               </button>
@@ -601,19 +621,19 @@ export default function PQRSDetail() {
 
           {/* Cambiar estado */}
           {puedeEditar && pqrs.estado !== 'cerrado' && (
-            <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-              <h3 className="font-semibold text-[#0D2B5E] mb-3 text-sm">🔄 Cambiar estado</h3>
+            <div className="bg-white rounded-xl border border-borde p-5">
+              <h3 className="font-semibold text-acento-fuerte mb-3 text-sm">Cambiar estado</h3>
 
               {hayPendiente ? (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-700">
-                  🔐 Hay una autorización pendiente. No puedes cambiar el estado hasta que sea aprobada o rechazada.
+                <div className="bg-alerta-bg border border-ambar/30 rounded-lg p-3 text-sm text-alerta">
+                  Hay una autorización pendiente. No puedes cambiar el estado hasta que sea aprobada o rechazada.
                 </div>
               ) : (
                 <>
                   <select
                     value={nuevoEstado}
                     onChange={(e) => setNuevoEstado(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] mb-3"
+                    className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento mb-3"
                   >
                     <option value="">Seleccionar estado...</option>
                     {Object.entries(ESTADOS)
@@ -627,7 +647,7 @@ export default function PQRSDetail() {
                     }
                   </select>
                   {!esServicioCliente && (
-                    <p className="text-xs text-[#6B7EA8] bg-[#F7F9FC] rounded-lg px-3 py-2 mb-3 -mt-1">
+                    <p className="text-xs text-texto-2 bg-superficie-2 rounded-lg px-3 py-2 mb-3 -mt-1">
                       Marcala como <strong>Resuelto</strong> cuando termines. El cierre lo hace
                       Servicio al Cliente, que revisa y clasifica antes de cerrar.
                     </p>
@@ -637,24 +657,24 @@ export default function PQRSDetail() {
                     onChange={(e) => setComentario(e.target.value)}
                     placeholder="Comentario (opcional)..."
                     rows={3}
-                    className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] resize-none mb-3"
+                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none mb-3"
                   />
-                  <label className="block text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-1">
+                  <label className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
                     Evidencia (opcional)
                   </label>
                   <input
                     type="file"
                     accept=".jpg,.jpeg,.png,.webp,.pdf"
                     onChange={(e) => setEvidencia(e.target.files?.[0] || null)}
-                    className="w-full text-xs text-[#6B7EA8] mb-3 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#EAF0FB] file:text-[#1A4FA0] hover:file:bg-[#D6E0F0]"
+                    className="w-full text-xs text-texto-2 mb-3 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde"
                   />
                   {evidencia && (
-                    <p className="text-xs text-[#6B7EA8] mb-3 -mt-2">📎 {evidencia.name}</p>
+                    <p className="text-xs text-texto-2 mb-3 -mt-2">{evidencia.name}</p>
                   )}
                   <button
                     onClick={() => mutEstado.mutate()}
                     disabled={!nuevoEstado || mutEstado.isPending}
-                    className="w-full bg-[#0D2B5E] hover:bg-[#1A4FA0] text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+                    className="w-full bg-acento-fuerte hover:bg-acento text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
                   >
                     {mutEstado.isPending ? 'Guardando...' : 'Guardar cambio'}
                   </button>
@@ -673,9 +693,9 @@ export default function PQRSDetail() {
         <div className="col-span-2 space-y-5">
 
           {/* Descripción */}
-          <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-            <h3 className="font-semibold text-[#0D2B5E] mb-3 text-sm">📝 Descripción del caso</h3>
-            <p className="text-sm text-[#1A2B47] leading-relaxed whitespace-pre-wrap">{pqrs.descripcion}</p>
+          <div className="bg-white rounded-xl border border-borde p-5">
+            <h3 className="font-semibold text-acento-fuerte mb-3 text-sm">Descripción del caso</h3>
+            <p className="text-sm text-texto leading-relaxed whitespace-pre-wrap">{pqrs.descripcion}</p>
           </div>
 
           {/* Autorizaciones */}
@@ -690,39 +710,40 @@ export default function PQRSDetail() {
           />
 
           {/* Historial */}
-          <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-            <h3 className="font-semibold text-[#0D2B5E] mb-4 text-sm">
-              📡 Historial interno
-              <span className="ml-2 bg-[#F0F4FA] text-[#6B7EA8] text-xs font-semibold px-2 py-0.5 rounded-full">
+          <div className="bg-white rounded-xl border border-borde p-5">
+            <h3 className="font-semibold text-acento-fuerte mb-4 text-sm">
+              Historial interno
+              <span className="ml-2 bg-fondo text-texto-2 text-xs font-semibold px-2 py-0.5 rounded-full">
                 {pqrs.seguimientos?.length || 0} eventos
               </span>
             </h3>
 
             {pqrs.seguimientos?.length === 0 ? (
-              <p className="text-sm text-[#6B7EA8] text-center py-4">Sin eventos registrados.</p>
+              <p className="text-sm text-texto-2 text-center py-4">Sin eventos registrados.</p>
             ) : (
               <div className="relative">
-                <div className="absolute left-4 top-0 bottom-0 w-px bg-[#D6E0F0]" />
+                <div className="absolute left-4 top-0 bottom-0 w-px bg-borde" />
                 <div className="space-y-4">
                   {[...pqrs.seguimientos].reverse().map((seg) => {
-                    const evento = EVENTOS[seg.tipo_evento] || { icon: '📌', label: seg.tipo_evento }
+                    const evento = EVENTOS[seg.tipo_evento] || { Icono: IconoEtiqueta, label: seg.tipo_evento }
                     return (
                       <div key={seg.id} className="flex gap-4 relative">
-                        <div className="w-8 h-8 rounded-full bg-white border-2 border-[#D6E0F0] flex items-center justify-center flex-shrink-0 z-10 text-sm">
-                          {evento.icon}
+                        <div className="w-8 h-8 rounded-full bg-superficie border-2 border-borde
+                          text-texto-2 flex items-center justify-center flex-shrink-0 z-10">
+                          <evento.Icono tam={15} />
                         </div>
-                        <div className="flex-1 bg-[#F8FAFD] rounded-lg p-3 min-w-0">
+                        <div className="flex-1 bg-superficie-2 rounded-lg p-3 min-w-0">
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="text-xs font-semibold text-[#0D2B5E]">{evento.label}</span>
-                            <span className="text-xs text-[#9BACC8] flex-shrink-0">{formatFecha(seg.fecha)}</span>
+                            <span className="text-xs font-semibold text-acento-fuerte">{evento.label}</span>
+                            <span className="text-xs text-texto-3 flex-shrink-0">{formatFecha(seg.fecha)}</span>
                           </div>
-                          <div className="text-xs text-[#6B7EA8] mb-1">
+                          <div className="text-xs text-texto-2 mb-1">
                             {seg.usuario_nombre
                               ? `${seg.usuario_nombre}${seg.usuario_area ? ` · ${seg.usuario_area}` : ''}`
                               : 'Cliente (formulario público)'}
                           </div>
                           {seg.comentario && (
-                            <p className="text-sm text-[#1A2B47]">{seg.comentario}</p>
+                            <p className="text-sm text-texto">{seg.comentario}</p>
                           )}
                           {seg.adjunto_evidencia && (
                             /\.(jpg|jpeg|png|webp)$/i.test(seg.adjunto_evidencia) ? (
@@ -730,7 +751,7 @@ export default function PQRSDetail() {
                                 <img
                                   src={seg.adjunto_evidencia}
                                   alt="Evidencia"
-                                  className="max-h-32 rounded-lg border border-[#D6E0F0] hover:opacity-90 transition cursor-pointer"
+                                  className="max-h-32 rounded-lg border border-borde hover:opacity-90 transition cursor-pointer"
                                   onError={(e) => { e.target.style.display='none' }}
                                 />
                               </a>
@@ -739,9 +760,9 @@ export default function PQRSDetail() {
                                 href={seg.adjunto_evidencia}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-block mt-2 text-xs text-[#1A4FA0] font-semibold underline"
+                                className="inline-block mt-2 text-xs text-acento font-semibold underline"
                               >
-                                📎 Ver evidencia adjunta
+                                <IconoClip tam={13} /> Ver evidencia adjunta
                               </a>
                             )
                           )}
@@ -800,15 +821,15 @@ function ReclasificarTipo({ pqrs }) {
 
   if (!abierto) {
     return (
-      <div className="bg-white rounded-xl border border-[#D6E0F0] p-5">
-        <h3 className="font-semibold text-[#0D2B5E] mb-1 text-sm">🏷️ Clasificación</h3>
-        <p className="text-xs text-[#6B7EA8] mb-3">
+      <div className="bg-white rounded-xl border border-borde p-5">
+        <h3 className="font-semibold text-acento-fuerte mb-1 text-sm">Clasificación</h3>
+        <p className="text-xs text-texto-2 mb-3">
           Está registrada como <strong>{TIPOS[pqrs.tipo]?.label || pqrs.tipo}</strong>.
           Si no corresponde, corrígela antes de cerrar.
         </p>
         <button
           onClick={() => setAbierto(true)}
-          className="w-full border border-[#D6E0F0] hover:bg-[#F7F9FC] text-[#0D2B5E] font-semibold py-2.5 rounded-lg text-sm transition"
+          className="w-full border border-borde hover:bg-superficie-2 text-acento-fuerte font-semibold py-2.5 rounded-lg text-sm transition"
         >
           Cambiar tipo de solicitud
         </button>
@@ -817,22 +838,22 @@ function ReclasificarTipo({ pqrs }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#1A4FA0] p-5">
-      <h3 className="font-semibold text-[#0D2B5E] mb-3 text-sm">🏷️ Reclasificar</h3>
+    <div className="bg-white rounded-xl border border-acento p-5">
+      <h3 className="font-semibold text-acento-fuerte mb-3 text-sm">Reclasificar</h3>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700 mb-3">
+        <div className="bg-negativo-bg border border-negativo/25 rounded-lg px-3 py-2 text-sm text-negativo mb-3">
           {error}
         </div>
       )}
 
-      <label className="block text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-1">
+      <label className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
         ¿Qué fue en realidad?
       </label>
       <select
         value={tipo}
         onChange={(e) => setTipo(e.target.value)}
-        className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] mb-3"
+        className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento mb-3"
       >
         {Object.entries(TIPOS).map(([key, { label }]) => (
           <option key={key} value={key}>
@@ -841,37 +862,37 @@ function ReclasificarTipo({ pqrs }) {
         ))}
       </select>
 
-      <label className="block text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide mb-1">
-        ¿Por qué? <span className="text-red-500">·  obligatorio</span>
+      <label className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
+        ¿Por qué? <span className="text-negativo">·  obligatorio</span>
       </label>
       <textarea
         value={motivo}
         onChange={(e) => setMotivo(e.target.value)}
         placeholder="Ej: el cliente pide devolución de dinero, es un reclamo"
         rows={2}
-        className="w-full px-3 py-2 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] resize-none mb-2"
+        className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none mb-2"
       />
 
       {avisoSLA && (
-        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+        <p className="text-xs text-alerta bg-alerta-bg border border-ambar/30 rounded-lg px-3 py-2 mb-3">
           {avisoSLA}
         </p>
       )}
-      <p className="text-xs text-[#9BACC8] mb-3">
+      <p className="text-xs text-texto-3 mb-3">
         Queda registrado en el seguimiento con tu nombre y la fecha.
       </p>
 
       <div className="flex gap-2">
         <button
           onClick={() => { setAbierto(false); setTipo(pqrs.tipo); setMotivo(''); setError('') }}
-          className="flex-1 border border-[#D6E0F0] hover:bg-gray-50 text-[#0D2B5E] font-semibold py-2.5 rounded-lg text-sm transition"
+          className="flex-1 border border-borde hover:bg-superficie-2 text-acento-fuerte font-semibold py-2.5 rounded-lg text-sm transition"
         >
           Cancelar
         </button>
         <button
           onClick={() => { setError(''); mut.mutate() }}
           disabled={!cambio || !motivo.trim() || mut.isPending}
-          className="flex-1 bg-[#0D2B5E] hover:bg-[#1A4FA0] disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-sm transition"
+          className="flex-1 bg-acento-fuerte hover:bg-acento disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-sm transition"
         >
           {mut.isPending ? 'Guardando...' : 'Reclasificar'}
         </button>

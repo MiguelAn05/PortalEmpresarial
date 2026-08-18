@@ -75,38 +75,38 @@ export default function CalendarioView({ proyectos, usuarios, onSelectTarea }) {
   )
 
   if (isLoading) {
-    return <div className="text-center py-16 text-[#9BACC8] text-sm">Cargando calendario...</div>
+    return <div className="text-center py-16 text-texto-3 text-sm">Cargando calendario...</div>
   }
 
   return (
     <div className="space-y-5">
-      <div className="bg-white rounded-2xl border border-[#D6E0F0] p-5 shadow-sm">
+      <div className="bg-white rounded-2xl border border-borde p-5 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Responsable</label>
-            <select value={filtros.asignado_a} onChange={set('asignado_a')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Responsable</label>
+            <select value={filtros.asignado_a} onChange={set('asignado_a')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todos</option>
               <option value="sin_asignar">Sin asignar</option>
               {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Proyecto</label>
-            <select value={filtros.proyecto_id} onChange={set('proyecto_id')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Proyecto</label>
+            <select value={filtros.proyecto_id} onChange={set('proyecto_id')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todos</option>
               {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Área</label>
-            <select value={filtros.area} onChange={set('area')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Área</label>
+            <select value={filtros.area} onChange={set('area')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todas</option>
               {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Estado</label>
-            <select value={filtros.estado} onChange={set('estado')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Estado</label>
+            <select value={filtros.estado} onChange={set('estado')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todos</option>
               {Object.entries(ESTADOS_TAREA).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
             </select>
@@ -114,25 +114,25 @@ export default function CalendarioView({ proyectos, usuarios, onSelectTarea }) {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
-          <label className="flex items-center gap-2 text-sm text-[#6B7EA8] cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-sm text-texto-2 cursor-pointer select-none">
             <input
               type="checkbox" checked={ocultarCompletadas}
               onChange={(e) => setOcultarCompletadas(e.target.checked)}
-              className="rounded border-[#D6E0F0] accent-[#1A4FA0]"
+              className="rounded border-borde accent-acento"
             />
             Ocultar completadas
           </label>
 
           {eventos.length > 0 && (
-            <label className="flex items-center gap-2 text-sm text-[#6B7EA8] cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-sm text-texto-2 cursor-pointer select-none">
               <input
                 type="checkbox" checked={verOutlook}
                 onChange={(e) => setVerOutlook(e.target.checked)}
-                className="rounded border-[#D6E0F0] accent-[#1A4FA0]"
+                className="rounded border-borde accent-acento"
               />
               <span className="inline-flex items-center gap-1.5">
                 <span
-                  className="inline-block w-3 h-3 rounded-sm border-2 border-dashed border-[#6B7EA8]"
+                  className="inline-block w-3 h-3 rounded-sm border-2 border-dashed border-texto-2"
                   aria-hidden="true"
                 />
                 Mi calendario de Outlook
@@ -140,7 +140,7 @@ export default function CalendarioView({ proyectos, usuarios, onSelectTarea }) {
             </label>
           )}
 
-          <span className="text-xs text-[#9BACC8]">
+          <span className="text-xs text-texto-3">
             {visibles.length} de {tareas.length} tarea{tareas.length === 1 ? '' : 's'}
             {verOutlook && eventos.length > 0 && ` · ${eventos.length} evento${eventos.length === 1 ? '' : 's'} de Outlook`}
           </span>

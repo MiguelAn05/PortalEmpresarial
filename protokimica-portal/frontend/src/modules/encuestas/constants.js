@@ -42,10 +42,10 @@ export function nivelCalificacion(promedio) {
 }
 
 export const NIVELES = {
-  bueno:     { label: 'Bien',     punto: '#2E9E6B', chip: 'bg-green-50 text-green-700 border-green-200', texto: 'text-green-700' },
-  regular:   { label: 'Regular',  punto: '#F5A800', chip: 'bg-amber-50 text-amber-800 border-amber-200', texto: 'text-amber-800' },
-  malo:      { label: 'Mal',      punto: '#D93B3B', chip: 'bg-red-50 text-red-700 border-red-200',       texto: 'text-red-700' },
-  sin_datos: { label: 'Sin nota', punto: '#C3CFE2', chip: 'bg-gray-50 text-gray-500 border-gray-200',    texto: 'text-gray-500' },
+  bueno:     { label: 'Bien',     punto: 'var(--color-positivo-vivo)', chip: 'bg-positivo-bg text-positivo border-positivo/25', texto: 'text-positivo' },
+  regular:   { label: 'Regular',  punto: 'var(--color-ambar)', chip: 'bg-alerta-bg text-alerta border-ambar/30', texto: 'text-alerta' },
+  malo:      { label: 'Mal',      punto: 'var(--color-negativo-vivo)', chip: 'bg-negativo-bg text-negativo border-negativo/25',       texto: 'text-negativo' },
+  sin_datos: { label: 'Sin nota', punto: 'var(--color-borde-fuerte)', chip: 'bg-superficie-2 text-texto-2 border-borde',    texto: 'text-texto-2' },
 }
 
 /** "4.35" -> "4.4"; sin nota -> guion. */

@@ -3,6 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
 import { AREAS, areasParaSelect } from '../../core/areas.js'
+import {
+  IconoCandado, IconoLlave, IconoPersonas,
+} from '../../core/components/Iconos.jsx'
 
 // Las áreas viven en un solo sitio: src/core/areas.js
 
@@ -34,27 +37,27 @@ function TiposAutorizacion() {
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
   return (
-    <div className="bg-white rounded-xl border border-[#D6E0F0] overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#D6E0F0] flex items-center justify-between">
+    <div className="bg-white rounded-xl border border-borde overflow-hidden">
+      <div className="px-5 py-4 border-b border-borde flex items-center justify-between">
         <div>
-          <h3 className="font-bold text-[#0D2B5E]">Tipos de Autorización</h3>
-          <p className="text-xs text-[#6B7EA8] mt-0.5">
+          <h3 className="font-bold text-acento-fuerte">Tipos de Autorización</h3>
+          <p className="text-xs text-texto-2 mt-0.5">
             Define qué tipos de autorización pueden solicitar los agentes para gestionar una PQRS.
           </p>
         </div>
-        <span className="bg-[#F0F4FA] text-[#6B7EA8] text-xs font-bold px-2.5 py-1 rounded-full">
+        <span className="bg-fondo text-texto-2 text-xs font-bold px-2.5 py-1 rounded-full">
           {tipos.length} configurados
         </span>
       </div>
 
       {/* Formulario para crear */}
-      <div className="p-5 border-b border-[#D6E0F0] bg-[#F8FAFD]">
-        <p className="text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-3">
+      <div className="p-5 border-b border-borde bg-superficie-2">
+        <p className="text-xs font-semibold text-texto-2 uppercase tracking-wide mb-3">
           Agregar nuevo tipo
         </p>
         <div className="grid grid-cols-3 gap-3 mb-3">
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+            <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
               Nombre *
             </label>
             <input
@@ -62,25 +65,25 @@ function TiposAutorizacion() {
               value={form.nombre}
               onChange={handleChange}
               placeholder="Ej: Devolución de dinero"
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+              className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+            <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
               Área autorizadora *
             </label>
             <select
               name="area_autorizadora"
               value={form.area_autorizadora}
               onChange={handleChange}
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+              className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento"
             >
               <option value="">Seleccionar área...</option>
               {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+            <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
               Descripción
             </label>
             <input
@@ -88,13 +91,13 @@ function TiposAutorizacion() {
               value={form.descripcion}
               onChange={handleChange}
               placeholder="Descripción opcional"
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+              className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento"
             />
           </div>
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700 mb-3">
+          <div className="bg-negativo-bg border border-negativo/25 rounded-lg px-3 py-2 text-sm text-negativo mb-3">
             {error}
           </div>
         )}
@@ -102,39 +105,39 @@ function TiposAutorizacion() {
         <button
           onClick={() => mutCrear.mutate()}
           disabled={!form.nombre || !form.area_autorizadora || mutCrear.isPending}
-          className="bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-bold px-4 py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+          className="bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold px-4 py-2.5 rounded-lg text-sm transition disabled:opacity-50"
         >
           {mutCrear.isPending ? 'Guardando...' : '+ Agregar tipo'}
         </button>
       </div>
 
       {/* Lista de tipos */}
-      <div className="divide-y divide-[#F0F4FA]">
+      <div className="divide-y divide-borde">
         {isLoading ? (
-          <div className="px-5 py-8 text-center text-sm text-[#6B7EA8]">Cargando...</div>
+          <div className="px-5 py-8 text-center text-sm text-texto-2">Cargando...</div>
         ) : tipos.length === 0 ? (
           <div className="px-5 py-8 text-center">
-            <div className="text-3xl mb-2">🔐</div>
-            <p className="text-sm text-[#6B7EA8]">No hay tipos configurados aún.</p>
-            <p className="text-xs text-[#9BACC8] mt-1">Crea el primero con el formulario de arriba.</p>
+            <div className="flex justify-center mb-3 text-texto-3"><IconoCandado tam={24} /></div>
+            <p className="text-sm text-texto-2">No hay tipos configurados aún.</p>
+            <p className="text-xs text-texto-3 mt-1">Crea el primero con el formulario de arriba.</p>
           </div>
         ) : (
           tipos.map((tipo) => (
             <div key={tipo.id} className="flex items-center gap-4 px-5 py-3.5">
               <div className="flex-1">
-                <div className="text-sm font-semibold text-[#1A2B47]">{tipo.nombre}</div>
+                <div className="text-sm font-semibold text-texto">{tipo.nombre}</div>
                 {tipo.descripcion && (
-                  <div className="text-xs text-[#9BACC8] mt-0.5">{tipo.descripcion}</div>
+                  <div className="text-xs text-texto-3 mt-0.5">{tipo.descripcion}</div>
                 )}
               </div>
-              <span className="text-xs font-semibold bg-[#E8EDF8] text-[#1A4FA0] px-2.5 py-1 rounded-full flex-shrink-0">
+              <span className="text-xs font-semibold bg-acento-suave text-acento px-2.5 py-1 rounded-full flex-shrink-0">
                 {tipo.area_autorizadora}
               </span>
               <button
                 onClick={() => {
                   if (confirm(`¿Desactivar "${tipo.nombre}"?`)) mutEliminar.mutate(tipo.id)
                 }}
-                className="text-xs text-red-400 hover:text-red-600 font-semibold transition flex-shrink-0"
+                className="text-xs text-negativo-vivo hover:text-negativo font-semibold transition flex-shrink-0"
               >
                 Desactivar
               </button>
@@ -190,60 +193,60 @@ function GestionUsuarios() {
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
   return (
-    <div className="bg-white rounded-xl border border-[#D6E0F0] overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#D6E0F0] flex items-center justify-between">
+    <div className="bg-white rounded-xl border border-borde overflow-hidden">
+      <div className="px-5 py-4 border-b border-borde flex items-center justify-between">
         <div>
-          <h3 className="font-bold text-[#0D2B5E]">Usuarios y roles</h3>
-          <p className="text-xs text-[#6B7EA8] mt-0.5">
+          <h3 className="font-bold text-acento-fuerte">Usuarios y roles</h3>
+          <p className="text-xs text-texto-2 mt-0.5">
             Crea usuarios internos y asígnales rol y área para probar permisos.
           </p>
         </div>
         <button
           onClick={() => setMostrarForm(v => !v)}
-          className="bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-bold px-4 py-2 rounded-lg text-sm transition"
+          className="bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold px-4 py-2 rounded-lg text-sm transition"
         >
           {mostrarForm ? 'Cancelar' : '+ Nuevo usuario'}
         </button>
       </div>
 
       {mostrarForm && (
-        <div className="p-5 border-b border-[#D6E0F0] bg-[#F8FAFD] space-y-3">
+        <div className="p-5 border-b border-borde bg-superficie-2 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Nombre *</label>
+              <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Nombre *</label>
               <input name="nombre" value={form.nombre} onChange={handleChange} placeholder="Ej: Laura Gómez"
-                className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]" />
+                className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm focus:outline-none focus:ring-2 focus:ring-acento" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Correo *</label>
+              <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Correo *</label>
               <input name="email" type="email" value={form.email} onChange={handleChange} placeholder="laura@protokimica.com"
-                className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]" />
+                className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm focus:outline-none focus:ring-2 focus:ring-acento" />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Contraseña temporal *</label>
+            <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Contraseña temporal *</label>
             <input name="password" type="text" value={form.password} onChange={handleChange} placeholder="Mínimo 6 caracteres"
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]" />
+              className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm focus:outline-none focus:ring-2 focus:ring-acento" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Rol</label>
+              <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Rol</label>
               <select name="rol" value={form.rol} onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]">
+                className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm focus:outline-none focus:ring-2 focus:ring-acento">
                 {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>
             <div>
               <label
-                className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5"
+                className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5"
                 title={NOTA_AREA}
               >
-                Área <span className="normal-case font-normal text-[#9BACC8]">(define qué ve)</span>
+                Área <span className="normal-case font-normal text-texto-3">(define qué ve)</span>
               </label>
               <select name="area" value={form.area} onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]">
+                className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm focus:outline-none focus:ring-2 focus:ring-acento">
                 <option value="">Sin área</option>
                 {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
@@ -251,41 +254,41 @@ function GestionUsuarios() {
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">{error}</div>
+            <div className="bg-negativo-bg border border-negativo/25 rounded-lg px-3 py-2 text-sm text-negativo">{error}</div>
           )}
 
           <button
             onClick={() => mutCrear.mutate()}
             disabled={!form.nombre || !form.email || form.password.length < 6 || mutCrear.isPending}
-            className="bg-[#0D2B5E] hover:bg-[#1A4FA0] text-white font-bold px-4 py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+            className="bg-acento-fuerte hover:bg-acento text-white font-bold px-4 py-2.5 rounded-lg text-sm transition disabled:opacity-50"
           >
             {mutCrear.isPending ? 'Creando...' : 'Crear usuario'}
           </button>
         </div>
       )}
 
-      <div className="divide-y divide-[#F0F4FA]">
+      <div className="divide-y divide-borde">
         {isLoading ? (
-          <div className="px-5 py-8 text-center text-sm text-[#6B7EA8]">Cargando...</div>
+          <div className="px-5 py-8 text-center text-sm text-texto-2">Cargando...</div>
         ) : usuarios.length === 0 ? (
           <div className="px-5 py-8 text-center">
-            <div className="text-3xl mb-2">👥</div>
-            <p className="text-sm text-[#6B7EA8]">Aún no hay usuarios creados desde este panel.</p>
+            <div className="flex justify-center mb-3 text-texto-3"><IconoPersonas tam={24} /></div>
+            <p className="text-sm text-texto-2">Aún no hay usuarios creados desde este panel.</p>
           </div>
         ) : (
           usuarios.map((u) => (
             <div key={u.id} className="flex items-center gap-3 px-5 py-3.5">
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-[#1A2B47] truncate">
-                  {u.nombre} {u.id === usuarioActual?.id && <span className="text-xs text-[#9BACC8]">(tú)</span>}
+                <div className="text-sm font-semibold text-texto truncate">
+                  {u.nombre} {u.id === usuarioActual?.id && <span className="text-xs text-texto-3">(tú)</span>}
                 </div>
-                <div className="text-xs text-[#9BACC8] truncate">{u.email}</div>
+                <div className="text-xs text-texto-3 truncate">{u.email}</div>
               </div>
 
               <select
                 value={u.rol}
                 onChange={(e) => mutActualizar.mutate({ id: u.id, cambios: { rol: e.target.value } })}
-                className="text-xs font-semibold border border-[#D6E0F0] rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                className="text-xs font-semibold border border-borde rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-acento"
               >
                 {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
@@ -293,7 +296,7 @@ function GestionUsuarios() {
               <select
                 value={u.area || ''}
                 onChange={(e) => mutActualizar.mutate({ id: u.id, cambios: { area: e.target.value || null } })}
-                className="text-xs border border-[#D6E0F0] rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+                className="text-xs border border-borde rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-acento"
               >
                 <option value="">Sin área</option>
                 {areasParaSelect(u.area).map(a => <option key={a} value={a}>{a}</option>)}
@@ -305,15 +308,15 @@ function GestionUsuarios() {
                   if (nueva) mutActualizar.mutate({ id: u.id, cambios: { password: nueva } })
                 }}
                 title="Restablecer contraseña"
-                className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 bg-[#F0F4FA] text-[#6B7EA8] hover:bg-[#D6E0F0] transition"
+                className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 bg-fondo text-texto-2 hover:bg-borde transition"
               >
-                🔑
+                <IconoLlave tam={15} />
               </button>
 
               <button
                 onClick={() => mutActualizar.mutate({ id: u.id, cambios: { activo: !u.activo } })}
                 className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 transition ${
-                  u.activo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  u.activo ? 'bg-positivo-bg text-positivo hover:bg-positivo-bg' : 'bg-superficie-2 text-texto-2 hover:bg-borde-fuerte'
                 }`}
               >
                 {u.activo ? 'Activo' : 'Inactivo'}
@@ -331,8 +334,8 @@ export default function Admin() {
 
   if (user?.rol !== 'admin') {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-[#6B7EA8]">
-        <span className="text-4xl mb-3">🔒</span>
+      <div className="flex flex-col items-center justify-center py-20 text-texto-2">
+        <IconoCandado tam={26} className="mb-3 text-texto-3" />
         <span className="text-sm font-semibold">Acceso restringido</span>
         <span className="text-xs mt-1">Solo administradores pueden acceder a esta sección.</span>
       </div>
@@ -342,8 +345,8 @@ export default function Admin() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-[#0D2B5E]">Administración</h1>
-        <p className="text-sm text-[#6B7EA8] mt-1">Configuración del sistema · Solo administradores</p>
+        <h1 className="text-xl font-bold text-acento-fuerte">Administración</h1>
+        <p className="text-sm text-texto-2 mt-1">Configuración del sistema · Solo administradores</p>
       </div>
 
       <div className="space-y-5">

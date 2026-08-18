@@ -48,17 +48,17 @@ export default function CalendarioHoras({ dias, tareas, onSelect }) {
   return (
     <div>
       {/* Cabecera de días */}
-      <div className="flex border-b border-[#D6E0F0] bg-[#F7F9FC] sticky top-0 z-20">
-        <div className="w-14 shrink-0 border-r border-[#D6E0F0]" />
+      <div className="flex border-b border-borde bg-superficie-2 sticky top-0 z-20">
+        <div className="w-14 shrink-0 border-r border-borde" />
         {dias.map((dia, i) => {
           const esHoy = mismoDia(dia, ahora)
           return (
-            <div key={i} className="flex-1 text-center py-2 border-r border-[#EDF2F7] last:border-r-0 min-w-0">
-              <p className="text-[11px] uppercase tracking-wide text-[#6B7EA8]">
+            <div key={i} className="flex-1 text-center py-2 border-r border-borde last:border-r-0 min-w-0">
+              <p className="text-[11px] uppercase tracking-wide text-texto-2">
                 {DIAS_SEMANA[(dia.getDay() + 6) % 7]}
               </p>
               <p className={`text-sm font-bold mx-auto mt-0.5 w-7 h-7 flex items-center justify-center rounded-full ${
-                esHoy ? 'bg-[#1A4FA0] text-white' : 'text-[#0D2B5E]'
+                esHoy ? 'bg-acento text-white' : 'text-acento-fuerte'
               }`}>
                 {dia.getDate()}
               </p>
@@ -69,8 +69,8 @@ export default function CalendarioHoras({ dias, tareas, onSelect }) {
 
       {/* Banda de todo el día */}
       {todoElDia.length > 0 && (
-        <div className="flex border-b border-[#D6E0F0] bg-white">
-          <div className="w-14 shrink-0 border-r border-[#D6E0F0] text-[10px] text-[#9BACC8] text-right pr-2 pt-2 leading-tight">
+        <div className="flex border-b border-borde bg-white">
+          <div className="w-14 shrink-0 border-r border-borde text-[10px] text-texto-3 text-right pr-2 pt-2 leading-tight">
             Todo el día
           </div>
           <div className="flex-1 py-1.5 px-1 space-y-1 min-w-0">
@@ -91,10 +91,10 @@ export default function CalendarioHoras({ dias, tareas, onSelect }) {
       {/* Rejilla de horas */}
       <div ref={contenedor} className="relative overflow-y-auto" style={{ maxHeight: 560 }}>
         <div className="flex">
-          <div className="w-14 shrink-0 border-r border-[#D6E0F0]">
+          <div className="w-14 shrink-0 border-r border-borde">
             {horas.map(h => (
-              <div key={h} className="relative border-b border-[#F2F5FA]" style={{ height: ALTO_HORA }}>
-                <span className="absolute -top-2 right-2 text-[10px] text-[#9BACC8] bg-white px-1">
+              <div key={h} className="relative border-b border-borde" style={{ height: ALTO_HORA }}>
+                <span className="absolute -top-2 right-2 text-[10px] text-texto-3 bg-white px-1">
                   {String(h).padStart(2, '0')}:00
                 </span>
               </div>
@@ -108,17 +108,17 @@ export default function CalendarioHoras({ dias, tareas, onSelect }) {
             const minutosAhora = (ahora.getHours() - HORA_INICIO) * 60 + ahora.getMinutes()
 
             return (
-              <div key={col} className="flex-1 relative border-r border-[#EDF2F7] last:border-r-0 min-w-0">
+              <div key={col} className="flex-1 relative border-r border-borde last:border-r-0 min-w-0">
                 {horas.map(h => (
-                  <div key={h} className="border-b border-[#F2F5FA]" style={{ height: ALTO_HORA }} />
+                  <div key={h} className="border-b border-borde" style={{ height: ALTO_HORA }} />
                 ))}
 
                 {esHoy && minutosAhora >= 0 && minutosAhora <= (HORA_FIN - HORA_INICIO) * 60 && (
                   <div
-                    className="absolute inset-x-0 border-t-2 border-[#D93B3B] z-10 pointer-events-none"
+                    className="absolute inset-x-0 border-t-2 border-negativo-vivo z-10 pointer-events-none"
                     style={{ top: (minutosAhora / 60) * ALTO_HORA }}
                   >
-                    <span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-[#D93B3B]" />
+                    <span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-negativo-vivo" />
                   </div>
                 )}
 
@@ -137,7 +137,7 @@ export default function CalendarioHoras({ dias, tareas, onSelect }) {
 function ChipTodoElDia({ tarea, desdeCol, hastaCol, columnas, onSelect }) {
   const esOutlook = tarea.es_outlook
   const alerta = esOutlook ? null : alertaVencimiento(tarea)
-  const color = alerta === 'vencida' ? '#EF4444' : (ESTADOS_TAREA[tarea.estado]?.barra || '#94A3B8')
+  const color = alerta === 'vencida' ? 'var(--color-negativo-vivo)' : (ESTADOS_TAREA[tarea.estado]?.barra || 'var(--color-texto-3)')
   const ancho = hastaCol - desdeCol + 1
 
   const abrir = () => {
@@ -149,12 +149,12 @@ function ChipTodoElDia({ tarea, desdeCol, hastaCol, columnas, onSelect }) {
     <button
       onClick={abrir}
       title={`${tarea.titulo}${esOutlook ? ' · Outlook' : ''}${tarea.asignado_nombre ? ` · ${tarea.asignado_nombre}` : ''}`}
-      className={`block text-left text-[11px] font-medium px-2 py-[3px] rounded truncate transition ${esOutlook ? 'text-[#42557A] hover:bg-[#EEF3FA]' : 'text-white hover:brightness-110'}`}
+      className={`block text-left text-[11px] font-medium px-2 py-[3px] rounded truncate transition ${esOutlook ? 'text-texto-2 hover:bg-superficie-2' : 'text-white hover:brightness-110'}`}
       style={{
         marginLeft: `${(desdeCol / columnas) * 100}%`,
         width: `${(ancho / columnas) * 100}%`,
         ...(esOutlook
-          ? { background: '#F7F9FC', border: '1.5px dashed #6B7EA8' }
+          ? { background: 'var(--color-superficie-2)', border: '1.5px dashed var(--color-texto-2)' }
           : { background: color }),
       }}
     >
@@ -169,7 +169,7 @@ function BloqueHora({ bloque, onSelect }) {
   const { tarea, inicio, fin, carril, carriles } = bloque
   const esOutlook = tarea.es_outlook
   const alerta = esOutlook ? null : alertaVencimiento(tarea)
-  const color = alerta === 'vencida' ? '#EF4444' : (ESTADOS_TAREA[tarea.estado]?.barra || '#94A3B8')
+  const color = alerta === 'vencida' ? 'var(--color-negativo-vivo)' : (ESTADOS_TAREA[tarea.estado]?.barra || 'var(--color-texto-3)')
 
   const minutosDesde = (inicio.getHours() - HORA_INICIO) * 60 + inicio.getMinutes()
   const duracion = Math.max(30, (fin - inicio) / 60000)
@@ -184,22 +184,22 @@ function BloqueHora({ bloque, onSelect }) {
     <button
       onClick={abrir}
       title={`${formatHora(inicio)}–${formatHora(fin)} · ${tarea.titulo}${esOutlook ? ' · Outlook' : ''}${tarea.asignado_nombre ? ` · ${tarea.asignado_nombre}` : ''}${alerta ? ` · ${ALERTAS[alerta].label}` : ''}`}
-      className={`absolute text-left rounded-md px-1.5 py-1 overflow-hidden transition z-[5] ${esOutlook ? 'hover:bg-[#EEF3FA]' : 'hover:brightness-110 border-l-[3px]'}`}
+      className={`absolute text-left rounded-md px-1.5 py-1 overflow-hidden transition z-[5] ${esOutlook ? 'hover:bg-superficie-2' : 'hover:brightness-110 border-l-[3px]'}`}
       style={{
         top: (minutosDesde / 60) * ALTO_HORA,
         height: Math.max(22, (duracion / 60) * ALTO_HORA - 2),
         left: `calc(${carril * anchoPct}% + 2px)`,
         width: `calc(${anchoPct}% - 4px)`,
         ...(esOutlook
-          ? { background: '#F7F9FC', border: '1.5px dashed #6B7EA8' }
+          ? { background: 'var(--color-superficie-2)', border: '1.5px dashed var(--color-texto-2)' }
           : { background: `${color}22`, borderLeftColor: color }),
       }}
     >
-      <p className="text-[11px] font-semibold text-[#1A2B47] truncate leading-tight">
-        {esOutlook && <span className="text-[#6B7EA8] mr-1" aria-hidden="true">◇</span>}
+      <p className="text-[11px] font-semibold text-texto truncate leading-tight">
+        {esOutlook && <span className="text-texto-2 mr-1" aria-hidden="true">◇</span>}
         {tarea.titulo}
       </p>
-      <p className="text-[10px] text-[#6B7EA8] truncate leading-tight">
+      <p className="text-[10px] text-texto-2 truncate leading-tight">
         {formatHora(inicio)}
         {esOutlook ? ' · Outlook' : (tarea.asignado_nombre && ` · ${tarea.asignado_nombre}`)}
       </p>

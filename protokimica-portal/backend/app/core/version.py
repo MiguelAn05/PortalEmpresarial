@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.11.0"
-FECHA = "2026-08-17"
+VERSION = "0.12.0"
+FECHA = "2026-08-18"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,26 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.12.0",
+        "fecha": "2026-08-18",
+        "titulo": "Nueva imagen del portal",
+        "cambios": [
+            ("mejora", "El portal se ve distinto: menú más sobrio, tarjetas con "
+                       "profundidad y todo alineado a la misma cuadrícula."),
+            ("mejora", "Los iconos ya no son emojis. Ahora son de una sola familia y "
+                       "se ven igual en Windows, en el celular y al imprimir."),
+            ("mejora", "Los números del inicio y de los resúmenes vienen con contexto: "
+                       "cuánto falta para la meta, si subió o bajó, y si eso es bueno."),
+            ("mejora", "El inicio destaca lo vencido y lo de esta semana antes que "
+                       "cualquier otra cosa, con el conteo a la vista."),
+            ("mejora", "Los colores de estado dicen gravedad: lo vencido en rojo, lo "
+                       "próximo en ámbar, lo que va bien en verde — y siempre con su "
+                       "palabra al lado, no solo el color."),
+            ("mejora", "El portal ya se puede usar desde el celular: el menú se abre "
+                       "y se cierra encima del contenido."),
+        ],
+    },
     {
         "version": "0.11.0",
         "fecha": "2026-08-17",

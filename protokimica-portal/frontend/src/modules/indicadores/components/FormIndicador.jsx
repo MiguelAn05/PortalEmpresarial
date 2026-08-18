@@ -5,6 +5,7 @@ import { UNIDADES, TIPOS_CAPTURA, DIRECCIONES, formatValor } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { AREAS } from "../../../core/areas.js"
 import { tieneDatos } from "../../../core/components/tieneDatos"
+import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 
 
 
@@ -87,16 +88,16 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
   const comparador = form.direccion === "arriba" ? "≥" : "≤"
 
   return (
-    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={intentarCerrar}>
+    <div className="fixed inset-0 bg-acento-fuerte/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={intentarCerrar}>
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-gradient-to-r from-[#0D2B5E] to-[#1A4FA0] rounded-t-2xl p-6 text-white sticky top-0 z-10">
-          <button onClick={intentarCerrar} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
+        <div className="bg-gradient-to-r from-acento-fuerte to-acento rounded-t-2xl p-6 text-white sticky top-0 z-10">
+          <button onClick={intentarCerrar} aria-label="Cerrar" className="absolute top-4 right-4 text-white/70 hover:text-white"><IconoCerrar tam={18} /></button>
           <h2 className="text-lg font-bold">{indicador ? 'Editar indicador' : 'Nuevo indicador'}</h2>
         </div>
 
         <div className="p-6 space-y-5">
           {error && (
-            <p className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{error}</p>
+            <p className="bg-negativo-bg border border-negativo/25 text-negativo text-sm rounded-lg px-3 py-2">{error}</p>
           )}
 
           {/* Paso 1: de dónde sale el dato */}
@@ -106,15 +107,15 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
                 <label key={valor}
                   className={`flex gap-3 items-start rounded-xl border p-3 cursor-pointer transition ${
                     form.tipo_captura === valor
-                      ? 'border-[#1A4FA0] bg-[#EAF0FB]' : 'border-[#D6E0F0] hover:border-[#1A4FA0]/50'
+                      ? 'border-acento bg-acento-suave' : 'border-borde hover:border-acento/50'
                   }`}>
                   <input type="radio" name="tipo_captura" value={valor}
                     checked={form.tipo_captura === valor}
                     onChange={set('tipo_captura')}
-                    className="mt-0.5 accent-[#1A4FA0]" />
+                    className="mt-0.5 accent-acento" />
                   <div>
-                    <p className="text-sm font-semibold text-[#0D2B5E]">{cfg.label}</p>
-                    <p className="text-xs text-[#6B7EA8] mt-0.5">{cfg.ayuda}</p>
+                    <p className="text-sm font-semibold text-acento-fuerte">{cfg.label}</p>
+                    <p className="text-xs text-texto-2 mt-0.5">{cfg.ayuda}</p>
                   </div>
                 </label>
               ))}
@@ -122,12 +123,12 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
 
             {esAutomatico && (
               <div className="mt-3">
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+                <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
                   ¿Cuál de los que el sistema ya sabe calcular?
                 </label>
                 <select value={form.fuente_automatica}
                   onChange={(e) => elegirFuente(e.target.value)}
-                  className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                  className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
                   <option value="">Elige una fuente...</option>
                   {['PQRS', 'Master Planner'].map(modulo => (
                     <optgroup key={modulo} label={modulo}>
@@ -145,49 +146,49 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
           <Seccion numero="2" titulo="¿Qué mide?">
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Nombre</label>
+                <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Nombre</label>
                 <input value={form.nombre} onChange={set('nombre')}
                   placeholder="Oportunidad en la respuesta de PQRS"
-                  className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+                  className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+                <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
                   Qué mide, en una frase
                 </label>
                 <input value={form.descripcion} onChange={set('descripcion')}
                   placeholder="Qué tanto respondemos dentro del plazo comprometido"
-                  className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+                  className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Fórmula</label>
+                <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Fórmula</label>
                 <textarea value={form.formula_texto} onChange={set('formula_texto')} rows={2}
                   disabled={esAutomatico}
                   placeholder="(PQRS cerradas a tiempo ÷ PQRS cerradas) × 100"
-                  className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm resize-none disabled:bg-[#F7F9FC] disabled:text-[#6B7EA8]" />
+                  className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none disabled:bg-superficie-2 disabled:text-texto-2" />
               </div>
 
               {esRazon && <CamposDeLaDivision form={form} set={set} />}
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Unidad</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Unidad</label>
                   <select value={form.unidad} onChange={set('unidad')} disabled={esAutomatico}
-                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm disabled:bg-[#F7F9FC]">
+                    className="w-full rounded-lg border border-borde px-3 py-2 text-sm disabled:bg-superficie-2">
                     {Object.entries(UNIDADES).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Área</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Área</label>
                   <select value={form.area} onChange={set('area')}
-                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                    className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
                     <option value="">Sin área</option>
                     {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Responsable</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Responsable</label>
                   <select value={form.responsable_id} onChange={set('responsable_id')}
-                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                    className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
                     <option value="">Sin asignar</option>
                     {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
                   </select>
@@ -204,73 +205,73 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
                   <label key={valor}
                     className={`rounded-xl border p-3 cursor-pointer transition ${
                       form.direccion === valor
-                        ? 'border-[#1A4FA0] bg-[#EAF0FB]' : 'border-[#D6E0F0] hover:border-[#1A4FA0]/50'
+                        ? 'border-acento bg-acento-suave' : 'border-borde hover:border-acento/50'
                     }`}>
                     <input type="radio" name="direccion" value={valor}
                       checked={form.direccion === valor} onChange={set('direccion')}
-                      className="accent-[#1A4FA0] mr-2" />
-                    <span className="text-sm font-semibold text-[#0D2B5E]">{cfg.label}</span>
-                    <p className="text-[11px] text-[#6B7EA8] mt-0.5">{cfg.ayuda}</p>
+                      className="accent-acento mr-2" />
+                    <span className="text-sm font-semibold text-acento-fuerte">{cfg.label}</span>
+                    <p className="text-[11px] text-texto-2 mt-0.5">{cfg.ayuda}</p>
                   </label>
                 ))}
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Meta</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Meta</label>
                   <input type="number" step="any" value={form.meta} onChange={set('meta')}
-                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+                    className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-green-700 uppercase mb-1">Cumple si</label>
+                  <label className="block text-xs font-semibold text-positivo uppercase mb-1">Cumple si</label>
                   <div className="flex items-center gap-1">
-                    <span className="text-sm text-[#6B7EA8] w-4">{comparador}</span>
+                    <span className="text-sm text-texto-2 w-4">{comparador}</span>
                     <input type="number" step="any" value={form.umbral_verde} onChange={set('umbral_verde')}
-                      className="w-full rounded-lg border border-green-200 px-3 py-2 text-sm" />
+                      className="w-full rounded-lg border border-positivo/25 px-3 py-2 text-sm" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-amber-800 uppercase mb-1">Alerta si</label>
+                  <label className="block text-xs font-semibold text-alerta uppercase mb-1">Alerta si</label>
                   <div className="flex items-center gap-1">
-                    <span className="text-sm text-[#6B7EA8] w-4">{comparador}</span>
+                    <span className="text-sm text-texto-2 w-4">{comparador}</span>
                     <input type="number" step="any" value={form.umbral_amarillo} onChange={set('umbral_amarillo')}
-                      className="w-full rounded-lg border border-amber-200 px-3 py-2 text-sm" />
+                      className="w-full rounded-lg border border-ambar/30 px-3 py-2 text-sm" />
                   </div>
                 </div>
               </div>
 
               {/* Traducción en palabras de lo que se acaba de configurar */}
               {form.umbral_verde !== "" && form.umbral_amarillo !== "" && (
-                <p className="text-xs text-[#6B7EA8] bg-[#F7F9FC] rounded-lg px-3 py-2">
+                <p className="text-xs text-texto-2 bg-superficie-2 rounded-lg px-3 py-2">
                   Quedará así: <strong>cumple</strong> con {comparador} {formatValor(Number(form.umbral_verde), form.unidad)},
                   {' '}<strong>en alerta</strong> con {comparador} {formatValor(Number(form.umbral_amarillo), form.unidad)},
                   {' '}y <strong>no cumple</strong> por debajo de eso.
                 </p>
               )}
               {(form.umbral_verde === "" || form.umbral_amarillo === "") && (
-                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <p className="text-xs text-alerta bg-alerta-bg border border-ambar/30 rounded-lg px-3 py-2">
                   Sin umbrales, el semáforo solo dirá "cumple o no cumple" comparando contra la meta.
                 </p>
               )}
 
-              <label className="flex items-center gap-2 text-sm text-[#6B7EA8] cursor-pointer select-none">
+              <label className="flex items-center gap-2 text-sm text-texto-2 cursor-pointer select-none">
                 <input type="checkbox" checked={form.requiere_evidencia}
                   onChange={(e) => setForm({ ...form, requiere_evidencia: e.target.checked })}
-                  className="rounded border-[#D6E0F0] accent-[#1A4FA0]" />
+                  className="rounded border-borde accent-acento" />
                 Exigir evidencia adjunta al registrar el valor
               </label>
             </div>
           </Seccion>
         </div>
 
-        <div className="flex gap-2 px-6 py-4 bg-[#F7F9FC] border-t border-[#EDF2F7] sticky bottom-0">
+        <div className="flex gap-2 px-6 py-4 bg-superficie-2 border-t border-borde sticky bottom-0">
           <button onClick={onCerrar}
-            className="flex-1 border border-[#D6E0F0] bg-white hover:bg-gray-50 text-sm font-semibold text-[#0D2B5E] py-2.5 rounded-lg transition">
+            className="flex-1 border border-borde bg-white hover:bg-superficie-2 text-sm font-semibold text-acento-fuerte py-2.5 rounded-lg transition">
             Cancelar
           </button>
           <button onClick={() => { setError(null); mut.mutate() }}
             disabled={!completo || mut.isPending}
-            className="flex-1 bg-[#1A4FA0] hover:bg-[#0D2B5E] disabled:opacity-40 text-white text-sm font-semibold py-2.5 rounded-lg transition">
+            className="flex-1 bg-acento hover:bg-acento-fuerte disabled:opacity-40 text-white text-sm font-semibold py-2.5 rounded-lg transition">
             {mut.isPending ? 'Guardando...' : indicador ? 'Guardar cambios' : 'Crear indicador'}
           </button>
         </div>
@@ -285,10 +286,10 @@ function Seccion({ numero, titulo, children }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <span className="w-6 h-6 rounded-full bg-[#0D2B5E] text-white text-xs font-bold flex items-center justify-center shrink-0">
+        <span className="w-6 h-6 rounded-full bg-acento-fuerte text-white text-xs font-bold flex items-center justify-center shrink-0">
           {numero}
         </span>
-        <h3 className="text-sm font-bold text-[#0D2B5E]">{titulo}</h3>
+        <h3 className="text-sm font-bold text-acento-fuerte">{titulo}</h3>
       </div>
       {children}
     </div>
@@ -312,43 +313,43 @@ function CamposDeLaDivision({ form, set }) {
   const esPorcentaje = form.unidad === 'porcentaje'
 
   return (
-    <div className="bg-[#F7F9FC] rounded-xl p-4 space-y-3">
-      <p className="text-xs text-[#6B7EA8]">
+    <div className="bg-superficie-2 rounded-xl p-4 space-y-3">
+      <p className="text-xs text-texto-2">
         Este indicador es una división. Escribe qué se cuenta en cada lado.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-end">
         <div>
-          <label className="block text-xs font-semibold text-green-700 uppercase mb-1">
+          <label className="block text-xs font-semibold text-positivo uppercase mb-1">
             Lo que se logró
           </label>
           <input value={form.etiqueta_numerador} onChange={set('etiqueta_numerador')}
             placeholder="casos atendidos"
-            className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
-          <p className="text-[11px] text-[#9BACC8] mt-1">La parte. Va arriba.</p>
+            className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
+          <p className="text-[11px] text-texto-3 mt-1">La parte. Va arriba.</p>
         </div>
 
-        <div className="text-center text-2xl text-[#9BACC8] pb-6 hidden md:block">÷</div>
+        <div className="text-center text-2xl text-texto-3 pb-6 hidden md:block">÷</div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+          <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
             De un total de
           </label>
           <input value={form.etiqueta_denominador} onChange={set('etiqueta_denominador')}
             placeholder="casos recibidos"
-            className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
-          <p className="text-[11px] text-[#9BACC8] mt-1">El total. Va abajo.</p>
+            className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
+          <p className="text-[11px] text-texto-3 mt-1">El total. Va abajo.</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-[#D6E0F0] px-3 py-2.5">
-        <p className="text-[11px] font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1">
+      <div className="bg-white rounded-lg border border-borde px-3 py-2.5">
+        <p className="text-[11px] font-semibold text-texto-2 uppercase tracking-wide mb-1">
           Así quedará la fórmula
         </p>
-        <p className="text-sm text-[#1A2B47]">
+        <p className="text-sm text-texto">
           ({logrado} ÷ {total}){esPorcentaje && ' × 100'}
         </p>
-        <p className="text-xs text-[#6B7EA8] mt-1.5">
+        <p className="text-xs text-texto-2 mt-1.5">
           Por ejemplo: 20 {logrado} de 30 {total} ={' '}
           <strong>{esPorcentaje ? '66.67%' : '0.67'}</strong>
         </p>

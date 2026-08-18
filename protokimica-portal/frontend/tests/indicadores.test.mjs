@@ -30,15 +30,19 @@ check('sin comparacion no muestra nada', formatVariacion(null, 'porcentaje') ===
 
 console.log('\n== El tono depende de hacia donde mejora ==')
 // Subir la satisfaccion es bueno; subir los accidentes es malo.
+// Se compara contra el token, no contra un hex ni contra "green": los
+// colores viven en index.css y aquí solo importa cuál de los tres es.
 check('subir en un indicador "mejor arriba" es verde',
-  tonoVariacion(5, 'arriba').includes('green'), tonoVariacion(5, 'arriba'))
+  tonoVariacion(5, 'arriba').includes('positivo'), tonoVariacion(5, 'arriba'))
 check('bajar en un indicador "mejor arriba" es rojo',
-  tonoVariacion(-5, 'arriba').includes('red'), tonoVariacion(-5, 'arriba'))
+  tonoVariacion(-5, 'arriba').includes('negativo'), tonoVariacion(-5, 'arriba'))
 check('subir en un indicador "mejor abajo" es rojo',
-  tonoVariacion(5, 'abajo').includes('red'), tonoVariacion(5, 'abajo'))
+  tonoVariacion(5, 'abajo').includes('negativo'), tonoVariacion(5, 'abajo'))
 check('bajar en un indicador "mejor abajo" es verde',
-  tonoVariacion(-5, 'abajo').includes('green'), tonoVariacion(-5, 'abajo'))
-check('sin cambio es neutro', tonoVariacion(0, 'arriba').includes('9BACC8'))
+  tonoVariacion(-5, 'abajo').includes('positivo'), tonoVariacion(-5, 'abajo'))
+check('sin cambio es neutro', tonoVariacion(0, 'arriba') === 'text-texto-3')
+// Ningun color quemado: si vuelve un hex, esto lo caza.
+check('el tono no trae un hex encima', !tonoVariacion(5, 'arriba').includes('#'))
 
 console.log('\n== Navegacion de periodos ==')
 check('retrocede dentro del año',
@@ -66,8 +70,10 @@ check('los 4 estados del semaforo del backend existen',
   ['verde', 'amarillo', 'rojo', 'sin_datos'].every(k => SEMAFOROS[k]?.label))
 check('cada semaforo tiene etiqueta de texto, no solo color',
   Object.values(SEMAFOROS).every(s => s.label && s.label.length > 2))
+// El punto se dibuja en SVG, donde no hay clases de Tailwind: va como
+// var(--...) para que siga saliendo de index.css y no de un hex a mano.
 check('cada semaforo tiene su color de punto',
-  Object.values(SEMAFOROS).every(s => /^#[0-9A-Fa-f]{6}$/.test(s.punto)))
+  Object.values(SEMAFOROS).every(s => /^var\(--color-[\w-]+\)$/.test(s.punto)))
 check('las unidades cubren las del backend',
   ['porcentaje', 'moneda', 'dias', 'cantidad', 'razon'].every(u => UNIDADES[u]?.label))
 check('los tipos de captura cubren los del backend',

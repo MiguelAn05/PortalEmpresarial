@@ -13,7 +13,7 @@ import ConfirmarDescarte from "./ConfirmarDescarte"
  * Uso:
  *   const { intentarCerrar, dialogoDescarte } = useCierreSeguro({ hayCambios, onCerrar })
  *   <div onClick={intentarCerrar}>            // fondo
- *     <button onClick={intentarCerrar}>✕</button>
+ *     <button onClick={intentarCerrar} aria-label="Cerrar">…</button>
  *     ...
  *   </div>
  *   {dialogoDescarte}

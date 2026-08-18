@@ -18,20 +18,24 @@ import {
   listarHistorialProyecto,
 } from "../api"
 import {
+  IconoBandera, IconoCalendario, IconoCronograma, IconoDinero,
+  IconoHistorial, IconoInfo, IconoProyectos, IconoTabla,
+} from '../../../core/components/Iconos.jsx'
+import {
   ESTADOS_PROYECTO, ESTADOS_TAREA, PRIORIDADES,
   FILTROS_TAREAS_VACIOS, filtrarTareas, alertaVencimiento,
   colorAvance, formatFecha, formatMoneda, puedeEditar,
 } from "../constants"
 
 const SUBVISTAS = [
-  { id: 'tablero',     label: '🗂️ Tablero' },
-  { id: 'tabla',       label: '📋 Tabla' },
-  { id: 'cronograma',  label: '📊 Cronograma' },
-  { id: 'calendario',  label: '🗓️ Calendario' },
-  { id: 'presupuesto', label: '💰 Presupuesto' },
-  { id: 'historial',   label: '🕓 Historial' },
-  { id: 'informacion', label: 'ℹ️ Información' },
-  { id: 'cierre',      label: '🏁 Cierre' },
+  { id: 'tablero',     label: 'Tablero',     Icono: IconoProyectos  },
+  { id: 'tabla',       label: 'Tabla',       Icono: IconoTabla      },
+  { id: 'cronograma',  label: 'Cronograma',  Icono: IconoCronograma },
+  { id: 'calendario',  label: 'Calendario',  Icono: IconoCalendario },
+  { id: 'presupuesto', label: 'Presupuesto', Icono: IconoDinero     },
+  { id: 'historial',   label: 'Historial',   Icono: IconoHistorial  },
+  { id: 'informacion', label: 'Información', Icono: IconoInfo       },
+  { id: 'cierre',      label: 'Cierre',      Icono: IconoBandera    },
 ]
 
 /**
@@ -88,7 +92,7 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
   const hayFiltros = Object.values(filtros).some(v => v !== "")
 
   if (cargandoProyecto || !proyecto) {
-    return <div className="text-center py-16 text-[#9BACC8] text-sm">Cargando proyecto...</div>
+    return <div className="text-center py-16 text-texto-3 text-sm">Cargando proyecto...</div>
   }
 
   const estadoCfg = ESTADOS_PROYECTO[proyecto.estado] || {}
@@ -97,12 +101,12 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
 
   return (
     <div className="space-y-5">
-      <button onClick={onVolver} className="text-sm font-semibold text-[#1A4FA0] hover:underline">
+      <button onClick={onVolver} className="text-sm font-semibold text-acento hover:underline">
         ← Volver a proyectos
       </button>
 
       {/* Cabecera del proyecto */}
-      <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-borde shadow-sm overflow-hidden">
         <div className="p-6">
           <div className="flex flex-wrap justify-between items-start gap-4">
             <div className="min-w-0">
@@ -114,14 +118,14 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
                     cambios: [{ campo: 'estado', antes: proyecto.estado, despues: e.target.value }],
                     ejecutar: () => mutCampoProyecto.mutate({ estado: e.target.value }),
                   })}
-                  className={`text-xs font-semibold rounded-full px-3 py-1 border-0 ${editable ? 'cursor-pointer' : ''} ${estadoCfg.color || 'bg-gray-100'}`}
+                  className={`text-xs font-semibold rounded-full px-3 py-1 border-0 ${editable ? 'cursor-pointer' : ''} ${estadoCfg.color || 'bg-superficie-2'}`}
                 >
                   {Object.entries(ESTADOS_PROYECTO).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
                 </select>
                 <PriorityBadge priority={proyecto.prioridad} />
                 {proyecto.area && (
                   <span
-                    className="px-3 py-1 rounded-full text-xs font-semibold bg-[#EAF0FB] border border-[#D6E0F0] text-[#1A4FA0]"
+                    className="px-3 py-1 rounded-full text-xs font-semibold bg-acento-suave border border-borde text-acento"
                     title="Area responsable: es la duena del presupuesto"
                   >
                     {proyecto.area}
@@ -129,16 +133,16 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
                 )}
                 {proyecto.areas_participantes?.map(a => (
                   <span key={a} title="Area participante"
-                    className="px-3 py-1 rounded-full text-xs font-semibold bg-[#F7F9FC] border border-[#D6E0F0] text-[#6B7EA8]">
+                    className="px-3 py-1 rounded-full text-xs font-semibold bg-superficie-2 border border-borde text-texto-2">
                     {a}
                   </span>
                 ))}
                 {proyecto.archivado && (
-                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Archivado</span>
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-superficie-2 text-texto-2">Archivado</span>
                 )}
               </div>
-              <h2 className="text-2xl font-bold text-[#0D2B5E]">{proyecto.nombre}</h2>
-              {proyecto.objetivo && <p className="text-sm text-[#6B7EA8] mt-1 max-w-2xl">{proyecto.objetivo}</p>}
+              <h2 className="text-2xl font-bold text-acento-fuerte">{proyecto.nombre}</h2>
+              {proyecto.objetivo && <p className="text-sm text-texto-2 mt-1 max-w-2xl">{proyecto.objetivo}</p>}
             </div>
 
             {editable && (
@@ -148,20 +152,20 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
                 {!proyecto.cierre_tipo && puedeCerrarProyecto(user, proyecto) && (
                   <button
                     onClick={() => setCerrando(true)}
-                    className="border border-[#D6E0F0] hover:bg-gray-50 text-[#0D2B5E] text-sm font-semibold px-4 py-2.5 rounded-xl transition"
+                    className="border border-borde hover:bg-superficie-2 text-acento-fuerte text-sm font-semibold px-4 py-2.5 rounded-xl transition"
                   >
                     Cerrar proyecto
                   </button>
                 )}
                 <button
                   onClick={() => onEditar(proyecto)}
-                  className="border border-[#D6E0F0] hover:bg-gray-50 text-[#0D2B5E] text-sm font-semibold px-4 py-2.5 rounded-xl transition"
+                  className="border border-borde hover:bg-superficie-2 text-acento-fuerte text-sm font-semibold px-4 py-2.5 rounded-xl transition"
                 >
                   Editar proyecto
                 </button>
                 <button
                   onClick={onNuevaTarea}
-                  className="bg-[#1A4FA0] hover:bg-[#0D2B5E] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition"
+                  className="bg-acento hover:bg-acento-fuerte text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition"
                 >
                   + Nueva tarea
                 </button>
@@ -169,14 +173,14 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
             )}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-5 mt-6 pt-5 border-t border-[#EDF2F7]">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-5 mt-6 pt-5 border-t border-borde">
             <Dato titulo="Líder"><Avatar name={proyecto.lider_nombre} compact /></Dato>
             <Dato titulo="Inicio">{formatFecha(proyecto.fecha_inicio)}</Dato>
             <Dato titulo="Fin estimado">{formatFecha(proyecto.fecha_fin_estimada)}</Dato>
             <Dato titulo="Presupuesto">
               {formatMoneda(proyecto.presupuesto_total)}
               {proyecto.presupuesto_total > 0 && (
-                <span className="block text-[11px] text-[#9BACC8]">
+                <span className="block text-[11px] text-texto-3">
                   {proyecto.presupuesto_aprobado > 0
                     ? `${proyecto.pagado_pct}% pagado de lo aprobado`
                     : 'sin aprobar'}
@@ -186,30 +190,34 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
             </Dato>
             <Dato titulo={`Avance · ${proyecto.tareas_completadas}/${proyecto.total_tareas} tareas`}>
               <div className="flex items-center gap-2">
-                <div className="flex-1 bg-gray-200 rounded-full h-2">
+                <div className="flex-1 bg-superficie-2 rounded-full h-2">
                   <div className="h-2 rounded-full" style={{ width: `${proyecto.avance_pct}%`, background: colorAvance(proyecto.avance_pct) }} />
                 </div>
-                <span className="text-sm font-bold text-[#0D2B5E]">{proyecto.avance_pct}%</span>
+                <span className="text-sm font-bold text-acento-fuerte">{proyecto.avance_pct}%</span>
               </div>
             </Dato>
           </div>
 
           {vencidas > 0 && (
-            <div className="mt-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-2.5 font-semibold">
+            <div className="mt-4 bg-negativo-bg border border-negativo/25 text-negativo text-sm rounded-xl px-4 py-2.5 font-semibold">
               {vencidas} tarea{vencidas === 1 ? '' : 's'} de este proyecto {vencidas === 1 ? 'está vencida' : 'están vencidas'}.
             </div>
           )}
         </div>
 
-        <div className="border-t border-[#D6E0F0] px-6 flex gap-1 overflow-x-auto">
+        <div className="border-t border-borde px-6 flex gap-1 overflow-x-auto">
           {SUBVISTAS.map(v => (
             <button
               key={v.id}
               onClick={() => setSubvista(v.id)}
-              className={`px-4 py-3 text-sm font-semibold border-b-2 -mb-px whitespace-nowrap transition ${
-                subvista === v.id ? 'border-[#1A4FA0] text-[#0D2B5E]' : 'border-transparent text-[#6B7EA8] hover:text-[#0D2B5E]'
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px
+                whitespace-nowrap transition-colors duration-150 ease-suave ${
+                subvista === v.id
+                  ? 'border-acento text-texto font-semibold'
+                  : 'border-transparent text-texto-2 hover:text-texto'
               }`}
             >
+              <v.Icono tam={15} />
               {v.label}
             </button>
           ))}
@@ -218,27 +226,27 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
 
       {/* Filtros de tareas dentro del proyecto (sin filtro de proyecto, ya estamos en uno) */}
       {necesitaFiltros && tareas.length > 0 && (
-        <div className="bg-white rounded-2xl border border-[#D6E0F0] p-4 shadow-sm">
+        <div className="bg-white rounded-2xl border border-borde p-4 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
             <input
               value={filtros.busqueda} onChange={set('busqueda')}
               placeholder="Buscar tarea..."
-              className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+              className="rounded-lg border border-borde px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acento"
             />
-            <select value={filtros.asignado_a} onChange={set('asignado_a')} className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <select value={filtros.asignado_a} onChange={set('asignado_a')} className="rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todos los responsables</option>
               <option value="sin_asignar">Sin asignar</option>
               {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
             </select>
-            <select value={filtros.estado} onChange={set('estado')} className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <select value={filtros.estado} onChange={set('estado')} className="rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todos los estados</option>
               {Object.entries(ESTADOS_TAREA).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
             </select>
-            <select value={filtros.prioridad} onChange={set('prioridad')} className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <select value={filtros.prioridad} onChange={set('prioridad')} className="rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todas las prioridades</option>
               {Object.entries(PRIORIDADES).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
             </select>
-            <select value={filtros.vencimiento} onChange={set('vencimiento')} className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <select value={filtros.vencimiento} onChange={set('vencimiento')} className="rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todo vencimiento</option>
               <option value="vencida">Solo vencidas</option>
               <option value="por_vencer">Solo por vencer</option>
@@ -248,8 +256,8 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
           </div>
           {hayFiltros && (
             <div className="flex justify-between items-center mt-3">
-              <span className="text-xs text-[#9BACC8]">{visibles.length} de {tareas.length} tareas</span>
-              <button onClick={() => setFiltros(FILTROS_TAREAS_VACIOS)} className="text-xs font-semibold text-[#1A4FA0] hover:underline">
+              <span className="text-xs text-texto-3">{visibles.length} de {tareas.length} tareas</span>
+              <button onClick={() => setFiltros(FILTROS_TAREAS_VACIOS)} className="text-xs font-semibold text-acento hover:underline">
                 Limpiar filtros
               </button>
             </div>
@@ -258,13 +266,13 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
       )}
 
       {cargandoTareas && necesitaFiltros ? (
-        <div className="text-center py-16 text-[#9BACC8] text-sm">Cargando tareas...</div>
+        <div className="text-center py-16 text-texto-3 text-sm">Cargando tareas...</div>
       ) : necesitaFiltros && tareas.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dashed border-[#D6E0F0] p-16 text-center">
-          <p className="text-[#6B7EA8] mb-4">Este proyecto todavía no tiene tareas.</p>
+        <div className="bg-white rounded-2xl border border-dashed border-borde p-16 text-center">
+          <p className="text-texto-2 mb-4">Este proyecto todavía no tiene tareas.</p>
           <button
             onClick={onNuevaTarea}
-            className="bg-[#1A4FA0] hover:bg-[#0D2B5E] text-white font-semibold px-6 py-3 rounded-xl shadow-sm transition"
+            className="bg-acento hover:bg-acento-fuerte text-white font-semibold px-6 py-3 rounded-xl shadow-sm transition"
           >
             + Crear la primera tarea
           </button>
@@ -317,29 +325,29 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
 function Dato({ titulo, children }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold text-[#9BACC8] uppercase tracking-wide mb-1.5">{titulo}</p>
-      <div className="text-sm text-[#1A2B47]">{children}</div>
+      <p className="text-[11px] font-semibold text-texto-3 uppercase tracking-wide mb-1.5">{titulo}</p>
+      <div className="text-sm text-texto">{children}</div>
     </div>
   )
 }
 
 function PanelInformacion({ proyecto, editable, onEditar }) {
   return (
-    <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm p-6 space-y-5">
+    <div className="bg-white rounded-2xl border border-borde shadow-sm p-6 space-y-5">
       <div className="flex justify-between items-start">
-        <h3 className="text-sm font-bold text-[#0D2B5E]">Información del proyecto</h3>
+        <h3 className="text-sm font-bold text-acento-fuerte">Información del proyecto</h3>
         {editable && (
-          <button onClick={onEditar} className="text-xs font-semibold text-[#1A4FA0] hover:underline">Editar</button>
+          <button onClick={onEditar} className="text-xs font-semibold text-acento hover:underline">Editar</button>
         )}
       </div>
       <Campo titulo="Objetivo" valor={proyecto.objetivo} />
       <Campo titulo="Alcance" valor={proyecto.alcance} />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2 border-t border-[#EDF2F7]">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2 border-t border-borde">
         <Campo titulo="Fecha de inicio" valor={formatFecha(proyecto.fecha_inicio)} />
         <Campo titulo="Fin estimado" valor={formatFecha(proyecto.fecha_fin_estimada)} />
         <Campo titulo="Fin real" valor={proyecto.fecha_fin_real ? formatFecha(proyecto.fecha_fin_real) : 'Aún abierto'} />
       </div>
-      <p className="text-[11px] text-[#9BACC8] pt-2 border-t border-[#EDF2F7]">
+      <p className="text-[11px] text-texto-3 pt-2 border-t border-borde">
         Creado el {formatFecha(proyecto.creado_en)}
       </p>
     </div>
@@ -349,8 +357,8 @@ function PanelInformacion({ proyecto, editable, onEditar }) {
 function Campo({ titulo, valor }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold text-[#9BACC8] uppercase tracking-wide mb-1">{titulo}</p>
-      <p className="text-sm text-[#1A2B47] whitespace-pre-line">{valor || <span className="text-[#C3CFE2] italic">Sin definir</span>}</p>
+      <p className="text-[11px] font-semibold text-texto-3 uppercase tracking-wide mb-1">{titulo}</p>
+      <p className="text-sm text-texto whitespace-pre-line">{valor || <span className="text-borde-fuerte italic">Sin definir</span>}</p>
     </div>
   )
 }
@@ -364,19 +372,19 @@ function PanelHistorial({ proyectoId }) {
   })
 
   return (
-    <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm overflow-hidden">
-      <div className="flex flex-wrap justify-between items-center gap-3 px-6 py-4 border-b border-[#D6E0F0]">
+    <div className="bg-white rounded-2xl border border-borde shadow-sm overflow-hidden">
+      <div className="flex flex-wrap justify-between items-center gap-3 px-6 py-4 border-b border-borde">
         <div>
-          <h3 className="text-sm font-bold text-[#0D2B5E]">Historial de cambios</h3>
-          <p className="text-xs text-[#9BACC8] mt-0.5">
+          <h3 className="text-sm font-bold text-acento-fuerte">Historial de cambios</h3>
+          <p className="text-xs text-texto-3 mt-0.5">
             Quién cambió qué y cuándo, en el proyecto y en sus tareas.
           </p>
         </div>
-        <label className="flex items-center gap-2 text-xs text-[#6B7EA8] cursor-pointer select-none">
+        <label className="flex items-center gap-2 text-xs text-texto-2 cursor-pointer select-none">
           <input
             type="checkbox" checked={soloProyecto}
             onChange={(e) => setSoloProyecto(e.target.checked)}
-            className="rounded border-[#D6E0F0] accent-[#1A4FA0]"
+            className="rounded border-borde accent-acento"
           />
           Solo cambios del proyecto
         </label>
@@ -384,7 +392,7 @@ function PanelHistorial({ proyectoId }) {
 
       <div className="p-6">
         {isLoading ? (
-          <p className="text-sm text-[#9BACC8] text-center py-6">Cargando historial...</p>
+          <p className="text-sm text-texto-3 text-center py-6">Cargando historial...</p>
         ) : (
           <HistorialPanel
             entradas={historial}

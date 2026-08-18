@@ -56,19 +56,41 @@ export function ordenTarjetas(usuario) {
  * El tono de la tarjeta de pendientes. Nunca es solo color: quien lo lee
  * recibe además el texto, porque el ámbar de la marca no alcanza el
  * contraste mínimo sobre blanco.
+ *
+ * Devuelve el nombre del estado, no una clase de CSS: esta función decide
+ * *qué tan grave es*, y de pintarlo se encarga el componente. Cuando devolvía
+ * una clase de Tailwind con el rojo adentro, la paleta vivía repartida
+ * entre archivos de lógica.
  */
 export function tonoPendientes(inicio) {
-  if (!inicio) return { borde: 'border-t-[#D6E0F0]', titulo: 'Lo que te toca hoy' }
+  if (!inicio) return { tono: 'neutro', titulo: 'Lo que te toca hoy' }
   if (inicio.total_urgente > 0) {
     return {
-      borde: 'border-t-[#D93B3B]',
+      tono: 'negativo',
       titulo: `Tienes ${inicio.total_urgente} ${inicio.total_urgente === 1 ? 'cosa vencida' : 'cosas vencidas'}`,
     }
   }
   if (inicio.total_pendiente > 0) {
-    return { borde: 'border-t-[#F5A800]', titulo: 'Lo que te toca esta semana' }
+    return { tono: 'alerta', titulo: 'Lo que te toca esta semana' }
   }
-  return { borde: 'border-t-[#2E9E6B]', titulo: 'Estás al día' }
+  return { tono: 'positivo', titulo: 'Estás al día' }
+}
+
+/**
+ * El monto corto de una tarjeta de resumen: `$ 36,0 M`.
+ *
+ * En una tarjeta de 220px un `$ 67.500.770` completo obliga a bajar la cifra
+ * a un tamaño que ya no se lee de un vistazo. El valor exacto no se pierde:
+ * va en el `title` de la tarjeta.
+ */
+export function montoCorto(valor) {
+  if (valor === null || valor === undefined) return '—'
+  const n = Number(valor)
+  if (!Number.isFinite(n)) return '—'
+  if (Math.abs(n) < 1000000) return `$ ${Math.round(n).toLocaleString('es-CO')}`
+  return `$ ${(n / 1000000).toLocaleString('es-CO', {
+    minimumFractionDigits: 1, maximumFractionDigits: 1,
+  })} M`
 }
 
 /** El nombre de pila basta para saludar; el completo satura el encabezado. */

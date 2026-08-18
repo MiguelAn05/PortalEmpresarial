@@ -51,26 +51,26 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
 
   return (
     <div className="space-y-5">
-      <div className="bg-white rounded-2xl border border-[#D6E0F0] p-5 shadow-sm">
+      <div className="bg-white rounded-2xl border border-borde p-5 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Buscar</label>
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Buscar</label>
             <input
               value={filtros.busqueda} onChange={set('busqueda')}
               placeholder="Nombre, objetivo, líder..."
-              className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+              className="w-full rounded-lg border border-borde px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acento"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Estado</label>
-            <select value={filtros.estado} onChange={set('estado')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Estado</label>
+            <select value={filtros.estado} onChange={set('estado')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todos</option>
               {Object.entries(ESTADOS_PROYECTO).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Área</label>
-            <select value={filtros.area} onChange={set('area')} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Área</label>
+            <select value={filtros.area} onChange={set('area')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todas</option>
               {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
@@ -78,32 +78,32 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
         </div>
 
         <div className="flex items-center justify-between mt-4">
-          <label className="flex items-center gap-2 text-sm text-[#6B7EA8] cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-sm text-texto-2 cursor-pointer select-none">
             <input
               type="checkbox" checked={verArchivados}
               onChange={(e) => setVerArchivados(e.target.checked)}
-              className="rounded border-[#D6E0F0] accent-[#1A4FA0]"
+              className="rounded border-borde accent-acento"
             />
             Ver proyectos archivados
           </label>
-          <span className="text-xs text-[#9BACC8]">
+          <span className="text-xs text-texto-3">
             {visibles.length} de {proyectos.length} proyecto{proyectos.length === 1 ? '' : 's'}
           </span>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex justify-between gap-4">
+        <div className="bg-negativo-bg border border-negativo/25 text-negativo text-sm rounded-xl px-4 py-3 flex justify-between gap-4">
           <span>{error}</span>
           <button onClick={() => setError(null)} className="font-semibold shrink-0">Cerrar</button>
         </div>
       )}
 
       {isLoading ? (
-        <div className="text-center py-16 text-[#9BACC8] text-sm">Cargando proyectos...</div>
+        <div className="text-center py-16 text-texto-3 text-sm">Cargando proyectos...</div>
       ) : visibles.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dashed border-[#D6E0F0] p-16 text-center">
-          <p className="text-[#6B7EA8] mb-4">
+        <div className="bg-white rounded-2xl border border-dashed border-borde p-16 text-center">
+          <p className="text-texto-2 mb-4">
             {proyectos.length === 0
               ? (verArchivados ? "No hay proyectos archivados." : "Todavía no hay proyectos creados.")
               : "Ningún proyecto coincide con los filtros."}
@@ -111,7 +111,7 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
           {proyectos.length === 0 && !verArchivados && editable && (
             <button
               onClick={onNuevoProyecto}
-              className="bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-semibold px-6 py-3 rounded-xl shadow-sm transition"
+              className="bg-ambar hover:bg-ambar-claro text-acento-fuerte font-semibold px-6 py-3 rounded-xl shadow-sm transition"
             >
               + Crear el primer proyecto
             </button>

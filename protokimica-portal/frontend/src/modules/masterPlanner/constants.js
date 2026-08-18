@@ -3,28 +3,28 @@
 // como si fueran estados de tablero; ahora el riesgo se documenta como texto
 // libre por tarea (campo `riesgos`), no como una columna del Kanban.
 export const ESTADOS_TAREA = {
-  pendiente:  { label: 'Pendiente',   color: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-400',    barra: '#60A5FA' },
-  en_proceso: { label: 'En proceso',  color: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-400', barra: '#34D399' },
-  bloqueada:  { label: 'Bloqueada',   color: 'bg-red-100 text-red-700',      dot: 'bg-red-400',     barra: '#F87171' },
-  completada: { label: 'Completada',  color: 'bg-gray-200 text-gray-700',    dot: 'bg-gray-400',    barra: '#9CA3AF' },
+  pendiente:  { label: 'Pendiente',  color: 'bg-superficie-2 text-texto-2', dot: 'bg-borde-fuerte',   barra: 'var(--color-borde-fuerte)'  },
+  en_proceso: { label: 'En proceso', color: 'bg-info-bg text-info',         dot: 'bg-acento',         barra: 'var(--color-acento)'        },
+  bloqueada:  { label: 'Bloqueada',  color: 'bg-negativo-bg text-negativo', dot: 'bg-negativo-vivo',  barra: 'var(--color-negativo-vivo)' },
+  completada: { label: 'Completada', color: 'bg-positivo-bg text-positivo', dot: 'bg-positivo-vivo',  barra: 'var(--color-positivo-vivo)' },
 }
 
 export const ESTADOS_PROYECTO = {
-  planeacion:   { label: 'Planeación',   color: 'bg-blue-100 text-blue-700' },
-  en_ejecucion: { label: 'En ejecución', color: 'bg-emerald-100 text-emerald-700' },
-  pausado:      { label: 'Pausado',      color: 'bg-yellow-100 text-yellow-700' },
-  cerrado:      { label: 'Cerrado',      color: 'bg-gray-200 text-gray-700' },
+  planeacion:   { label: 'Planeación',   color: 'bg-superficie-2 text-texto-2' },
+  en_ejecucion: { label: 'En ejecución', color: 'bg-info-bg text-info' },
+  pausado:      { label: 'Pausado',      color: 'bg-alerta-bg text-alerta' },
+  cerrado:      { label: 'Cerrado',      color: 'bg-positivo-bg text-positivo' },
   // Distinto de "cerrado" a propósito: uno terminó y el otro se abandonó.
   // Si contaran igual, un proyecto que nadie sacó adelante se vería como uno
   // cumplido en los indicadores.
-  cancelado:    { label: 'Cancelado',    color: 'bg-red-100 text-red-700' },
+  cancelado:    { label: 'Cancelado',    color: 'bg-negativo-bg text-negativo' },
 }
 
 export const PRIORIDADES = {
-  baja:    { label: 'Baja',    color: 'bg-green-100 text-green-700'  },
-  media:   { label: 'Media',   color: 'bg-yellow-100 text-yellow-700' },
-  alta:    { label: 'Alta',    color: 'bg-orange-100 text-orange-700' },
-  critica: { label: 'Crítica', color: 'bg-red-100 text-red-700'    },
+  baja:    { label: 'Baja',    color: 'bg-superficie-2 text-texto-2' },
+  media:   { label: 'Media',   color: 'bg-info-bg text-info'         },
+  alta:    { label: 'Alta',    color: 'bg-alerta-bg text-alerta'     },
+  critica: { label: 'Crítica', color: 'bg-negativo-bg text-negativo' },
 }
 
 // Las áreas viven en un solo sitio: src/core/areas.js
@@ -39,9 +39,9 @@ export const MESES = [
 export const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
 export function colorAvance(pct) {
-  if (pct < 30) return '#EF4444'
-  if (pct < 70) return '#F59E0B'
-  return '#22C55E'
+  if (pct < 30) return 'var(--color-negativo-vivo)'
+  if (pct < 70) return 'var(--color-ambar)'
+  return 'var(--color-positivo-vivo)'
 }
 
 // ── Vencimientos ──────────────────────────────────────────────
@@ -51,8 +51,8 @@ export function colorAvance(pct) {
 export const DIAS_AVISO_VENCIMIENTO = 3
 
 export const ALERTAS = {
-  vencida:    { label: 'Vencida',    chip: 'bg-red-100 text-red-700 border-red-200',       borde: 'border-l-4 border-l-red-400',   texto: 'text-red-600' },
-  por_vencer: { label: 'Por vencer', chip: 'bg-amber-100 text-amber-700 border-amber-200', borde: 'border-l-4 border-l-amber-400', texto: 'text-amber-600' },
+  vencida:    { label: 'Vencida',    chip: 'bg-negativo-bg text-negativo border-negativo/25', borde: 'border-l-4 border-l-negativo-vivo', texto: 'text-negativo' },
+  por_vencer: { label: 'Por vencer', chip: 'bg-alerta-bg text-alerta border-ambar/30',        borde: 'border-l-4 border-l-ambar',        texto: 'text-alerta'   },
 }
 
 export function alertaVencimiento(tarea) {
@@ -109,20 +109,20 @@ export function puedeRegistrarPagos(usuario) {
 
 /** Estado de un ítem en el recorrido planeado → aprobado → pagado. */
 export const ESTADOS_PAGO = {
-  por_aprobar: { label: 'Por aprobar', chip: 'bg-gray-100 text-gray-600 border-gray-200', punto: '#9BACC8' },
-  aprobado:    { label: 'Aprobado',    chip: 'bg-blue-50 text-blue-700 border-blue-200',  punto: '#1A4FA0' },
-  parcial:     { label: 'Pago parcial', chip: 'bg-amber-50 text-amber-800 border-amber-200', punto: '#F5A800' },
-  pagado:      { label: 'Pagado',      chip: 'bg-green-50 text-green-700 border-green-200', punto: '#2E9E6B' },
+  por_aprobar:  { label: 'Por aprobar',  chip: 'bg-superficie-2 text-texto-2 border-borde',    punto: 'var(--color-texto-3)'        },
+  aprobado:     { label: 'Aprobado',     chip: 'bg-info-bg text-info border-info/20',         punto: 'var(--color-acento)'         },
+  parcial:      { label: 'Pago parcial', chip: 'bg-alerta-bg text-alerta border-ambar/30',    punto: 'var(--color-ambar)'          },
+  pagado:       { label: 'Pagado',       chip: 'bg-positivo-bg text-positivo border-positivo/20', punto: 'var(--color-positivo-vivo)' },
 }
 
 // ── Semáforo de proyectos ─────────────────────────────────────
 // Lo calcula el backend comparando avance real contra plazo consumido.
 export const SALUD = {
-  verde:     { label: 'En tiempo',  color: 'bg-green-100 text-green-700',  punto: 'bg-green-500',  texto: 'text-green-600' },
-  amarillo:  { label: 'Atrasado',   color: 'bg-amber-100 text-amber-700',  punto: 'bg-amber-500',  texto: 'text-amber-600' },
-  rojo:      { label: 'En riesgo',  color: 'bg-red-100 text-red-700',      punto: 'bg-red-500',    texto: 'text-red-600' },
-  cerrado:   { label: 'Cerrado',    color: 'bg-gray-200 text-gray-600',    punto: 'bg-gray-400',   texto: 'text-gray-500' },
-  sin_datos: { label: 'Sin fechas', color: 'bg-gray-100 text-gray-500',    punto: 'bg-gray-300',   texto: 'text-gray-400' },
+  verde:     { label: 'En tiempo',  color: 'bg-positivo-bg text-positivo', punto: 'bg-positivo-vivo', texto: 'text-positivo' },
+  amarillo:  { label: 'Atrasado',   color: 'bg-alerta-bg text-alerta',     punto: 'bg-ambar',         texto: 'text-alerta'   },
+  rojo:      { label: 'En riesgo',  color: 'bg-negativo-bg text-negativo', punto: 'bg-negativo-vivo', texto: 'text-negativo' },
+  cerrado:   { label: 'Cerrado',    color: 'bg-superficie-2 text-texto-2', punto: 'bg-borde-fuerte',  texto: 'text-texto-2'  },
+  sin_datos: { label: 'Sin fechas', color: 'bg-superficie-2 text-texto-3', punto: 'bg-borde',         texto: 'text-texto-3'  },
 }
 
 /**
@@ -162,10 +162,10 @@ export function lecturaAvancePlazo(avance, plazo) {
 }
 
 export const TONOS = {
-  bueno:   'text-green-600',
-  regular: 'text-amber-600',
-  malo:    'text-red-600',
-  neutro:  'text-[#9BACC8]',
+  bueno:   'text-positivo',
+  regular: 'text-alerta',
+  malo:    'text-negativo',
+  neutro:  'text-texto-3',
 }
 
 // ── Historial de cambios ──────────────────────────────────────

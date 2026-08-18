@@ -1,1 +1,140 @@
 @import "tailwindcss";
+
+/**
+ * Tokens del portal — la única fuente de la paleta.
+ *
+ * Ningún componente escribe un hex suelto. Si mañana el portal se entrega a
+ * otra empresa, la marca se cambia aquí y no en cincuenta archivos.
+ *
+ * Los nombres van en español como todo lo demás: `bg-superficie`,
+ * `text-texto-2`, `border-borde`.
+ */
+@theme {
+  /* ── Superficies ─────────────────────────────────────────────
+     Neutros con un leve sesgo azul, no grises puros: el gris #808080
+     se ve muerto en pantalla y pelea con el azul de la marca. */
+  --color-fondo: #F3F6FB;
+  --color-superficie: #FFFFFF;
+  --color-superficie-2: #EFF3F9;
+  --color-borde: #E2E8F2;
+  --color-borde-fuerte: #C8D2E3;
+
+  /* ── Texto ── */
+  --color-texto: #121A2B;
+  --color-texto-2: #55607A;
+  --color-texto-3: #8A93A9;
+
+  /* ── Marca ──
+     `acento` es la acción y el enlace; `acento-fuerte` el botón primario y
+     los títulos. El ámbar NO es color de texto sobre blanco (1.95:1): vive
+     como punto, barra y marca del ítem activo, y cuando toca escribir con
+     él se usa `ambar-texto`. */
+  --color-acento: #1A4FA0;
+  --color-acento-fuerte: #0D2B5E;
+  --color-acento-suave: #E9EFF9;
+  --color-ambar: #F5A800;
+  --color-ambar-claro: #FFC840;   /* solo para el hover de un botón ámbar */
+  --color-ambar-texto: #8A6000;
+
+  /* ── Semánticos ──
+     Dos tonos por estado: el vivo para puntos y barras, el profundo para
+     texto (los vivos de la marca no llegan a 4.5:1 sobre blanco). */
+  --color-positivo: #157F52;
+  --color-positivo-vivo: #2E9E6B;
+  --color-positivo-bg: #E8F6EF;
+  --color-alerta: #A05C00;
+  --color-alerta-bg: #FDF3E0;
+  --color-negativo: #C3362B;
+  --color-negativo-vivo: #D93B3B;
+  --color-negativo-bg: #FDECEA;
+  --color-info: #1A4FA0;
+  --color-info-bg: #E9F0FD;
+
+  /* ── Menú lateral ──
+     El azul de marca a pantalla completa aplana todo. Se oscurece hasta
+     casi negro y la marca reaparece solo en el logo y el ítem activo. */
+  --color-nav: #0A1729;
+  --color-nav-2: #101F35;
+  --color-nav-texto: #9AA6BF;
+  --color-nav-seccion: #647190;
+  --color-nav-borde: rgba(255, 255, 255, 0.08);
+
+  /* ── Elevación ──
+     Siempre dos sombras: una de contacto de 1px y una difusa. Una sola
+     sombra grande y borrosa se ve barata. */
+  --shadow-xs: 0 1px 2px rgba(13, 43, 94, 0.06);
+  --shadow-sm: 0 1px 2px rgba(13, 43, 94, 0.06), 0 1px 3px rgba(13, 43, 94, 0.07);
+  --shadow-md: 0 1px 2px rgba(13, 43, 94, 0.07), 0 4px 12px -2px rgba(13, 43, 94, 0.10);
+  --shadow-lg: 0 2px 4px rgba(13, 43, 94, 0.07), 0 12px 28px -6px rgba(13, 43, 94, 0.16);
+
+  /* ── Tipografía ──
+     El stack del sistema, sin fuente descargada: el servidor no tiene
+     internet estable y una fuente que no carga es una pantalla que cambia
+     de forma a mitad de uso. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --ease-suave: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@layer base {
+  body {
+    background-color: var(--color-fondo);
+    color: var(--color-texto);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3 {
+    letter-spacing: -0.015em;
+  }
+
+  /* Anillo de foco visible en todo lo que se navega con teclado. Sin esto
+     un usuario con teclado no sabe dónde está parado. */
+  :focus-visible {
+    outline: 2px solid var(--color-acento);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+/**
+ * Toda cifra lleva esto. Sin `tabular-nums` las columnas de números bailan
+ * de fila en fila y una tabla de plata se vuelve ilegible.
+ */
+@utility cifra {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/** Etiqueta de KPI o de sección: pequeña, en mayúsculas, terciaria. */
+@utility etiqueta {
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-texto-3);
+}
+
+/** Esqueleto de carga: la forma del contenido real, no un spinner. */
+@utility esqueleto {
+  background-color: var(--color-superficie-2);
+  border-radius: 8px;
+  animation: pulso 1.6s var(--ease-suave) infinite;
+}
+
+@keyframes pulso {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Quien pidió menos movimiento no debería recibir ninguno. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

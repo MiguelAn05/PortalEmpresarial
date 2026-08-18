@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { crearPlantilla, actualizarPlantilla, eliminarPlantilla } from "../api"
 import { TIPOS_PREGUNTA, normalizarSlug, urlPublica } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
+import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 
 /**
  * Crear o editar una encuesta.
@@ -119,21 +120,21 @@ export default function FormPlantilla({ plantilla, onCerrar }) {
         onClick={(e) => e.stopPropagation()}
         className="bg-white rounded-2xl w-full max-w-2xl my-8 shadow-xl"
       >
-        <div className="px-6 py-4 border-b border-[#D6E0F0]">
-          <h2 className="text-xl font-bold text-[#0D2B5E]">
+        <div className="px-6 py-4 border-b border-borde">
+          <h2 className="text-xl font-bold text-acento-fuerte">
             {esNueva ? 'Nueva encuesta' : 'Editar encuesta'}
           </h2>
         </div>
 
         <div className="p-6 space-y-4">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+            <div className="bg-negativo-bg border border-negativo/25 text-negativo text-sm rounded-lg px-4 py-3">
               {error}
             </div>
           )}
 
           {bloqueada && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+            <div className="bg-alerta-bg border border-ambar/30 text-alerta text-sm rounded-lg px-4 py-3">
               Esta encuesta ya tiene {plantilla.total_respuestas} respuesta(s), así que sus
               preguntas no se pueden cambiar: las respuestas quedarían contestando algo que
               ya no se pregunta. Puedes renombrarla o desactivarla, y crear una versión nueva.
@@ -141,70 +142,70 @@ export default function FormPlantilla({ plantilla, onCerrar }) {
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Nombre</label>
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Nombre</label>
             <input
               value={form.nombre} onChange={set('nombre')}
               placeholder="Calificación de vendedores"
-              className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-borde px-3 py-2 text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
               Descripción <span className="normal-case font-normal">(opcional)</span>
             </label>
             <input
               value={form.descripcion} onChange={set('descripcion')}
               placeholder="La responde el cliente en el punto de venta"
-              className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-borde px-3 py-2 text-sm"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+              <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
                 Dirección del enlace
               </label>
               <input
                 value={form.slug} onChange={set('slug')}
                 placeholder={normalizarSlug(form.nombre) || 'vendedores'}
                 disabled={!esNueva}
-                className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm disabled:bg-[#F7F9FC] disabled:text-[#9BACC8]"
+                className="w-full rounded-lg border border-borde px-3 py-2 text-sm disabled:bg-superficie-2 disabled:text-texto-3"
               />
-              <p className="text-[11px] text-[#9BACC8] mt-1 break-all">
+              <p className="text-[11px] text-texto-3 mt-1 break-all">
                 {slugPropuesto ? urlPublica(slugPropuesto) : 'Se propone del nombre'}
               </p>
               {!esNueva && (
-                <p className="text-[11px] text-[#9BACC8] mt-1">
+                <p className="text-[11px] text-texto-3 mt-1">
                   No se cambia: los códigos QR ya impresos apuntan aquí.
                 </p>
               )}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+              <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
                 ¿A quién califica?
               </label>
               <input
                 value={form.sujeto_tipo} onChange={set('sujeto_tipo')}
                 placeholder="vendedor, punto de venta..."
-                className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-borde px-3 py-2 text-sm"
               />
-              <p className="text-[11px] text-[#9BACC8] mt-1">
+              <p className="text-[11px] text-texto-3 mt-1">
                 Déjalo vacío si no califica a nadie en particular.
               </p>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
               Opciones a calificar <span className="normal-case font-normal">(separadas por |)</span>
             </label>
             <input
               value={form.sujetos} onChange={set('sujetos')}
               placeholder="Sede Centro|Sede Norte|Sede Sur"
-              className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-borde px-3 py-2 text-sm"
             />
-            <p className="text-[11px] text-[#9BACC8] mt-1">
+            <p className="text-[11px] text-texto-3 mt-1">
               Si las llenas, el cliente elige de una lista en vez de escribir. Evita que el
               mismo punto llegue como «Centro», «centro» y «Sede Centro» y termine contado
               como tres lugares distintos. Puedes agregar opciones después sin problema.
@@ -212,12 +213,12 @@ export default function FormPlantilla({ plantilla, onCerrar }) {
           </div>
 
           {/* Preguntas */}
-          <div className="border-t border-[#D6E0F0] pt-4">
+          <div className="border-t border-borde pt-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-[#0D2B5E]">Preguntas</h3>
+              <h3 className="text-sm font-bold text-acento-fuerte">Preguntas</h3>
               {!bloqueada && (
                 <button type="button" onClick={agregar}
-                  className="text-sm font-semibold text-[#1A4FA0] hover:underline">
+                  className="text-sm font-semibold text-acento hover:underline">
                   + Agregar
                 </button>
               )}
@@ -225,20 +226,20 @@ export default function FormPlantilla({ plantilla, onCerrar }) {
 
             <div className="space-y-3">
               {preguntas.map((p, i) => (
-                <div key={i} className="bg-[#F7F9FC] border border-[#D6E0F0] rounded-lg p-3 space-y-2">
+                <div key={i} className="bg-superficie-2 border border-borde rounded-lg p-3 space-y-2">
                   <div className="flex gap-2">
                     <input
                       value={p.texto}
                       onChange={(e) => setPregunta(i, 'texto', e.target.value)}
                       disabled={bloqueada}
                       placeholder="¿Cómo calificas la atención?"
-                      className="flex-1 rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm disabled:bg-white disabled:text-[#6B7EA8]"
+                      className="flex-1 rounded-lg border border-borde px-3 py-2 text-sm disabled:bg-white disabled:text-texto-2"
                     />
                     {!bloqueada && preguntas.length > 1 && (
                       <button type="button" onClick={() => quitar(i)}
-                        className="text-[#D93B3B] text-sm px-2 hover:bg-red-50 rounded"
+                        className="text-negativo-vivo text-sm px-2 hover:bg-negativo-bg rounded"
                         aria-label="Quitar pregunta">
-                        ✕
+                        <IconoCerrar tam={16} />
                       </button>
                     )}
                   </div>
@@ -248,19 +249,19 @@ export default function FormPlantilla({ plantilla, onCerrar }) {
                       value={p.tipo}
                       onChange={(e) => setPregunta(i, 'tipo', e.target.value)}
                       disabled={bloqueada}
-                      className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm bg-white disabled:text-[#6B7EA8]"
+                      className="rounded-lg border border-borde px-3 py-2 text-sm bg-white disabled:text-texto-2"
                     >
                       {Object.entries(TIPOS_PREGUNTA).map(([valor, cfg]) => (
                         <option key={valor} value={valor}>{cfg.label}</option>
                       ))}
                     </select>
 
-                    <label className="flex items-center gap-2 text-sm text-[#42557A]">
+                    <label className="flex items-center gap-2 text-sm text-texto-2">
                       <input
                         type="checkbox" checked={p.obligatoria}
                         onChange={(e) => setPregunta(i, 'obligatoria', e.target.checked)}
                         disabled={bloqueada}
-                        className="rounded border-[#D6E0F0] accent-[#1A4FA0]"
+                        className="rounded border-borde accent-acento"
                       />
                       Obligatoria
                     </label>
@@ -272,51 +273,51 @@ export default function FormPlantilla({ plantilla, onCerrar }) {
                       onChange={(e) => setPregunta(i, 'opciones', e.target.value)}
                       disabled={bloqueada}
                       placeholder="Sí|Parcialmente|No"
-                      className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm disabled:bg-white"
+                      className="w-full rounded-lg border border-borde px-3 py-2 text-sm disabled:bg-white"
                     />
                   )}
 
-                  <p className="text-[11px] text-[#9BACC8]">{TIPOS_PREGUNTA[p.tipo]?.ayuda}</p>
+                  <p className="text-[11px] text-texto-3">{TIPOS_PREGUNTA[p.tipo]?.ayuda}</p>
                 </div>
               ))}
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
               Mensaje al terminar
             </label>
             <input
               value={form.mensaje_final} onChange={set('mensaje_final')}
               placeholder="¡Gracias! Tu opinión nos ayuda a mejorar."
-              className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-borde px-3 py-2 text-sm"
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-[#42557A]">
+          <label className="flex items-center gap-2 text-sm text-texto-2">
             <input
               type="checkbox" checked={form.activa} onChange={set('activa')}
-              className="rounded border-[#D6E0F0] accent-[#1A4FA0]"
+              className="rounded border-borde accent-acento"
             />
             Activa — mientras lo esté, el enlace recibe respuestas
           </label>
         </div>
 
-        <div className="px-6 py-4 border-t border-[#D6E0F0] flex justify-between gap-3">
+        <div className="px-6 py-4 border-t border-borde flex justify-between gap-3">
           {!esNueva && plantilla.total_respuestas === 0 ? (
             <button type="button" onClick={() => mutBorrar.mutate()}
-              className="text-sm font-semibold text-[#D93B3B] hover:underline">
+              className="text-sm font-semibold text-negativo-vivo hover:underline">
               Eliminar
             </button>
           ) : <span />}
 
           <div className="flex gap-3">
             <button type="button" onClick={onCerrar}
-              className="px-4 py-2 text-sm font-semibold text-[#6B7EA8] hover:text-[#0D2B5E]">
+              className="px-4 py-2 text-sm font-semibold text-texto-2 hover:text-acento-fuerte">
               Cancelar
             </button>
             <button type="submit" disabled={mutacion.isPending}
-              className="bg-[#1A4FA0] hover:bg-[#0D2B5E] text-white font-semibold px-5 py-2 rounded-xl text-sm transition disabled:opacity-50">
+              className="bg-acento hover:bg-acento-fuerte text-white font-semibold px-5 py-2 rounded-xl text-sm transition disabled:opacity-50">
               {mutacion.isPending ? 'Guardando...' : 'Guardar'}
             </button>
           </div>

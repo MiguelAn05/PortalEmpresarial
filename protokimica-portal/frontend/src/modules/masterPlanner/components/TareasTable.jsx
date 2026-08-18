@@ -2,14 +2,15 @@ import StatusBadge from "./StatusBadge"
 import PriorityBadge from "./PriorityBadge"
 import Avatar from "./Avatar"
 import { ALERTAS, alertaVencimiento, colorAvance, formatFecha, formatFechaHora } from "../constants"
+import { IconoTarea } from '../../../core/components/Iconos.jsx'
 
 export default function TareasTable({ tareas, onSelect, mostrarProyecto = true }) {
   return (
-    <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-borde shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <table className="min-w-full">
-          <thead className="bg-[#F7F9FC] border-b border-[#D6E0F0]">
-            <tr className="text-xs uppercase tracking-wider text-[#6B7EA8]">
+          <thead className="bg-superficie-2 border-b border-borde">
+            <tr className="text-xs uppercase tracking-wider text-texto-2">
               <th className="text-left px-5 py-4">Tarea</th>
               <th className="text-left px-5 py-4">Área</th>
               <th className="text-left px-5 py-4">Asignado</th>
@@ -23,7 +24,7 @@ export default function TareasTable({ tareas, onSelect, mostrarProyecto = true }
           <tbody>
             {tareas.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-5 py-10 text-center text-sm text-[#9BACC8]">
+                <td colSpan={8} className="px-5 py-10 text-center text-sm text-texto-3">
                   No hay tareas que coincidan con los filtros.
                 </td>
               </tr>
@@ -35,17 +36,17 @@ export default function TareasTable({ tareas, onSelect, mostrarProyecto = true }
                 <tr
                   key={tarea.id}
                   onClick={() => onSelect(tarea)}
-                  className="border-b border-[#EDF2F7] hover:bg-[#F9FBFD] transition cursor-pointer"
+                  className="border-b border-borde hover:bg-superficie-2 transition cursor-pointer"
                 >
                   <td className="px-5 py-4">
                     <div className="flex items-start gap-2">
                       <div>
-                        <p className="font-semibold text-[#0D2B5E]">{tarea.titulo}</p>
-                        <p className="text-xs text-gray-400">
+                        <p className="font-semibold text-acento-fuerte">{tarea.titulo}</p>
+                        <p className="text-xs text-borde-fuerte">
                           {mostrarProyecto && tarea.proyecto_nombre}
                           {tarea.total_subtareas > 0 && (
                             <span className={mostrarProyecto ? 'ml-2' : ''}>
-                              ☑ {tarea.subtareas_completadas}/{tarea.total_subtareas}
+                              <IconoTarea tam={12} className="inline mr-1 -mt-0.5" />{tarea.subtareas_completadas}/{tarea.total_subtareas}
                             </span>
                           )}
                         </p>
@@ -63,7 +64,7 @@ export default function TareasTable({ tareas, onSelect, mostrarProyecto = true }
                   <td className="px-5 py-4"><PriorityBadge priority={tarea.prioridad} /></td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
+                      <div className="w-32 bg-superficie-2 rounded-full h-2">
                         <div
                           className="h-2 rounded-full"
                           style={{ width: `${tarea.avance_pct}%`, background: colorAvance(tarea.avance_pct) }}

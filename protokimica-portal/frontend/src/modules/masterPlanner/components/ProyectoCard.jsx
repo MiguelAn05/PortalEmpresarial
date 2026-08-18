@@ -18,7 +18,7 @@ export default function ProyectoCard({ proyecto, editable = true, onAbrir, onEdi
     return () => document.removeEventListener('mousedown', cerrar)
   }, [menuAbierto])
 
-  const estado = ESTADOS_PROYECTO[proyecto.estado] || { label: proyecto.estado, color: 'bg-gray-100 text-gray-700' }
+  const estado = ESTADOS_PROYECTO[proyecto.estado] || { label: proyecto.estado, color: 'bg-superficie-2 text-texto-2' }
   const avance = proyecto.avance_pct ?? 0
 
   const accion = (fn) => (e) => { e.stopPropagation(); setMenuAbierto(false); fn() }
@@ -26,8 +26,8 @@ export default function ProyectoCard({ proyecto, editable = true, onAbrir, onEdi
   return (
     <div
       onClick={onAbrir}
-      className={`bg-white rounded-2xl border p-5 shadow-sm hover:shadow-md hover:border-[#1A4FA0]/40 transition cursor-pointer flex flex-col ${
-        proyecto.archivado ? 'border-[#D6E0F0] opacity-70' : 'border-[#D6E0F0]'
+      className={`bg-white rounded-2xl border p-5 shadow-sm hover:shadow-md hover:border-acento/40 transition cursor-pointer flex flex-col ${
+        proyecto.archivado ? 'border-borde opacity-70' : 'border-borde'
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -35,7 +35,7 @@ export default function ProyectoCard({ proyecto, editable = true, onAbrir, onEdi
           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${estado.color}`}>{estado.label}</span>
           <PriorityBadge priority={proyecto.prioridad} />
           {proyecto.archivado && (
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Archivado</span>
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-superficie-2 text-texto-2">Archivado</span>
           )}
         </div>
 
@@ -44,26 +44,26 @@ export default function ProyectoCard({ proyecto, editable = true, onAbrir, onEdi
           <button
             onClick={(e) => { e.stopPropagation(); setMenuAbierto(v => !v) }}
             aria-label="Acciones del proyecto"
-            className="w-8 h-8 rounded-lg hover:bg-[#F0F4FA] text-[#6B7EA8] font-bold leading-none"
+            className="w-8 h-8 rounded-lg hover:bg-fondo text-texto-2 font-bold leading-none"
           >
             ⋮
           </button>
           {menuAbierto && (
-            <div className="absolute right-0 top-9 z-20 w-56 bg-white rounded-xl border border-[#D6E0F0] shadow-lg py-1 text-sm">
-              <button onClick={accion(onEditar)} className="w-full text-left px-4 py-2 hover:bg-[#F7F9FC] text-[#1A2B47]">
+            <div className="absolute right-0 top-9 z-20 w-56 bg-white rounded-xl border border-borde shadow-lg py-1 text-sm">
+              <button onClick={accion(onEditar)} className="w-full text-left px-4 py-2 hover:bg-superficie-2 text-texto">
                 Editar proyecto
               </button>
-              <button onClick={accion(onArchivar)} className="w-full text-left px-4 py-2 hover:bg-[#F7F9FC] text-[#1A2B47]">
+              <button onClick={accion(onArchivar)} className="w-full text-left px-4 py-2 hover:bg-superficie-2 text-texto">
                 {proyecto.archivado ? 'Restaurar del archivo' : 'Archivar proyecto'}
               </button>
-              <div className="border-t border-[#EDF2F7] my-1" />
+              <div className="border-t border-borde my-1" />
               <button
                 onClick={accion(onEliminar)}
                 disabled={proyecto.total_tareas > 0}
                 title={proyecto.total_tareas > 0
                   ? `No se puede: tiene ${proyecto.total_tareas} tarea(s). Archívalo o borra sus tareas primero.`
                   : undefined}
-                className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                className="w-full text-left px-4 py-2 hover:bg-negativo-bg text-negativo disabled:text-borde-fuerte disabled:hover:bg-transparent disabled:cursor-not-allowed"
               >
                 Eliminar definitivamente
               </button>
@@ -73,18 +73,18 @@ export default function ProyectoCard({ proyecto, editable = true, onAbrir, onEdi
         )}
       </div>
 
-      <h3 className="text-base font-bold text-[#0D2B5E] leading-snug mb-1">{proyecto.nombre}</h3>
+      <h3 className="text-base font-bold text-acento-fuerte leading-snug mb-1">{proyecto.nombre}</h3>
       {proyecto.objetivo && (
-        <p className="text-xs text-[#6B7EA8] line-clamp-2 mb-3">{proyecto.objetivo}</p>
+        <p className="text-xs text-texto-2 line-clamp-2 mb-3">{proyecto.objetivo}</p>
       )}
 
       <div className="mt-auto space-y-3 pt-2">
         <div>
-          <div className="flex justify-between text-xs text-[#6B7EA8] mb-1">
+          <div className="flex justify-between text-xs text-texto-2 mb-1">
             <span>{proyecto.tareas_completadas} de {proyecto.total_tareas} tareas</span>
-            <span className="font-semibold text-[#0D2B5E]">{avance}%</span>
+            <span className="font-semibold text-acento-fuerte">{avance}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-superficie-2 rounded-full h-2">
             <div className="h-2 rounded-full transition-all" style={{ width: `${avance}%`, background: colorAvance(avance) }} />
           </div>
         </div>
@@ -94,23 +94,23 @@ export default function ProyectoCard({ proyecto, editable = true, onAbrir, onEdi
           <div className="flex flex-wrap gap-1 justify-end">
             {proyecto.area && (
               <span title="Area responsable"
-                className="text-[11px] text-[#1A4FA0] bg-[#EAF0FB] border border-[#D6E0F0] rounded-full px-2 py-0.5">
+                className="text-[11px] text-acento bg-acento-suave border border-borde rounded-full px-2 py-0.5">
                 {proyecto.area}
               </span>
             )}
             {proyecto.areas_participantes?.map(a => (
               <span key={a} title="Area participante"
-                className="text-[11px] text-[#6B7EA8] bg-[#F7F9FC] border border-[#D6E0F0] rounded-full px-2 py-0.5">
+                className="text-[11px] text-texto-2 bg-superficie-2 border border-borde rounded-full px-2 py-0.5">
                 {a}
               </span>
             ))}
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-[#9BACC8] border-t border-[#EDF2F7] pt-2.5">
+        <div className="flex items-center justify-between text-[11px] text-texto-3 border-t border-borde pt-2.5">
           <span>{formatFecha(proyecto.fecha_inicio, { day: '2-digit', month: 'short' })} → {formatFecha(proyecto.fecha_fin_estimada, { day: '2-digit', month: 'short' })}</span>
           {proyecto.presupuesto_total > 0 && (
-            <span className="font-semibold text-[#6B7EA8]">{formatMoneda(proyecto.presupuesto_total)}</span>
+            <span className="font-semibold text-texto-2">{formatMoneda(proyecto.presupuesto_total)}</span>
           )}
         </div>
       </div>

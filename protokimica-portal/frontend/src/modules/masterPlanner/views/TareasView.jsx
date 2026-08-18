@@ -34,20 +34,20 @@ export default function TareasView({ proyectos, usuarios, onSelectTarea, onNueva
 
   if (isError) {
     return (
-      <div className="text-center py-16 text-red-500 text-sm">
+      <div className="text-center py-16 text-negativo text-sm">
         No se pudo cargar la información. Intenta recargar la página.
       </div>
     )
   }
 
   if (isLoading) {
-    return <div className="text-center py-16 text-[#9BACC8] text-sm">Cargando tareas...</div>
+    return <div className="text-center py-16 text-texto-3 text-sm">Cargando tareas...</div>
   }
 
   if (proyectos.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-dashed border-[#D6E0F0] p-16 text-center">
-        <p className="text-[#6B7EA8]">
+      <div className="bg-white rounded-2xl border border-dashed border-borde p-16 text-center">
+        <p className="text-texto-2">
           Las tareas viven dentro de un proyecto. Crea un proyecto primero en la pestaña Proyectos.
         </p>
       </div>
@@ -70,12 +70,12 @@ export default function TareasView({ proyectos, usuarios, onSelectTarea, onNueva
       />
 
       {tareas.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dashed border-[#D6E0F0] p-16 text-center">
-          <p className="text-[#6B7EA8] mb-4">Todavía no hay tareas creadas.</p>
+        <div className="bg-white rounded-2xl border border-dashed border-borde p-16 text-center">
+          <p className="text-texto-2 mb-4">Todavía no hay tareas creadas.</p>
           {editable && (
             <button
               onClick={onNuevaTarea}
-              className="bg-[#1A4FA0] hover:bg-[#0D2B5E] text-white font-semibold px-6 py-3 rounded-xl shadow-sm transition"
+              className="bg-acento hover:bg-acento-fuerte text-white font-semibold px-6 py-3 rounded-xl shadow-sm transition"
             >
               + Crear la primera tarea
             </button>

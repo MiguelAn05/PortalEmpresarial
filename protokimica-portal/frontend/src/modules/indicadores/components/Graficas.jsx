@@ -45,7 +45,7 @@ export function GraficaTendencia({ serie, unidad, meta, mesActual }) {
 
   if (!escala || puntos.length === 0) {
     return (
-      <div className="h-[220px] flex items-center justify-center text-sm text-[#9BACC8] border border-dashed border-[#D6E0F0] rounded-xl">
+      <div className="h-[220px] flex items-center justify-center text-sm text-texto-3 border border-dashed border-borde rounded-xl">
         Todavía no hay mediciones registradas en el año.
       </div>
     )
@@ -77,9 +77,9 @@ export function GraficaTendencia({ serie, unidad, meta, mesActual }) {
         {ticks.map((t, i) => (
           <g key={i}>
             <line x1={MARGEN.izquierda} x2={ANCHO - MARGEN.derecha} y1={y(t)} y2={y(t)}
-              stroke="#EDF2F7" strokeWidth="1" />
+              stroke="var(--color-borde)" strokeWidth="1" />
             <text x={MARGEN.izquierda - 8} y={y(t) + 4} textAnchor="end"
-              className="fill-[#9BACC8]" style={{ fontSize: 10 }}>
+              className="fill-texto-3" style={{ fontSize: 10 }}>
               {formatValor(Math.round(t * 10) / 10, unidad)}
             </text>
           </g>
@@ -91,7 +91,7 @@ export function GraficaTendencia({ serie, unidad, meta, mesActual }) {
             <line x1={MARGEN.izquierda} x2={ANCHO - MARGEN.derecha} y1={y(meta)} y2={y(meta)}
               stroke={COLOR_META} strokeWidth="1.5" strokeDasharray="5 4" />
             <text x={ANCHO - MARGEN.derecha} y={y(meta) - 5} textAnchor="end"
-              className="fill-[#6B7EA8]" style={{ fontSize: 10, fontWeight: 600 }}>
+              className="fill-texto-2" style={{ fontSize: 10, fontWeight: 600 }}>
               Meta {formatValor(meta, unidad)}
             </text>
           </g>
@@ -100,7 +100,7 @@ export function GraficaTendencia({ serie, unidad, meta, mesActual }) {
         {/* Meses */}
         {MESES_CORTOS.map((m, i) => (
           <text key={i} x={x(i)} y={ALTO - 8} textAnchor="middle"
-            className={i + 1 === mesActual ? "fill-[#0D2B5E]" : "fill-[#9BACC8]"}
+            className={i + 1 === mesActual ? "fill-acento-fuerte" : "fill-texto-3"}
             style={{ fontSize: 10, fontWeight: i + 1 === mesActual ? 700 : 400 }}>
             {m}
           </text>
@@ -125,11 +125,11 @@ export function GraficaTendencia({ serie, unidad, meta, mesActual }) {
                 onMouseEnter={() => setEncima(p)} onMouseLeave={() => setEncima(null)} />
               {activo && (
                 <line x1={x(p.i)} x2={x(p.i)} y1={MARGEN.arriba} y2={MARGEN.arriba + altoUtil}
-                  stroke="#C3CFE2" strokeWidth="1" />
+                  stroke="var(--color-borde-fuerte)" strokeWidth="1" />
               )}
               {/* Anillo blanco: separa el punto de la línea al superponerse */}
               <circle cx={x(p.i)} cy={y(p.valor)} r={activo ? 6.5 : 4.5}
-                fill={cfg.punto} stroke="#fff" strokeWidth="2" />
+                fill={cfg.punto} stroke="var(--color-superficie)" strokeWidth="2" />
             </g>
           )
         })}
@@ -137,14 +137,14 @@ export function GraficaTendencia({ serie, unidad, meta, mesActual }) {
         {/* Etiqueta directa solo en el último punto, no en todos */}
         {ultimo && !encima && (
           <text x={x(ultimo.i)} y={y(ultimo.valor) - 12} textAnchor="middle"
-            className="fill-[#0D2B5E]" style={{ fontSize: 11, fontWeight: 700 }}>
+            className="fill-acento-fuerte" style={{ fontSize: 11, fontWeight: 700 }}>
             {formatValor(ultimo.valor, unidad)}
           </text>
         )}
       </svg>
 
       {encima && (
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#0D2B5E] text-white text-xs rounded-lg px-3 py-2 shadow-lg pointer-events-none whitespace-nowrap">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-acento-fuerte text-white text-xs rounded-lg px-3 py-2 shadow-lg pointer-events-none whitespace-nowrap">
           <p className="font-semibold">{MESES_CORTOS[encima.i]} · {formatValor(encima.valor, unidad)}</p>
           <p className="text-white/70 flex items-center gap-1.5 mt-0.5">
             <span className="w-2 h-2 rounded-full inline-block"
@@ -183,7 +183,7 @@ export function Miniatura({ serie, ancho = 120, alto = 32 }) {
         strokeLinejoin="round" strokeLinecap="round" opacity="0.7"
         points={puntos.map(p => `${x(p.i)},${y(p.valor)}`).join(' ')} />
       <circle cx={x(ultimo.i)} cy={y(ultimo.valor)} r="3.5"
-        fill={cfg.punto} stroke="#fff" strokeWidth="1.5" />
+        fill={cfg.punto} stroke="var(--color-superficie)" strokeWidth="1.5" />
     </svg>
   )
 }
@@ -201,7 +201,7 @@ export function BarrasPorArea({ areas }) {
 
   if (conJuicio.length === 0) {
     return (
-      <p className="text-sm text-[#9BACC8] text-center py-8">
+      <p className="text-sm text-texto-3 text-center py-8">
         Ningún área tiene indicadores con meta definida en este periodo.
       </p>
     )
@@ -213,14 +213,14 @@ export function BarrasPorArea({ areas }) {
         <div key={a.area}
           onMouseEnter={() => setEncima(a.area)} onMouseLeave={() => setEncima(null)}>
           <div className="flex justify-between items-baseline mb-1">
-            <span className="text-sm font-semibold text-[#0D2B5E]">{a.area}</span>
-            <span className="text-sm font-bold text-[#0D2B5E]">{a.cumplimiento_pct}%</span>
+            <span className="text-sm font-semibold text-acento-fuerte">{a.area}</span>
+            <span className="text-sm font-bold text-acento-fuerte">{a.cumplimiento_pct}%</span>
           </div>
-          <div className="bg-gray-200 rounded-full h-2.5 overflow-hidden">
+          <div className="bg-superficie-2 rounded-full h-2.5 overflow-hidden">
             <div className="h-2.5 rounded-full transition-all"
               style={{ width: `${a.cumplimiento_pct}%`, background: COLOR_SERIE }} />
           </div>
-          <p className={`text-[11px] mt-1 ${encima === a.area ? 'text-[#6B7EA8]' : 'text-[#9BACC8]'}`}>
+          <p className={`text-[11px] mt-1 ${encima === a.area ? 'text-texto-2' : 'text-texto-3'}`}>
             {a.verde} cumplen · {a.amarillo} en alerta · {a.rojo} no cumplen
             {a.sin_datos > 0 && ` · ${a.sin_datos} sin dato`}
           </p>

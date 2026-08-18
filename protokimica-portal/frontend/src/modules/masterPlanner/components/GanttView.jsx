@@ -36,8 +36,8 @@ export default function GanttView({ tareas, onSelect, mostrarProyecto = true }) 
 
   if (!conFechas.length) {
     return (
-      <div className="bg-white rounded-2xl border border-dashed border-[#D6E0F0] p-16 text-center">
-        <p className="text-[#6B7EA8]">
+      <div className="bg-white rounded-2xl border border-dashed border-borde p-16 text-center">
+        <p className="text-texto-2">
           El cronograma necesita tareas con fecha de inicio o de fin. Ninguna de las tareas
           visibles tiene fechas todavía.
         </p>
@@ -50,13 +50,13 @@ export default function GanttView({ tareas, onSelect, mostrarProyecto = true }) 
   const offsetHoy = Math.round((hoy - desde) / 86400000)
 
   return (
-    <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-borde shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <div style={{ minWidth: ANCHO_ETIQUETA + anchoTotal }}>
 
           {/* Cabecera: meses arriba, días abajo */}
-          <div className="flex border-b border-[#D6E0F0] bg-[#F7F9FC] sticky top-0 z-10">
-            <div className="shrink-0 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#6B7EA8] border-r border-[#D6E0F0]"
+          <div className="flex border-b border-borde bg-superficie-2 sticky top-0 z-10">
+            <div className="shrink-0 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-texto-2 border-r border-borde"
               style={{ width: ANCHO_ETIQUETA }}>
               Tarea
             </div>
@@ -64,7 +64,7 @@ export default function GanttView({ tareas, onSelect, mostrarProyecto = true }) 
               <div className="flex h-5">
                 {agruparPorMes(dias, MESES).map(({ etiqueta, cantidad }, i) => (
                   <div key={i}
-                    className="text-[10px] font-semibold text-[#6B7EA8] border-r border-[#E4EBF5] px-1.5 truncate leading-5"
+                    className="text-[10px] font-semibold text-texto-2 border-r border-borde px-1.5 truncate leading-5"
                     style={{ width: cantidad * ANCHO_DIA }}>
                     {etiqueta}
                   </div>
@@ -75,9 +75,9 @@ export default function GanttView({ tareas, onSelect, mostrarProyecto = true }) 
                   const finde = d.getDay() === 0 || d.getDay() === 6
                   return (
                     <div key={i}
-                      className={`text-[10px] text-center leading-6 border-r border-[#EDF2F7] ${
-                        mismoDia(d, hoy) ? 'bg-[#1A4FA0] text-white font-bold'
-                          : finde ? 'bg-[#F0F3F8] text-[#9BACC8]' : 'text-[#9BACC8]'
+                      className={`text-[10px] text-center leading-6 border-r border-borde ${
+                        mismoDia(d, hoy) ? 'bg-acento text-white font-bold'
+                          : finde ? 'bg-superficie-2 text-texto-3' : 'text-texto-3'
                       }`}
                       style={{ width: ANCHO_DIA }}>
                       {d.getDate()}
@@ -92,7 +92,7 @@ export default function GanttView({ tareas, onSelect, mostrarProyecto = true }) 
           <div className="relative">
             {/* Línea de hoy, cruzando todas las filas */}
             {offsetHoy >= 0 && offsetHoy < dias.length && (
-              <div className="absolute top-0 bottom-0 w-px bg-[#1A4FA0]/40 pointer-events-none z-10"
+              <div className="absolute top-0 bottom-0 w-px bg-acento/40 pointer-events-none z-10"
                 style={{ left: ANCHO_ETIQUETA + offsetHoy * ANCHO_DIA + ANCHO_DIA / 2 }} />
             )}
 
@@ -101,15 +101,15 @@ export default function GanttView({ tareas, onSelect, mostrarProyecto = true }) 
               const inicioCol = Math.round((rango.desde - desde) / 86400000)
               const largo = Math.round((rango.hasta - rango.desde) / 86400000) + 1
               const alerta = alertaVencimiento(tarea)
-              const color = alerta === 'vencida' ? '#EF4444' : (ESTADOS_TAREA[tarea.estado]?.barra || '#94A3B8')
+              const color = alerta === 'vencida' ? 'var(--color-negativo-vivo)' : (ESTADOS_TAREA[tarea.estado]?.barra || 'var(--color-texto-3)')
 
               return (
                 <div key={tarea.id}
                   onClick={() => onSelect(tarea)}
-                  className="flex items-center border-b border-[#EDF2F7] hover:bg-[#F9FBFD] transition cursor-pointer h-11">
-                  <div className="shrink-0 px-4 border-r border-[#EDF2F7] overflow-hidden" style={{ width: ANCHO_ETIQUETA }}>
-                    <p className="text-sm font-semibold text-[#1A2B47] truncate">{tarea.titulo}</p>
-                    <p className="text-[11px] text-[#9BACC8] truncate">
+                  className="flex items-center border-b border-borde hover:bg-superficie-2 transition cursor-pointer h-11">
+                  <div className="shrink-0 px-4 border-r border-borde overflow-hidden" style={{ width: ANCHO_ETIQUETA }}>
+                    <p className="text-sm font-semibold text-texto truncate">{tarea.titulo}</p>
+                    <p className="text-[11px] text-texto-3 truncate">
                       {mostrarProyecto && tarea.proyecto_nombre}
                       {mostrarProyecto && tarea.asignado_nombre && ' · '}
                       {tarea.asignado_nombre}
@@ -121,7 +121,7 @@ export default function GanttView({ tareas, onSelect, mostrarProyecto = true }) 
                     <div className="absolute inset-0 flex">
                       {dias.map((d, i) => (
                         <div key={i}
-                          className={`border-r border-[#F2F5FA] ${d.getDay() === 0 || d.getDay() === 6 ? 'bg-[#FAFBFD]' : ''}`}
+                          className={`border-r border-borde ${d.getDay() === 0 || d.getDay() === 6 ? 'bg-superficie-2' : ''}`}
                           style={{ width: ANCHO_DIA }} />
                       ))}
                     </div>
@@ -152,14 +152,14 @@ export default function GanttView({ tareas, onSelect, mostrarProyecto = true }) 
       </div>
 
       {sinFechas.length > 0 && (
-        <div className="px-5 py-3 border-t border-[#D6E0F0] bg-[#F7F9FC]">
-          <p className="text-xs text-[#6B7EA8] mb-2">
+        <div className="px-5 py-3 border-t border-borde bg-superficie-2">
+          <p className="text-xs text-texto-2 mb-2">
             {sinFechas.length} tarea{sinFechas.length === 1 ? '' : 's'} sin fechas — no se {sinFechas.length === 1 ? 'puede' : 'pueden'} ubicar en el cronograma:
           </p>
           <div className="flex flex-wrap gap-2">
             {sinFechas.map(t => (
               <button key={t.id} onClick={() => onSelect(t)}
-                className="text-xs bg-white border border-[#D6E0F0] rounded-full px-3 py-1 hover:border-[#1A4FA0] text-[#1A2B47]">
+                className="text-xs bg-white border border-borde rounded-full px-3 py-1 hover:border-acento text-texto">
                 {t.titulo}
               </button>
             ))}

@@ -175,14 +175,36 @@ declarar una lista de áreas dentro de un componente.
 
 ### Interfaz
 
-- Paleta: `#0D2B5E` azul oscuro · `#1A4FA0` azul · `#F5A800` ámbar ·
-  `#D93B3B` rojo · `#2E9E6B` verde · `#6B7EA8` texto secundario ·
-  `#D6E0F0` bordes · `#F7F9FC` fondos suaves.
+- **Los colores salen de `frontend/src/index.css`, nunca de un hex suelto.**
+  Ahí viven los tokens: `bg-superficie`, `text-texto-2`, `border-borde`,
+  `bg-acento`, `text-negativo`, `bg-nav`… Un hex escrito dentro de un
+  componente es un color que nadie podrá cambiar cuando el portal se entregue
+  a otra empresa. Los archivos de lógica pura (`resumen.js` y compañía)
+  devuelven el nombre del estado (`'negativo'`), no una clase.
+- Cada estado semántico tiene **dos tonos**: el vivo (`positivo-vivo`,
+  `ambar`, `negativo-vivo`) para puntos y barras, y el profundo (`positivo`,
+  `alerta`, `negativo`) para texto — los vivos de la marca no llegan a 4.5:1
+  sobre blanco.
 - **El estado nunca se comunica solo con color.** El ámbar de la marca no
   alcanza el contraste mínimo sobre fondo blanco (1.95, se necesitan 3), así
   que todo semáforo lleva punto **y** etiqueta de texto.
-- Tarjetas de resumen: blancas con borde superior de color (`border-t-4`),
-  etiqueta pequeña en mayúsculas, número grande. Igual en los tres módulos.
+- **Cero emojis en la interfaz.** Los iconos son SVG de
+  `core/components/Iconos.jsx`: una sola familia, trazo de 1.5, `currentColor`.
+  Dibujados a mano por lo mismo que las gráficas — el servidor no reinstala
+  dependencias con fiabilidad. `tests/sinEmojis.test.mjs` revienta si vuelve a
+  entrar uno; la puntuación tipográfica (`→ — · …`) no cuenta, es texto.
+  Icono nuevo: se agrega a `Iconos.jsx` con el mismo trazo, nunca suelto en el
+  componente.
+- **Toda cifra lleva contexto y `cifra`** (la utilidad de `tabular-nums`). Un
+  número sin meta, delta ni estado obliga a preguntar «¿eso es bueno?»: un 0
+  de PQRS sin cerrar se acompaña de «Ninguna pendiente» en verde.
+- Profundidad en tres niveles y sin saltárselos: fondo de página (`bg-fondo`)
+  → tarjeta (`shadow-sm`) → tarjeta principal o modal (`shadow-md`/`lg`). La
+  jerarquía se declara con elevación y tamaño, no pintando cada tarjeta de un
+  color distinto.
+- Radios: `rounded-md` en badges, `rounded-lg` en controles, `rounded-xl` en
+  tarjetas. Espaciado en la escala de 4 (`gap-2`/`gap-3` dentro de un bloque,
+  `gap-6` entre bloques).
 - Formularios en modal: usar `useCierreSeguro` de
   `core/components/cierreSeguro.jsx` para que un clic fuera no borre lo escrito.
 - Gráficas: SVG a mano, sin librería (el servidor no reinstala dependencias con

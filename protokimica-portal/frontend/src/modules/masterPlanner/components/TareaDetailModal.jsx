@@ -12,6 +12,9 @@ import {
   eliminarTarea, listarHistorialTarea,
 } from "../api"
 import {
+  IconoAlerta, IconoCerrar, IconoClip,
+} from '../../../core/components/Iconos.jsx'
+import {
   ESTADOS_TAREA, PRIORIDADES, AREAS, ALERTAS,
   alertaVencimiento, colorAvance, formatFecha, formatFechaHora,
   isoADatetimeLocal, datetimeLocalAIso,
@@ -159,15 +162,15 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
   const alerta = tarea ? alertaVencimiento(tarea) : null
 
   return (
-    <div className="fixed inset-0 bg-[#0D2B5E]/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={intentarCerrarModal}>
+    <div className="fixed inset-0 bg-acento-fuerte/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={intentarCerrarModal}>
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
 
         {isLoading || !tarea ? (
-          <div className="p-16 text-center text-sm text-[#9BACC8]">Cargando tarea...</div>
+          <div className="p-16 text-center text-sm text-texto-3">Cargando tarea...</div>
         ) : (
           <>
-            <div className="bg-gradient-to-r from-[#0D2B5E] to-[#1A4FA0] rounded-t-2xl p-6 text-white sticky top-0 z-10">
-              <button onClick={intentarCerrarModal} className="absolute top-4 right-4 text-white/70 hover:text-white text-xl leading-none">✕</button>
+            <div className="bg-gradient-to-r from-acento-fuerte to-acento rounded-t-2xl p-6 text-white sticky top-0 z-10">
+              <button onClick={intentarCerrarModal} aria-label="Cerrar" className="absolute top-4 right-4 text-white/70 hover:text-white"><IconoCerrar tam={18} /></button>
               <p className="text-xs uppercase tracking-wide text-white/70 mb-1">{tarea.proyecto_nombre}</p>
               <h2 className="text-xl font-bold pr-8">{tarea.titulo}</h2>
             </div>
@@ -185,20 +188,20 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
               {/* Acciones rápidas: estado y asignado, cambian al instante */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Estado</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Estado</label>
                   <select
                     value={tarea.estado}
                     disabled={!editable}
                     onChange={(e) => pedirConfirmacion(
                       'estado', tarea.estado, e.target.value, { estado: e.target.value },
                     )}
-                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm disabled:bg-[#F7F9FC] disabled:text-[#9BACC8]"
+                    className="w-full rounded-lg border border-borde px-3 py-2 text-sm disabled:bg-superficie-2 disabled:text-texto-3"
                   >
                     {Object.entries(ESTADOS_TAREA).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">Asignado a</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Asignado a</label>
                   <select
                     value={tarea.asignado_a || ""}
                     disabled={!editable}
@@ -211,7 +214,7 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                         { asignado_a: id },
                       )
                     }}
-                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm disabled:bg-[#F7F9FC] disabled:text-[#9BACC8]"
+                    className="w-full rounded-lg border border-borde px-3 py-2 text-sm disabled:bg-superficie-2 disabled:text-texto-3"
                   >
                     <option value="">Sin asignar</option>
                     {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
@@ -220,74 +223,74 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="flex-1 bg-gray-200 rounded-full h-2.5">
+                <div className="flex-1 bg-superficie-2 rounded-full h-2.5">
                   <div className="h-2.5 rounded-full" style={{ width: `${tarea.avance_pct}%`, background: colorAvance(tarea.avance_pct) }} />
                 </div>
-                <span className="text-sm font-bold text-[#0D2B5E]">{tarea.avance_pct}%</span>
+                <span className="text-sm font-bold text-acento-fuerte">{tarea.avance_pct}%</span>
               </div>
 
               {/* Detalle: modo lectura o edición */}
               {!form ? (
-                <div className="bg-[#F7F9FC] rounded-xl p-4 space-y-3">
+                <div className="bg-superficie-2 rounded-xl p-4 space-y-3">
                   <div className="flex justify-between items-start">
                     <div className="flex gap-2">
                       <PriorityBadge priority={tarea.prioridad} />
-                      {tarea.area && <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white border border-[#D6E0F0] text-[#6B7EA8]">{tarea.area}</span>}
+                      {tarea.area && <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white border border-borde text-texto-2">{tarea.area}</span>}
                     </div>
                     {editable && (
-                      <button onClick={empezarEdicion} className="text-xs font-semibold text-[#1A4FA0] hover:underline">
+                      <button onClick={empezarEdicion} className="text-xs font-semibold text-acento hover:underline">
                         Editar detalles
                       </button>
                     )}
                   </div>
-                  {tarea.descripcion && <p className="text-sm text-[#1A2B47]">{tarea.descripcion}</p>}
+                  {tarea.descripcion && <p className="text-sm text-texto">{tarea.descripcion}</p>}
                   {tarea.riesgos && (
-                    <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                      ⚠️ {tarea.riesgos}
+                    <p className="text-sm text-negativo bg-negativo-bg border border-negativo/25 rounded-lg px-3 py-2">
+                      <IconoAlerta tam={14} className="inline mr-1 -mt-0.5" />{tarea.riesgos}
                     </p>
                   )}
-                  <div className="flex justify-between text-xs text-[#6B7EA8] pt-1">
+                  <div className="flex justify-between text-xs text-texto-2 pt-1">
                     <span>Inicio: {formatFechaHora(tarea.fecha_inicio)}</span>
                     <span className={alerta ? ALERTAS[alerta].texto : ''}>Fin: {formatFechaHora(tarea.fecha_fin)}</span>
                   </div>
                 </div>
               ) : (
-                <div className="bg-[#F7F9FC] rounded-xl p-4 space-y-3">
+                <div className="bg-superficie-2 rounded-xl p-4 space-y-3">
                   <input value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })}
-                    className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm font-semibold" placeholder="Título" />
+                    className="w-full rounded-lg border border-borde px-3 py-2 text-sm font-semibold" placeholder="Título" />
                   <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-                    rows={2} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm resize-none" placeholder="Descripción" />
+                    rows={2} className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none" placeholder="Descripción" />
                   <textarea value={form.riesgos} onChange={(e) => setForm({ ...form, riesgos: e.target.value })}
-                    rows={2} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm resize-none" placeholder="Riesgos" />
+                    rows={2} className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none" placeholder="Riesgos" />
                   <div className="grid grid-cols-2 gap-3">
-                    <select value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                    <select value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} className="rounded-lg border border-borde px-3 py-2 text-sm">
                       <option value="">Área</option>
                       {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
                     </select>
-                    <select value={form.prioridad} onChange={(e) => setForm({ ...form, prioridad: e.target.value })} className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm">
+                    <select value={form.prioridad} onChange={(e) => setForm({ ...form, prioridad: e.target.value })} className="rounded-lg border border-borde px-3 py-2 text-sm">
                       {Object.entries(PRIORIDADES).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-semibold text-[#6B7EA8] uppercase mb-1">Inicio</label>
+                      <label className="block text-[11px] font-semibold text-texto-2 uppercase mb-1">Inicio</label>
                       <input type="datetime-local" value={form.fecha_inicio}
                         onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
-                        className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+                        className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-[#6B7EA8] uppercase mb-1">Fin</label>
+                      <label className="block text-[11px] font-semibold text-texto-2 uppercase mb-1">Fin</label>
                       <input type="datetime-local" value={form.fecha_fin}
                         onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
-                        className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm" />
+                        className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={intentarCerrarEdicion} className="flex-1 border border-[#D6E0F0] text-sm font-semibold py-2 rounded-lg hover:bg-gray-50">Cancelar</button>
+                    <button onClick={intentarCerrarEdicion} className="flex-1 border border-borde text-sm font-semibold py-2 rounded-lg hover:bg-superficie-2">Cancelar</button>
                     <button
                       onClick={intentarGuardarEdicion}
                       disabled={mutGuardarEdicion.isPending || cambiosPendientes.length === 0}
-                      className="flex-1 bg-[#1A4FA0] hover:bg-[#0D2B5E] disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg"
+                      className="flex-1 bg-acento hover:bg-acento-fuerte disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg"
                     >
                       {cambiosPendientes.length === 0 ? 'Sin cambios' : 'Guardar'}
                     </button>
@@ -297,20 +300,20 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
 
               {/* Subtareas — solo tienen sentido en una tarea de primer nivel */}
               {tarea.parent_id === null && (
-                <div className="border-t border-[#EDF2F7] pt-5">
+                <div className="border-t border-borde pt-5">
                   <SubtareasPanel tarea={tarea} usuarios={usuarios} />
                 </div>
               )}
 
               {/* Línea de tiempo de actualizaciones */}
-              <div className="border-t border-[#EDF2F7] pt-5">
-                <h3 className="text-sm font-bold text-[#0D2B5E] mb-3">Actualizaciones de avance</h3>
+              <div className="border-t border-borde pt-5">
+                <h3 className="text-sm font-bold text-acento-fuerte mb-3">Actualizaciones de avance</h3>
 
-                <div className="bg-[#F7F9FC] rounded-xl p-4 mb-4 space-y-2">
+                <div className="bg-superficie-2 rounded-xl p-4 mb-4 space-y-2">
                   <textarea
                     value={comentario} onChange={(e) => setComentario(e.target.value)}
                     placeholder="¿Qué avanzó desde la última actualización?"
-                    rows={2} className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm resize-none"
+                    rows={2} className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none"
                   />
                   <div className="flex items-center gap-3">
                     {puedeAvance && (
@@ -318,20 +321,20 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                         type="number" min={0} max={100} value={avanceNuevo}
                         onChange={(e) => setAvanceNuevo(e.target.value)}
                         placeholder="% avance"
-                        className="w-28 rounded-lg border border-[#D6E0F0] px-3 py-1.5 text-sm"
+                        className="w-28 rounded-lg border border-borde px-3 py-1.5 text-sm"
                       />
                     )}
                     <input
                       type="file" accept=".jpg,.jpeg,.png,.webp,.pdf"
                       onChange={(e) => setEvidencia(e.target.files?.[0] || null)}
-                      className="flex-1 text-xs text-[#6B7EA8] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#EAF0FB] file:text-[#1A4FA0] hover:file:bg-[#D6E0F0]"
+                      className="flex-1 text-xs text-texto-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde"
                     />
                   </div>
-                  {evidencia && <p className="text-xs text-[#6B7EA8]">📎 {evidencia.name}</p>}
+                  {evidencia && <p className="flex items-center gap-1.5 text-xs text-texto-2"><IconoClip tam={12} /> {evidencia.name}</p>}
                   <button
                     onClick={() => mutActualizacion.mutate()}
                     disabled={(!comentario && avanceNuevo === '' && !evidencia) || mutActualizacion.isPending}
-                    className="w-full bg-[#1A4FA0] hover:bg-[#0D2B5E] disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg transition"
+                    className="w-full bg-acento hover:bg-acento-fuerte disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg transition"
                   >
                     Publicar actualización
                   </button>
@@ -339,28 +342,28 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
 
                 <div className="space-y-3">
                   {actualizaciones.length === 0 && (
-                    <p className="text-xs text-[#9BACC8] text-center py-4">Aún no hay actualizaciones registradas.</p>
+                    <p className="text-xs text-texto-3 text-center py-4">Aún no hay actualizaciones registradas.</p>
                   )}
                   {actualizaciones.map(act => (
-                    <div key={act.id} className="border-l-2 border-[#D6E0F0] pl-4 py-1">
+                    <div key={act.id} className="border-l-2 border-borde pl-4 py-1">
                       <div className="flex items-center justify-between mb-1">
                         <Avatar name={act.usuario_nombre} compact />
-                        <span className="text-[11px] text-[#9BACC8]">{formatFecha(act.fecha, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="text-[11px] text-texto-3">{formatFecha(act.fecha, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       {act.avance_pct_nuevo !== null && act.avance_pct_nuevo !== undefined && (
-                        <span className="inline-block text-[11px] font-semibold text-[#1A4FA0] bg-[#EAF0FB] rounded-full px-2 py-0.5 mb-1">
+                        <span className="inline-block text-[11px] font-semibold text-acento bg-acento-suave rounded-full px-2 py-0.5 mb-1">
                           Avance actualizado a {act.avance_pct_nuevo}%
                         </span>
                       )}
-                      {act.comentario && <p className="text-sm text-[#1A2B47]">{act.comentario}</p>}
+                      {act.comentario && <p className="text-sm text-texto">{act.comentario}</p>}
                       {act.adjunto_evidencia && (
                         /\.(jpg|jpeg|png|webp)$/i.test(act.adjunto_evidencia) ? (
                           <a href={act.adjunto_evidencia} target="_blank" rel="noreferrer" className="inline-block mt-2">
-                            <img src={act.adjunto_evidencia} alt="Evidencia" className="max-h-32 rounded-lg border border-[#D6E0F0]" />
+                            <img src={act.adjunto_evidencia} alt="Evidencia" className="max-h-32 rounded-lg border border-borde" />
                           </a>
                         ) : (
-                          <a href={act.adjunto_evidencia} target="_blank" rel="noreferrer" className="inline-block mt-2 text-xs text-[#1A4FA0] font-semibold underline">
-                            📎 Ver evidencia adjunta
+                          <a href={act.adjunto_evidencia} target="_blank" rel="noreferrer" className="inline-block mt-2 text-xs text-acento font-semibold underline">
+                            <IconoClip tam={13} /> Ver evidencia adjunta
                           </a>
                         )
                       )}
@@ -372,8 +375,8 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
               {/* Historial: quién cambió qué. Va aparte de las actualizaciones
                   porque una cosa es lo que la persona reporta y otra lo que el
                   sistema registró que efectivamente cambió. */}
-              <div className="border-t border-[#EDF2F7] pt-5">
-                <h3 className="text-sm font-bold text-[#0D2B5E] mb-3">Historial de cambios</h3>
+              <div className="border-t border-borde pt-5">
+                <h3 className="text-sm font-bold text-acento-fuerte mb-3">Historial de cambios</h3>
                 <HistorialPanel
                   entradas={historial}
                   vacio="Esta tarea no ha tenido cambios desde que se creó."
@@ -388,7 +391,7 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                     : '¿Eliminar esta tarea? Esta acción no se puede deshacer.'
                   if (confirm(aviso)) mutEliminar.mutate()
                 }}
-                className="text-xs text-red-500 hover:text-red-700 font-semibold"
+                className="text-xs text-negativo hover:text-negativo font-semibold"
               >
                 Eliminar tarea
               </button>

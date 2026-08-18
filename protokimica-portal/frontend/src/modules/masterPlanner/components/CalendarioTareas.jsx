@@ -62,23 +62,23 @@ export default function CalendarioTareas({ tareas, onSelect }) {
       : rotuloSemana(dias)
 
   return (
-    <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-[#D6E0F0]">
+    <div className="bg-white rounded-2xl border border-borde shadow-sm overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-borde">
         <div className="flex items-center gap-2">
           <button onClick={() => navegar(-1)} aria-label="Anterior"
-            className="w-8 h-8 rounded-lg border border-[#D6E0F0] hover:bg-[#F7F9FC] text-[#6B7EA8]">‹</button>
+            className="w-8 h-8 rounded-lg border border-borde hover:bg-superficie-2 text-texto-2">‹</button>
           <button onClick={() => navegar(1)} aria-label="Siguiente"
-            className="w-8 h-8 rounded-lg border border-[#D6E0F0] hover:bg-[#F7F9FC] text-[#6B7EA8]">›</button>
-          <h3 className="text-base font-bold text-[#0D2B5E] capitalize ml-2">{titulo}</h3>
+            className="w-8 h-8 rounded-lg border border-borde hover:bg-superficie-2 text-texto-2">›</button>
+          <h3 className="text-base font-bold text-acento-fuerte capitalize ml-2">{titulo}</h3>
           <button onClick={() => setAncla(new Date())}
-            className="ml-2 text-xs font-semibold text-[#1A4FA0] hover:underline">Hoy</button>
+            className="ml-2 text-xs font-semibold text-acento hover:underline">Hoy</button>
         </div>
 
-        <div className="inline-flex rounded-lg border border-[#D6E0F0] p-1 bg-[#F7F9FC]">
+        <div className="inline-flex rounded-lg border border-borde p-1 bg-superficie-2">
           {MODOS.map(m => (
             <button key={m.id} onClick={() => setModo(m.id)}
               className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${
-                modo === m.id ? 'bg-white text-[#0D2B5E] shadow-sm' : 'text-[#6B7EA8]'
+                modo === m.id ? 'bg-white text-acento-fuerte shadow-sm' : 'text-texto-2'
               }`}>{m.label}</button>
           ))}
         </div>
@@ -89,9 +89,9 @@ export default function CalendarioTareas({ tareas, onSelect }) {
       ) : (
       <>
 
-      <div className="grid grid-cols-7 border-b border-[#D6E0F0] bg-[#F7F9FC]">
+      <div className="grid grid-cols-7 border-b border-borde bg-superficie-2">
         {DIAS_SEMANA.map(d => (
-          <div key={d} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-[#6B7EA8]">
+          <div key={d} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-texto-2">
             {d}
           </div>
         ))}
@@ -113,7 +113,7 @@ export default function CalendarioTareas({ tareas, onSelect }) {
       </>
       )}
 
-      <div className="px-5 py-3 border-t border-[#D6E0F0] flex flex-wrap items-center gap-4 text-[11px] text-[#6B7EA8]">
+      <div className="px-5 py-3 border-t border-borde flex flex-wrap items-center gap-4 text-[11px] text-texto-2">
         {Object.entries(ESTADOS_TAREA).map(([v, cfg]) => (
           <span key={v} className="flex items-center gap-1.5">
             <span className="w-3 h-2 rounded-sm" style={{ background: cfg.barra }} />
@@ -121,7 +121,7 @@ export default function CalendarioTareas({ tareas, onSelect }) {
           </span>
         ))}
         <span className="flex items-center gap-1.5">
-          <span className="w-3 h-2 rounded-sm bg-red-500" /> Vencida
+          <span className="w-3 h-2 rounded-sm bg-negativo-vivo" /> Vencida
         </span>
         {sinFechas > 0 && (
           <span className="ml-auto italic">
@@ -150,17 +150,17 @@ function SemanaFila({ semana, mesActual, altoMinimo, expandido, onToggleExpandir
   const alto = Math.max(altoMinimo, 32 + limite * ALTO_CARRIL + 20)
 
   return (
-    <div className="grid grid-cols-7 border-b border-[#EDF2F7] last:border-b-0 relative" style={{ minHeight: alto }}>
+    <div className="grid grid-cols-7 border-b border-borde last:border-b-0 relative" style={{ minHeight: alto }}>
       {semana.dias.map((dia, i) => {
         const esHoy = mismoDia(dia, hoy)
         const fueraDeMes = mesActual !== null && dia.getMonth() !== mesActual
         const ocultas = ocultasPorDia[i]
         return (
-          <div key={i} className={`border-r border-[#EDF2F7] last:border-r-0 px-1.5 pt-1.5 ${fueraDeMes ? 'bg-[#FAFBFD]' : ''}`}>
+          <div key={i} className={`border-r border-borde last:border-r-0 px-1.5 pt-1.5 ${fueraDeMes ? 'bg-superficie-2' : ''}`}>
             <div className="flex justify-center">
               <span className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${
-                esHoy ? 'bg-[#1A4FA0] text-white'
-                  : fueraDeMes ? 'text-[#C3CFE2]' : 'text-[#6B7EA8]'
+                esHoy ? 'bg-acento text-white'
+                  : fueraDeMes ? 'text-borde-fuerte' : 'text-texto-2'
               }`}>
                 {dia.getDate()}
               </span>
@@ -168,7 +168,7 @@ function SemanaFila({ semana, mesActual, altoMinimo, expandido, onToggleExpandir
             {ocultas > 0 && (
               <button
                 onClick={() => onToggleExpandir(clave(dia))}
-                className="absolute bottom-1 text-[10px] font-semibold text-[#1A4FA0] hover:underline"
+                className="absolute bottom-1 text-[10px] font-semibold text-acento hover:underline"
                 style={{ left: `calc(${(i * 100) / 7}% + 8px)` }}
               >
                 +{ocultas} más
@@ -192,7 +192,7 @@ function BarraTarea({ barra, onSelect }) {
   const { tarea, desdeCol, hastaCol, carril, continuaAntes, continuaDespues } = barra
   const esOutlook = tarea.es_outlook
   const alerta = esOutlook ? null : alertaVencimiento(tarea)
-  const color = alerta === 'vencida' ? '#EF4444' : (ESTADOS_TAREA[tarea.estado]?.barra || '#94A3B8')
+  const color = alerta === 'vencida' ? 'var(--color-negativo-vivo)' : (ESTADOS_TAREA[tarea.estado]?.barra || 'var(--color-texto-3)')
   const ancho = hastaCol - desdeCol + 1
   const hora = tieneHora(tarea.fecha_inicio) ? formatHora(tarea.fecha_inicio) : null
 
@@ -200,9 +200,9 @@ function BarraTarea({ barra, onSelect }) {
   // y con borde punteado, no solo en otro color. Un daltónico vería dos
   // barras idénticas si la única diferencia fuera el tono.
   const estiloOutlook = {
-    background: '#F7F9FC',
-    border: '1.5px dashed #6B7EA8',
-    color: '#42557A',
+    background: 'var(--color-superficie-2)',
+    border: '1.5px dashed var(--color-texto-2)',
+    color: 'var(--color-texto-2)',
   }
 
   const abrir = () => {
@@ -218,7 +218,7 @@ function BarraTarea({ barra, onSelect }) {
     <button
       onClick={abrir}
       title={titulo}
-      className={`absolute pointer-events-auto text-left text-[11px] font-medium px-2 py-[3px] truncate transition ${esOutlook ? 'hover:bg-[#EEF3FA]' : 'text-white hover:brightness-110'}`}
+      className={`absolute pointer-events-auto text-left text-[11px] font-medium px-2 py-[3px] truncate transition ${esOutlook ? 'hover:bg-superficie-2' : 'text-white hover:brightness-110'}`}
       style={{
         left: `calc(${(desdeCol * 100) / 7}% + 3px)`,
         width: `calc(${(ancho * 100) / 7}% - 6px)`,

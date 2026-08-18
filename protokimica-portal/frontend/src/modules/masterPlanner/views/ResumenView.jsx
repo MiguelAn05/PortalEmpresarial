@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { TarjetasKPI } from "../components/KPICards"
+import TarjetasKPI from "../../../core/components/TarjetasKPI.jsx"
 import HistorialPanel from "../components/HistorialPanel"
 import { obtenerResumen, listarHistorialGeneral } from "../api"
 import { SALUD, TONOS, lecturaAvancePlazo, formatFecha, formatMoneda } from "../constants"
+import { IconoAlerta } from '../../../core/components/Iconos.jsx'
 
 /**
  * Vista para gerencia: los números primero. Todo llega ya calculado del
@@ -22,9 +23,9 @@ export default function ResumenView({ onAbrirProyecto }) {
     queryFn: () => listarHistorialGeneral({ limite: 25 }),
   })
 
-  if (isLoading) return <div className="text-center py-16 text-[#9BACC8] text-sm">Cargando resumen...</div>
+  if (isLoading) return <div className="text-center py-16 text-texto-3 text-sm">Cargando resumen...</div>
   if (isError || !data) {
-    return <div className="text-center py-16 text-red-500 text-sm">No se pudo cargar el resumen.</div>
+    return <div className="text-center py-16 text-negativo text-sm">No se pudo cargar el resumen.</div>
   }
 
   const { kpis, presupuesto, presupuesto_por_area, proyectos, cumplimiento_por_area, carga_por_persona } = data
@@ -34,35 +35,40 @@ export default function ResumenView({ onAbrirProyecto }) {
       {/* Filtro de área: afecta a todo lo de abajo */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <label className="text-xs font-semibold text-[#6B7EA8] uppercase">Área</label>
+          <label className="text-xs font-semibold text-texto-2 uppercase">Área</label>
           <select
             value={area} onChange={(e) => setArea(e.target.value)}
-            className="rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm bg-white min-w-[180px]"
+            className="rounded-lg border border-borde px-3 py-2 text-sm bg-white min-w-[180px]"
           >
             <option value="">Todas las áreas</option>
             {data.areas_disponibles.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
           {area && (
-            <button onClick={() => setArea("")} className="text-xs font-semibold text-[#1A4FA0] hover:underline">
+            <button onClick={() => setArea("")} className="text-xs font-semibold text-acento hover:underline">
               Quitar filtro
             </button>
           )}
         </div>
-        <p className="text-xs text-[#9BACC8]">
+        <p className="text-xs text-texto-3">
           Solo proyectos activos. Los archivados no entran en ningún número.
         </p>
       </div>
 
       <TarjetasKPI tarjetas={[
-        { label: 'Proyectos', value: kpis.proyectos_total, color: 'border-t-[#0D2B5E]',
+        { label: 'Proyectos', value: kpis.proyectos_total,
           nota: `${kpis.proyectos_en_ejecucion} en ejecución` },
-        { label: 'Tareas abiertas', value: kpis.tareas_abiertas, color: 'border-t-[#1A4FA0]',
-          nota: kpis.tareas_sin_asignar > 0 ? `${kpis.tareas_sin_asignar} sin asignar` : null },
-        { label: 'Alta prioridad', value: kpis.tareas_alta_prioridad, color: 'border-t-[#F5A800]' },
-        { label: 'Vencidas', value: kpis.tareas_vencidas, color: 'border-t-[#D93B3B]',
-          alerta: kpis.tareas_vencidas > 0 },
-        { label: 'Proyectos en riesgo', value: kpis.proyectos_en_riesgo, color: 'border-t-[#D93B3B]',
-          alerta: kpis.proyectos_en_riesgo > 0 },
+        { label: 'Tareas abiertas', value: kpis.tareas_abiertas,
+          nota: kpis.tareas_sin_asignar > 0
+            ? `${kpis.tareas_sin_asignar} sin asignar`
+            : 'todas con responsable' },
+        { label: 'Alta prioridad', value: kpis.tareas_alta_prioridad,
+          nota: kpis.tareas_alta_prioridad > 0 ? 'atender primero' : 'ninguna' },
+        { label: 'Vencidas', value: kpis.tareas_vencidas,
+          alerta: kpis.tareas_vencidas > 0,
+          nota: kpis.tareas_vencidas > 0 ? 'fuera de plazo' : 'ninguna fuera de plazo' },
+        { label: 'Proyectos en riesgo', value: kpis.proyectos_en_riesgo,
+          alerta: kpis.proyectos_en_riesgo > 0,
+          nota: kpis.proyectos_en_riesgo > 0 ? 'revisar el cronograma' : 'ninguno en riesgo' },
       ]} />
 
       <Presupuesto total={presupuesto} porArea={presupuesto_por_area} />
@@ -86,11 +92,11 @@ export default function ResumenView({ onAbrirProyecto }) {
 
 function Panel({ titulo, subtitulo, children, accion }) {
   return (
-    <div className="bg-white rounded-2xl border border-[#D6E0F0] shadow-sm overflow-hidden">
-      <div className="flex flex-wrap justify-between items-center gap-2 px-5 py-4 border-b border-[#D6E0F0]">
+    <div className="bg-white rounded-2xl border border-borde shadow-sm overflow-hidden">
+      <div className="flex flex-wrap justify-between items-center gap-2 px-5 py-4 border-b border-borde">
         <div>
-          <h3 className="text-sm font-bold text-[#0D2B5E]">{titulo}</h3>
-          {subtitulo && <p className="text-xs text-[#9BACC8] mt-0.5">{subtitulo}</p>}
+          <h3 className="text-sm font-bold text-acento-fuerte">{titulo}</h3>
+          {subtitulo && <p className="text-xs text-texto-3 mt-0.5">{subtitulo}</p>}
         </div>
         {accion}
       </div>
@@ -107,7 +113,7 @@ function Presupuesto({ total, porArea }) {
       titulo="Presupuesto"
       subtitulo="El recorrido de la plata: presupuestado, aprobado por Administración y pagado por Tesorería. El detalle por ítem está dentro de cada proyecto."
     >
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-[#EDF2F7] border-b border-[#D6E0F0]">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-superficie-2 border-b border-borde">
         <Cifra titulo="Planeado" valor={formatMoneda(total.planeado)} />
         <Cifra titulo="Aprobado" valor={formatMoneda(total.aprobado)}
           nota={total.por_aprobar > 0 ? `${formatMoneda(total.por_aprobar)} sin aprobar` : null} />
@@ -121,14 +127,14 @@ function Presupuesto({ total, porArea }) {
       </div>
 
       {porArea.length === 0 ? (
-        <p className="px-5 py-10 text-center text-sm text-[#9BACC8]">
+        <p className="px-5 py-10 text-center text-sm text-texto-3">
           Ningún proyecto tiene presupuesto cargado todavía.
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full">
-            <thead className="bg-[#F7F9FC] border-b border-[#D6E0F0]">
-              <tr className="text-xs uppercase tracking-wider text-[#6B7EA8]">
+            <thead className="bg-superficie-2 border-b border-borde">
+              <tr className="text-xs uppercase tracking-wider text-texto-2">
                 <th className="text-left px-5 py-3">Área</th>
                 <th className="text-right px-5 py-3">Planeado</th>
                 <th className="text-right px-5 py-3">Aprobado</th>
@@ -139,10 +145,10 @@ function Presupuesto({ total, porArea }) {
             </thead>
             <tbody>
               {porArea.map(a => (
-                <tr key={a.area} className="border-b border-[#EDF2F7] last:border-b-0">
+                <tr key={a.area} className="border-b border-borde last:border-b-0">
                   <td className="px-5 py-3">
-                    <p className="text-sm font-semibold text-[#0D2B5E]">{a.area}</p>
-                    <p className="text-[11px] text-[#9BACC8]">
+                    <p className="text-sm font-semibold text-acento-fuerte">{a.area}</p>
+                    <p className="text-[11px] text-texto-3">
                       {a.proyectos} proyecto{a.proyectos === 1 ? '' : 's'} · {a.participacion_pct}% del total
                     </p>
                   </td>
@@ -150,7 +156,7 @@ function Presupuesto({ total, porArea }) {
                   <td className="px-5 py-3 text-right text-sm whitespace-nowrap">{formatMoneda(a.aprobado)}</td>
                   <td className="px-5 py-3 text-right text-sm whitespace-nowrap">{formatMoneda(a.ejecutado)}</td>
                   <td className={`px-5 py-3 text-right text-sm whitespace-nowrap font-semibold ${
-                    a.pendiente > 0 ? 'text-amber-700' : 'text-[#9BACC8]'
+                    a.pendiente > 0 ? 'text-alerta' : 'text-texto-3'
                   }`}>
                     {formatMoneda(a.pendiente)}
                   </td>
@@ -170,8 +176,8 @@ function Presupuesto({ total, porArea }) {
 function Cifra({ titulo, valor, alerta }) {
   return (
     <div className="bg-white px-5 py-4">
-      <p className="text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide">{titulo}</p>
-      <p className={`text-xl font-bold mt-1 ${alerta ? 'text-[#D93B3B]' : 'text-[#0D2B5E]'}`}>{valor}</p>
+      <p className="text-xs font-semibold text-texto-2 uppercase tracking-wide">{titulo}</p>
+      <p className={`text-xl font-bold mt-1 ${alerta ? 'text-negativo-vivo' : 'text-acento-fuerte'}`}>{valor}</p>
     </div>
   )
 }
@@ -179,18 +185,18 @@ function Cifra({ titulo, valor, alerta }) {
 function BarraEjecucion({ pct, sobrepasado }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 bg-gray-200 rounded-full h-2 min-w-[80px]">
+      <div className="flex-1 bg-superficie-2 rounded-full h-2 min-w-[80px]">
         <div
           className="h-2 rounded-full transition-all"
           style={{
             // Por encima de 100% la barra se queda llena y el aviso lo da el color.
             width: `${Math.min(pct, 100)}%`,
-            background: sobrepasado ? '#EF4444' : pct >= 80 ? '#F59E0B' : '#22C55E',
+            background: sobrepasado ? 'var(--color-negativo-vivo)' : pct >= 80 ? 'var(--color-ambar)' : 'var(--color-positivo-vivo)',
           }}
         />
       </div>
-      <span className={`text-xs font-semibold w-14 text-right ${sobrepasado ? 'text-red-600' : 'text-[#6B7EA8]'}`}>
-        {pct}%{sobrepasado && ' ⚠'}
+      <span className={`text-xs font-semibold w-14 text-right ${sobrepasado ? 'text-negativo' : 'text-texto-2'}`}>
+        {pct}%{sobrepasado && <IconoAlerta tam={12} className="inline ml-1 -mt-0.5" />}
       </span>
     </div>
   )
@@ -200,7 +206,7 @@ function EstadoProyectos({ proyectos, onAbrirProyecto }) {
   if (proyectos.length === 0) {
     return (
       <Panel titulo="Estado de los proyectos">
-        <p className="px-5 py-10 text-center text-sm text-[#9BACC8]">No hay proyectos activos.</p>
+        <p className="px-5 py-10 text-center text-sm text-texto-3">No hay proyectos activos.</p>
       </Panel>
     )
   }
@@ -212,8 +218,8 @@ function EstadoProyectos({ proyectos, onAbrirProyecto }) {
     >
       <div className="overflow-x-auto">
         <table className="min-w-full">
-          <thead className="bg-[#F7F9FC] border-b border-[#D6E0F0]">
-            <tr className="text-xs uppercase tracking-wider text-[#6B7EA8]">
+          <thead className="bg-superficie-2 border-b border-borde">
+            <tr className="text-xs uppercase tracking-wider text-texto-2">
               <th className="text-left px-5 py-3">Proyecto</th>
               <th className="text-left px-5 py-3">Semáforo</th>
               <th className="text-left px-5 py-3 w-48">Avance vs. plazo</th>
@@ -229,15 +235,15 @@ function EstadoProyectos({ proyectos, onAbrirProyecto }) {
                 <tr
                   key={p.id}
                   onClick={() => onAbrirProyecto(p.id)}
-                  className="border-b border-[#EDF2F7] last:border-b-0 hover:bg-[#F9FBFD] transition cursor-pointer"
+                  className="border-b border-borde last:border-b-0 hover:bg-superficie-2 transition cursor-pointer"
                 >
                   <td className="px-5 py-3">
-                    <p className="text-sm font-semibold text-[#0D2B5E]">{p.nombre}</p>
-                    <p className="text-[11px] text-[#9BACC8]">
+                    <p className="text-sm font-semibold text-acento-fuerte">{p.nombre}</p>
+                    <p className="text-[11px] text-texto-3">
                       {p.area}
                       {p.lider_nombre && ` · ${p.lider_nombre}`}
                       {p.tareas_vencidas > 0 && (
-                        <span className="text-red-600 font-semibold"> · {p.tareas_vencidas} tarea(s) vencida(s)</span>
+                        <span className="text-negativo font-semibold"> · {p.tareas_vencidas} tarea(s) vencida(s)</span>
                       )}
                     </p>
                   </td>
@@ -255,30 +261,30 @@ function EstadoProyectos({ proyectos, onAbrirProyecto }) {
                   </td>
                   <td className="px-5 py-3 text-right whitespace-nowrap">
                     {p.replanificaciones === 0 ? (
-                      <span className="text-xs text-[#C3CFE2]">—</span>
+                      <span className="text-xs text-borde-fuerte">—</span>
                     ) : (
                       <div>
-                        <p className="text-sm font-semibold text-[#1A2B47]">
+                        <p className="text-sm font-semibold text-texto">
                           {p.replanificaciones} {p.replanificaciones === 1 ? 'vez' : 'veces'}
                         </p>
                         {p.dias_aplazados > 0 && (
-                          <p className="text-[11px] text-red-600 font-semibold">+{p.dias_aplazados} días</p>
+                          <p className="text-[11px] text-negativo font-semibold">+{p.dias_aplazados} días</p>
                         )}
                       </div>
                     )}
                   </td>
                   <td className="px-5 py-3 text-right whitespace-nowrap">
                     {!p.presupuesto_visible ? (
-                      <span className="text-xs text-[#C3CFE2]" title="El presupuesto de un proyecto de otra área es privado">
+                      <span className="text-xs text-borde-fuerte" title="El presupuesto de un proyecto de otra área es privado">
                         Sin acceso
                       </span>
                     ) : p.planeado === 0 ? (
-                      <span className="text-xs text-[#C3CFE2]">Sin presupuesto</span>
+                      <span className="text-xs text-borde-fuerte">Sin presupuesto</span>
                     ) : (
                       <div>
-                        <p className="text-sm font-semibold text-[#1A2B47]">{formatMoneda(p.planeado)}</p>
+                        <p className="text-sm font-semibold text-texto">{formatMoneda(p.planeado)}</p>
                         <p className={`text-[11px] font-semibold ${
-                          p.ejecucion_pct > 100 ? 'text-red-600' : 'text-[#9BACC8]'
+                          p.ejecucion_pct > 100 ? 'text-negativo' : 'text-texto-3'
                         }`}>
                           {p.ejecucion_pct}% ejecutado
                         </p>
@@ -306,10 +312,10 @@ function AvanceVsPlazo({ avance, plazo }) {
   if (plazo === null || plazo === undefined) {
     return (
       <div>
-        <div className="bg-gray-200 rounded-full h-2.5">
-          <div className="h-2.5 rounded-full bg-gray-400" style={{ width: `${Math.min(avance, 100)}%` }} />
+        <div className="bg-superficie-2 rounded-full h-2.5">
+          <div className="h-2.5 rounded-full bg-borde-fuerte" style={{ width: `${Math.min(avance, 100)}%` }} />
         </div>
-        <p className="text-[11px] text-[#9BACC8] mt-1">
+        <p className="text-[11px] text-texto-3 mt-1">
           {avance}% de avance · sin fechas para comparar
         </p>
       </div>
@@ -318,22 +324,22 @@ function AvanceVsPlazo({ avance, plazo }) {
 
   return (
     <div title={lectura.detalle}>
-      <div className="relative bg-gray-200 rounded-full h-2.5">
+      <div className="relative bg-superficie-2 rounded-full h-2.5">
         <div
           className="h-2.5 rounded-full transition-all"
           style={{
             width: `${Math.min(avance, 100)}%`,
-            background: lectura.tono === 'bueno' ? '#22C55E' : lectura.tono === 'regular' ? '#F59E0B' : '#EF4444',
+            background: lectura.tono === 'bueno' ? 'var(--color-positivo-vivo)' : lectura.tono === 'regular' ? 'var(--color-ambar)' : 'var(--color-negativo-vivo)',
           }}
         />
         <div
-          className="absolute top-[-3px] w-0.5 h-[16px] bg-[#0D2B5E]"
+          className="absolute top-[-3px] w-0.5 h-[16px] bg-acento-fuerte"
           style={{ left: `${Math.min(plazo, 100)}%` }}
           title={`Marca del plazo: hoy debería ir por el ${Math.round(plazo)}%`}
         />
       </div>
       <p className={`text-[11px] font-semibold mt-1 ${TONOS[lectura.tono]}`}>{lectura.texto}</p>
-      <p className="text-[11px] text-[#9BACC8]">{lectura.detalle}</p>
+      <p className="text-[11px] text-texto-3">{lectura.detalle}</p>
     </div>
   )
 }
@@ -345,35 +351,35 @@ function Cumplimiento({ areas, global }) {
       subtitulo="Solo cuenta las tareas cerradas que tenían fecha comprometida."
       accion={
         <div className="text-right">
-          <p className="text-2xl font-bold text-[#0D2B5E]">{global.cumplimiento_pct}%</p>
-          <p className="text-[11px] text-[#9BACC8]">{global.tareas_medibles} tarea(s) medible(s)</p>
+          <p className="text-2xl font-bold text-acento-fuerte">{global.cumplimiento_pct}%</p>
+          <p className="text-[11px] text-texto-3">{global.tareas_medibles} tarea(s) medible(s)</p>
         </div>
       }
     >
       {global.tareas_medibles === 0 ? (
-        <p className="px-5 py-8 text-center text-sm text-[#9BACC8]">
+        <p className="px-5 py-8 text-center text-sm text-texto-3">
           Todavía no hay tareas cerradas con fecha comprometida. El porcentaje aparece
           a medida que se vayan completando tareas que tenían fecha de fin.
         </p>
       ) : (
-        <div className="divide-y divide-[#EDF2F7]">
+        <div className="divide-y divide-borde">
           {areas.filter(a => a.medibles > 0 || a.abiertas > 0).map(a => (
             <div key={a.area} className="px-5 py-3">
               <div className="flex justify-between items-baseline mb-1.5">
-                <span className="text-sm font-semibold text-[#0D2B5E]">{a.area}</span>
-                <span className="text-xs text-[#6B7EA8]">
+                <span className="text-sm font-semibold text-acento-fuerte">{a.area}</span>
+                <span className="text-xs text-texto-2">
                   {a.medibles > 0 ? `${a.cumplimiento_pct}% a tiempo` : 'sin datos aún'}
                 </span>
               </div>
               {a.medibles > 0 && (
-                <div className="flex h-2 rounded-full overflow-hidden bg-gray-200 mb-1.5">
-                  <div className="bg-green-500" style={{ width: `${a.cumplimiento_pct}%` }} />
-                  <div className="bg-red-400 flex-1" />
+                <div className="flex h-2 rounded-full overflow-hidden bg-superficie-2 mb-1.5">
+                  <div className="bg-positivo-vivo" style={{ width: `${a.cumplimiento_pct}%` }} />
+                  <div className="bg-negativo-vivo flex-1" />
                 </div>
               )}
-              <p className="text-[11px] text-[#9BACC8]">
+              <p className="text-[11px] text-texto-3">
                 {a.a_tiempo} a tiempo · {a.tarde} tarde · {a.abiertas} abiertas
-                {a.vencidas > 0 && <span className="text-red-600 font-semibold"> · {a.vencidas} vencidas</span>}
+                {a.vencidas > 0 && <span className="text-negativo font-semibold"> · {a.vencidas} vencidas</span>}
               </p>
             </div>
           ))}
@@ -390,16 +396,16 @@ function Carga({ personas, sinAsignar }) {
       subtitulo="Tareas abiertas de cada persona, con lo vencido primero."
     >
       {personas.length === 0 ? (
-        <p className="px-5 py-8 text-center text-sm text-[#9BACC8]">
+        <p className="px-5 py-8 text-center text-sm text-texto-3">
           No hay tareas abiertas asignadas a nadie.
         </p>
       ) : (
-        <div className="divide-y divide-[#EDF2F7]">
+        <div className="divide-y divide-borde">
           {personas.map(p => (
             <div key={p.usuario_id} className="px-5 py-3 flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#0D2B5E] truncate">{p.nombre}</p>
-                <p className="text-[11px] text-[#9BACC8]">
+                <p className="text-sm font-semibold text-acento-fuerte truncate">{p.nombre}</p>
+                <p className="text-[11px] text-texto-3">
                   {p.area || 'Sin área'}
                   {p.alta_prioridad > 0 && ` · ${p.alta_prioridad} de alta prioridad`}
                 </p>
@@ -414,8 +420,8 @@ function Carga({ personas, sinAsignar }) {
         </div>
       )}
       {sinAsignar > 0 && (
-        <div className="px-5 py-3 bg-[#FFF8E6] border-t border-[#F5E3B0] text-xs text-[#8A6D1F] font-medium">
-          ⚠ {sinAsignar} tarea{sinAsignar === 1 ? '' : 's'} abierta{sinAsignar === 1 ? '' : 's'} sin responsable asignado.
+        <div className="px-5 py-3 bg-alerta-bg border-t border-ambar text-xs text-ambar-texto font-medium">
+          <IconoAlerta tam={13} className="inline mr-1 -mt-0.5" />{sinAsignar} tarea{sinAsignar === 1 ? '' : 's'} abierta{sinAsignar === 1 ? '' : 's'} sin responsable asignado.
         </div>
       )}
     </Panel>
@@ -424,9 +430,9 @@ function Carga({ personas, sinAsignar }) {
 
 function Contador({ valor, etiqueta, tono }) {
   const estilos = {
-    amber: 'bg-amber-50 border-amber-200 text-amber-700',
-    red: 'bg-red-50 border-red-200 text-red-700',
-  }[tono] || 'bg-[#F7F9FC] border-[#D6E0F0] text-[#0D2B5E]'
+    amber: 'bg-alerta-bg border-ambar/30 text-alerta',
+    red: 'bg-negativo-bg border-negativo/25 text-negativo',
+  }[tono] || 'bg-superficie-2 border-borde text-acento-fuerte'
 
   return (
     <div className={`border rounded-lg px-2.5 py-1 text-center min-w-[64px] ${estilos}`}>

@@ -1,7 +1,7 @@
 // Lo que el inicio calcula sin pintar nada: plazos en palabras, orden de las
 // tarjetas y el tono de los pendientes.
 import {
-  saludo, plazoRelativo, ordenTarjetas, tonoPendientes, primerNombre,
+  saludo, plazoRelativo, ordenTarjetas, tonoPendientes, primerNombre, montoCorto,
 } from '../src/modules/inicio/resumen.js'
 
 let fallos = []
@@ -56,14 +56,26 @@ check('siempre estan las cuatro',
 
 console.log('\n== Tono de los pendientes ==')
 const tono = (urgente, pendiente) => tonoPendientes({ total_urgente: urgente, total_pendiente: pendiente })
-check('al dia va en verde', tono(0, 0).borde.includes('#2E9E6B'))
+check('al dia va en verde', tono(0, 0).tono === 'positivo')
 check('y lo dice con palabras', tono(0, 0).titulo === 'Estás al día')
-check('con plazos cerca va en ambar', tono(0, 3).borde.includes('#F5A800'))
-check('con algo vencido va en rojo', tono(2, 5).borde.includes('#D93B3B'))
+check('con plazos cerca va en ambar', tono(0, 3).tono === 'alerta')
+check('con algo vencido va en rojo', tono(2, 5).tono === 'negativo')
+// El tono es el estado, no una clase de CSS: la paleta vive en index.css.
+check('el tono no trae colores encima',
+  !JSON.stringify(tonoPendientes(null)).includes('#'))
 // El numero va en el titulo, no solo en el color: el color no se lee en voz alta.
 check('el titulo dice cuantas hay', tono(2, 5).titulo === 'Tienes 2 cosas vencidas')
 check('una sola va en singular', tono(1, 1).titulo === 'Tienes 1 cosa vencida')
 check('sin datos no inventa nada', tonoPendientes(null).titulo === 'Lo que te toca hoy')
+
+console.log('\n== Monto corto de las tarjetas ==')
+check('sin plata no inventa un cero', montoCorto(null) === '—')
+check('lo que no es numero tampoco', montoCorto('mucho') === '—')
+check('por debajo del millon va completo', montoCorto(850000).endsWith('850.000'))
+check('el millon se abrevia', montoCorto(36000000) === '$ 36,0 M')
+check('con decimal cuando lo tiene', montoCorto(67500770) === '$ 67,5 M')
+check('los miles de millones siguen en millones', montoCorto(1250000000) === '$ 1.250,0 M')
+check('el cero es un dato, no un vacio', montoCorto(0) === '$ 0')
 
 console.log('\n== Nombre para saludar ==')
 check('toma el primer nombre', primerNombre('Miguel Angel Vargas') === 'Miguel')

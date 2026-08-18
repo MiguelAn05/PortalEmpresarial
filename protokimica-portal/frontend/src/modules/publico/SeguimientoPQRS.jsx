@@ -1,12 +1,18 @@
 import { useState } from 'react'
 import api from '../../core/api.js'
+import {
+  IconoAdmin, IconoAlDia, IconoAlerta, IconoCandado, IconoEstrella,
+  IconoHistorial, IconoPQRS, IconoReloj, IconoUsuario,
+} from '../../core/components/Iconos.jsx'
 
+// El estado se dice con palabra, forma y color — en ese orden de importancia.
+// Quien consulta esto es un cliente que quizá nunca vio el portal antes.
 const ESTADOS = {
-  recibido:   { label: 'Recibido',   icon: '📥', color: 'text-gray-600',   bg: 'bg-gray-100'    },
-  asignado:   { label: 'Asignado',   icon: '👤', color: 'text-blue-700',   bg: 'bg-blue-100'    },
-  en_proceso: { label: 'En proceso', icon: '⚙️', color: 'text-yellow-700', bg: 'bg-yellow-100'  },
-  resuelto:   { label: 'Resuelto',   icon: '✅', color: 'text-teal-700',   bg: 'bg-teal-100'    },
-  cerrado:    { label: 'Cerrado',    icon: '🔒', color: 'text-green-700',  bg: 'bg-green-100'   },
+  recibido:   { label: 'Recibido',   Icono: IconoPQRS,     color: 'text-texto-2',  bg: 'bg-superficie-2' },
+  asignado:   { label: 'Asignado',   Icono: IconoUsuario,  color: 'text-info',     bg: 'bg-info-bg'      },
+  en_proceso: { label: 'En proceso', Icono: IconoAdmin,    color: 'text-alerta',   bg: 'bg-alerta-bg'    },
+  resuelto:   { label: 'Resuelto',   Icono: IconoAlDia,    color: 'text-positivo', bg: 'bg-positivo-bg'  },
+  cerrado:    { label: 'Cerrado',    Icono: IconoCandado,  color: 'text-positivo', bg: 'bg-positivo-bg'  },
 }
 
 const TIPOS = {
@@ -30,18 +36,24 @@ function SLAInfo({ fechaLimite, cerrado }) {
   const dias = Math.ceil(diff / (1000 * 60 * 60 * 24))
 
   if (dias < 0) return (
-    <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 font-medium">
-      ⚠️ El plazo de respuesta está vencido. Estamos trabajando en tu caso.
+    <div className="flex items-start gap-2.5 bg-negativo-bg border border-negativo/20
+      rounded-xl p-3 text-sm text-negativo font-medium">
+      <IconoAlerta tam={17} className="mt-0.5 flex-shrink-0" />
+      <span>El plazo de respuesta está vencido. Estamos trabajando en tu caso.</span>
     </div>
   )
   if (dias <= 2) return (
-    <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm text-orange-700 font-medium">
-      ⏰ Fecha límite de respuesta: {formatFecha(fechaLimite)}
+    <div className="flex items-start gap-2.5 bg-alerta-bg border border-ambar/30
+      rounded-xl p-3 text-sm text-alerta font-medium">
+      <IconoReloj tam={17} className="mt-0.5 flex-shrink-0" />
+      <span>Fecha límite de respuesta: {formatFecha(fechaLimite)}</span>
     </div>
   )
   return (
-    <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
-      ✅ Fecha límite de respuesta: {formatFecha(fechaLimite)}
+    <div className="flex items-start gap-2.5 bg-positivo-bg border border-positivo/20
+      rounded-xl p-3 text-sm text-positivo">
+      <IconoAlDia tam={17} className="mt-0.5 flex-shrink-0" />
+      <span>Fecha límite de respuesta: {formatFecha(fechaLimite)}</span>
     </div>
   )
 }
@@ -77,7 +89,7 @@ export default function SeguimientoPQRS() {
   const estado = pqrs ? (ESTADOS[pqrs.estado] || ESTADOS.recibido) : null
 
   return (
-    <div className="min-h-screen bg-[#F0F4FA] p-4 pb-10">
+    <div className="min-h-screen bg-fondo p-4 pb-10">
       <div className="w-full max-w-lg mx-auto">
 
         {/* Header */}
@@ -89,17 +101,17 @@ export default function SeguimientoPQRS() {
           className="h-16 w-auto object-contain"
          />
        </div>
-       <h1 className="text-xl font-bold text-[#0D2B5E]">
+       <h1 className="text-xl font-bold text-acento-fuerte">
          Protokimica
        </h1>
-        <p className="text-sm text-[#6B7EA8] mt-1">
+        <p className="text-sm text-texto-2 mt-1">
          Consulta el estado de tu solicitud
         </p>
     </div>
 
         {/* Buscador */}
-        <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6 mb-5">
-          <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-2">
+        <div className="bg-white rounded-2xl shadow-sm border border-borde p-6 mb-5">
+          <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-2">
             Código de seguimiento
           </label>
           <div className="flex gap-2">
@@ -108,18 +120,18 @@ export default function SeguimientoPQRS() {
               onChange={(e) => { setCodigo(e.target.value); setError('') }}
               onKeyDown={(e) => e.key === 'Enter' && consultar()}
               placeholder="Ej: PK-2026-4821"
-              className="flex-1 px-4 py-3 rounded-xl border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] transition font-mono uppercase"
+              className="flex-1 px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition font-mono uppercase"
             />
             <button
               onClick={consultar}
               disabled={loading}
-              className="bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-bold px-5 py-3 rounded-xl text-sm transition disabled:opacity-60 flex-shrink-0"
+              className="bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold px-5 py-3 rounded-xl text-sm transition disabled:opacity-60 flex-shrink-0"
             >
               {loading ? '...' : 'Buscar'}
             </button>
           </div>
           {error && (
-            <p className="text-sm text-red-600 mt-3">{error}</p>
+            <p className="text-sm text-negativo mt-3">{error}</p>
           )}
         </div>
 
@@ -128,39 +140,40 @@ export default function SeguimientoPQRS() {
           <div className="space-y-4">
 
             {/* Estado actual */}
-            <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-borde p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="text-xs text-[#6B7EA8] font-semibold uppercase tracking-wide">
+                  <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide">
                     Código
                   </div>
-                  <div className="font-black text-[#0D2B5E] text-lg tracking-wider font-mono">
+                  <div className="font-black text-acento-fuerte text-lg tracking-wider font-mono">
                     {pqrs.codigo_seguimiento}
                   </div>
                 </div>
-                <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${estado.bg}`}>
-                  <span>{estado.icon}</span>
-                  <span className={`font-bold text-sm ${estado.color}`}>{estado.label}</span>
+                <div className={`flex items-center gap-2 px-3.5 py-2 rounded-full
+                  ${estado.bg} ${estado.color}`}>
+                  <estado.Icono tam={16} />
+                  <span className="font-semibold text-sm">{estado.label}</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                 <div>
-                  <span className="text-xs text-[#6B7EA8] block font-semibold uppercase tracking-wide">Tipo</span>
-                  <span className="font-medium text-[#1A2B47]">{TIPOS[pqrs.tipo] || pqrs.tipo}</span>
+                  <span className="text-xs text-texto-2 block font-semibold uppercase tracking-wide">Tipo</span>
+                  <span className="font-medium text-texto">{TIPOS[pqrs.tipo] || pqrs.tipo}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-[#6B7EA8] block font-semibold uppercase tracking-wide">Área</span>
-                  <span className="font-medium text-[#1A2B47]">{pqrs.area_responsable || 'Por asignar'}</span>
+                  <span className="text-xs text-texto-2 block font-semibold uppercase tracking-wide">Área</span>
+                  <span className="font-medium text-texto">{pqrs.area_responsable || 'Por asignar'}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-[#6B7EA8] block font-semibold uppercase tracking-wide">Radicada</span>
-                  <span className="font-medium text-[#1A2B47]">{formatFecha(pqrs.fecha_creacion)}</span>
+                  <span className="text-xs text-texto-2 block font-semibold uppercase tracking-wide">Radicada</span>
+                  <span className="font-medium text-texto">{formatFecha(pqrs.fecha_creacion)}</span>
                 </div>
                 {pqrs.fecha_cierre && (
                   <div>
-                    <span className="text-xs text-[#6B7EA8] block font-semibold uppercase tracking-wide">Cerrada</span>
-                    <span className="font-medium text-[#1A2B47]">{formatFecha(pqrs.fecha_cierre)}</span>
+                    <span className="text-xs text-texto-2 block font-semibold uppercase tracking-wide">Cerrada</span>
+                    <span className="font-medium text-texto">{formatFecha(pqrs.fecha_cierre)}</span>
                   </div>
                 )}
               </div>
@@ -170,23 +183,24 @@ export default function SeguimientoPQRS() {
 
             {/* Timeline de eventos */}
             {pqrs.historial?.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-6">
-                <h3 className="font-bold text-[#0D2B5E] mb-4 text-sm">
-                  📡 Historial de tu solicitud
+              <div className="bg-white rounded-2xl shadow-sm border border-borde p-6">
+                <h3 className="flex items-center gap-2 font-semibold text-texto mb-4 text-sm">
+                  <IconoHistorial tam={17} className="text-texto-3" />
+                  Historial de tu solicitud
                 </h3>
                 <div className="relative">
-                  <div className="absolute left-3.5 top-0 bottom-0 w-px bg-[#D6E0F0]" />
+                  <div className="absolute left-3.5 top-0 bottom-0 w-px bg-borde" />
                   <div className="space-y-4">
                     {[...pqrs.historial].reverse().map((evento, idx) => (
                       <div key={idx} className="flex gap-4">
-                        <div className="w-7 h-7 rounded-full bg-[#0D2B5E] border-2 border-white shadow flex items-center justify-center flex-shrink-0 z-10">
-                          <div className="w-2 h-2 rounded-full bg-[#F5A800]" />
+                        <div className="w-7 h-7 rounded-full bg-acento-fuerte border-2 border-white shadow flex items-center justify-center flex-shrink-0 z-10">
+                          <div className="w-2 h-2 rounded-full bg-ambar" />
                         </div>
                         <div className="flex-1 pb-2">
-                          <div className="text-sm font-semibold text-[#1A2B47]">
+                          <div className="text-sm font-semibold text-texto">
                             {evento.comentario || 'Actualización de estado'}
                           </div>
-                          <div className="text-xs text-[#9BACC8] mt-0.5">
+                          <div className="text-xs text-texto-3 mt-0.5">
                             {formatFecha(evento.fecha)}
                           </div>
                         </div>
@@ -201,14 +215,17 @@ export default function SeguimientoPQRS() {
             {pqrs.estado === 'cerrado' && (
               <a
                 href={`/encuesta/${pqrs.codigo_seguimiento}`}
-                className="block bg-[#FFF4E0] border border-[#F5A800]/30 rounded-2xl p-5 text-center hover:bg-[#FFF0D4] transition"
+                className="block bg-alerta-bg border border-ambar/30 rounded-2xl p-5
+                  text-center hover:border-ambar transition-colors duration-150 ease-suave"
               >
-                <div className="text-2xl mb-2">⭐</div>
-                <p className="text-sm font-semibold text-[#0D2B5E] mb-1">
+                <div className="flex justify-center mb-2 text-ambar-texto">
+                  <IconoEstrella tam={22} />
+                </div>
+                <p className="text-sm font-semibold text-texto mb-1">
                   Tu solicitud fue cerrada
                 </p>
-                <p className="text-xs text-[#6B7EA8]">
-                  Cuéntanos cómo te fue — toma menos de un minuto →
+                <p className="text-xs text-texto-2">
+                  Cuéntanos cómo te fue — toma menos de un minuto
                 </p>
               </a>
             )}
@@ -217,7 +234,7 @@ export default function SeguimientoPQRS() {
             <div className="text-center">
               
                 <a href="/formulario"
-                className="text-sm text-[#1A4FA0] font-semibold hover:underline"
+                className="text-sm text-acento font-semibold hover:underline"
               >
                 ¿Tienes otra solicitud? Radícala aquí →
               </a>

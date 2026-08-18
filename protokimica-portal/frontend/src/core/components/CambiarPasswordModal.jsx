@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import api from '../api.js'
+import { IconoCerrar, IconoCheck } from './Iconos.jsx'
 
 export default function CambiarPasswordModal({ onClose }) {
   const [form, setForm] = useState({ password_actual: '', password_nueva: '', confirmar: '' })
@@ -32,23 +33,23 @@ export default function CambiarPasswordModal({ onClose }) {
     }
   }
 
-  const inputCls = "w-full px-3 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0]"
+  const inputCls = "w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento"
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#D6E0F0]">
-          <h2 className="font-bold text-[#0D2B5E]">Cambiar contraseña</h2>
-          <button onClick={onClose} className="text-[#6B7EA8] hover:text-[#0D2B5E] text-xl">✕</button>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-borde">
+          <h2 className="font-bold text-acento-fuerte">Cambiar contraseña</h2>
+          <button onClick={onClose} aria-label="Cerrar" className="w-8 h-8 flex items-center justify-center rounded-lg text-texto-3 hover:bg-superficie-2 hover:text-texto transition-colors duration-150"><IconoCerrar tam={16} /></button>
         </div>
 
         {exito ? (
           <div className="p-6 text-center">
-            <div className="text-3xl mb-2">✅</div>
-            <p className="text-sm font-semibold text-[#1A2B47] mb-4">Contraseña actualizada correctamente.</p>
+            <div className="flex justify-center mb-3"><span className="w-11 h-11 rounded-full bg-positivo-bg text-positivo flex items-center justify-center"><IconoCheck tam={22} /></span></div>
+            <p className="text-sm font-semibold text-texto mb-4">Contraseña actualizada correctamente.</p>
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-lg bg-[#0D2B5E] hover:bg-[#1A4FA0] text-white text-sm font-bold transition"
+              className="px-4 py-2 rounded-lg bg-acento-fuerte hover:bg-acento text-white text-sm font-bold transition"
             >
               Listo
             </button>
@@ -56,26 +57,26 @@ export default function CambiarPasswordModal({ onClose }) {
         ) : (
           <div className="p-6 space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Contraseña actual</label>
+              <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Contraseña actual</label>
               <input type="password" name="password_actual" value={form.password_actual} onChange={handleChange} className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Nueva contraseña</label>
+              <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Nueva contraseña</label>
               <input type="password" name="password_nueva" value={form.password_nueva} onChange={handleChange} className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">Confirmar nueva contraseña</label>
+              <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Confirmar nueva contraseña</label>
               <input type="password" name="confirmar" value={form.confirmar} onChange={handleChange} className={inputCls} />
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">{error}</div>
+              <div className="bg-negativo-bg border border-negativo/25 rounded-lg px-3 py-2 text-sm text-negativo">{error}</div>
             )}
 
             <button
               onClick={handleSubmit}
               disabled={enviando || !form.password_actual || !form.password_nueva}
-              className="w-full mt-2 px-4 py-2.5 rounded-lg bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] text-sm font-bold transition disabled:opacity-50"
+              className="w-full mt-2 px-4 py-2.5 rounded-lg bg-ambar hover:bg-ambar-claro text-acento-fuerte text-sm font-bold transition disabled:opacity-50"
             >
               {enviando ? 'Guardando...' : 'Guardar nueva contraseña'}
             </button>

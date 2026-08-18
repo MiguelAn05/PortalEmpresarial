@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { cerrarProyecto } from "../api"
 import { formatMoneda } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
+import { IconoAlDia, IconoRechazo } from '../../../core/components/Iconos.jsx'
 
 /**
  * Cerrar un proyecto: finalizarlo o cancelarlo.
@@ -69,9 +70,9 @@ export default function CierreProyectoModal({ proyecto, onCerrar }) {
         onClick={(e) => e.stopPropagation()}
         className="bg-white rounded-2xl w-full max-w-2xl my-8 shadow-xl"
       >
-        <div className="px-6 py-4 border-b border-[#D6E0F0]">
-          <h2 className="text-xl font-bold text-[#0D2B5E]">Cerrar proyecto</h2>
-          <p className="text-sm text-[#6B7EA8] mt-0.5">{proyecto.nombre}</p>
+        <div className="px-6 py-4 border-b border-borde">
+          <h2 className="text-xl font-bold text-acento-fuerte">Cerrar proyecto</h2>
+          <p className="text-sm text-texto-2 mt-0.5">{proyecto.nombre}</p>
         </div>
 
         <div className="p-6 space-y-5">
@@ -83,12 +84,12 @@ export default function CierreProyectoModal({ proyecto, onCerrar }) {
               aria-pressed={tipo === 'finalizado'}
               className={`text-left p-4 rounded-xl border-2 transition ${
                 tipo === 'finalizado'
-                  ? 'border-[#2E9E6B] bg-green-50'
-                  : 'border-[#D6E0F0] hover:border-[#2E9E6B]'
+                  ? 'border-positivo-vivo bg-positivo-bg'
+                  : 'border-borde hover:border-positivo-vivo'
               }`}
             >
-              <span className="block font-bold text-[#0D2B5E]">✓ Finalizar</span>
-              <span className="block text-xs text-[#6B7EA8] mt-1">
+              <span className="flex items-center gap-1.5 font-semibold text-texto"><IconoAlDia tam={15} /> Finalizar</span>
+              <span className="block text-xs text-texto-2 mt-1">
                 El proyecto cumplió su objetivo.
               </span>
             </button>
@@ -99,81 +100,81 @@ export default function CierreProyectoModal({ proyecto, onCerrar }) {
               aria-pressed={tipo === 'cancelado'}
               className={`text-left p-4 rounded-xl border-2 transition ${
                 cancelando
-                  ? 'border-[#D93B3B] bg-red-50'
-                  : 'border-[#D6E0F0] hover:border-[#D93B3B]'
+                  ? 'border-negativo-vivo bg-negativo-bg'
+                  : 'border-borde hover:border-negativo-vivo'
               }`}
             >
-              <span className="block font-bold text-[#0D2B5E]">✕ Cancelar</span>
-              <span className="block text-xs text-[#6B7EA8] mt-1">
+              <span className="flex items-center gap-1.5 font-semibold text-texto"><IconoRechazo tam={15} /> Cancelar</span>
+              <span className="block text-xs text-texto-2 mt-1">
                 Se abandona sin completarse.
               </span>
             </button>
           </div>
 
           {error && (
-            <div role="alert" className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+            <div role="alert" className="bg-negativo-bg border border-negativo/25 text-negativo text-sm rounded-lg px-4 py-3">
               {error}
             </div>
           )}
 
           {cancelando ? (
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
-                ¿Por qué se cancela? <span className="text-[#D93B3B]">*</span>
+              <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
+                ¿Por qué se cancela? <span className="text-negativo-vivo">*</span>
               </label>
               <textarea
                 value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3}
                 placeholder="El proveedor incumplió y no hay presupuesto para reemplazarlo este año"
-                className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-borde px-3 py-2 text-sm"
               />
-              <p className="text-[11px] text-[#9BACC8] mt-1">
+              <p className="text-[11px] text-texto-3 mt-1">
                 Dentro de un año, esto es lo único que va a explicar la decisión.
               </p>
             </div>
           ) : (
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+              <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
                 Entregables
               </label>
               <textarea
                 value={entregables} onChange={(e) => setEntregables(e.target.value)} rows={3}
                 placeholder="Manual de operación, capacitación al personal, equipos instalados..."
-                className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-borde px-3 py-2 text-sm"
               />
-              <p className="text-[11px] text-[#9BACC8] mt-1">
+              <p className="text-[11px] text-texto-3 mt-1">
                 Qué quedó del proyecto, para quien lo consulte después.
               </p>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
               Observaciones <span className="normal-case font-normal">(opcional)</span>
             </label>
             <textarea
               value={observaciones} onChange={(e) => setObservaciones(e.target.value)} rows={2}
               placeholder="Lecciones aprendidas, pendientes que quedaron..."
-              className="w-full rounded-lg border border-[#D6E0F0] px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-borde px-3 py-2 text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#6B7EA8] uppercase mb-1">
+            <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
               Evidencia <span className="normal-case font-normal">(opcional)</span>
             </label>
             <input
               type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
               onChange={(e) => setEvidencia(e.target.files[0] || null)}
-              className="text-xs text-[#6B7EA8]"
+              className="text-xs text-texto-2"
             />
-            <p className="text-[11px] text-[#9BACC8] mt-1">
+            <p className="text-[11px] text-texto-3 mt-1">
               Acta de reunión, correo de aprobación, informe final...
             </p>
           </div>
 
           {/* Lo que se congela en el acta */}
-          <div className="bg-[#F7F9FC] border border-[#D6E0F0] rounded-xl p-4">
-            <h3 className="text-xs font-bold text-[#6B7EA8] uppercase tracking-wide mb-3">
+          <div className="bg-superficie-2 border border-borde rounded-xl p-4">
+            <h3 className="text-xs font-bold text-texto-2 uppercase tracking-wide mb-3">
               Así queda el proyecto
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -186,26 +187,26 @@ export default function CierreProyectoModal({ proyecto, onCerrar }) {
               <Cifra titulo="Pagado" valor={formatMoneda(proyecto.presupuesto_pagado)}
                      nota={`${proyecto.pagado_pct}% de lo aprobado`} />
             </div>
-            <p className="text-[11px] text-[#9BACC8] mt-3">
+            <p className="text-[11px] text-texto-3 mt-3">
               Estos números quedan guardados tal como están hoy. El acta seguirá
               mostrándolos aunque después se corrija algo.
             </p>
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+          <div className="bg-alerta-bg border border-ambar/30 text-alerta text-sm rounded-lg px-4 py-3">
             El proyecto sale de las vistas del día a día, pero <b>no se borra nada</b>:
             sus tareas, presupuesto e historial quedan intactos y siempre puedes retomarlo.
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-[#D6E0F0] flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-borde flex justify-end gap-3">
           <button type="button" onClick={onCerrar}
-            className="px-4 py-2 text-sm font-semibold text-[#6B7EA8] hover:text-[#0D2B5E]">
+            className="px-4 py-2 text-sm font-semibold text-texto-2 hover:text-acento-fuerte">
             Volver
           </button>
           <button type="submit" disabled={mutacion.isPending}
             className={`text-white font-semibold px-5 py-2 rounded-xl text-sm transition disabled:opacity-50 ${
-              cancelando ? 'bg-[#D93B3B] hover:bg-[#B32E2E]' : 'bg-[#2E9E6B] hover:bg-[#248056]'
+              cancelando ? 'bg-negativo-vivo hover:bg-negativo' : 'bg-positivo-vivo hover:bg-positivo'
             }`}>
             {mutacion.isPending
               ? 'Guardando...'
@@ -222,9 +223,9 @@ export default function CierreProyectoModal({ proyecto, onCerrar }) {
 function Cifra({ titulo, valor, nota }) {
   return (
     <div>
-      <div className="text-[11px] font-semibold text-[#9BACC8] uppercase tracking-wide">{titulo}</div>
-      <div className="text-lg font-bold text-[#0D2B5E] tabular-nums leading-tight mt-0.5">{valor}</div>
-      {nota && <div className="text-[11px] text-[#9BACC8]">{nota}</div>}
+      <div className="text-[11px] font-semibold text-texto-3 uppercase tracking-wide">{titulo}</div>
+      <div className="text-lg font-bold text-acento-fuerte tabular-nums leading-tight mt-0.5">{valor}</div>
+      {nota && <div className="text-[11px] text-texto-3">{nota}</div>}
     </div>
   )
 }

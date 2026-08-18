@@ -46,7 +46,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F4FA] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-fondo flex items-center justify-center p-4">
       <div className="w-full max-w-md">
 
        {/* Logo y título */}
@@ -58,23 +58,23 @@ export default function Login() {
          className="h-20 w-auto object-contain"
          />
        </div>
-         <h1 className="text-2xl font-bold text-[#0D2B5E]">
+         <h1 className="text-2xl font-bold text-acento-fuerte">
            Protokimica
          </h1>
-         <p className="text-sm text-[#6B7EA8] mt-1">
+         <p className="text-sm text-texto-2 mt-1">
            Portal de Gestión Empresarial
          </p>
        </div>
 
         {/* Card del formulario */}
-        <div className="bg-white rounded-2xl shadow-sm border border-[#D6E0F0] p-8">
-          <h2 className="text-lg font-semibold text-[#1A2B47] mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-borde p-8">
+          <h2 className="text-lg font-semibold text-texto mb-6">
             Iniciar sesión
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+              <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
                 Correo electrónico
               </label>
               <input
@@ -84,12 +84,12 @@ export default function Login() {
                 onChange={handleChange}
                 placeholder="tu@correo.com"
                 required
-                className="w-full px-4 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] focus:border-transparent transition"
+                className="w-full px-4 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento focus:border-transparent transition"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#6B7EA8] uppercase tracking-wide mb-1.5">
+              <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
                 Contraseña
               </label>
               <input
@@ -99,12 +99,12 @@ export default function Login() {
                 onChange={handleChange}
                 placeholder="••••••••"
                 required
-                className="w-full px-4 py-2.5 rounded-lg border border-[#D6E0F0] text-sm text-[#1A2B47] placeholder-[#9BACC8] focus:outline-none focus:ring-2 focus:ring-[#1A4FA0] focus:border-transparent transition"
+                className="w-full px-4 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento focus:border-transparent transition"
               />
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+              <div className="bg-negativo-bg border border-negativo/25 rounded-lg px-4 py-3 text-sm text-negativo">
                 {error}
               </div>
             )}
@@ -112,14 +112,14 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#F5A800] hover:bg-[#FFC840] text-[#0D2B5E] font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              className="w-full bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-60 disabled:cursor-not-allowed mt-2"
             >
               {loading ? 'Iniciando sesión...' : 'Ingresar'}
             </button>
           </form>
         </div>
 
-        <p className="text-center text-xs text-[#9BACC8] mt-6">
+        <p className="text-center text-xs text-texto-3 mt-6">
           Portal interno · Solo personal autorizado
           <span className="font-mono ml-1">· v{VERSION_APP}</span>
         </p>
