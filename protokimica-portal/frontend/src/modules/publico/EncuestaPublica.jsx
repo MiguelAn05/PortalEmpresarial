@@ -6,6 +6,7 @@ import { ESCALA_MAX } from "../encuestas/constants"
 import {
   IconoBuscar, IconoCheck, IconoEstrella,
 } from '../../core/components/Iconos.jsx'
+import AvisoDatos from '../../core/components/AvisoDatos.jsx'
 
 /**
  * La encuesta que responde el cliente. Sin sesión.
@@ -203,8 +204,10 @@ export default function EncuestaPublica() {
           disabled={enviando}
           className="w-full bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold text-lg py-4 rounded-xl shadow-sm transition disabled:opacity-60"
         >
-          {enviando ? 'Enviando...' : 'Enviar'}
+          {enviando ? 'Enviando…' : 'Enviar'}
         </button>
+
+        <AvisoDatos accion="responder" />
       </form>
     </Marco>
   )

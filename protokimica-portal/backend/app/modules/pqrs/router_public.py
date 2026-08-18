@@ -5,7 +5,10 @@ Soporta subida de archivos (imágenes del producto y factura).
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException,
+    UploadFile, status,
+)
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -23,7 +26,7 @@ from app.modules.pqrs.service import (
     MAX_TAMANIO_VIDEO_MB,
 )
 from app.modules.pqrs.notificaciones import (
-    notificar_cliente_creacion, notificar_area, notificar_servicio_cliente_creacion,
+    avisos_creacion, enviar_avisos,
 )
 
 router = APIRouter(prefix="/public", tags=["Público — PQRS"])
@@ -75,6 +78,7 @@ class PQRSConsultaOut(BaseModel):
 
 @router.post("/pqrs", response_model=PQRSPublicaOut, status_code=status.HTTP_201_CREATED)
 async def radicar_pqrs_publica(
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     # Tipo y descripción
     tipo: str = Form(...),
@@ -175,10 +179,9 @@ async def radicar_pqrs_publica(
     ))
     db.commit()
 
-    notificar_cliente_creacion(solicitud)
-    notificar_servicio_cliente_creacion(db, tenant.id, solicitud)
-    if solicitud.area_responsable:
-        notificar_area(db, tenant.id, solicitud, solicitud.area_responsable, motivo="creacion")
+    # Los avisos se arman aquí —necesitan la base— y se mandan después de
+    # responder: quien radica no tiene por qué esperar tres llamadas HTTP.
+    background.add_task(enviar_avisos, avisos_creacion(db, tenant.id, solicitud))
 
     return PQRSPublicaOut(
         codigo_seguimiento=codigo,

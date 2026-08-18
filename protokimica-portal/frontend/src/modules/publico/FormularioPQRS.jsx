@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import api from '../../core/api.js'
 import { AREAS } from '../../core/areas.js'
+import AvisoDatos from '../../core/components/AvisoDatos.jsx'
 import {
   IconoAlerta, IconoBuscar, IconoCheck, IconoCopiar, IconoFelicitacion,
   IconoFicha, IconoFoto, IconoIdea, IconoPaquete, IconoPeticion, IconoQueja,
@@ -915,9 +916,7 @@ export default function FormularioPQRS() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-texto-3 mt-4">
-          Al enviar aceptas que tus datos sean usados para gestionar tu solicitud.
-        </p>
+        <AvisoDatos className="mt-4" />
       </div>
     </div>
   )

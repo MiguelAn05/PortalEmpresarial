@@ -1,8 +1,9 @@
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import TarjetaIndicador from "./components/TarjetaIndicador"
 import ComoVamos from "./components/ComoVamos"
 import IndicadorDetalle from "./components/IndicadorDetalle"
+import { useAbrirDesdeUrl } from "../../core/abrirDesdeUrl.js"
 import FormIndicador from "./components/FormIndicador"
 import { BarrasPorArea, ChipSemaforo } from "./components/Graficas"
 import { obtenerTablero, recalcularPeriodo } from "./api"
@@ -26,6 +27,19 @@ export default function Indicadores() {
   const [area, setArea] = useState("")
   const [abierto, setAbierto] = useState(null)      // id del indicador en detalle
   const [editando, setEditando] = useState(null)    // null | 'nuevo' | indicador
+
+  // `/indicadores?indicador=7` abre esa ficha directo — así entra quien viene
+  // del inicio, que ya sabe cuál le falta por registrar.
+  const abrirIndicadorDeUrl = useCallback((id) => {
+    setAbierto(id)
+    setPestana('tablero')   // al cerrar queda donde se registra, no en "cómo vamos"
+  }, [])
+  const { limpiar: limpiarIndicadorDeUrl } = useAbrirDesdeUrl("indicador", abrirIndicadorDeUrl)
+
+  const cerrarIndicador = () => {
+    setAbierto(null)
+    limpiarIndicadorDeUrl()
+  }
 
   const { data: tablero, isLoading, isError } = useQuery({
     queryKey: ["ind-tablero", periodo.anio, periodo.mes, area],
@@ -230,7 +244,7 @@ export default function Indicadores() {
           indicadorId={abierto} anio={periodo.anio} mes={periodo.mes}
           editable={editable}
           onEditar={(ficha) => setEditando(ficha)}
-          onCerrar={() => setAbierto(null)}
+          onCerrar={cerrarIndicador}
         />
       )}
 

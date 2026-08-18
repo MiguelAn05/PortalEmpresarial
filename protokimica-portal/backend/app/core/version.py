@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.12.0"
+VERSION = "0.13.0"
 FECHA = "2026-08-18"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,26 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.13.0",
+        "fecha": "2026-08-18",
+        "titulo": "Radicar PQRS sin errores y entrar directo a lo tuyo",
+        "cambios": [
+            ("correccion", "Radicar una PQRS ya no muestra el error rojo al final. "
+                           "La solicitud se guardaba igual, así que quien lo veía "
+                           "volvía a enviarla y quedaba repetida."),
+            ("correccion", "El aviso por correo de una PQRS nueva vuelve a salir: "
+                           "un espacio de más en la configuración lo estaba "
+                           "impidiendo sin decir nada."),
+            ("mejora", "Radicar ya no se queda esperando: la confirmación con el "
+                       "código aparece de inmediato y los correos salen detrás."),
+            ("nuevo", "Desde el inicio se entra directo a la tarea, al indicador o "
+                      "al proyecto que aparece en la lista, sin volver a buscarlo."),
+            ("nuevo", "Los formularios del cliente enlazan la política de "
+                      "protección de datos personales, que abre en otra pestaña "
+                      "para no perder lo que se estaba llenando."),
+        ],
+    },
     {
         "version": "0.12.0",
         "fecha": "2026-08-18",

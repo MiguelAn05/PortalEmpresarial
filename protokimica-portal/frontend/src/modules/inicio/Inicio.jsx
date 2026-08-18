@@ -224,7 +224,7 @@ function Pendientes({ inicio }) {
               {tareas.lista.map(t => (
                 <Fila
                   key={t.id}
-                  to="/master-planner"
+                  to={`/master-planner?tarea=${t.id}`}
                   titulo={t.titulo}
                   detalle={t.proyecto}
                   derecha={<Plazo fecha={t.fecha_fin} />}
@@ -258,7 +258,7 @@ function Pendientes({ inicio }) {
               {indicadores.map(i => (
                 <Fila
                   key={i.id}
-                  to="/indicadores"
+                  to={`/indicadores?indicador=${i.id}`}
                   titulo={i.nombre}
                   derecha={<Chip tono="alerta">falta {MESES[i.mes - 1]} {i.anio}</Chip>}
                 />
@@ -356,7 +356,7 @@ function MiArea({ area }) {
               return (
                 <Fila
                   key={p.id}
-                  to="/master-planner"
+                  to={`/master-planner?proyecto=${p.id}`}
                   titulo={p.nombre}
                   derecha={
                     <span className="flex items-center gap-2 flex-shrink-0">

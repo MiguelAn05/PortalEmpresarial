@@ -5,7 +5,10 @@ logueado, para que cada empresa solo vea sus propias solicitudes.
 """
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException,
+    UploadFile, status,
+)
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -24,8 +27,7 @@ from app.modules.pqrs.service import (
     EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB, SLA_DIAS_POR_TIPO,
 )
 from app.modules.pqrs.notificaciones import (
-    notificar_cliente_creacion, notificar_cliente_cierre, notificar_area,
-    notificar_servicio_cliente_creacion,
+    avisos_creacion, avisos_reasignacion, avisos_cierre, enviar_avisos,
 )
 
 router = APIRouter(prefix="/pqrs", tags=["PQRS"])
@@ -33,6 +35,7 @@ router = APIRouter(prefix="/pqrs", tags=["PQRS"])
 
 @router.post("", response_model=PQRSOut, status_code=status.HTTP_201_CREATED)
 async def crear_pqrs(
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
@@ -129,10 +132,7 @@ async def crear_pqrs(
     db.commit()
     db.refresh(solicitud)
 
-    notificar_cliente_creacion(solicitud)
-    notificar_servicio_cliente_creacion(db, tenant_id, solicitud)
-    if solicitud.area_responsable:
-        notificar_area(db, tenant_id, solicitud, solicitud.area_responsable, motivo="creacion")
+    background.add_task(enviar_avisos, avisos_creacion(db, tenant_id, solicitud))
 
     return solicitud
 
@@ -210,6 +210,7 @@ def asignar_pqrs(
 def asignar_area(
     pqrs_id: int,
     payload: PQRSAsignarArea,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
@@ -248,8 +249,9 @@ def asignar_area(
     db.refresh(solicitud)
 
     if payload.area != area_anterior:
-        motivo = "creacion" if not area_anterior else "reasignacion"
-        notificar_area(db, tenant_id, solicitud, payload.area, motivo=motivo)
+        background.add_task(
+            enviar_avisos, avisos_reasignacion(db, tenant_id, solicitud, payload.area),
+        )
 
     return solicitud
 
@@ -385,6 +387,7 @@ def reclasificar_tipo_pqrs(
 @router.patch("/{pqrs_id}/estado", response_model=PQRSOut)
 async def cambiar_estado_pqrs(
     pqrs_id: int,
+    background: BackgroundTasks,
     estado: str = Form(...),
     comentario: str | None = Form(None),
     evidencia: UploadFile | None = File(None),
@@ -450,7 +453,7 @@ async def cambiar_estado_pqrs(
     db.refresh(solicitud)
 
     if estado == "cerrado":
-        notificar_cliente_cierre(solicitud)
+        background.add_task(enviar_avisos, avisos_cierre(solicitud))
 
     return solicitud
 

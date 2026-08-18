@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import Header from "./components/Header"
 import ResumenView from "./views/ResumenView"
@@ -7,6 +7,7 @@ import ProyectoDetalle from "./views/ProyectoDetalle"
 import TareasView from "./views/TareasView"
 import CalendarioView from "./views/CalendarioView"
 import TareaDetailModal from "./components/TareaDetailModal"
+import { useAbrirDesdeUrl } from "../../core/abrirDesdeUrl.js"
 import ProyectoFormModal from "./components/ProyectoFormModal"
 import TareaFormModal from "./components/TareaFormModal"
 import { listarProyectos, listarUsuariosAsignables } from "./api"
@@ -32,6 +33,27 @@ export default function MasterPlanner() {
   const [proyectoEnEdicion, setProyectoEnEdicion] = useState(null)
   const [mostrarFormProyecto, setMostrarFormProyecto] = useState(false)
   const [formTarea, setFormTarea] = useState(null) // null | { proyectoId }
+
+  // `/master-planner?tarea=42` abre esa tarea directo. Es como se llega
+  // desde el inicio: ahí la persona ya sabe cuál quiere, no viene a buscar.
+  const abrirTareaDeUrl = useCallback((id) => {
+    setTareaSeleccionadaId(id)
+    setVista("tareas")   // al cerrar el modal queda en la lista, no en el resumen
+  }, [])
+  const { limpiar: limpiarTareaDeUrl } = useAbrirDesdeUrl("tarea", abrirTareaDeUrl)
+
+  // Y `?proyecto=7` abre la ficha del proyecto, que es como se entra desde
+  // "los que menos han avanzado" del inicio.
+  const abrirProyectoDeUrl = useCallback((id) => {
+    setProyectoAbierto(id)
+    setVista("proyectos")
+  }, [])
+  useAbrirDesdeUrl("proyecto", abrirProyectoDeUrl)
+
+  const cerrarTarea = () => {
+    setTareaSeleccionadaId(null)
+    limpiarTareaDeUrl()
+  }
 
   // Lista de proyectos activos: alimenta los dropdowns de los formularios y
   // los filtros. La vista de Proyectos hace su propia consulta porque además
@@ -115,7 +137,7 @@ export default function MasterPlanner() {
         <TareaDetailModal
           tareaId={tareaSeleccionadaId}
           usuarios={usuarios}
-          onClose={() => setTareaSeleccionadaId(null)}
+          onClose={cerrarTarea}
         />
       )}
 

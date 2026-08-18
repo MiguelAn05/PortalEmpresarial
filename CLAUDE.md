@@ -236,6 +236,22 @@ declarar una lista de áreas dentro de un componente.
   y las constantes de `permisos.py` lo verifican al arrancar.
 - **Un mes sin datos no es un cero.** En indicadores y en cumplimiento, la
   ausencia de dato se muestra como "sin dato" y no baja los porcentajes.
+- **Notificar no puede tumbar la petición.** Cuando se avisa por correo, la
+  PQRS ya está guardada: si la excepción sube, el cliente ve un 500 sobre algo
+  que sí se radicó, vuelve a enviar el formulario y queda duplicado. Se captura
+  `except Exception`, no `except httpx.HTTPError` — `httpx.InvalidURL` **no**
+  hereda de `HTTPError`, así que un `N8N_WEBHOOK_URL` con un salto de línea
+  invisible al final se escapaba. Armar el payload también va protegido, y
+  ojo: un argumento se evalúa *antes* de entrar a la función que lo protege.
+- **La URL del webhook se limpia antes de usarla** (`.strip().rstrip("/")`).
+  Un `.env` escrito a mano trae espacios, saltos de línea o una barra de más,
+  y `.../webhook//evento` responde 404 en n8n: otro "no llega el correo" sin
+  causa visible. Si `N8N_WEBHOOK_URL` está vacío se avisa una vez en WARNING
+  al arrancar; el silencio total costaba días de diagnóstico.
+- **Los webhooks se mandan con `BackgroundTasks`,** después de responder.
+  Radicar disparaba tres llamadas HTTP en serie de hasta 10 s cada una: medio
+  minuto esperando. El aviso se *arma* dentro de la petición (necesita la
+  sesión de base de datos) y se *manda* después.
 
 ## Pendientes conocidos
 

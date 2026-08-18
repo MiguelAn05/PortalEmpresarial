@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../../core/api.js'
+import AvisoDatos from '../../core/components/AvisoDatos.jsx'
 import {
   IconoCheck, IconoEstrella, IconoFelicitacion, IconoReloj,
 } from '../../core/components/Iconos.jsx'
@@ -284,8 +285,10 @@ export default function EncuestaPQRS() {
               disabled={enviando}
               className="w-full bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold py-3.5 rounded-xl text-sm transition disabled:opacity-60"
             >
-              {enviando ? 'Enviando...' : 'Enviar respuestas'}
+              {enviando ? 'Enviando…' : 'Enviar respuestas'}
             </button>
+
+            <AvisoDatos accion="responder" />
           </div>
         )}
       </div>
