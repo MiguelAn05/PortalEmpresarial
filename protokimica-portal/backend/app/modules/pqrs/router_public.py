@@ -20,7 +20,7 @@ from app.models.tenant import Tenant
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla,
     calcular_prioridad,
-    generar_codigo_seguimiento,
+    asignar_codigo_seguimiento,
     guardar_archivo,
     EXTENSIONES_VIDEO_PERMITIDAS,
     MAX_TAMANIO_VIDEO_MB,
@@ -166,10 +166,7 @@ async def radicar_pqrs_publica(
     # así coincide siempre con el número interno "PQRS #<id>". El prefijo
     # cambia solo si el canal es un punto de venta específico o venta
     # institucional (ver PREFIJOS_POR_CANAL en service.py).
-    codigo = generar_codigo_seguimiento(db, tenant.id, canal_atencion)
-    solicitud.codigo_seguimiento = codigo
-    db.commit()
-    db.refresh(solicitud)
+    codigo = asignar_codigo_seguimiento(db, solicitud, tenant.id, canal_atencion)
 
     db.add(PQRSSeguimiento(
         pqrs_id=solicitud.id,

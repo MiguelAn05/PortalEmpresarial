@@ -39,12 +39,15 @@ HISTORIAL = [
         "fecha": "2026-08-18",
         "titulo": "Radicar PQRS sin errores y entrar directo a lo tuyo",
         "cambios": [
-            ("correccion", "Radicar una PQRS ya no muestra el error rojo al final. "
-                           "La solicitud se guardaba igual, así que quien lo veía "
-                           "volvía a enviarla y quedaba repetida."),
-            ("correccion", "El aviso por correo de una PQRS nueva vuelve a salir: "
-                           "un espacio de más en la configuración lo estaba "
-                           "impidiendo sin decir nada."),
+            ("correccion", "Radicar una PQRS ya no falla con el error rojo del final. "
+                           "El código de seguimiento se repetía cuando se había "
+                           "borrado alguna solicitud, y la que se estaba radicando "
+                           "quedaba guardada pero sin código."),
+            ("correccion", "Por lo mismo dejaron de salir los correos de aviso: se "
+                           "enviaban justo después de asignar el código. Ya vuelven "
+                           "a salir."),
+            ("correccion", "Dos personas radicando al mismo tiempo ya no se pisan el "
+                           "número: cada solicitud recibe el suyo."),
             ("mejora", "Radicar ya no se queda esperando: la confirmación con el "
                        "código aparece de inmediato y los correos salen detrás."),
             ("nuevo", "Desde el inicio se entra directo a la tarea, al indicador o "

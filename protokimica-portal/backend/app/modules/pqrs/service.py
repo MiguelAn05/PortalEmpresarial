@@ -137,23 +137,88 @@ def generar_codigo_seguimiento(db, tenant_id: int, canal_atencion: str | None = 
     Nota: los códigos ya asignados a PQRS existentes NO se recalculan
     ni se tocan — este cambio solo afecta a los que se creen de aquí
     en adelante.
+
+    **Se busca el consecutivo MÁS ALTO, no cuántos hay.** Contar da el
+    número equivocado en cuanto falta uno del medio: con VI0001 y VI0003
+    en la tabla (porque alguien borró la VI0002), contar da 2 y el
+    siguiente saldría VI0003 — que ya existe. Eso reventaba el `commit`
+    con UniqueViolation *después* de haber guardado la solicitud, así que
+    la PQRS quedaba radicada sin código y el cliente veía un error 500.
     """
     from app.models.pqrs import PQRSSolicitud  # import local para evitar ciclos
 
     prefijo_especial = PREFIJOS_POR_CANAL.get((canal_atencion or "").strip())
     prefijo = prefijo_especial or f"PK-{datetime.now().year}-"
 
-    total = (
-        db.query(PQRSSolicitud)
+    codigos = (
+        db.query(PQRSSolicitud.codigo_seguimiento)
         .filter(
             PQRSSolicitud.tenant_id == tenant_id,
             PQRSSolicitud.codigo_seguimiento.isnot(None),
             PQRSSolicitud.codigo_seguimiento.like(f"{prefijo}%"),
         )
-        .count()
+        .all()
     )
-    consecutivo = total + 1
-    return f"{prefijo}{consecutivo:04d}"
+
+    # El máximo se calcula sobre el número, no sobre el texto: al pasar de
+    # 9999 el orden alfabético pondría "10000" antes que "9999".
+    mayor = 0
+    for (codigo,) in codigos:
+        sufijo = (codigo or "")[len(prefijo):]
+        if sufijo.isdigit():
+            mayor = max(mayor, int(sufijo))
+
+    return f"{prefijo}{mayor + 1:04d}"
+
+
+def asignar_codigo_seguimiento(db, solicitud, tenant_id: int, canal_atencion: str | None) -> str:
+    """
+    Le pone el código a una solicitud que ya está guardada, reintentando si
+    otro la ganó por milímetros.
+
+    Aunque el consecutivo se calcule bien, dos personas radicando a la vez
+    leen el mismo número y la segunda choca contra el índice único. Es raro,
+    pero pasa justo cuando más se usa el portal. Reintentar es la forma
+    barata de resolverlo: al recalcular ya ve el código de la otra.
+
+    Es importante que la solicitud YA esté guardada antes de llamar aquí: el
+    `rollback` de un intento fallido deshace solo el UPDATE del código, no
+    la radicación.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    for intento in range(1, INTENTOS_CODIGO + 1):
+        solicitud.codigo_seguimiento = generar_codigo_seguimiento(db, tenant_id, canal_atencion)
+        try:
+            db.commit()
+            db.refresh(solicitud)
+            return solicitud.codigo_seguimiento
+        except IntegrityError:
+            db.rollback()
+            db.refresh(solicitud)
+            logger.warning(
+                "El código %s ya estaba tomado (intento %s de %s); se recalcula.",
+                solicitud.codigo_seguimiento, intento, INTENTOS_CODIGO,
+            )
+
+    # Con cinco intentos fallidos no es una carrera: algo más está mal.
+    logger.error(
+        "No se pudo asignar código de seguimiento a la PQRS %s tras %s intentos.",
+        solicitud.id, INTENTOS_CODIGO,
+    )
+    raise HTTPException(
+        status_code=500,
+        detail=(
+            "La solicitud quedó registrada pero no se le pudo asignar el código "
+            "de seguimiento. Avísale a un administrador con la fecha y tu nombre "
+            "para que te lo entregue; no vuelvas a enviar el formulario."
+        ),
+    )
+
+
+# Cinco intentos: si dos personas radican en el mismo milisegundo basta con
+# uno más, y si fallan los cinco el problema no es la concurrencia.
+INTENTOS_CODIGO = 5
 
 
 def generar_radicado_calidad(db, tenant_id: int) -> str:

@@ -236,6 +236,16 @@ declarar una lista de áreas dentro de un componente.
   y las constantes de `permisos.py` lo verifican al arrancar.
 - **Un mes sin datos no es un cero.** En indicadores y en cumplimiento, la
   ausencia de dato se muestra como "sin dato" y no baja los porcentajes.
+- **Un consecutivo se saca del MÁXIMO, nunca de un `count()`.** El código de
+  seguimiento se calculaba contando las PQRS del prefijo: con `VI0001` y
+  `VI0003` en la tabla (alguien borró la del medio), contar da 2 y el
+  siguiente sale `VI0003` — que ya existe. Reventaba el `commit` con
+  `UniqueViolation` *después* de guardar la solicitud, así que la PQRS quedaba
+  radicada **sin código** —el cliente no podía consultarla— y los correos, que
+  se mandan justo después, no salían. Un solo defecto, tres síntomas.
+  `asignar_codigo_seguimiento()` además reintenta: dos personas radicando a la
+  vez leen el mismo número. Para reparar las que quedaron sin código:
+  `docker exec protokimica_backend python -m app.reparar_codigos --aplicar`.
 - **Notificar no puede tumbar la petición.** Cuando se avisa por correo, la
   PQRS ya está guardada: si la excepción sube, el cliente ve un 500 sobre algo
   que sí se radicó, vuelve a enviar el formulario y queda duplicado. Se captura

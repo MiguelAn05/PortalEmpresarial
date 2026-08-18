@@ -23,7 +23,7 @@ from app.modules.pqrs.schemas import (
 from app.modules.pqrs.permisos import solo_servicio_al_cliente, es_servicio_al_cliente
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
-    generar_codigo_seguimiento, generar_radicado_calidad, guardar_archivo,
+    asignar_codigo_seguimiento, generar_radicado_calidad, guardar_archivo,
     EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB, SLA_DIAS_POR_TIPO,
 )
 from app.modules.pqrs.notificaciones import (
@@ -118,7 +118,7 @@ async def crear_pqrs(
     # así el número que ve el cliente coincide con el radicado interno.
     # El prefijo cambia si el canal es un punto de venta específico o
     # venta institucional (ver PREFIJOS_POR_CANAL en service.py).
-    solicitud.codigo_seguimiento = generar_codigo_seguimiento(db, tenant_id, canal_atencion)
+    asignar_codigo_seguimiento(db, solicitud, tenant_id, canal_atencion)
 
     if area_responsable and area_responsable.strip().lower() == "calidad":
         solicitud.radicado_calidad = generar_radicado_calidad(db, tenant_id)

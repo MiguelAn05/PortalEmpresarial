@@ -48,6 +48,23 @@ logger = logging.getLogger("pqrs.n8n")
 # Un aviso es una tupla (evento, payload). Se arma primero y se manda después.
 Aviso = tuple[str, dict]
 
+# El nombre del evento ES el path del webhook en n8n. Se declaran aquí y no
+# sueltos en cada función para que exista un solo sitio donde mirar cuando
+# haya que armar el flujo del otro lado — y para que una prueba pueda
+# comparar estos nombres contra los flujos de `backend/n8n/`. Un path mal
+# escrito no falla: n8n contesta 404 y el correo no llega, sin más señal.
+EVENTO_CREADA_CLIENTE = "pqrs-creada-cliente"
+EVENTO_SERVICIO_CLIENTE = "pqrs-nueva-servicio-cliente"
+EVENTO_AREA = "pqrs-notificacion-area"
+EVENTO_CERRADA = "pqrs-cerrada"
+
+EVENTOS = frozenset({
+    EVENTO_CREADA_CLIENTE,
+    EVENTO_SERVICIO_CLIENTE,
+    EVENTO_AREA,
+    EVENTO_CERRADA,
+})
+
 
 def enviar_avisos(avisos: list[Aviso]) -> None:
     """
@@ -103,7 +120,7 @@ def _aviso_cliente_creacion(solicitud) -> list[Aviso]:
     """Confirmación al cliente de que su PQRS fue radicada."""
     if not solicitud.cliente_email:
         return []
-    return [("pqrs-creada-cliente", {
+    return [(EVENTO_CREADA_CLIENTE, {
         "pqrs_id": solicitud.id,
         "codigo_seguimiento": solicitud.codigo_seguimiento,
         "cliente_nombre": solicitud.cliente_nombre,
@@ -135,7 +152,7 @@ def _aviso_servicio_cliente(db: Session, tenant_id: int, solicitud) -> list[Avis
         )
         return []
 
-    return [("pqrs-nueva-servicio-cliente", {
+    return [(EVENTO_SERVICIO_CLIENTE, {
         "pqrs_id": solicitud.id,
         "codigo_seguimiento": solicitud.codigo_seguimiento,
         "radicado_calidad": solicitud.radicado_calidad,
@@ -164,7 +181,7 @@ def _aviso_area(db: Session, tenant_id: int, solicitud, area: str, motivo: str) 
     if not destinatarios:
         return []  # nadie configurado en esa área todavía — nada que enviar
 
-    return [("pqrs-notificacion-area", {
+    return [(EVENTO_AREA, {
         "pqrs_id": solicitud.id,
         "codigo_seguimiento": solicitud.codigo_seguimiento,
         "radicado_calidad": solicitud.radicado_calidad,  # solo va lleno si area == Calidad
@@ -182,7 +199,7 @@ def _aviso_cliente_cierre(solicitud) -> list[Aviso]:
     """Aviso al cliente de que su PQRS fue cerrada (con link a la encuesta)."""
     if not solicitud.cliente_email:
         return []
-    return [("pqrs-cerrada", {
+    return [(EVENTO_CERRADA, {
         "pqrs_id": solicitud.id,
         "codigo_seguimiento": solicitud.codigo_seguimiento,
         "cliente_nombre": solicitud.cliente_nombre,
