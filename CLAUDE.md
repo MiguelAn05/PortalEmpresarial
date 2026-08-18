@@ -79,6 +79,26 @@ entorno. Siempre `up -d`, que recrea el contenedor. Confirmar después con
 **El frontend se compila en local** (`npm run build`) y `dist/` se commitea:
 el servidor no tiene internet estable para `npm ci`.
 
+### Versiones
+
+`backend/app/core/version.py` es la **única fuente**: el backend la sirve en
+`/version` y Vite la lee al compilar. No hay un segundo número que se quede
+atrás — `package.json` no cuenta.
+
+Para subir de versión: cambiar `VERSION` y `FECHA`, agregar la entrada nueva
+al principio de `HISTORIAL`, y **`npm run build`**. Sin el build, el navegador
+sigue anunciando la anterior y el portal muestra el aviso de desfase (que es
+justamente para lo que sirve). Un `assert` al arrancar revienta si se sube
+`VERSION` y no se agrega su entrada al historial.
+
+`MENOR` sube con cada función nueva, `PARCHE` con correcciones, y `1.0.0`
+queda para el día que el portal se entregue a una empresa distinta.
+
+El historial se escribe para quien **usa** el portal, no para quien lo
+programa: «ya se pueden cerrar proyectos», no «se agregó `fecha_cierre` a
+`mp_proyectos`». Una prueba exige que cada cambio pase de 15 caracteres para
+que el historial no termine siendo un `git log`.
+
 ## Convenciones
 
 - **Todo en español**: nombres de variables, funciones, comentarios, textos de

@@ -1,0 +1,188 @@
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import api from '../api.js'
+import {
+  VERSION_APP, hayNovedades, marcarVersionVista, servidorAdelantado, versionVista,
+} from '../version.js'
+
+/** Cada diez minutos basta: una versión no cambia mientras alguien trabaja. */
+const CADA_DIEZ_MINUTOS = 10 * 60 * 1000
+
+function useVersionDelServidor() {
+  return useQuery({
+    queryKey: ['version'],
+    queryFn: () => api.get('/version').then(r => r.data),
+    refetchInterval: CADA_DIEZ_MINUTOS,
+    retry: false,
+  })
+}
+
+/**
+ * Aviso de que el servidor ya está en otra versión.
+ *
+ * Aparece solo cuando de verdad pasó, y no se puede cerrar sin recargar a
+ * propósito: seguir trabajando con un bundle viejo contra un backend nuevo es
+ * exactamente el error que nadie logra reproducir después.
+ */
+export function AvisoVersionNueva() {
+  const { data } = useVersionDelServidor()
+  if (!servidorAdelantado(data?.version)) return null
+
+  return (
+    <div className="flex items-center gap-3 mb-4 px-4 py-2.5 rounded-lg
+      bg-[#FFF8E8] border border-[#F5A800]/40 text-sm text-[#6B4A00]">
+      <span aria-hidden="true">🔄</span>
+      <span className="flex-1">
+        El portal se actualizó a la versión <strong>{data.version}</strong>.
+        Recarga la página para trabajar con la última.
+      </span>
+      <button
+        onClick={() => window.location.reload()}
+        className="px-3 py-1 rounded-md bg-[#0D2B5E] text-white text-xs font-semibold
+          hover:bg-[#1A4FA0] transition flex-shrink-0"
+      >
+        Recargar
+      </button>
+    </div>
+  )
+}
+
+function Novedades({ onClose }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['version-historial'],
+    queryFn: () => api.get('/version/historial').then(r => r.data),
+    staleTime: Infinity,
+  })
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="px-5 py-4 border-b border-[#D6E0F0] flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-[#0D2B5E]">Novedades del portal</h2>
+            <p className="text-xs text-[#6B7EA8] mt-0.5">
+              Estás en la versión {VERSION_APP}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg text-[#6B7EA8] hover:bg-[#F0F4FA] hover:text-[#0D2B5E] transition"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div className="overflow-y-auto px-5 py-4">
+          {isLoading && <p className="text-sm text-[#6B7EA8]">Cargando…</p>}
+          {isError && (
+            <p className="text-sm text-[#6B7EA8]">
+              No se pudo cargar el historial. Vuelve a intentarlo en un momento.
+            </p>
+          )}
+
+          <ol className="relative">
+            {data?.historial?.map((v, i) => (
+              <li key={v.version} className="relative pl-6 pb-6 last:pb-0">
+                {/* La línea del tiempo: se corta en la última entrada. */}
+                {i < data.historial.length - 1 && (
+                  <span className="absolute left-[5px] top-4 bottom-0 w-px bg-[#D6E0F0]" />
+                )}
+                <span
+                  className="absolute left-0 top-1.5 w-2.5 h-2.5 rounded-full"
+                  style={{ background: i === 0 ? '#1A4FA0' : '#D6E0F0' }}
+                />
+
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="font-bold text-[#0D2B5E] text-sm">{v.titulo}</span>
+                  <span className="text-[11px] font-mono text-[#6B7EA8] bg-[#F0F4FA]
+                    border border-[#D6E0F0] rounded-full px-2 py-0.5">
+                    v{v.version}
+                  </span>
+                  {i === 0 && (
+                    <span className="text-[11px] font-semibold text-[#1A4FA0]">actual</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-[#9BACC8] mb-2">{v.fecha}</div>
+
+                <ul className="space-y-1.5">
+                  {v.cambios.map((c, j) => (
+                    <li key={j} className="flex gap-2 text-sm text-[#1A2B47]">
+                      {/* Punto y etiqueta: el color solo no se lee. */}
+                      <span className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{ background: c.color }}
+                          aria-hidden="true"
+                        />
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-[#6B7EA8] w-16">
+                          {c.etiqueta}
+                        </span>
+                      </span>
+                      <span className="flex-1">{c.texto}</span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * La versión en el pie del menú. Se puede tocar: abre las novedades.
+ *
+ * Lleva un punto ámbar cuando hay una versión que esta persona todavía no ha
+ * abierto — así el cambio se entera solo, sin mandar un correo a nadie.
+ */
+export function ChipVersion({ collapsed }) {
+  const [abierto, setAbierto] = useState(false)
+  const [vista, setVista] = useState(versionVista)
+  const { data } = useVersionDelServidor()
+
+  const version = data?.version ?? VERSION_APP
+  const nuevo = hayNovedades(version, vista)
+
+  // Quien entra por primera vez no tiene «novedades» de nada: se anota la
+  // versión en silencio para que el punto solo salga en la siguiente. No hace
+  // falta actualizar el estado —sin versión guardada el punto ya no sale—,
+  // así que esto no vuelve a pintar nada.
+  useEffect(() => {
+    if (version && !versionVista()) marcarVersionVista(version)
+  }, [version])
+
+  const abrir = () => {
+    setAbierto(true)
+    marcarVersionVista(version)
+    setVista(version)
+  }
+
+  return (
+    <>
+      <button
+        onClick={abrir}
+        title={`Versión ${version} — ver novedades`}
+        className="w-full flex items-center gap-2 px-4 py-1.5 text-white/25
+          hover:text-white/60 transition text-[11px]"
+      >
+        <span className="font-mono">v{version}</span>
+        {nuevo && (
+          <>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#F5A800] flex-shrink-0" aria-hidden="true" />
+            {!collapsed && <span className="text-[#F5A800]">novedades</span>}
+          </>
+        )}
+      </button>
+
+      {abierto && <Novedades onClose={() => setAbierto(false)} />}
+    </>
+  )
+}

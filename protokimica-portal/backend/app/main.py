@@ -1,12 +1,14 @@
 import logging
 import os
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+from app.core.deps import get_current_user
+from app.core.version import FECHA, VERSION, historial_publico
 
 # Logging global: sin esto, logger.info()/.error() de los módulos
 # (ej. notificaciones a n8n) no aparecen en `docker logs` con formato
@@ -39,7 +41,7 @@ from app.models import tenant, user, pqrs, autorizacion, master_planner, indicad
 app = FastAPI(
     title=settings.APP_NAME,
     description="API del Portal de Gestión Empresarial — Protokimica",
-    version="0.1.0",
+    version=VERSION,
     # En producción se ocultan /docs, /redoc y el esquema OpenAPI —
     # no hace falta que estén visibles para cualquiera en internet.
     # Se activan solo si ENVIRONMENT=development (o cualquier valor
@@ -92,6 +94,28 @@ app.mount("/uploads", StaticFiles(directory="/app/uploads"), name="uploads")
 @app.get("/health", tags=["Sistema"])
 def health_check():
     return {"status": "ok", "app": settings.APP_NAME, "environment": settings.ENVIRONMENT}
+
+
+@app.get("/version", tags=["Sistema"])
+def version():
+    """
+    La versión que está corriendo en el servidor.
+
+    Sin login a propósito: el navegador la consulta para compararla con la del
+    build que tiene cargado. Como el `dist/` se commitea y el backend se
+    reconstruye aparte, los dos lados pueden quedar desfasados y nadie se
+    entera — esto es lo que permite avisar «recarga la página».
+    """
+    return {"version": VERSION, "fecha": FECHA}
+
+
+@app.get("/version/historial", tags=["Sistema"])
+def version_historial(_=Depends(get_current_user)):
+    """
+    Qué trajo cada versión. Va detrás del login: los nombres de los módulos
+    internos no tienen por qué verse desde el formulario público.
+    """
+    return {"version": VERSION, "fecha": FECHA, "historial": historial_publico()}
 
 
 # ─── Módulos ───────────────────────────────────────────────

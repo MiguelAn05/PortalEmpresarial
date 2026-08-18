@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { puedeVerModulo } from '../modulos.js'
 import CambiarPasswordModal from './CambiarPasswordModal.jsx'
+import { AvisoVersionNueva, ChipVersion } from './Version.jsx'
 
 // Cada entrada dice de qué módulo es, para esconder la que el usuario no
 // puede abrir. Un menú que lleva a un 403 es peor que no tener el menú.
@@ -173,6 +174,8 @@ export default function Layout() {
             <span className="text-base flex-shrink-0">🚪</span>
             {!collapsed && <span className="truncate">Cerrar sesión</span>}
           </button>
+
+          <ChipVersion collapsed={collapsed} />
         </div>
       </aside>
 
@@ -206,6 +209,7 @@ export default function Layout() {
 
         {/* Contenido — cada pantalla se renderiza aquí */}
         <main className="flex-1 overflow-y-auto p-6">
+          <AvisoVersionNueva />
           <Outlet />
         </main>
       </div>

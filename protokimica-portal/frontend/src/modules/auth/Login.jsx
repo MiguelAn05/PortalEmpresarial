@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
+import { VERSION_APP } from '../../core/version.js'
 
 export default function Login() {
   const { login } = useAuth()
@@ -120,6 +121,7 @@ export default function Login() {
 
         <p className="text-center text-xs text-[#9BACC8] mt-6">
           Portal interno · Solo personal autorizado
+          <span className="font-mono ml-1">· v{VERSION_APP}</span>
         </p>
       </div>
     </div>
