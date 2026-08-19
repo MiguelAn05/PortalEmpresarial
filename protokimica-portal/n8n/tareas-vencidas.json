@@ -1,0 +1,113 @@
+{
+  "name": "Master Planner · tus tareas vencidas",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "cron-tareas",
+      "name": "Lunes por la mañana",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "notes": "Semanal y no diario: un correo de tareas todos los días se vuelve ruido y termina en una regla de Outlook."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8000/auth/login",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"tenant_slug\": \"protokimica\",\n  \"email\": \"automatizaciones@protokimica.com\",\n  \"password\": \"CAMBIAR-POR-LA-CLAVE-DEL-USUARIO-DE-SERVICIO\"\n}",
+        "options": {}
+      },
+      "id": "login-tareas",
+      "name": "Entrar al portal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/master-planner/tareas-vencidas-por-persona",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "incluir_por_vencer",
+              "value": "7"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "consulta-tareas",
+      "name": "Consultar pendientes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "notes": "7 días porque el resumen es semanal: alcanza a cubrir hasta el próximo lunes."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "destinatarios",
+        "options": {}
+      },
+      "id": "split-tareas",
+      "name": "Una fila por persona",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "fromEmail": "notificaciones@protokimica.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "=Tu semana · {{ $json.vencidas }} tarea(s) vencida(s) y {{ $json.por_vencer }} por vencer",
+        "emailFormat": "html",
+        "html": "=<!doctype html>\n<html><body style=\"margin:0;padding:24px;background:#F3F6FB;\n  font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#121A2B\">\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"\n  style=\"max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E2E8F2;\n  border-radius:12px;overflow:hidden\">\n  <tr><td style=\"padding:20px 24px;border-bottom:1px solid #E2E8F2\">\n    <span style=\"font-size:15px;font-weight:600;color:#0D2B5E\">Protokimica</span>\n    <span style=\"font-size:13px;color:#55607A\"> · Portal de gestión</span>\n  </td></tr>\n  <tr><td style=\"padding:24px 24px 8px 24px\">\n    <h1 style=\"margin:0 0 6px 0;font-size:19px;font-weight:600\">Hola {{ $json.nombre }}</h1>\n    <div style=\"font-size:14px;line-height:1.55;color:#55607A\">\n      {{ $json.vencidas > 0 ? 'Tienes <b style=\"color:#B32E2E\">' + $json.vencidas + ' tarea(s) con la fecha pasada</b>' + ($json.por_vencer > 0 ? ' y ' + $json.por_vencer + ' que vencen esta semana.' : '.') : 'Esta semana vencen ' + $json.por_vencer + ' de tus tareas.' }}\n    </div>\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top:16px;border-collapse:collapse\">\n      {{ $json.tareas.map(t => '<tr><td style=\"padding:10px 0;border-bottom:1px solid #EFF3F9\"><div style=\"font-size:14px;font-weight:600;color:#0D2B5E\">' + t.titulo + '</div><div style=\"font-size:13px;color:#55607A\">' + t.proyecto + ' · ' + t.avance_pct + '% de avance</div><div style=\"font-size:13px;font-weight:600;color:' + (t.vencida ? '#B32E2E' : '#8A5D00') + '\">' + (t.vencida ? 'Venció hace ' + Math.abs(t.dias) + ' día(s)' : (t.dias === 0 ? 'Vence hoy' : 'Vence en ' + t.dias + ' día(s)')) + '</div></td></tr>').join('') }}\n    </table>\n  </td></tr>\n  <tr><td style=\"padding:8px 24px 24px 24px\">\n    <a href=\"https://portal.protokimica.com/master-planner\" style=\"display:inline-block;background:#0D2B5E;color:#ffffff;\n       text-decoration:none;padding:12px 22px;border-radius:8px;\n       font-weight:600;font-size:14px\">Abrir mis tareas</a>\n  </td></tr>\n  <tr><td style=\"padding:16px 24px;border-top:1px solid #E2E8F2;\n    font-size:12px;color:#8A93A9\">\n    Este mensaje es automático, no hace falta responderlo.\n    Si una fecha ya no aplica, ajústala en el portal en vez de dejarla vencida.\n  </td></tr>\n</table></body></html>",
+        "options": {}
+      },
+      "id": "correo-tareas",
+      "name": "Enviar el resumen",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [880, 0],
+      "notes": "Solo a quien tiene algo pendiente: si no tienes nada, no recibes correo. Eso es lo que hace que el que llega se lea."
+    }
+  ],
+  "connections": {
+    "Lunes por la mañana": {
+      "main": [[{ "node": "Entrar al portal", "type": "main", "index": 0 }]]
+    },
+    "Entrar al portal": {
+      "main": [[{ "node": "Consultar pendientes", "type": "main", "index": 0 }]]
+    },
+    "Consultar pendientes": {
+      "main": [[{ "node": "Una fila por persona", "type": "main", "index": 0 }]]
+    },
+    "Una fila por persona": {
+      "main": [[{ "node": "Enviar el resumen", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

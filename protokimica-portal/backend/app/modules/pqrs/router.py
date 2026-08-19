@@ -21,6 +21,7 @@ from app.modules.pqrs.schemas import (
     PQRSAsignarArea, PQRSAreaCausante,
 )
 from app.modules.pqrs.permisos import solo_servicio_al_cliente, es_servicio_al_cliente
+from app.modules.pqrs import pendientes
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
     asignar_codigo_seguimiento, generar_radicado_calidad, guardar_archivo,
@@ -150,6 +151,23 @@ def listar_pqrs(
     if tipo:
         query = query.filter(PQRSSolicitud.tipo == tipo)
     return query.order_by(PQRSSolicitud.fecha_creacion.desc()).all()
+
+
+@router.get("/por-vencer")
+def pqrs_por_vencer(
+    dias: int = 2,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(get_current_user),
+):
+    """
+    Las PQRS que vencen dentro de `dias` hábiles o que ya vencieron, con el
+    correo de cada responsable y solo SUS casos.
+
+    Lo consume la automatización del recordatorio diario. Va declarada antes
+    que /{pqrs_id}, o el path variable se la come.
+    """
+    return pendientes.por_vencer(db, tenant_id, dias)
 
 
 @router.get("/{pqrs_id}", response_model=PQRSDetailOut)

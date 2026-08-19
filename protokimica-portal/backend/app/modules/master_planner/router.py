@@ -4,7 +4,7 @@ Reutiliza disparar_webhook_n8n y guardar_archivo de PQRS: son
 utilidades genéricas (no específicas de PQRS), y así evitamos
 duplicar la misma lógica de subida de archivos y webhooks.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
@@ -34,6 +34,9 @@ from app.modules.master_planner.permisos import (
 )
 from app.modules.master_planner.resumen import construir_resumen
 from app.modules.master_planner import cierre
+from app.modules.master_planner.notificaciones import (
+    avisar_tarea_asignada, avisar_proyecto_creado, avisar_proyecto_cerrado,
+)
 from app.modules.master_planner.outlook import (
     sincronizar_tarea, borrar_evento_de_tarea, borrar_evento_en_calendario_de,
     eventos_del_usuario,
@@ -166,6 +169,8 @@ def crear_proyecto(
     _sincronizar_areas(db, proyecto, areas)
     db.commit()
     db.refresh(proyecto)
+
+    avisar_proyecto_creado(db, proyecto)
     return proyecto
 
 
@@ -283,6 +288,8 @@ async def cerrar_proyecto(
     )
     db.commit()
     db.refresh(acta)
+
+    avisar_proyecto_cerrado(db, proyecto, acta)
     return cierre.acta_a_dict(acta)
 
 
@@ -667,6 +674,78 @@ def listar_usuarios_asignables(
     )
 
 
+@router.get("/tareas-vencidas-por-persona")
+def tareas_vencidas_por_persona(
+    incluir_por_vencer: int = 3,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(get_current_user),
+):
+    """
+    Las tareas vencidas de cada persona, con su correo y solo las suyas.
+
+    Lo consume el resumen semanal. `incluir_por_vencer` agrega las que vencen
+    dentro de esos días: avisar antes de que se venza sirve para actuar;
+    avisar después solo sirve para reclamar.
+
+    Se salta los proyectos archivados: un proyecto cerrado o cancelado no
+    puede seguir generando pendientes a nadie.
+    """
+    ahora = datetime.now(timezone.utc)
+    limite = ahora + timedelta(days=incluir_por_vencer)
+
+    tareas = (
+        db.query(Tarea)
+        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
+        .filter(
+            Proyecto.tenant_id == tenant_id,
+            Proyecto.archivado.is_(False),
+            Tarea.asignado_a.isnot(None),
+            Tarea.estado != "completada",
+            Tarea.fecha_fin.isnot(None),
+        )
+        .all()
+    )
+
+    por_persona: dict[int, list] = {}
+    for t in tareas:
+        fin = t.fecha_fin if t.fecha_fin.tzinfo else t.fecha_fin.replace(tzinfo=timezone.utc)
+        if fin > limite:
+            continue
+        por_persona.setdefault(t.asignado_a, []).append({
+            "tarea_id": t.id,
+            "titulo": t.titulo,
+            "proyecto": t.proyecto.nombre,
+            "prioridad": t.prioridad,
+            "estado": t.estado,
+            "avance_pct": t.avance_pct,
+            "fecha_fin": fin.isoformat(),
+            "dias": (fin.date() - ahora.date()).days,   # negativo = vencida
+            "vencida": fin < ahora,
+        })
+
+    destinatarios = []
+    for usuario_id, fichas in por_persona.items():
+        usuario = db.get(User, usuario_id)
+        if not usuario or not usuario.email or not usuario.activo:
+            continue
+        fichas.sort(key=lambda f: f["dias"])
+        destinatarios.append({
+            "email": usuario.email,
+            "nombre": usuario.nombre,
+            "vencidas": sum(1 for f in fichas if f["vencida"]),
+            "por_vencer": sum(1 for f in fichas if not f["vencida"]),
+            "tareas": fichas,
+        })
+
+    destinatarios.sort(key=lambda d: (-d["vencidas"], -d["por_vencer"]))
+    return {
+        "generado_en": ahora.isoformat(),
+        "total_personas": len(destinatarios),
+        "destinatarios": destinatarios,
+    }
+
+
 @router.get("/calendario/outlook")
 def mi_calendario_de_outlook(
     desde: str,
@@ -739,12 +818,7 @@ def crear_tarea(
     db.refresh(tarea)
 
     if tarea.asignado_a:
-        disparar_webhook_n8n("mp-tarea-asignada", {
-            "tarea_id": tarea.id,
-            "titulo": tarea.titulo,
-            "proyecto": proyecto.nombre,
-            "asignado_a": tarea.asignado_a,
-        })
+        avisar_tarea_asignada(db, tarea, proyecto.nombre)
 
     sincronizar_tarea(db, tarea, proyecto.nombre)
     return tarea
@@ -799,12 +873,7 @@ def crear_subtarea(
     db.refresh(subtarea)
 
     if subtarea.asignado_a:
-        disparar_webhook_n8n("mp-tarea-asignada", {
-            "tarea_id": subtarea.id,
-            "titulo": subtarea.titulo,
-            "proyecto": padre.proyecto.nombre,
-            "asignado_a": subtarea.asignado_a,
-        })
+        avisar_tarea_asignada(db, subtarea, padre.proyecto.nombre)
 
     return subtarea
 
@@ -874,12 +943,7 @@ def actualizar_tarea(
     db.refresh(tarea)
 
     if tarea.asignado_a and tarea.asignado_a != asignado_anterior:
-        disparar_webhook_n8n("mp-tarea-asignada", {
-            "tarea_id": tarea.id,
-            "titulo": tarea.titulo,
-            "proyecto": tarea.proyecto.nombre,
-            "asignado_a": tarea.asignado_a,
-        })
+        avisar_tarea_asignada(db, tarea, tarea.proyecto.nombre)
 
     # Si cambió de responsable, el evento viejo queda en el calendario del
     # anterior: hay que quitarlo de ahí antes de crear el nuevo.

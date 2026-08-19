@@ -95,6 +95,66 @@ def tablero(
     return service.construir_tablero(db, tenant_id, anio, mes, area)
 
 
+@router.get("/pendientes-de-registro")
+def pendientes_de_registro(
+    anio: int | None = None,
+    mes: int | None = None,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(get_current_user),
+):
+    """
+    Los indicadores manuales que faltan por registrar, agrupados por
+    responsable y con su correo.
+
+    Lo consume el recordatorio de cierre de mes. Devuelve a cada quien solo
+    lo suyo: un correo con "te faltan 2" se atiende, uno con la lista de los
+    40 de la empresa se archiva sin abrir.
+
+    Los que no tienen responsable asignado van aparte — si nadie los reclama,
+    nadie los registra.
+    """
+    if anio is None or mes is None:
+        anio_def, mes_def = service.periodo_por_defecto()
+        anio, mes = anio or anio_def, mes or mes_def
+    _validar_periodo(anio, mes)
+
+    tablero = service.construir_tablero(db, tenant_id, anio, mes)
+
+    por_persona: dict[int, dict] = {}
+    sin_responsable = []
+    for ficha in tablero["pendientes"]:
+        indicador = db.get(Indicador, ficha["id"])
+        if indicador is None or not indicador.responsable_id:
+            sin_responsable.append(ficha)
+            continue
+        grupo = por_persona.setdefault(indicador.responsable_id, [])
+        grupo.append(ficha)
+
+    destinatarios = []
+    for usuario_id, fichas in por_persona.items():
+        usuario = db.get(User, usuario_id)
+        if not usuario or not usuario.email or not usuario.activo:
+            sin_responsable.extend(fichas)
+            continue
+        destinatarios.append({
+            "email": usuario.email,
+            "nombre": usuario.nombre,
+            "total": len(fichas),
+            "indicadores": fichas,
+        })
+
+    destinatarios.sort(key=lambda d: -d["total"])
+    return {
+        "anio": anio,
+        "mes": mes,
+        "mes_nombre": service.MESES[mes - 1],
+        "total": len(tablero["pendientes"]),
+        "destinatarios": destinatarios,
+        "sin_responsable": sin_responsable,
+    }
+
+
 @router.get("/como-vamos")
 def como_vamos(
     anio: int | None = None,
