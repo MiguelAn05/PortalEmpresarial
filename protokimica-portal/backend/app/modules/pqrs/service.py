@@ -226,22 +226,37 @@ def generar_radicado_calidad(db, tenant_id: int) -> str:
     Genera un consecutivo independiente para el área de Calidad,
     distinto al número de radicado general del cliente.
     Formato: CAL-{año}-{consecutivo con 4 dígitos}.
+
+    **Sale del MÁXIMO, no de un count()** — el mismo error que ya costó
+    caro en `generar_codigo_seguimiento`: con CAL-2026-0001 y CAL-2026-0003
+    en la tabla (alguien borró la del medio), contar da 2 y el siguiente
+    saldría CAL-2026-0003, que ya existe. Como la columna es única, eso
+    revienta el commit DESPUÉS de guardar la solicitud, y la PQRS queda
+    radicada sin número.
     """
     from app.models.pqrs import PQRSSolicitud  # import local para evitar ciclos
 
     año = datetime.now().year
     prefijo = f"CAL-{año}-"
-    total = (
-        db.query(PQRSSolicitud)
+    radicados = (
+        db.query(PQRSSolicitud.radicado_calidad)
         .filter(
             PQRSSolicitud.tenant_id == tenant_id,
             PQRSSolicitud.radicado_calidad.isnot(None),
             PQRSSolicitud.radicado_calidad.like(f"{prefijo}%"),
         )
-        .count()
+        .all()
     )
-    consecutivo = total + 1
-    return f"{prefijo}{consecutivo:04d}"
+
+    # El máximo se calcula sobre el número y no sobre el texto: al pasar de
+    # 9999, el orden alfabético pondría "10000" antes que "9999".
+    mayor = 0
+    for (radicado,) in radicados:
+        sufijo = (radicado or "")[len(prefijo):]
+        if sufijo.isdigit():
+            mayor = max(mayor, int(sufijo))
+
+    return f"{prefijo}{mayor + 1:04d}"
 
 
 def disparar_webhook_n8n(evento: str, payload: dict) -> None:
