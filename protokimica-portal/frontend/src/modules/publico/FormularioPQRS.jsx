@@ -69,7 +69,7 @@ const PRODUCTOS_PRUEBA = [
   { codigo: 'PK-005', nombre: 'Alcohol Isopropílico 99% x 4L' },
   { codigo: 'PK-006', nombre: 'Soda Cáustica Escamas x 25Kg' },
   { codigo: 'PK-007', nombre: 'Agua Oxigenada 50% x 30Kg' },
-  { codigo: 'PK-008', nombre: 'Ácido Clorhídrico 33% x 35Kg' },
+  { codigo: 'PK-008', nombre: 'PAC Solido' },
   { codigo: 'MP10957094', nombre: 'PAC Solido'},
 ]
 
