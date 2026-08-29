@@ -29,7 +29,7 @@ from app.modules.master_planner.historial import (
     instantanea, registrar_cambios, registrar_evento,
 )
 from app.modules.master_planner.permisos import (
-    aplicar_filtro_proyectos, puede_ver_proyecto, puede_ver_presupuesto, ve_todo,
+    aplicar_filtro_proyectos, puede_ver_proyecto, puede_ver_presupuesto, ve_todo, condicion_area,
     solo_aprueba_pagos, solo_registra_pagos, puede_cerrar_proyecto,
 )
 from app.modules.master_planner.resumen import construir_resumen
@@ -195,7 +195,10 @@ def listar_proyectos(
     if estado:
         query = query.filter(Proyecto.estado == estado)
     if area:
-        query = query.filter(Proyecto.area == area)
+        # Incluye los proyectos donde el área participa, no solo los que
+        # lidera: si no, Mercadeo pierde de vista un proyecto de TICS en el
+        # que trabaja apenas filtra por su propia área.
+        query = query.filter(condicion_area(area))
     return query.order_by(Proyecto.creado_en.desc()).all()
 
 

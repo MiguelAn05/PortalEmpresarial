@@ -373,3 +373,22 @@ export function tareaOcupaDia(tarea, dia) {
   const d = inicioDia(dia)
   return d >= rango.desde && d <= rango.hasta
 }
+
+/**
+ * ¿Este proyecto le pertenece al área? Cuenta la responsable y también
+ * aquellas en las que participa.
+ *
+ * Es lo que espera quien filtra: si Mercadeo entró a un proyecto de TICS, al
+ * filtrar por Mercadeo ese proyecto tiene que salir. Mirar solo `area` lo
+ * escondía — la gente de Mercadeo lo veía en la lista general y lo perdía
+ * apenas filtraba por lo suyo.
+ *
+ * Sirve para FILTRAR, no para atribuir: el presupuesto se le sigue cargando
+ * solo al área responsable, o un proyecto con tres áreas contaría su plata
+ * tres veces en los totales.
+ */
+export function perteneceAlArea(proyecto, area) {
+  if (!area) return true
+  if (proyecto?.area === area) return true
+  return (proyecto?.areas_participantes || []).includes(area)
+}

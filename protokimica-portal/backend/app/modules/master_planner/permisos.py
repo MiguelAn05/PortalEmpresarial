@@ -173,3 +173,26 @@ def puede_cerrar_proyecto(proyecto: Proyecto, usuario: User) -> bool:
     if usuario.rol == "admin":
         return True
     return proyecto.lider_id == usuario.id
+
+
+def condicion_area(area: str):
+    """
+    Proyectos que le pertenecen a un área: los que lidera Y aquellos en los
+    que participa.
+
+    Es lo que espera quien filtra: si Mercadeo entró a un proyecto de TICS,
+    al filtrar por Mercadeo ese proyecto tiene que salir. Mirar solo
+    `Proyecto.area` lo escondía, y la gente de Mercadeo veía el proyecto en
+    la lista general pero lo perdía apenas filtraba por su propia área.
+
+    OJO: esto es para FILTRAR, no para atribuir. El presupuesto se le sigue
+    cargando solo al área responsable (ver `resumen.py`); si se repartiera
+    entre las participantes, un proyecto de 10 millones con tres áreas
+    sumaría 30 en los totales por área.
+    """
+    return or_(
+        Proyecto.area == area,
+        Proyecto.id.in_(
+            select(ProyectoArea.proyecto_id).where(ProyectoArea.area == area)
+        ),
+    )

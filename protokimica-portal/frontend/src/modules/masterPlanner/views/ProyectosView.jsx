@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import ProyectoCard from "../components/ProyectoCard"
 import { listarProyectos, archivarProyecto, eliminarProyecto } from "../api"
-import { ESTADOS_PROYECTO, AREAS, puedeEditar } from "../constants"
+import { ESTADOS_PROYECTO, AREAS, puedeEditar, perteneceAlArea } from "../constants"
 import { useAuth } from "../../../core/AuthContext"
 
 const FILTROS_VACIOS = { busqueda: "", estado: "", area: "" }
@@ -40,7 +40,10 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
     const busqueda = filtros.busqueda.trim().toLowerCase()
     return proyectos.filter(p => {
       if (filtros.estado && p.estado !== filtros.estado) return false
-      if (filtros.area && p.area !== filtros.area) return false
+      // Cuenta el área responsable y también aquellas en las que el proyecto
+      // participa: si Mercadeo entró a un proyecto de TICS, filtrar por
+      // Mercadeo tiene que mostrarlo.
+      if (filtros.area && !perteneceAlArea(p, filtros.area)) return false
       if (busqueda) {
         const texto = `${p.nombre} ${p.objetivo || ''} ${p.lider_nombre || ''}`.toLowerCase()
         if (!texto.includes(busqueda)) return false

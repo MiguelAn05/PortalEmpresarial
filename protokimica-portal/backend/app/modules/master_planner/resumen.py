@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.master_planner import Proyecto, Tarea, HistorialCambio
 from app.models.user import User
 from app.modules.master_planner.permisos import (
-    aplicar_filtro_proyectos, puede_ver_presupuesto,
+    aplicar_filtro_proyectos, puede_ver_presupuesto, condicion_area,
 )
 
 SIN_AREA = "Sin área"
@@ -129,7 +129,9 @@ def construir_resumen(
     )
     proyectos_q = aplicar_filtro_proyectos(proyectos_q, usuario)
     if area:
-        proyectos_q = proyectos_q.filter(Proyecto.area == area)
+        # Igual que en el listado: cuenta el área responsable y también
+        # aquellas en las que el proyecto la tiene como participante.
+        proyectos_q = proyectos_q.filter(condicion_area(area))
     proyectos = proyectos_q.all()
     ids_proyectos = [p.id for p in proyectos]
 
