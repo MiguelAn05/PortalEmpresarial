@@ -273,27 +273,49 @@ def actualizar_indicador(
 @router.delete("/{indicador_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_indicador(
     indicador_id: int,
+    incluir_mediciones: bool = False,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(solo_lectura_no),
     current_user: User = Depends(requiere_modulo("indicadores")),
 ):
     """
-    Borra el indicador y todo su histórico. Si ya tiene mediciones responde
-    409: perder la serie histórica de un indicador es irreversible y casi
-    siempre lo que se quiere es desactivarlo (`activo=false`), que lo saca
-    del tablero conservando los datos.
+    Borra el indicador.
+
+    Si tiene mediciones responde 409 y no borra nada: perder la serie
+    histórica es irreversible, y casi siempre lo que se quiere es
+    desactivarlo (activo=false), que lo saca del tablero sin perder datos.
+
+    Con `incluir_mediciones=true` se borra con todo su histórico. Es para lo
+    que de verdad hay que eliminar —los indicadores de prueba antes de salir
+    a producción— y por eso hay que pedirlo a propósito: si el borrado total
+    fuera lo que pasa por defecto, un clic de más se llevaría años de
+    mediciones sin forma de recuperarlas.
     """
     indicador = _get_indicador_o_404(db, indicador_id, tenant_id, current_user)
     total = db.query(Medicion).filter(Medicion.indicador_id == indicador_id).count()
-    if total:
+
+    if total and not incluir_mediciones:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 f"Este indicador tiene {total} medición(es) registradas. "
-                "Desactívalo para sacarlo del tablero sin perder el histórico."
+                "Desactívalo para sacarlo del tablero sin perder el histórico, "
+                "o elimínalo con todo si son datos de prueba."
             ),
         )
+
+    # Se borran a mano y no solo con la cascada de la base: así el resultado
+    # es el mismo en Postgres y en SQLite, donde el borrado en cascada
+    # depende de un PRAGMA que no siempre está activo.
+    if total:
+        db.query(HistorialMedicion).filter(
+            HistorialMedicion.indicador_id == indicador_id
+        ).delete(synchronize_session=False)
+        db.query(Medicion).filter(
+            Medicion.indicador_id == indicador_id
+        ).delete(synchronize_session=False)
+
     db.delete(indicador)
     db.commit()
 

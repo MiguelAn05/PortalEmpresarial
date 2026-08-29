@@ -31,9 +31,13 @@ export const crearIndicador = (payload) =>
 export const actualizarIndicador = (id, payload) =>
   api.patch(`/indicadores/${id}`, payload).then(r => r.data)
 
-/** Solo funciona si el indicador no tiene mediciones; si no, responde 409. */
-export const eliminarIndicador = (id) =>
-  api.delete(`/indicadores/${id}`)
+/**
+ * Si tiene mediciones responde 409 y no borra nada. `incluirMediciones` lo
+ * fuerza con todo su histórico: hay que pedirlo a propósito porque no se
+ * puede deshacer.
+ */
+export const eliminarIndicador = (id, incluirMediciones = false) =>
+  api.delete(`/indicadores/${id}`, { params: { incluir_mediciones: incluirMediciones } })
 
 // ── Mediciones ────────────────────────────────────────────────
 export const registrarMedicion = (id, formData) =>

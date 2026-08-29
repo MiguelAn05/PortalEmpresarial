@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { crearIndicador, actualizarIndicador, obtenerCatalogo } from "../api"
+import { crearIndicador, actualizarIndicador, obtenerCatalogo, eliminarIndicador } from "../api"
 import { UNIDADES, TIPOS_CAPTURA, DIRECCIONES, formatValor } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { AREAS } from "../../../core/areas.js"
@@ -34,6 +34,7 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
   const queryClient = useQueryClient()
   const [form, setForm] = useState(() => aFormulario(indicador))
   const [error, setError] = useState(null)
+  const [borrando, setBorrando] = useState(false)
 
   const { data: catalogo = [] } = useQuery({
     queryKey: ["ind-catalogo"],
@@ -265,6 +266,12 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
         </div>
 
         <div className="flex gap-2 px-6 py-4 bg-superficie-2 border-t border-borde sticky bottom-0">
+          {indicador && (
+            <button onClick={() => { setError(null); setBorrando(true) }}
+              className="border border-borde bg-white hover:bg-negativo-bg text-sm font-semibold text-negativo px-4 py-2.5 rounded-lg transition">
+              Eliminar
+            </button>
+          )}
           <button onClick={onCerrar}
             className="flex-1 border border-borde bg-white hover:bg-superficie-2 text-sm font-semibold text-acento-fuerte py-2.5 rounded-lg transition">
             Cancelar
@@ -278,6 +285,109 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
       </div>
 
       {dialogoDescarte}
+
+      {borrando && (
+        <ConfirmarBorrado
+          indicador={indicador}
+          onCerrar={() => setBorrando(false)}
+          onBorrado={() => { setBorrando(false); onCerrar() }}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Confirmación para eliminar un indicador.
+ *
+ * Primero se intenta el borrado normal. Si el servidor responde 409 es que
+ * tiene mediciones, y ahí se le ofrecen las dos salidas reales: desactivarlo
+ * —que es lo correcto para un indicador de verdad que dejó de usarse— o
+ * borrarlo con todo, que solo tiene sentido con datos de prueba.
+ *
+ * El botón destructivo aparece DESPUÉS de saber cuántas mediciones se
+ * pierden. Ofrecerlo antes sería invitar a un clic que no se puede deshacer.
+ */
+function ConfirmarBorrado({ indicador, onCerrar, onBorrado }) {
+  const queryClient = useQueryClient()
+  const [conflicto, setConflicto] = useState(null)
+  const [error, setError] = useState(null)
+
+  const refrescar = () => {
+    queryClient.invalidateQueries({ queryKey: ["ind-tablero"] })
+    queryClient.invalidateQueries({ queryKey: ["ind-como-vamos"] })
+  }
+
+  const mutBorrar = useMutation({
+    mutationFn: (conTodo) => eliminarIndicador(indicador.id, conTodo),
+    onSuccess: () => { refrescar(); onBorrado() },
+    onError: (e) => {
+      if (e?.response?.status === 409) setConflicto(e.response.data.detail)
+      else setError(e?.response?.data?.detail || 'No se pudo eliminar el indicador.')
+    },
+  })
+
+  const mutDesactivar = useMutation({
+    mutationFn: () => actualizarIndicador(indicador.id, { activo: false }),
+    onSuccess: () => { refrescar(); onBorrado() },
+    onError: (e) => setError(e?.response?.data?.detail || 'No se pudo desactivar.'),
+  })
+
+  const ocupado = mutBorrar.isPending || mutDesactivar.isPending
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[60]"
+         onClick={onCerrar}>
+      <div onClick={(e) => e.stopPropagation()}
+           className="bg-white rounded-2xl w-full max-w-md shadow-xl p-6 space-y-4">
+        <div>
+          <h3 className="text-lg font-bold text-acento-fuerte">Eliminar indicador</h3>
+          <p className="text-sm text-texto-2 mt-1">{indicador.nombre}</p>
+        </div>
+
+        {error && (
+          <div role="alert" className="bg-negativo-bg border border-negativo/25 text-negativo text-sm rounded-lg px-4 py-3">
+            {error}
+          </div>
+        )}
+
+        {conflicto ? (
+          <>
+            <div className="bg-alerta-bg border border-ambar/30 text-alerta text-sm rounded-lg px-4 py-3">
+              {conflicto}
+            </div>
+            <div className="space-y-2">
+              <button onClick={() => mutDesactivar.mutate()} disabled={ocupado}
+                className="w-full bg-acento hover:bg-acento-fuerte disabled:opacity-40 text-white text-sm font-semibold py-2.5 rounded-lg transition">
+                Desactivar y conservar el histórico
+              </button>
+              <button onClick={() => mutBorrar.mutate(true)} disabled={ocupado}
+                className="w-full border border-negativo/30 bg-white hover:bg-negativo-bg text-negativo text-sm font-semibold py-2.5 rounded-lg transition">
+                Eliminar con todas sus mediciones
+              </button>
+              <p className="text-[11px] text-texto-3 text-center">
+                Lo segundo no se puede deshacer.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-texto-2">
+              Se borrará la definición del indicador. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={onCerrar} disabled={ocupado}
+                className="flex-1 border border-borde bg-white hover:bg-superficie-2 text-sm font-semibold text-acento-fuerte py-2.5 rounded-lg transition">
+                Cancelar
+              </button>
+              <button onClick={() => mutBorrar.mutate(false)} disabled={ocupado}
+                className="flex-1 bg-negativo-vivo hover:bg-negativo disabled:opacity-40 text-white text-sm font-semibold py-2.5 rounded-lg transition">
+                {ocupado ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
