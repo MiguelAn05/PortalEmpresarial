@@ -197,8 +197,11 @@ export default function SeguimientoPQRS() {
                           <div className="w-2 h-2 rounded-full bg-ambar" />
                         </div>
                         <div className="flex-1 pb-2">
+                          {/* El texto lo redacta el servidor a partir del
+                              estado. Aquí nunca llegan los comentarios
+                              internos del área. */}
                           <div className="text-sm font-semibold text-texto">
-                            {evento.comentario || 'Actualización de estado'}
+                            {evento.movimiento}
                           </div>
                           <div className="text-xs text-texto-3 mt-0.5">
                             {formatFecha(evento.fecha)}

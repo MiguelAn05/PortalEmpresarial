@@ -129,6 +129,7 @@ async def crear_pqrs(
         usuario_id=current_user.id,
         tipo_evento="cambio_estado",
         comentario=f"Solicitud registrada internamente por {current_user.nombre}.",
+        estado_nuevo="recibido",
     ))
     db.commit()
     db.refresh(solicitud)
@@ -466,6 +467,9 @@ async def cambiar_estado_pqrs(
         tipo_evento="cambio_estado",
         comentario=comentario or f"Estado actualizado a '{estado}'.",
         adjunto_evidencia=ruta_evidencia,
+        # El estado va aparte del comentario: es lo que permite redactarle
+        # al cliente el movimiento sin mostrarle las notas internas.
+        estado_nuevo=estado,
     ))
     db.commit()
     db.refresh(solicitud)

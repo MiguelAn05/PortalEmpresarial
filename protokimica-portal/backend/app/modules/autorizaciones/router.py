@@ -2,7 +2,7 @@
 Módulo de autorizaciones.
 - Admin y Líderes pueden crear tipos de autorización
 - Agentes pueden solicitar autorización para una PQRS
-- Líderes del área autorizadora pueden aprobar o rechazar
+- Quien pertenece al área autorizadora aprueba o rechaza (por área, no por cargo)
 - Una PQRS con autorización pendiente queda bloqueada
 """
 from datetime import datetime, timezone
@@ -11,7 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user, get_current_tenant_id, require_role
+from app.core.deps import (
+    get_current_user, get_current_tenant_id, require_role, solo_lectura_no,
+)
+from app.modules.autorizaciones.permisos import puede_responder
 from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
 from app.models.autorizacion import TipoAutorizacion, AutorizacionPQRS
@@ -145,15 +148,15 @@ def responder_autorizacion(
     payload: ResponderAutorizacion,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(solo_lectura_no),
 ):
     """
     Aprueba o rechaza una autorización.
-    Solo líderes del área autorizadora o admins pueden responder.
-    """
-    if current_user.rol not in ("admin", "lider"):
-        raise HTTPException(status_code=403, detail="Solo líderes o admins pueden autorizar.")
 
+    La responde quien pertenece al ÁREA autorizadora, sin importar su cargo,
+    más admin. Los roles "lectura" y "gerencia" no escriben nada en el portal
+    y aquí tampoco: eso lo corta solo_lectura_no.
+    """
     autorizacion = db.query(AutorizacionPQRS).filter(
         AutorizacionPQRS.id == autorizacion_id,
         AutorizacionPQRS.pqrs_id == pqrs_id,
@@ -163,11 +166,16 @@ def responder_autorizacion(
     if autorizacion.estado != "pendiente":
         raise HTTPException(status_code=400, detail="Esta autorización ya fue respondida.")
 
-    # Verificar que el líder pertenece al área autorizadora
-    if current_user.rol == "lider" and current_user.area != autorizacion.tipo.area_autorizadora:
+    # Manda el área, no el cargo: quien trabaja en el área autorizadora puede
+    # responder, sea líder o agente.
+    area = autorizacion.tipo.area_autorizadora
+    if not puede_responder(current_user, area):
         raise HTTPException(
             status_code=403,
-            detail=f"Solo líderes de '{autorizacion.tipo.area_autorizadora}' pueden responder esta autorización."
+            detail=(
+                f"Esta autorización la responde el área de '{area}'. "
+                f"Pídele a alguien de esa área que la revise."
+            ),
         )
 
     if payload.decision not in ("aprobada", "rechazada"):

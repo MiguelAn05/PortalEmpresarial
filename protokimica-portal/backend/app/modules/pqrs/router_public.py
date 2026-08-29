@@ -17,6 +17,7 @@ from app.modules.pqrs.schemas import EncuestaCreate
 from app.core.database import get_db
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
 from app.models.tenant import Tenant
+from app.modules.pqrs.historial_publico import construir as historial_publico_de
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla,
     calcular_prioridad,
@@ -52,8 +53,9 @@ class PQRSPublicaOut(BaseModel):
 
 
 class SeguimientoPublicoOut(BaseModel):
-    tipo_evento: str
-    comentario: str | None
+    # Solo el movimiento y cuándo. Sin comentario y sin adjuntos: lo que se
+    # escribe por dentro se queda por dentro.
+    movimiento: str
     fecha: datetime
 
     class Config:
@@ -173,6 +175,7 @@ async def radicar_pqrs_publica(
         usuario_id=None,
         tipo_evento="cambio_estado",
         comentario="Solicitud radicada por el cliente.",
+        estado_nuevo="recibido",
     ))
     db.commit()
 
@@ -205,14 +208,12 @@ def consultar_pqrs_publica(codigo: str, db: Session = Depends(get_db)):
             detail="No encontramos ninguna solicitud con ese código."
         )
 
+    # El texto lo redacta el portal a partir del estado. El `comentario` del
+    # seguimiento NO sale de aquí: es donde el área escribe sus notas de
+    # trabajo, y eso no le corresponde al cliente.
     historial_publico = [
-        SeguimientoPublicoOut(
-            tipo_evento=seg.tipo_evento,
-            comentario=seg.comentario,
-            fecha=seg.fecha,
-        )
-        for seg in solicitud.seguimientos
-        if seg.tipo_evento == "cambio_estado"
+        SeguimientoPublicoOut(**movimiento)
+        for movimiento in historial_publico_de(solicitud.seguimientos)
     ]
 
     return PQRSConsultaOut(

@@ -54,6 +54,14 @@ class PQRSSeguimiento(Base):
     usuario_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     tipo_evento = Column(String(30), nullable=False)
     comentario = Column(Text, nullable=True)
+
+    # A qué estado pasó la solicitud, cuando el evento es un cambio de estado.
+    #
+    # Existe para que la consulta pública pueda redactar el movimiento sin
+    # usar el comentario: ahí es donde el área escribe sus notas internas, y
+    # eso no le corresponde al cliente. Con el estado aparte, el texto que ve
+    # se genera aquí y siempre dice lo mismo.
+    estado_nuevo = Column(String(20), nullable=True)
     adjunto_evidencia = Column(String(255), nullable=True)
     fecha = Column(DateTime(timezone=True), server_default=func.now())
 
