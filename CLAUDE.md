@@ -170,14 +170,75 @@ quienes responden por que un indicador vuelva a su meta. Gerencia queda fuera
 del módulo a propósito: el avance se le reporta, no se le deja como un tablero
 más que mirar.
 
-**El ciclo se defiende solo:** una OMP nace
-de un indicador que no cumplió y recorre
-`abierta → analisis → ejecucion → verificacion → cerrada`. Dos guardas no son
-negociables: **no se pasa a ejecución sin causa raíz** (sin ella las acciones
-atacan el síntoma y el indicador vuelve a caer) y **no se cierra sin
-verificar** (cerrar sin saber si funcionó es la observación clásica de una
-auditoría). Si la verificación dice que NO fue eficaz, vuelve a `analisis` —
-nunca se cierra.
+**El módulo replica el formato oficial `RCN-F-13` del SGC** y lo reemplaza sin
+perder ninguna de sus 23 columnas. El **proceso** pasó a ser un campo: antes
+cada proceso llevaba su propio Excel y nadie podía cruzarlos.
+
+**Proceso ≠ área.** El área decide permisos; el proceso rotula el reporte del
+SGC y son listas distintas (`TIC's` contra `TICS`, `SGC` contra `Calidad`, y
+`Direccionamiento Estratégico` no existe como área). Mezclarlas rompería
+permisos en silencio, así que el proceso vive en su propio catálogo y solo se
+*propone* desde el área con `PROCESO_SEGUN_AREA` de `mejora/catalogos.py`.
+Las áreas sin equivalente no se adivinan: adivinar mal manda la acción al
+archivo de otro proceso.
+
+**Los catálogos son tabla, no enum** (`omp_catalogos`, con discriminador
+`tipo`): proceso, fuente y tratamiento. Calidad los cambia sin avisarle a
+TIC's, y agregar un proceso no puede pedir un despliegue. Se siembran solos y
+de forma idempotente al pedirlos o al crear una OMP. **La lógica cuelga del
+`codigo` del tratamiento (`OMP`/`AC`/`AM`), nunca del nombre** — el histórico
+ya trae «Acción de mejora» y «Acción de Mejora» escritos distinto, y
+renombrar un catálogo desde Admin no puede apagar una regla de negocio.
+
+**Dos consecutivos, a propósito:** `codigo` (`OMP-2026-0001`) es la identidad
+única del portal, y `consecutivo` es el 1, 2, 3… **dentro de cada proceso**,
+que es el que citan los auditores. Los dos salen del MÁXIMO. Se guarda en vez
+de renumerar al exportar: si se recalculara, descartar una fila correría todas
+las siguientes y una referencia de auditoría dejaría de apuntar a lo mismo.
+
+**El ciclo se defiende solo:** una OMP nace de un indicador que no cumplió
+—o de una auditoría, un comité, una PQR— y recorre
+`abierta → analisis → ejecucion → verificacion → cerrada`.
+
+**Qué se exige para avanzar depende del TRATAMIENTO**, y así lo declara el
+propio formato: causa raíz y análisis de causas para `OMP` y `AC`, corrección
+solo para `AC`, beneficio solo para `AM`. Antes se pedía causa raíz siempre, y
+la salida era escribir «no aplica» para poder avanzar — que es como se le
+enseña a la gente a mentirle a un formulario. **Sin tratamiento elegido se
+sigue pidiendo causa raíz**, que es el comportamiento viejo. Quien decide es
+el servidor: `pide_causa`, `pide_correccion` y `pide_beneficio` llegan ya
+resueltos en la respuesta, y el frontend esconde lo que no aplica en vez de
+deshabilitarlo.
+
+Cerrar exige **dos firmas distintas**: la verificación de eficacia (quien
+ejecutó dice si el indicador mejoró) y la **validación del SGC** (Calidad dice
+si la evidencia alcanza). Un solo botón dejaba que el mismo que hizo el
+trabajo lo diera por bueno. Va por ÁREA —`AREA_SGC = "Calidad"` en
+`mejora/permisos.py`, más `admin`— como el cierre de PQRS. Una verificación
+que dice que NO fue eficaz **anula el visto bueno anterior**: si quedara, la
+siguiente vuelta se cerraría con la firma de una evidencia ya descartada. Y
+si no fue eficaz, vuelve a `analisis` — nunca se cierra.
+
+**El análisis de causas son siete campos (6M), no un textarea:** efecto,
+método, mano de obra, maquinaria, material, medidas y medio ambiente. El
+Excel ya venía escribiendo esas etiquetas a mano dentro de la celda — la
+estructura existía, solo que sin nada que la garantizara. Al exportar,
+`bloque_6m()` reconstruye el texto en ese orden y rellena con `N/A` las
+vacías, porque así lo imprime el formato; en pantalla las vacías no se
+muestran, que siete «N/A» seguidos no le dicen nada a nadie.
+
+**El seguimiento es una tabla, no tres columnas.** En el Excel son
+`SEGUIMIENTO`, `...2` y `...3` con hasta veinticinco entradas concatenadas
+dentro de una celda de seis mil caracteres. Aquí es una fila por entrada, con
+fecha y autor, y **lo escribe cualquiera que vea la OMP, no solo el líder**:
+quien ejecuta la acción es quien sabe cómo va, y obligarlo a contárselo al
+líder para que él lo escriba es cómo estos registros se llenan de resúmenes de
+segunda mano. Un seguimiento ajeno no se borra.
+
+Las tareas del plan tienen **tres estados** (`pendiente`/`en_curso`/`cumplida`)
+y no un booleano: sin «en curso», la gente marca cumplido antes de tiempo para
+que el avance se mueva. `completada` es una propiedad derivada del estado — dos
+columnas que dicen lo mismo terminan diciendo cosas distintas.
 
 La verificación se hace **con dato, no con opinión**: se compara el valor que
 disparó la OMP contra la medición del mes siguiente, y si eso es una mejora
@@ -460,6 +521,20 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   encuentra su producto, no puede radicar. Falta un «no encuentro mi producto»
   que permita escribirlo y quede marcado para que Servicio al Cliente lo
   corrija antes de cerrar — igual que ya se hace con el tipo de PQRS.
+- **Mejora: falta el exportador y el importador.** El modelo ya cubre las 23
+  columnas del `RCN-F-13`, pero todavía no se puede **regenerar el .xlsx** con
+  el encabezado, la fila 5 de numeración, los anchos de columna y el pie de
+  confidencialidad que Calidad y los auditores externos esperan (necesita
+  `openpyxl` en `requirements.txt`, y por tanto desplegar con `--build`).
+  Tampoco existe el script que importe el histórico de los Excel por proceso;
+  para eso están `requiere_revision` en `omp_oportunidades` y en
+  `omp_seguimientos`, y `limpiar_no_aplica()` en `mejora/catalogos.py`. La
+  regla del importador: **cuando el parseo falle, meter el bloque completo y
+  marcarlo — nunca perder texto por intentar ser exacto.**
+- **Mejora: los adjuntos son una ruta, no un archivo.** `omp_seguimientos.adjunto`
+  y `omp_acciones.evidencia` guardan texto; subir el archivo depende de que
+  antes se arregle `/uploads`, que hoy no tiene control de acceso — y las
+  evidencias de auditoría no pueden quedar en una URL adivinable.
 - **Las PQRS anteriores a `estado_nuevo`** no tienen el estado guardado en sus
   seguimientos, así que el historial público les muestra «Actualización de tu
   solicitud» en vez del movimiento concreto.

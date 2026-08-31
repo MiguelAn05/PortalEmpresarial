@@ -47,6 +47,28 @@ def _crear(entorno, **extra):
     return entorno.post("/mejora", json=cuerpo)
 
 
+def _tratamiento(entorno, codigo):
+    """El id del tratamiento OMP, AC o AM, tal como lo trae el catálogo."""
+    catalogos = entorno.get("/mejora/catalogos").json()
+    return next(t["id"] for t in catalogos["tratamiento"] if t["codigo"] == codigo)
+
+
+def _proceso(entorno, nombre):
+    catalogos = entorno.get("/mejora/catalogos").json()
+    return next(p["id"] for p in catalogos["proceso"] if p["nombre"] == nombre)
+
+
+def _cerrar(entorno, omp_id, eficaz=True):
+    """
+    El camino completo hasta cerrar: verificar la eficacia y que Calidad lo
+    valide. Son dos pasos a propósito —quien ejecuta dice si mejoró, el SGC
+    dice si la evidencia alcanza— así que ninguna prueba puede saltárselos.
+    """
+    entorno.post(f"/mejora/{omp_id}/verificacion", json={"eficaz": eficaz})
+    entorno.post(f"/mejora/{omp_id}/validacion-sgc", json={})
+    return entorno.patch(f"/mejora/{omp_id}/estado", json={"estado": "cerrada"})
+
+
 # ── Crear ────────────────────────────────────────────────────────────
 
 def test_un_lider_abre_una_omp(entorno):
@@ -196,8 +218,7 @@ def test_no_se_cierra_sin_verificar(entorno):
 def test_una_cerrada_no_se_reabre(entorno):
     entorno.como("calidad")
     omp_id = _crear(entorno).json()["id"]
-    entorno.post(f"/mejora/{omp_id}/verificacion", json={"eficaz": True})
-    entorno.patch(f"/mejora/{omp_id}/estado", json={"estado": "cerrada"})
+    _cerrar(entorno, omp_id)
 
     r = entorno.patch(f"/mejora/{omp_id}/estado", json={"estado": "ejecucion"})
 
@@ -216,7 +237,7 @@ def test_el_avance_sale_de_las_acciones(entorno):
 
     acciones = entorno.get(f"/mejora/{omp_id}").json()["acciones"]
     entorno.patch(f"/mejora/{omp_id}/acciones/{acciones[0]['id']}",
-                  json={"completada": True})
+                  json={"estado": "cumplida"})
 
     detalle = entorno.get(f"/mejora/{omp_id}").json()
     assert detalle["avance_pct"] == 50.0, detalle["avance_pct"]
@@ -230,20 +251,19 @@ def test_completar_una_accion_deja_la_fecha(entorno):
                           json={"descripcion": "Revisar el procedimiento"}).json()
 
     r = entorno.patch(f"/mejora/{omp_id}/acciones/{accion['id']}",
-                      json={"completada": True})
+                      json={"estado": "cumplida"})
 
     assert r.json()["fecha_completada"] is not None
     # Y al desmarcarla se borra: si no, quedaría una fecha de algo sin hacer.
     r = entorno.patch(f"/mejora/{omp_id}/acciones/{accion['id']}",
-                      json={"completada": False})
+                      json={"estado": "pendiente"})
     assert r.json()["fecha_completada"] is None
 
 
 def test_una_omp_cerrada_no_admite_acciones_nuevas(entorno):
     entorno.como("calidad")
     omp_id = _crear(entorno).json()["id"]
-    entorno.post(f"/mejora/{omp_id}/verificacion", json={"eficaz": True})
-    entorno.patch(f"/mejora/{omp_id}/estado", json={"estado": "cerrada"})
+    _cerrar(entorno, omp_id)
 
     r = entorno.post(f"/mejora/{omp_id}/acciones", json={"descripcion": "Otra cosa más"})
     assert r.status_code == 400
@@ -330,8 +350,7 @@ def test_una_omp_cerrada_deja_el_indicador_desatendido_otra_vez(entorno):
     entorno.como("calidad")
     ind_id = _indicador(entorno)
     omp_id = _crear(entorno, indicador_id=ind_id).json()["id"]
-    entorno.post(f"/mejora/{omp_id}/verificacion", json={"eficaz": True})
-    entorno.patch(f"/mejora/{omp_id}/estado", json={"estado": "cerrada"})
+    _cerrar(entorno, omp_id)
 
     db = entorno.Session()
     sin_atender = service.indicadores_en_rojo_sin_omp(db, entorno.tenant_id, [ind_id])

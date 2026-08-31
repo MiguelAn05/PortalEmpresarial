@@ -2,8 +2,8 @@
 // Lo que se prueba es que la pantalla no ofrezca un paso que el servidor va
 // a rechazar, y que diga QUE FALTA antes de que la persona toque el boton.
 import {
-  CICLO, ESTADOS, estaCerrada, siguienteEstado, loQueFaltaPara, textoDeAvance,
-  estadoDelPlazo,
+  CICLO, ESTADOS, ESTADOS_ACCION, CAMPOS_6M, TRATAMIENTOS, estaCerrada,
+  siguienteEstado, loQueFaltaPara, textoDeAvance, estadoDelPlazo, resumen6M,
 } from '../src/modules/mejora/constants.js'
 
 let fallos = []
@@ -52,8 +52,50 @@ check('con acciones si',
   loQueFaltaPara(omp({ total_acciones: 2 }), 'verificacion') === null)
 check('sin verificar no se cierra',
   loQueFaltaPara(omp(), 'cerrada').includes('eficacia'))
-check('verificada como NO eficaz ya deja cerrar el paso',
-  loQueFaltaPara(omp({ eficaz: false }), 'cerrada') === null)
+// Verificar ya no basta: el cierre lo firma Calidad. Un cierre sin firma es
+// justo lo que el formato del SGC escribe a mano en cada fila cerrada.
+check('verificada pero sin la firma de Calidad, tampoco se cierra',
+  loQueFaltaPara(omp({ eficaz: false }), 'cerrada').includes('Calidad'))
+check('con la validacion de Calidad ya no falta nada',
+  loQueFaltaPara(omp({ eficaz: false, validado_sgc_en: '2026-08-31T10:00:00Z' }), 'cerrada') === null)
+
+console.log('\n== Que se pide segun el tratamiento ==')
+// Quien decide es el SERVIDOR: llegan pide_causa / pide_correccion /
+// pide_beneficio ya resueltos. Aqui nunca se mira el nombre del tratamiento.
+check('una accion de mejora no pide causa raiz',
+  loQueFaltaPara(omp({ pide_causa: false, pide_beneficio: true, beneficio_mejora: 'Ahorra dos horas' }), 'ejecucion') === null)
+check('pero si pide su beneficio',
+  loQueFaltaPara(omp({ pide_causa: false, pide_beneficio: true }), 'ejecucion').includes('beneficio'))
+check('una accion correctiva pide causa Y correccion',
+  loQueFaltaPara(omp({ pide_causa: true, pide_correccion: true, causa_raiz: 'El instructivo estaba mal' }), 'ejecucion').includes('corrección'))
+check('con las dos, avanza',
+  loQueFaltaPara(omp({ pide_causa: true, pide_correccion: true, causa_raiz: 'Mal instructivo', correccion: 'Se rehizo el lote' }), 'ejecucion') === null)
+// Sin banderas se sigue pidiendo causa: es como se comportaba antes.
+check('sin tratamiento elegido se sigue pidiendo la causa raiz',
+  loQueFaltaPara(omp(), 'ejecucion').includes('causa raíz'))
+
+console.log('\n== El vocabulario del formato ==')
+check('los tres tratamientos se explican en palabras',
+  ['OMP', 'AC', 'AM'].every(c => TRATAMIENTOS[c]?.length > 20))
+check('las 6M estan completas y en orden',
+  CAMPOS_6M.length === 7 && CAMPOS_6M[0].label === 'Efecto')
+check('cada M tiene su campo y su ayuda',
+  CAMPOS_6M.every(m => m.campo.startsWith('causa_') && m.ayuda?.length > 5))
+check('una tarea del plan tiene tres estados',
+  Object.keys(ESTADOS_ACCION).length === 3 && ESTADOS_ACCION.en_curso.label === 'En curso')
+check('ningun estado de tarea trae un color quemado',
+  !JSON.stringify(ESTADOS_ACCION).includes('#'))
+
+console.log('\n== Resumen de las 6M ==')
+check('solo salen las que se escribieron',
+  resumen6M({ causa_efecto: 'Reprocesos', causa_metodo: 'Sin instructivo' }).length === 2)
+check('con la etiqueta del formato',
+  resumen6M({ causa_mano_obra: 'Falta entrenamiento' })[0].label === 'Mano de obra')
+// En pantalla, siete «N/A» seguidos no le dicen nada a nadie: los rellena
+// el servidor al exportar, que es donde el formato los exige.
+check('las vacias no se pintan', resumen6M({}).length === 0)
+check('ni las de puros espacios', resumen6M({ causa_material: '   ' }).length === 0)
+check('sin datos no revienta', resumen6M(null).length === 0)
 
 console.log('\n== Texto del boton ==')
 check('cada paso tiene su texto',

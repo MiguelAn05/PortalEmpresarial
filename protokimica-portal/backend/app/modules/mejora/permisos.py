@@ -7,7 +7,22 @@ las oportunidades de Calidad, igual que no ve sus indicadores.
 """
 from fastapi import HTTPException
 
+from app.core.areas import AREAS
 from app.models.user import User
+
+# Quién valida un cierre. En el formato del SGC los cierres reales dicen «se
+# validó con el SGC y se puede dar por cerrada»: es un paso de aprobación,
+# no un campo de texto, y por eso queda con nombre y fecha.
+#
+# Va por ÁREA y no por rol, como el cierre de PQRS: Calidad ya existe como
+# área y se administra desde Admin › Usuarios, sin un rol paralelo que pueda
+# contradecirla. Se toma de la lista y no se escribe a mano — si cambia cómo
+# se escribe el área, esto tiene que moverse con ella o nadie podrá validar.
+AREA_SGC = "Calidad"
+assert AREA_SGC in AREAS, (
+    f"'{AREA_SGC}' ya no está en app/core/areas.py. Actualiza esta constante "
+    "o nadie podrá validar el cierre de una oportunidad de mejora."
+)
 
 # Gerencia ve todo el portal sin límite de área, pero no modifica nada: solo
 # lee y comenta. Es la misma regla que en Indicadores y Master Planner.
@@ -39,6 +54,23 @@ def aplicar_filtro_area(query, usuario: User, modelo):
     return query.filter(
         (modelo.area == usuario.area) | (modelo.area.is_(None))
     )
+
+
+def es_sgc(usuario: User) -> bool:
+    """Admin siempre puede: es quien destraba cuando Calidad está de vacaciones."""
+    return usuario.rol == "admin" or usuario.area == AREA_SGC
+
+
+def exigir_sgc(usuario: User) -> None:
+    if not es_sgc(usuario):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Solo el área de {AREA_SGC} valida el cierre de una oportunidad. "
+                "Cuando el plan esté cumplido y verificado, pídele a Calidad que "
+                "la revise para poderla cerrar."
+            ),
+        )
 
 
 def exigir_puede_gestionar(usuario: User) -> None:

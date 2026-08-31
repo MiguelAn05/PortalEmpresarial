@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.16.0"
-FECHA = "2026-08-30"
+VERSION = "0.17.0"
+FECHA = "2026-08-31"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,42 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.17.0",
+        "fecha": "2026-08-31",
+        "titulo": "Mejora, con el formato del SGC",
+        "cambios": [
+            ("nuevo", "Las oportunidades de mejora ya llevan el formato oficial "
+                      "de Calidad: proceso al que se remite, fuente del "
+                      "hallazgo y tipo de acción. Un solo registro para toda la "
+                      "empresa en vez de un Excel por proceso."),
+            ("nuevo", "Cada acción se numera dentro de su proceso, como en el "
+                      "archivo de siempre, así que «la 6 de TIC's» se sigue "
+                      "encontrando por ese número."),
+            ("nuevo", "Ahora se elige si es una oportunidad de mejora, una "
+                      "acción correctiva o una acción de mejora, y el "
+                      "formulario pide solo lo que aplica a cada una: a una "
+                      "acción de mejora ya no se le exige causa raíz."),
+            ("nuevo", "El análisis de causas se escribe por las 6M —efecto, "
+                      "método, mano de obra, maquinaria, material, medidas y "
+                      "medio ambiente— en vez de un solo cuadro de texto."),
+            ("nuevo", "El seguimiento es una bitácora con fecha y autor: se "
+                      "agregan entradas y se leen en orden, en vez de irlas "
+                      "amontonando dentro de una misma celda."),
+            ("nuevo", "Una acción se cierra solo después de que Calidad le da "
+                      "el visto bueno, y queda registrado quién la validó y "
+                      "cuándo."),
+            ("nuevo", "Las tareas del plan ya tienen «en curso», no solo hecho "
+                      "o pendiente, y quedan numeradas en su orden."),
+            ("nuevo", "Se pueden enlazar dos acciones que tratan el mismo "
+                      "hallazgo, y cada una muestra quién cambió qué y cuándo."),
+            ("nuevo", "Una acción puede tener varios responsables de resolver y "
+                      "de hacerle seguimiento, incluido un comité."),
+            ("mejora", "Los procesos y las fuentes los administra Calidad desde "
+                       "el portal: agregar uno nuevo ya no necesita que TIC's "
+                       "haga nada."),
+        ],
+    },
     {
         "version": "0.16.0",
         "fecha": "2026-08-30",

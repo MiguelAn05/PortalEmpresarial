@@ -4,8 +4,8 @@ import { AREAS } from '../../../core/areas.js'
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 import { useCierreSeguro } from '../../../core/components/cierreSeguro.jsx'
 import { obtenerTablero } from '../../indicadores/api.js'
-import { crearOportunidad } from '../api.js'
-import { ORIGENES } from '../constants.js'
+import { crearOportunidad, obtenerCatalogos } from '../api.js'
+import { CLASIFICACIONES, MAX_TITULO, ORIGENES, TRATAMIENTOS } from '../constants.js'
 import { mensajeDeError } from '../../../core/errores.js'
 
 /**
@@ -15,6 +15,16 @@ import { mensajeDeError } from '../../../core/errores.js'
  * falló, y es contra el que se compara después para saber si funcionó. Sin
  * él la OMP nacería sin forma de demostrar nada, así que el campo aparece
  * solo, explicado, en vez de dejar que el servidor lo rechace al guardar.
+ *
+ * El **tratamiento** es la otra decisión que se toma aquí y no después:
+ * decide qué campos van a ser obligatorios más adelante (causa raíz,
+ * corrección o beneficio), así que se elige explicando qué significa cada
+ * uno en vez de dejar tres siglas sueltas.
+ *
+ * El proceso y la fuente se proponen solos —desde el área y desde el
+ * origen— y se pueden cambiar. Se dejan a la vista igual: son las columnas
+ * por las que el SGC filtra el reporte, y una que salga mal manda la acción
+ * al archivo de otro proceso.
  */
 export default function FormOportunidad({ indicador = null, periodo = null,
                                           valorInicial = null, onCerrar, onCreada }) {
@@ -31,6 +41,12 @@ export default function FormOportunidad({ indicador = null, periodo = null,
     area: indicador?.area ?? '',
     prioridad: 'media',
     fecha_limite: '',
+    // Los catálogos del formato. En blanco = «que lo proponga el servidor»,
+    // salvo el tratamiento, que no se adivina.
+    tratamiento_id: '',
+    proceso_id: '',
+    fuente_id: '',
+    clasificacion: '',
   })
   const [error, setError] = useState('')
 
@@ -44,6 +60,15 @@ export default function FormOportunidad({ indicador = null, periodo = null,
     queryFn: () => obtenerTablero({}),
     enabled: !indicador,
   })
+
+  // Proceso, fuente y tratamiento tal como Calidad los tenga hoy.
+  const { data: catalogos } = useQuery({
+    queryKey: ['omp-catalogos'],
+    queryFn: obtenerCatalogos,
+  })
+
+  const tratamientoElegido = (catalogos?.tratamiento ?? [])
+    .find(t => String(t.id) === String(form.tratamiento_id))
 
   const mutacion = useMutation({
     mutationFn: () => crearOportunidad({
@@ -59,6 +84,12 @@ export default function FormOportunidad({ indicador = null, periodo = null,
       area: form.area || null,
       prioridad: form.prioridad,
       fecha_limite: form.fecha_limite ? new Date(form.fecha_limite).toISOString() : null,
+      // En blanco se manda como null para que el servidor proponga el
+      // proceso desde el área y la fuente desde el origen.
+      tratamiento_id: form.tratamiento_id ? Number(form.tratamiento_id) : null,
+      proceso_id: form.proceso_id ? Number(form.proceso_id) : null,
+      fuente_id: form.fuente_id ? Number(form.fuente_id) : null,
+      clasificacion: form.clasificacion || null,
     }),
     onSuccess: (creada) => {
       queryClient.invalidateQueries({ queryKey: ['omp'] })
@@ -122,8 +153,30 @@ export default function FormOportunidad({ indicador = null, periodo = null,
               </label>
               <input
                 value={form.titulo} onChange={cambiar('titulo')} className={input}
+                maxLength={MAX_TITULO}
                 placeholder="Ej: Entregas a tiempo por debajo de la meta"
               />
+            </div>
+
+            {/* El tratamiento va arriba porque decide qué se va a pedir
+                después. Cada opción se explica: «AC» y «AM» no le dicen
+                nada a quien no vive dentro del SGC. */}
+            <div>
+              <label className="etiqueta block mb-1.5">Qué tipo de acción es</label>
+              <select
+                value={form.tratamiento_id} onChange={cambiar('tratamiento_id')}
+                className={input}
+              >
+                <option value="">Sin decidir todavía</option>
+                {(catalogos?.tratamiento ?? []).map(t => (
+                  <option key={t.id} value={t.id}>{t.nombre}</option>
+                ))}
+              </select>
+              <p className="text-xs text-texto-3 mt-1.5">
+                {tratamientoElegido
+                  ? TRATAMIENTOS[tratamientoElegido.codigo]
+                  : 'Se puede elegir después. De esto depende si al avanzar se pide la causa raíz o el beneficio.'}
+              </p>
             </div>
 
             <div>
@@ -209,6 +262,49 @@ export default function FormOportunidad({ indicador = null, periodo = null,
                 </p>
               </div>
             )}
+
+            {/* Las columnas por las que el SGC arma el reporte. Se proponen
+                solas desde el área y el origen, pero quedan a la vista: una
+                que salga mal manda la acción al archivo de otro proceso. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="etiqueta block mb-1.5">Proceso al que se remite</label>
+                <select
+                  value={form.proceso_id} onChange={cambiar('proceso_id')}
+                  className={input}
+                >
+                  <option value="">El que corresponda al área</option>
+                  {(catalogos?.proceso ?? []).map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="etiqueta block mb-1.5">Fuente del hallazgo</label>
+                <select
+                  value={form.fuente_id} onChange={cambiar('fuente_id')}
+                  className={input}
+                >
+                  <option value="">La que corresponda al origen</option>
+                  {(catalogos?.fuente ?? []).map(f => (
+                    <option key={f.id} value={f.id}>{f.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="etiqueta block mb-1.5">Representa</label>
+              <select
+                value={form.clasificacion} onChange={cambiar('clasificacion')}
+                className={input}
+              >
+                <option value="">Sin clasificar</option>
+                {Object.entries(CLASIFICACIONES).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>

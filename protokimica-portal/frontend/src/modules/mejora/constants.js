@@ -10,6 +10,11 @@
  * lo impone el servidor —`modules/mejora/service.py`— y esconder un botón no
  * impide llamar a la API. Esto es cortesía, para no ofrecer algo que va a
  * responder 400.
+ *
+ * Los catálogos del formato (proceso, fuente, tratamiento) NO están aquí:
+ * son tablas que Calidad administra, y se piden a `/mejora/catalogos`. Lo
+ * único que se queda quemado es el CÓDIGO del tratamiento, porque de él
+ * cuelga qué campos aplican y renombrarlo desde Admin no puede cambiar eso.
  */
 
 export const ESTADOS = {
@@ -36,7 +41,7 @@ export const ESTADOS = {
   cerrada: {
     label: 'Cerrada',
     tono: 'positivo',
-    ayuda: 'Verificada y terminada.',
+    ayuda: 'Verificada, validada por Calidad y terminada.',
   },
   descartada: {
     label: 'Descartada',
@@ -63,6 +68,54 @@ export const PRIORIDADES = {
   critica: { label: 'Crítica', tono: 'negativo' },
 }
 
+/**
+ * Riesgo u oportunidad (columna K del formato).
+ *
+ * Va quemado y no en el catálogo porque no es un parámetro de la empresa:
+ * cambiarlo no sería configurar el portal, sería cambiar la norma.
+ */
+export const CLASIFICACIONES = {
+  riesgo: 'Un riesgo que hay que controlar',
+  oportunidad: 'Una oportunidad que hay que aprovechar',
+}
+
+/**
+ * Los códigos de tratamiento y qué significa cada uno.
+ *
+ * El NOMBRE lo administra Calidad y puede cambiar; el código no. Todo lo que
+ * dependa del tratamiento se decide por código — el histórico del Excel ya
+ * trae «Acción de mejora» y «Acción de Mejora» escritos distinto.
+ */
+export const TRATAMIENTOS = {
+  OMP: 'Algo que se puede hacer mejor, sin que nadie haya incumplido.',
+  AC: 'Algo falló: primero se corrige, y aparte se ataca la causa.',
+  AM: 'No hay problema que resolver; se hace porque deja un beneficio.',
+}
+
+/**
+ * Las 6M del análisis de causas, en el orden en que el formato las imprime.
+ *
+ * Son campos separados y no un textarea porque en el Excel ya venían estas
+ * mismas etiquetas escritas a mano dentro de la celda: la estructura existía,
+ * solo que sin nada que la garantizara.
+ */
+export const CAMPOS_6M = [
+  { campo: 'causa_efecto', label: 'Efecto', ayuda: 'Qué se está viendo.' },
+  { campo: 'causa_metodo', label: 'Método', ayuda: 'El procedimiento, ¿lo hay y se sigue?' },
+  { campo: 'causa_mano_obra', label: 'Mano de obra', ayuda: 'Personas: carga, entrenamiento.' },
+  { campo: 'causa_maquinaria', label: 'Maquinaria', ayuda: 'Equipos y herramientas.' },
+  { campo: 'causa_material', label: 'Material', ayuda: 'Insumos y proveedores.' },
+  { campo: 'causa_medidas', label: 'Medidas', ayuda: 'Qué se mide y con qué.' },
+  { campo: 'causa_medio_ambiente', label: 'Medio ambiente', ayuda: 'Entorno: espacio, ruido, clima.' },
+]
+
+/** Los tres estados de una tarea del plan de acción. */
+export const ESTADOS_ACCION = {
+  pendiente: { label: 'Pendiente', tono: 'neutro' },
+  en_curso: { label: 'En curso', tono: 'info' },
+  cumplida: { label: 'Cumplida', tono: 'positivo' },
+}
+
 /** Una OMP terminada ya no se mueve ni admite acciones nuevas. */
 export function estaCerrada(omp) {
   return omp?.estado === 'cerrada' || omp?.estado === 'descartada'
@@ -87,16 +140,37 @@ export function siguienteEstado(omp) {
  * el botón: enterarse de que falta la causa raíz por un mensaje de error, con
  * el formulario ya cerrado, es la forma más rápida de que alguien abandone
  * el módulo y vuelva al Excel.
+ *
+ * Qué se exige depende del tratamiento, y quien lo decide es el SERVIDOR:
+ * `pide_causa`, `pide_correccion` y `pide_beneficio` vienen resueltos en la
+ * respuesta. Aquí no se mira el nombre del tratamiento — si se mirara,
+ * renombrarlo desde Admin escondería un campo obligatorio en silencio.
+ *
+ * Cuando esas banderas no vienen se pide causa raíz, que es el comportamiento
+ * que el módulo tenía antes de conocer los tratamientos.
  */
 export function loQueFaltaPara(omp, estado) {
-  if (estado === 'ejecucion' && !(omp?.causa_raiz || '').trim()) {
-    return 'Escribe la causa raíz antes de pasar a ejecución.'
+  if (estado === 'ejecucion') {
+    if (omp?.pide_causa !== false && !(omp?.causa_raiz || '').trim()) {
+      return 'Escribe la causa raíz antes de pasar a ejecución.'
+    }
+    if (omp?.pide_correccion && !(omp?.correccion || '').trim()) {
+      return 'Falta la corrección: qué se hizo para tapar el hueco de inmediato.'
+    }
+    if (omp?.pide_beneficio && !(omp?.beneficio_mejora || '').trim()) {
+      return 'Falta el beneficio: para qué vale la pena hacer esta mejora.'
+    }
   }
   if (estado === 'verificacion' && !omp?.total_acciones) {
     return 'Agrega al menos una acción: sin acciones no hay nada que verificar.'
   }
-  if (estado === 'cerrada' && (omp?.eficaz === null || omp?.eficaz === undefined)) {
-    return 'Registra la verificación de eficacia antes de cerrar.'
+  if (estado === 'cerrada') {
+    if (omp?.eficaz === null || omp?.eficaz === undefined) {
+      return 'Registra la verificación de eficacia antes de cerrar.'
+    }
+    if (!omp?.validado_sgc_en) {
+      return 'Falta que Calidad valide el cierre.'
+    }
   }
   return null
 }
@@ -130,13 +204,30 @@ export function estadoDelPlazo(omp, ahora = new Date()) {
 }
 
 /**
- * Tope de caracteres de una acción del plan.
+ * Reconstruye el bloque de texto que el formato imprime en el análisis de
+ * causas, para mostrarlo de corrido cuando no se está editando.
  *
- * Es el mismo `max_length` que declara `AccionCrear` en el backend. Sin este
- * límite en el input, escribir de más devolvía un 422 — y como el detalle de
- * un 422 es una lista de objetos, la página se quedaba en blanco en vez de
- * avisar. El tope aquí evita que el error llegue a ocurrir.
+ * Solo devuelve las 6M que se escribieron: al EXPORTAR, el servidor rellena
+ * las vacías con «N/A» porque así lo hace el formato, pero en pantalla una
+ * lista de siete «N/A» no le dice nada a nadie.
+ */
+export function resumen6M(omp) {
+  return CAMPOS_6M
+    .map(({ campo, label }) => ({ label, texto: (omp?.[campo] || '').trim() }))
+    .filter(x => x.texto)
+}
+
+/**
+ * Topes de caracteres, atados a los `max_length` del schema del backend.
  *
- * Si algún día se amplía en el schema, hay que subirlo aquí también.
+ * Sin el tope en el input, escribir de más devolvía un 422 — y como el
+ * detalle de un 422 es una lista de objetos, la página se quedaba en blanco
+ * en vez de avisar. El tope aquí evita que el error llegue a ocurrir.
+ *
+ * Si alguno se amplía en `modules/mejora/schemas.py`, hay que subirlo aquí.
  */
 export const MAX_ACCION = 300
+export const MAX_TITULO = 200
+export const MAX_TEXTO_LARGO = 4000
+export const MAX_SEGUIMIENTO = 6000
+export const MAX_NOMBRE = 150
