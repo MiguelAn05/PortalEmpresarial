@@ -62,6 +62,9 @@ class PQRSOut(BaseModel):
 
     producto_codigo: str | None = None
     producto_nombre: str | None = None
+    # El cliente lo escribió porque no lo encontró en el buscador. Servicio
+    # al Cliente lo confirma contra el catálogo antes de poder cerrar.
+    producto_por_confirmar: bool = False
     presentacion: str | None = None
     cantidad_presentacion: str | None = None
     canal_atencion: str | None = None

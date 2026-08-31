@@ -325,8 +325,20 @@ proyecto lo archiva sin borrar nada, retomar anula el acta pero no la elimina.
   Centro» son tres lugares distintos y el informe deja de servir; y eso no se
   arregla después, porque los datos ya entraron mal.
 - **Pero nunca a costa de que alguien no pueda radicar.** En PQRS, si el
-  cliente no encuentra su producto, la salida es dejarlo escribir y que el área
-  lo corrija antes de cerrar — igual que ya se hace con el tipo.
+  cliente no encuentra su producto, lo escribe y sigue. La solicitud queda con
+  `producto_por_confirmar` y **el servidor no la deja cerrar** hasta que
+  Servicio al Cliente la amarre a un producto del catálogo — igual que ya se
+  hace con el tipo. El botón «No encuentro mi producto» se ofrece **siempre**,
+  no solo cuando la búsqueda falla: quien no sabe el nombre exacto no tiene por
+  qué adivinar dos veces antes de que el formulario le dé una salida.
+- **Esa marca se DEDUCE, no se recibe.** `producto_por_confirmar` sale de
+  «hay nombre y no hay código», nunca de una bandera del formulario: una
+  bandera puede llegar diciendo lo contrario de lo que muestran los campos y
+  entonces un nombre a mano entraría a los informes disfrazado de producto
+  identificado. Al confirmar, el nombre se toma **del catálogo** a partir del
+  código; aceptarlo escrito sería volver al problema que esto resuelve.
+  Lo que el cliente escribió queda en el seguimiento: si mucha gente pide el
+  mismo producto con un nombre que no está, eso dice algo del catálogo.
 - **Lo que se copia de otro sistema se copia mínimo.** El catálogo trae código,
   nombre y presentación. Nada de precios ni existencias: la tabla del portal ni
   siquiera tiene esas columnas, así que no hay forma de que se filtren por un
@@ -511,16 +523,15 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
 
 ## Pendientes conocidos
 
-- **Catálogo de productos: sin terminar.** El lado del portal está hecho
-  (tabla, sincronización, buscador con límite por IP) pero **le faltan las
-  pruebas**, y el script de `integraciones/erp/` sigue con los nombres de tabla
-  de ejemplo: hay que reemplazarlos por los reales del ERP y crear allá la
-  vista y el usuario de solo lectura. Mientras tanto, el formulario público
-  sigue usando la lista de productos quemada en `FormularioPQRS.jsx`.
-- **El buscador de productos no tiene salida de escape.** Si el cliente no
-  encuentra su producto, no puede radicar. Falta un «no encuentro mi producto»
-  que permita escribirlo y quede marcado para que Servicio al Cliente lo
-  corrija antes de cerrar — igual que ya se hace con el tipo de PQRS.
+- **Catálogo de productos: falta el lado del ERP.** El portal ya está
+  completo (tabla, sincronización, buscador con límite por IP, pruebas, y el
+  formulario público conectado al catálogo real). Lo que falta es **fuera del
+  repositorio**: en MORFEO hay que crear la vista `V_PRODUCTOS_PORTAL` y el
+  usuario `PORTAL_LECTURA`, poner `CLAVE_SINCRONIZACION` en el `.env.prod` y
+  programar `integraciones/erp/sincronizar_productos.ps1`, que todavía trae
+  nombres de tabla de ejemplo. Hasta que eso corra, **el buscador no devuelve
+  nada** — y por eso la salida de escape no es opcional. Ver
+  `integraciones/erp/LEEME.md`.
 - **Mejora: falta el exportador y el importador.** El modelo ya cubre las 23
   columnas del `RCN-F-13`, pero todavía no se puede **regenerar el .xlsx** con
   el encabezado, la fila 5 de numeración, los anchos de columna y el pie de

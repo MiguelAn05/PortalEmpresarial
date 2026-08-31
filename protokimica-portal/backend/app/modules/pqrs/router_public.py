@@ -131,6 +131,18 @@ async def radicar_pqrs_publica(
             max_mb=MAX_TAMANIO_VIDEO_MB,
         )
 
+    # ¿El producto vino del catálogo o lo escribió el cliente?
+    #
+    # Se DEDUCE de los datos en vez de confiar en una bandera del formulario:
+    # una bandera puede llegar diciendo lo contrario de lo que muestran los
+    # campos —por un error del navegador o porque alguien arme la petición a
+    # mano— y entonces un nombre escrito a mano entraría al catálogo de los
+    # informes como si fuera un código real. Sin código no hay producto
+    # identificado, y punto.
+    producto_codigo = (producto_codigo or "").strip() or None
+    producto_nombre = (producto_nombre or "").strip() or None
+    producto_por_confirmar = bool(producto_nombre) and not producto_codigo
+
     solicitud = PQRSSolicitud(
         tenant_id=tenant.id,
         tipo=tipo,
@@ -143,6 +155,7 @@ async def radicar_pqrs_publica(
         departamento=departamento,
         producto_codigo=producto_codigo,
         producto_nombre=producto_nombre,
+        producto_por_confirmar=producto_por_confirmar,
         presentacion=presentacion,
         cantidad_presentacion=cantidad_presentacion,
         canal_atencion=canal_atencion,

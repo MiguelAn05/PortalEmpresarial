@@ -19,7 +19,21 @@ class PQRSSolicitud(Base):
     ciudad = Column(String(100), nullable=True)
     departamento = Column(String(100), nullable=True)
     producto_codigo = Column(String(50), nullable=True)
-    producto_nombre = Column(String(200), nullable=True)
+    # 300 y no 200: es el mismo largo que `cat_productos.nombre`. Un producto
+    # del catálogo con nombre largo no cabía y se truncaba al radicar.
+    producto_nombre = Column(String(300), nullable=True)
+
+    # El cliente no encontró su producto en el buscador y lo escribió.
+    #
+    # Existe porque la salida no puede ser dejarlo sin radicar: quien tiene un
+    # reclamo tiene que poder ponerlo. Pero un nombre escrito a mano no sirve
+    # para un informe —«Hipoclorito», «hipoclorito 13» y «HIPOCLORITO x20L»
+    # son tres productos distintos para un reporte— así que queda MARCADO y
+    # Servicio al Cliente lo corrige contra el catálogo antes de cerrar,
+    # igual que ya se hace con el tipo.
+    producto_por_confirmar = Column(
+        Boolean, nullable=False, default=False, server_default="false",
+    )
     presentacion = Column(String(30), nullable=True)  # unidad | kilo | gramo | litro | mililitro
     cantidad_presentacion = Column(String(20), nullable=True)  # cantidad asociada a la presentación, ej: "5"
     canal_atencion = Column(String(50), nullable=True)

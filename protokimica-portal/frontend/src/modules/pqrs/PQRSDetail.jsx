@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/AuthContext.jsx'
@@ -12,6 +12,137 @@ import {
 import { mensajeDeError } from '../../core/errores.js'
 
 const AREA_SERVICIO_CLIENTE = 'Servicio al Cliente'
+
+// Mismos números que el buscador público y que el servidor.
+const MINIMO_BUSQUEDA = 2
+const ESPERA_BUSQUEDA_MS = 300
+
+/**
+ * El cliente escribió su producto porque no lo encontró: aquí se cambia por
+ * el del catálogo.
+ *
+ * Se hace ANTES de cerrar —y el servidor no deja cerrar sin esto— porque
+ * después ya no se puede corregir, y el informe de qué producto da más
+ * problemas quedaría contando «hipoclorito el de 20 litros» como si fuera un
+ * producto aparte.
+ *
+ * Lo que el cliente escribió se conserva a la vista mientras se busca: es la
+ * única pista de qué quiso decir.
+ */
+function ConfirmarProducto({ pqrs, puedeConfirmar, onConfirmado }) {
+  const [busqueda, setBusqueda] = useState('')
+  const [resultados, setResultados] = useState([])
+  const [buscando, setBuscando] = useState(false)
+  const [error, setError] = useState('')
+  const temporizador = useRef(null)
+  const turno = useRef(0)
+
+  const buscar = (texto) => {
+    setBusqueda(texto)
+    setError('')
+    clearTimeout(temporizador.current)
+
+    if (texto.trim().length < MINIMO_BUSQUEDA) {
+      setResultados([])
+      setBuscando(false)
+      return
+    }
+
+    setBuscando(true)
+    const mio = ++turno.current
+    temporizador.current = setTimeout(async () => {
+      try {
+        const { data } = await api.get('/catalogo/productos',
+                                       { params: { q: texto.trim() } })
+        if (mio === turno.current) setResultados(data)
+      } catch (err) {
+        if (mio === turno.current) {
+          setResultados([])
+          setError(mensajeDeError(err, 'No se pudo consultar el catálogo.'))
+        }
+      } finally {
+        if (mio === turno.current) setBuscando(false)
+      }
+    }, ESPERA_BUSQUEDA_MS)
+  }
+
+  const confirmar = useMutation({
+    mutationFn: (codigo) => {
+      const datos = new FormData()
+      datos.append('producto_codigo', codigo)
+      return api.patch(`/pqrs/${pqrs.id}/producto`, datos)
+    },
+    onSuccess: () => { setError(''); onConfirmado() },
+    onError: (e) => setError(mensajeDeError(e, 'No se pudo confirmar el producto.')),
+  })
+
+  return (
+    <div className="rounded-xl border border-alerta/30 bg-alerta-bg p-4 mb-4">
+      {/* El estado no se comunica solo con color: el ámbar de la marca no
+          alcanza el contraste mínimo sobre blanco. */}
+      <div className="flex items-start gap-2">
+        <IconoAlerta tam={16} className="text-alerta mt-0.5 flex-shrink-0" />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-alerta">Producto sin confirmar</p>
+          <p className="text-sm text-texto-2 mt-0.5">
+            El cliente escribió «<b className="text-texto">{pqrs.producto_nombre}</b>»
+            porque no lo encontró en el buscador.
+            {puedeConfirmar
+              ? ' Búscalo en el catálogo: no se puede cerrar hasta confirmarlo.'
+              : ' Servicio al Cliente lo confirma antes de cerrar la solicitud.'}
+          </p>
+        </div>
+      </div>
+
+      {puedeConfirmar && (
+        <div className="mt-3">
+          <input
+            value={busqueda}
+            onChange={(e) => buscar(e.target.value)}
+            placeholder="Buscar en el catálogo por nombre o código…"
+            className="w-full px-3 py-2 rounded-lg border border-borde-fuerte bg-white text-sm
+              text-texto placeholder-texto-3 focus:outline-none focus:border-acento"
+          />
+
+          {buscando && <p className="text-xs text-texto-3 mt-2">Buscando…</p>}
+
+          {!buscando && resultados.length > 0 && (
+            <ul className="mt-2 bg-white border border-borde rounded-lg divide-y divide-borde
+              overflow-hidden max-h-56 overflow-y-auto">
+              {resultados.map((p) => (
+                <li key={p.codigo}>
+                  <button
+                    onClick={() => confirmar.mutate(p.codigo)}
+                    disabled={confirmar.isPending}
+                    className="w-full text-left px-3 py-2 hover:bg-superficie-2
+                      disabled:opacity-50 transition-colors duration-150"
+                  >
+                    <div className="text-sm text-texto">{p.nombre}</div>
+                    <div className="text-xs text-texto-3">
+                      <span className="cifra">{p.codigo}</span>
+                      {p.presentacion && ` · ${p.presentacion}`}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {!buscando && busqueda.trim().length >= MINIMO_BUSQUEDA
+            && resultados.length === 0 && !error && (
+            <p className="text-xs text-texto-2 mt-2">
+              No hay nada con «{busqueda.trim()}» en el catálogo. Si el producto
+              existe pero no aparece, avísale a TIC's: puede que la
+              sincronización con el ERP esté detenida.
+            </p>
+          )}
+
+          {error && <p role="alert" className="text-sm text-negativo mt-2">{error}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // El color de un badge es una escala de gravedad, no un arcoíris: morado,
 // naranja y teal elegidos al azar obligan a mirar la palabra igual, así que
@@ -47,6 +178,8 @@ const EVENTOS = {
   escalamiento:            { Icono: IconoEscalar,   label: 'Escalamiento'           },
   autorizacion_solicitada: { Icono: IconoCandado,   label: 'Autorización solicitada'},
   autorizacion_respondida: { Icono: IconoAlDia,     label: 'Autorización respondida'},
+  reclasificacion:         { Icono: IconoEtiqueta,  label: 'Reclasificación'        },
+  confirmacion_producto:   { Icono: IconoRecibo,    label: 'Producto confirmado'    },
 }
 
 // Las áreas viven en un solo sitio: src/core/areas.js
@@ -511,6 +644,17 @@ export default function PQRSDetail() {
           {/* Datos del producto */}
           <div className="bg-white rounded-xl border border-borde p-5">
             <h3 className="font-semibold text-acento-fuerte mb-4 text-sm">Producto y factura</h3>
+
+            {/* El cliente no encontró su producto y lo escribió. Se corrige
+                aquí porque después de cerrar ya no se puede, y un nombre
+                suelto vuelve inservible el informe por producto. */}
+            {pqrs.producto_por_confirmar && (
+              <ConfirmarProducto
+                pqrs={pqrs} puedeConfirmar={esServicioCliente && pqrs.estado !== 'cerrado'}
+                onConfirmado={() => queryClient.invalidateQueries({ queryKey: ['pqrs', id] })}
+              />
+            )}
+
             <div className="space-y-3">
               {[
                 { label: 'Producto',         value: pqrs.producto_nombre  },

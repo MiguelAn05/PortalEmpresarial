@@ -16,6 +16,7 @@ from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_
 from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta
 from app.models.autorizacion import AutorizacionPQRS
+from app.models.catalogo import ProductoCatalogo
 from app.modules.pqrs.schemas import (
     PQRSOut, PQRSDetailOut, PQRSAsignar,
     PQRSAsignarArea, PQRSAreaCausante,
@@ -82,6 +83,12 @@ async def crear_pqrs(
             max_mb=MAX_TAMANIO_VIDEO_MB,
         )
 
+    # Igual que en el formulario público: sin código no hay producto
+    # identificado. Aquí también pasa —una PQRS que entra por teléfono se
+    # escribe mientras el cliente habla— y esa queda igual de marcada.
+    producto_codigo = (producto_codigo or "").strip() or None
+    producto_nombre = (producto_nombre or "").strip() or None
+
     solicitud = PQRSSolicitud(
         tenant_id=tenant_id,
         tipo=tipo,
@@ -94,6 +101,7 @@ async def crear_pqrs(
         departamento=departamento,
         producto_codigo=producto_codigo,
         producto_nombre=producto_nombre,
+        producto_por_confirmar=bool(producto_nombre) and not producto_codigo,
         presentacion=presentacion,
         cantidad_presentacion=cantidad_presentacion,
         canal_atencion=canal_atencion,
@@ -311,6 +319,86 @@ def asignar_area_causante(
     return solicitud
 
 
+@router.patch("/{pqrs_id}/producto", response_model=PQRSOut)
+def confirmar_producto_pqrs(
+    pqrs_id: int,
+    producto_codigo: str = Form(...),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_servicio_al_cliente),
+):
+    """
+    Cambia el producto escrito a mano por el del catálogo.
+
+    Existe por la misma razón que la reclasificación del tipo: el dato que
+    entra por el formulario público no siempre es el bueno, y es el que
+    alimenta los informes. Un cliente que escribe «hipoclorito» no está
+    equivocándose — está diciendo lo que sabe; quien tiene el catálogo
+    enfrente es Servicio al Cliente.
+
+    El nombre NO se recibe del formulario: se toma del catálogo a partir del
+    código. Si se aceptara escrito, volveríamos al mismo problema que esto
+    viene a resolver.
+    """
+    solicitud = (
+        db.query(PQRSSolicitud)
+        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
+        .first()
+    )
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+
+    # Cerrada ya entró a los indicadores del mes con ese producto.
+    if solicitud.estado == "cerrado":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No se puede cambiar el producto de una PQRS cerrada. Se "
+                "confirma antes de cerrarla."
+            ),
+        )
+
+    producto = (
+        db.query(ProductoCatalogo)
+        .filter(
+            ProductoCatalogo.tenant_id == tenant_id,
+            ProductoCatalogo.codigo == producto_codigo.strip(),
+            ProductoCatalogo.activo.is_(True),
+        )
+        .first()
+    )
+    if not producto:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Ese producto no está en el catálogo. Búscalo de nuevo; si de "
+                "verdad no existe, revisa con TIC's que la sincronización con "
+                "el ERP esté corriendo."
+            ),
+        )
+
+    escrito_por_el_cliente = solicitud.producto_nombre
+    solicitud.producto_codigo = producto.codigo
+    solicitud.producto_nombre = producto.nombre
+    solicitud.producto_por_confirmar = False
+
+    # Queda en la trazabilidad qué escribió el cliente: si mucha gente pide
+    # el mismo producto con un nombre que no está en el catálogo, eso es una
+    # señal sobre el catálogo, no sobre los clientes.
+    db.add(PQRSSeguimiento(
+        pqrs_id=solicitud.id,
+        usuario_id=current_user.id,
+        tipo_evento="confirmacion_producto",
+        comentario=(
+            f"Producto confirmado: «{escrito_por_el_cliente}» (escrito por el "
+            f"cliente) -> {producto.codigo} {producto.nombre}."
+        ),
+    ))
+    db.commit()
+    db.refresh(solicitud)
+    return solicitud
+
+
 @router.patch("/{pqrs_id}/tipo", response_model=PQRSOut)
 def reclasificar_tipo_pqrs(
     pqrs_id: int,
@@ -448,6 +536,22 @@ async def cambiar_estado_pqrs(
                 status_code=400,
                 detail="No se puede cerrar la PQRS: hay una autorización pendiente de respuesta."
             )
+
+    # El cliente escribió el producto porque no lo encontró en el buscador.
+    # Se corrige ANTES de cerrar, igual que el tipo: después ya no se puede,
+    # y un nombre suelto vuelve inservible el informe por producto — que es
+    # justo el que dice cuál da más problemas.
+    if estado == "cerrado" and solicitud.producto_por_confirmar:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Falta confirmar el producto. El cliente escribió "
+                f"«{solicitud.producto_nombre}» porque no lo encontró en el "
+                "buscador. Búscalo en el catálogo y confírmalo antes de cerrar: "
+                "después ya no se puede corregir y el informe por producto "
+                "quedaría mal."
+            ),
+        )
 
     solicitud.estado = estado
 

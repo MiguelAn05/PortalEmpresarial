@@ -61,18 +61,19 @@ const CANALES_ATENCION_FELICITACION = [
 
 const PRESENTACIONES = ['Unidad', 'Kilo', 'Gramo', 'Litro', 'Mililitro']
 
-// Productos de prueba — aquí irá la integración con Geminus
-const PRODUCTOS_PRUEBA = [
-  { codigo: 'PK-001', nombre: 'Hipoclorito de Sodio 13% x 20L' },
-  { codigo: 'PK-002', nombre: 'Sulfato de Aluminio Tipo B x 25Kg' },
-  { codigo: 'PK-003', nombre: 'Lauril Éter Sulfato de Sodio 70% x 200Kg' },
-  { codigo: 'PK-004', nombre: 'Ácido Sulfúrico 98% x 35Kg' },
-  { codigo: 'PK-005', nombre: 'Alcohol Isopropílico 99% x 4L' },
-  { codigo: 'PK-006', nombre: 'Soda Cáustica Escamas x 25Kg' },
-  { codigo: 'PK-007', nombre: 'Agua Oxigenada 50% x 30Kg' },
-  { codigo: 'PK-008', nombre: 'PAC Solido' },
-  { codigo: 'MP10957094', nombre: 'PAC Solido'},
-]
+// Mínimo de letras para buscar. Es el mismo que exige el servidor
+// (`MINIMO_BUSQUEDA` en `modules/catalogo/service.py`): con menos, cualquiera
+// podría recorrer el catálogo entero letra por letra desde aquí.
+const MINIMO_BUSQUEDA = 2
+
+// Cuánto se espera antes de consultar. Sin esto, escribir «hipoclorito»
+// dispara doce peticiones y el límite por IP se agota en una sola palabra.
+const ESPERA_BUSQUEDA_MS = 300
+
+// Tope de lo que el cliente puede escribir cuando no encuentra su producto.
+// Es el largo de `producto_nombre` en el backend; sin el tope aquí, pasarse
+// devolvía un 422 que la pantalla no sabe pintar.
+const MAX_NOMBRE_PRODUCTO = 300
 
 // ── Componente: campo de adjunto ───────────────────────────────────
 function CampoAdjunto({ label, descripcion, Icono = IconoFoto, onChange, archivo, obligatorio, accept = 'image/*,.pdf', hint = 'JPG, PNG, PDF — máx. 10MB' }) {
@@ -167,25 +168,68 @@ function CampoAdjunto({ label, descripcion, Icono = IconoFoto, onChange, archivo
 }
 
 // ── Componente: buscador de productos ─────────────────────────────
+/**
+ * Elegir el producto del catálogo que el ERP sincroniza cada noche.
+ *
+ * Es una lista cerrada porque el producto alimenta el informe de cuál da más
+ * problemas: si cada cliente lo escribe a su manera, «Hipoclorito»,
+ * «hipoclorito 13» y «HIPOCLORITO x20L» son tres productos distintos y el
+ * informe deja de servir. Y eso no se arregla después — los datos ya
+ * entraron mal.
+ *
+ * **Pero nunca a costa de que alguien no pueda radicar.** Si el producto no
+ * aparece, el cliente lo escribe y sigue. La solicitud queda marcada, y
+ * Servicio al Cliente la corrige contra el catálogo antes de cerrarla, igual
+ * que ya se hace con el tipo. Quien tiene un reclamo tiene que poder ponerlo.
+ */
 function BuscadorProducto({ value, onChange }) {
   const [busqueda, setBusqueda] = useState('')
   const [resultados, setResultados] = useState([])
   const [abierto, setAbierto] = useState(false)
+  const [buscando, setBuscando] = useState(false)
+  const [aviso, setAviso] = useState('')
+  // El cliente pidió escribirlo a mano: no se le vuelve a ofrecer el
+  // buscador hasta que él quiera.
+  const [escribiendo, setEscribiendo] = useState(false)
+  const temporizador = useRef(null)
+  // Cada búsqueda lleva su turno. Sin esto, una respuesta lenta de «hipo»
+  // podía llegar después de «hipoclorito» y pisar los resultados buenos.
+  const turno = useRef(0)
 
   const buscar = (texto) => {
     setBusqueda(texto)
-    if (texto.length < 2) {
+    setAviso('')
+    clearTimeout(temporizador.current)
+
+    if (texto.trim().length < MINIMO_BUSQUEDA) {
       setResultados([])
       setAbierto(false)
+      setBuscando(false)
       return
     }
-    // Filtrar productos de prueba — aquí irá la llamada a la API de Geminus
-    const filtrados = PRODUCTOS_PRUEBA.filter(p =>
-      p.nombre.toLowerCase().includes(texto.toLowerCase()) ||
-      p.codigo.toLowerCase().includes(texto.toLowerCase())
-    )
-    setResultados(filtrados)
+
+    setBuscando(true)
     setAbierto(true)
+    const mio = ++turno.current
+
+    temporizador.current = setTimeout(async () => {
+      try {
+        const { data } = await api.get('/public/catalogo/productos',
+                                       { params: { q: texto.trim() } })
+        if (mio !== turno.current) return
+        setResultados(data)
+      } catch (err) {
+        if (mio !== turno.current) return
+        setResultados([])
+        // Si el buscador falla, el cliente no se queda encerrado: se le
+        // ofrece escribirlo. Un catálogo caído no puede impedir un reclamo.
+        setAviso(mensajeDeError(
+          err, 'No pudimos consultar el catálogo en este momento.',
+        ))
+      } finally {
+        if (mio === turno.current) setBuscando(false)
+      }
+    }, ESPERA_BUSQUEDA_MS)
   }
 
   const seleccionar = (producto) => {
@@ -198,7 +242,91 @@ function BuscadorProducto({ value, onChange }) {
     onChange(null)
     setBusqueda('')
     setResultados([])
+    setEscribiendo(false)
+    setAviso('')
   }
+
+  // Ya hay producto elegido, del catálogo o escrito.
+  if (value) {
+    const delCatalogo = Boolean(value.codigo)
+    return (
+      <div>
+        <label className="etiqueta block mb-1.5">
+          Producto <span className="text-negativo">*</span>
+        </label>
+        <div className={`flex items-center gap-3 p-3 rounded-xl border ${
+          delCatalogo
+            ? 'bg-positivo-bg border-positivo/30'
+            : 'bg-alerta-bg border-alerta/30'
+        }`}>
+          <IconoPaquete tam={22} className={delCatalogo ? 'text-positivo' : 'text-alerta'} />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-texto">{value.nombre}</div>
+            {/* El estado no se comunica solo con color: el ámbar de la marca
+                no alcanza el contraste mínimo sobre blanco. */}
+            <div className="text-xs text-texto-2 mt-0.5">
+              {delCatalogo
+                ? <span className="cifra">{value.codigo}</span>
+                : 'Lo escribiste tú. Nosotros lo identificamos al revisar tu solicitud.'}
+            </div>
+          </div>
+          <button
+            type="button" onClick={limpiar}
+            className="text-xs text-acento hover:underline flex-shrink-0"
+          >
+            Cambiar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // La salida de escape: escribirlo a mano.
+  if (escribiendo) {
+    return (
+      <div>
+        <label className="etiqueta block mb-1.5">
+          Escribe tu producto <span className="text-negativo">*</span>
+        </label>
+        <input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value.slice(0, MAX_NOMBRE_PRODUCTO))}
+          maxLength={MAX_NOMBRE_PRODUCTO}
+          autoFocus
+          placeholder="Como aparece en el empaque o en la factura"
+          className="w-full px-4 py-3 rounded-xl border border-borde-fuerte text-sm
+            text-texto placeholder-texto-3 focus:outline-none focus:border-acento
+            focus:ring-2 focus:ring-acento/25 transition"
+        />
+        <p className="text-xs text-texto-3 mt-1.5">
+          No te preocupes si no sabes el nombre exacto: escribe lo que veas y
+          nosotros lo identificamos.
+        </p>
+        <div className="flex gap-3 mt-2">
+          <button
+            type="button"
+            disabled={busqueda.trim().length < 3}
+            onClick={() => onChange({ codigo: null, nombre: busqueda.trim() })}
+            className="px-4 py-2 rounded-lg bg-acento-fuerte text-white text-sm
+              font-semibold hover:bg-acento disabled:opacity-40
+              transition-colors duration-150"
+          >
+            Usar este producto
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEscribiendo(false); setBusqueda('') }}
+            className="text-sm font-medium text-texto-2 hover:text-texto transition-colors"
+          >
+            Volver a buscar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const sinResultados = abierto && !buscando
+    && busqueda.trim().length >= MINIMO_BUSQUEDA && resultados.length === 0
 
   return (
     <div className="relative">
@@ -206,68 +334,67 @@ function BuscadorProducto({ value, onChange }) {
         Producto <span className="text-negativo">*</span>
       </label>
 
-      {value ? (
-        // Producto seleccionado
-        <div className="flex items-center gap-3 p-3 bg-positivo-bg border border-positivo/30 rounded-xl">
-          <IconoPaquete tam={22} className="text-positivo" />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-texto">{value.nombre}</div>
-            <div className="text-xs text-texto-2 font-mono mt-0.5">{value.codigo}</div>
-          </div>
-          <button
-            onClick={limpiar}
-            className="text-xs text-negativo hover:underline flex-shrink-0"
-          >
-            Cambiar
-          </button>
-        </div>
-      ) : (
-        // Buscador
-        <div>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-3">
-              <IconoBuscar tam={16} />
-            </span>
-            <input
-              value={busqueda}
-              onChange={(e) => buscar(e.target.value)}
-              onFocus={() => busqueda.length >= 2 && setAbierto(true)}
-              placeholder="Escribe el nombre o código del producto…"
-              className="w-full pl-10 pr-4 py-3 rounded-xl border border-borde-fuerte text-sm
-                text-texto placeholder-texto-3 focus:outline-none focus:border-acento
-                focus:ring-2 focus:ring-acento/25 transition"
-            />
-          </div>
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-3">
+          <IconoBuscar tam={16} />
+        </span>
+        <input
+          value={busqueda}
+          onChange={(e) => buscar(e.target.value)}
+          onFocus={() => busqueda.trim().length >= MINIMO_BUSQUEDA && setAbierto(true)}
+          placeholder="Escribe el nombre o código del producto…"
+          className="w-full pl-10 pr-4 py-3 rounded-xl border border-borde-fuerte text-sm
+            text-texto placeholder-texto-3 focus:outline-none focus:border-acento
+            focus:ring-2 focus:ring-acento/25 transition"
+        />
+      </div>
 
-          {abierto && resultados.length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-superficie border border-borde
-              rounded-xl shadow-lg overflow-hidden">
-              {resultados.map((p) => (
-                <button
-                  key={p.codigo}
-                  onClick={() => seleccionar(p)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-superficie-2
-                    transition-colors duration-150 ease-suave text-left"
-                >
-                  <IconoPaquete tam={18} className="text-texto-3" />
-                  <div>
-                    <div className="text-sm font-medium text-texto">{p.nombre}</div>
-                    <div className="text-xs text-texto-3 font-mono">{p.codigo}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {abierto && busqueda.length >= 2 && resultados.length === 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-superficie border border-borde
-              rounded-xl shadow-lg px-4 py-3 text-sm text-texto-2">
-              No encontramos productos con ese nombre o código. Escríbelo en la
-              descripción y nosotros lo identificamos.
-            </div>
-          )}
+      {abierto && (buscando || resultados.length > 0) && (
+        <div className="absolute z-20 w-full mt-1 bg-superficie border border-borde
+          rounded-xl shadow-lg overflow-hidden">
+          {buscando ? (
+            <p className="px-4 py-3 text-sm text-texto-3">Buscando…</p>
+          ) : resultados.map((p) => (
+            <button
+              key={p.codigo}
+              type="button"
+              onClick={() => seleccionar(p)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-superficie-2
+                transition-colors duration-150 ease-suave text-left"
+            >
+              <IconoPaquete tam={18} className="text-texto-3" />
+              <div>
+                <div className="text-sm font-medium text-texto">{p.nombre}</div>
+                <div className="text-xs text-texto-3">
+                  <span className="cifra">{p.codigo}</span>
+                  {p.presentacion && ` · ${p.presentacion}`}
+                </div>
+              </div>
+            </button>
+          ))}
         </div>
       )}
+
+      {/* La salida de escape se ofrece SIEMPRE, no solo cuando la búsqueda
+          falla: el cliente que no sabe el nombre exacto no tiene por qué
+          adivinar dos veces antes de que el formulario le dé una salida. */}
+      <div className="mt-2">
+        {sinResultados && (
+          <p className="text-sm text-texto-2 mb-1">
+            No encontramos ningún producto con «{busqueda.trim()}».
+          </p>
+        )}
+        {aviso && (
+          <p role="alert" className="text-sm text-alerta mb-1">{aviso}</p>
+        )}
+        <button
+          type="button"
+          onClick={() => setEscribiendo(true)}
+          className="text-sm font-medium text-acento hover:underline"
+        >
+          No encuentro mi producto
+        </button>
+      </div>
     </div>
   )
 }
@@ -447,7 +574,12 @@ export default function FormularioPQRS() {
       if (!form.descripcion.trim())   { setError('Cuéntanos qué ocurrió.'); return false }
     }
     if (paso === 3 && requiereProducto) {
-      if (!productoSeleccionado)      { setError('Selecciona el producto.'); return false }
+      // Sirve tanto el del catálogo como el escrito a mano: lo que no sirve
+      // es seguir sin ninguno.
+      if (!productoSeleccionado?.nombre?.trim()) {
+        setError('Elige tu producto, o usa «No encuentro mi producto» para escribirlo.')
+        return false
+      }
       if (!form.lote.trim())          { setError('El lote es obligatorio.'); return false }
       if (!form.factura_numero.trim()){ setError('El número de factura es obligatorio.'); return false }
       if (!form.cantidad_factura.trim()){ setError('La cantidad en factura es obligatoria.'); return false }

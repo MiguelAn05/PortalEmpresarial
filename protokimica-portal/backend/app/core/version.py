@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.17.0"
+VERSION = "0.18.0"
 FECHA = "2026-08-31"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,29 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.18.0",
+        "fecha": "2026-08-31",
+        "titulo": "El producto, del catálogo",
+        "cambios": [
+            ("nuevo", "El formulario público ya busca los productos en el "
+                      "catálogo real que llega del ERP, no en una lista de "
+                      "prueba."),
+            ("nuevo", "Si el cliente no encuentra su producto, ahora puede "
+                      "escribirlo y seguir. Antes se quedaba trabado sin poder "
+                      "radicar."),
+            ("nuevo", "Las solicitudes con el producto escrito a mano quedan "
+                      "señaladas, y Servicio al Cliente lo busca en el "
+                      "catálogo y lo confirma antes de cerrarlas — igual que "
+                      "ya se hace con el tipo."),
+            ("mejora", "Una solicitud no se puede cerrar con el producto sin "
+                       "confirmar: así el informe de qué producto da más "
+                       "problemas no cuenta el mismo dos veces por estar "
+                       "escrito distinto."),
+            ("correccion", "Los productos de nombre largo ya no se cortan al "
+                           "radicar."),
+        ],
+    },
     {
         "version": "0.17.0",
         "fecha": "2026-08-31",
