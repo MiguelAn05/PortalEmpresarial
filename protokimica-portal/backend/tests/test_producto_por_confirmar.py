@@ -12,7 +12,7 @@ Es el mismo trato que ya recibe el tipo, que el cliente casi nunca acierta.
 from app.models.catalogo import ProductoCatalogo
 from app.models.pqrs import PQRSSolicitud
 
-CANAL = "Venta Institucional"
+CANAL = "Venta institucional"   # tal como lo escribe core/canales.py
 
 
 def _producto(entorno, codigo="PK-001", nombre="Hipoclorito de Sodio 13% x 20L"):

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
 import { AREAS } from '../../core/areas.js'
+import { CANALES, canalesConPrefijo } from '../../core/canales.js'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
 import {
   IconoBuscar, IconoCerrar, IconoFiltro, IconoPQRS,
@@ -34,17 +35,9 @@ const PRIORIDADES = {
   critica: { label: 'Crítica', color: 'text-negativo' },
 }
 
-// Mismo mapeo que PREFIJOS_POR_CANAL en el backend (service.py) — se usa
-// para filtrar por punto de venta a partir del prefijo del radicado.
-const PUNTOS_VENTA = [
-  { prefijo: 'PVC',  label: 'Punto de venta Centro'     },
-  { prefijo: 'PVB',  label: 'Punto de venta Belén'      },
-  { prefijo: 'PVG',  label: 'Punto de venta Guayabal'   },
-  { prefijo: 'PV65', label: 'Punto de venta La 65'      },
-  { prefijo: 'PVCR', label: 'Punto de venta Cristo Rey' },
-  { prefijo: 'PVI',  label: 'Punto de venta Itagüí'     },
-  { prefijo: 'VI',   label: 'Venta institucional'       },
-]
+// Sale de core/canales.js, gemelo de core/canales.py: se usa para filtrar
+// por punto de venta a partir del prefijo del radicado.
+const PUNTOS_VENTA = canalesConPrefijo()
 
 // AREAS_CAUSANTES y AREAS_PQRS eran la misma lista repetida: ahora las dos
 // salen de src/core/areas.js
@@ -76,30 +69,8 @@ function SLALabel({ fechaLimite }) {
   return <span className="cifra text-xs text-texto-2">Vence en {dias}d</span>
 }
 
-const CANALES_ATENCION = [
-  
-  'Venta institucional',
-  'WhatsApp',
-  'Punto de venta Centro',
-  'Punto de venta Belén',
-  'Punto de venta Guayabal',
-  'Punto de venta La 65',
-  'Punto de venta Cristo Rey',
-  'Punto de venta Itagüí',
-  'Línea telefónica',
-]
-
-const CANALES_ATENCION_FELICITACION = [
-  'Venta institucional',
-  'Llamada telefónica',
-  'WhatsApp',
-  'Punto de venta Centro',
-  'Punto de venta Belén',
-  'Punto de venta Guayabal',
-  'Punto de venta La 65',
-  'Punto de venta Cristo Rey',
-  'Punto de venta Itagüí',
-]
+const CANALES_ATENCION = CANALES
+const CANALES_ATENCION_FELICITACION = CANALES
 
 const DEPARTAMENTOS = [
   'Amazonas','Antioquia','Arauca','Atlántico','Bolívar','Boyacá','Caldas',

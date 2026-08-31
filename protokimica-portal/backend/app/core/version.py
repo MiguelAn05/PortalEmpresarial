@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.18.0"
+VERSION = "0.19.0"
 FECHA = "2026-08-31"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,28 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.19.0",
+        "fecha": "2026-08-31",
+        "titulo": "Un QR en cada punto de venta",
+        "cambios": [
+            ("nuevo", "Cada punto de venta tiene su código QR para imprimir y "
+                      "pegar en el mostrador. El cliente apunta la cámara y "
+                      "entra directo al formulario."),
+            ("nuevo", "Al entrar por el QR, la solicitud ya queda marcada con "
+                      "ese punto de venta: el cliente no tiene que elegirlo de "
+                      "una lista, así que el radicado sale con el número de la "
+                      "sede correcta y los reportes por punto cuadran."),
+            ("nuevo", "Los carteles se imprimen desde Administración, uno por "
+                      "hoja, con el nombre de la sede y la dirección escrita "
+                      "debajo por si la cámara no lee el código."),
+            ("correccion", "El formulario de felicitaciones decía «Llamada "
+                           "telefónica» y el resto del portal «Línea "
+                           "telefónica»: era el mismo canal contado dos veces "
+                           "en los informes. Ahora es uno solo, y las "
+                           "solicitudes viejas se leen con el nombre nuevo."),
+        ],
+    },
     {
         "version": "0.18.0",
         "fecha": "2026-08-31",

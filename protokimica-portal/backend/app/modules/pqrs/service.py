@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi import HTTPException, UploadFile
 
+from app.core import canales
 from app.core.config import settings
 from app.core.dias_habiles import limite_en_habiles
 
@@ -102,19 +103,10 @@ def calcular_prioridad(tipo: str) -> str:
     return PRIORIDAD_POR_TIPO.get(tipo, "media")
 
 
-# Prefijos especiales cuando la PQRS viene de un punto de venta específico
-# o de venta institucional. Para cualquier otro canal (línea telefónica,
-# página web, distribuidor autorizado, etc.) se sigue usando el radicado
-# general "PK-{año}-####".
-PREFIJOS_POR_CANAL = {
-    "Punto de venta Centro":      "PVC",
-    "Punto de venta Belén":       "PVB",
-    "Punto de venta Guayabal":    "PVG",
-    "Punto de venta La 65":       "PV65",
-    "Punto de venta Cristo Rey":  "PVCR",
-    "Punto de venta Itagüí":      "PVI",
-    "Venta institucional":        "VI",
-}
+# Los canales y sus prefijos viven en `core/canales.py`, que es la fuente
+# única y tiene su gemelo en el frontend. Aquí solo se reexporta para no
+# romper lo que ya lo importaba desde este módulo.
+PREFIJOS_POR_CANAL = canales.PREFIJOS_POR_CANAL
 
 
 def generar_codigo_seguimiento(db, tenant_id: int, canal_atencion: str | None = None) -> str:

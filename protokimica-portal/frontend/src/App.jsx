@@ -46,6 +46,10 @@ export default function App() {
       {/* ── Rutas públicas (sin login) ── */}
       <Route path="/login"       element={<Login />} />
       <Route path="/formulario"  element={<FormularioPQRS />} />
+      {/* El QR de cada punto de venta: /q/PVG abre el formulario ya
+          marcado como Guayabal. El codigo es el mismo prefijo del
+          radicado, y va impreso en un letrero — no se cambia. */}
+      <Route path="/q/:codigo"   element={<FormularioPQRS />} />
       <Route path="/seguimiento" element={<SeguimientoPQRS />} />
       <Route path="/encuesta/:codigo" element={<EncuestaPQRS />} />
       {/* Corta a propósito: va impresa en el QR de un punto de venta. */}

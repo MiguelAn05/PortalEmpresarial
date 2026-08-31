@@ -24,5 +24,9 @@ redis==5.1.1
 # HTTP client (para disparar webhooks a n8n)
 httpx==0.27.2
 
+# Códigos QR de los puntos de venta. Python puro, sin dependencias ni
+# librerías del sistema: genera el SVG y nada más.
+segno==1.6.1
+
 
 # CORS y utilidades ya incluidas en fastapi/starlette

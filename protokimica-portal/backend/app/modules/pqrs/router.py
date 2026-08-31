@@ -11,6 +11,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from app.core import canales
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
 from app.models.user import User
@@ -88,6 +89,7 @@ async def crear_pqrs(
     # escribe mientras el cliente habla— y esa queda igual de marcada.
     producto_codigo = (producto_codigo or "").strip() or None
     producto_nombre = (producto_nombre or "").strip() or None
+    canal_atencion = canales.normalizar(canal_atencion)
 
     solicitud = PQRSSolicitud(
         tenant_id=tenant_id,

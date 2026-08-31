@@ -350,6 +350,42 @@ proyecto lo archiva sin borrar nada, retomar anula el acta pero no la elimina.
 `frontend/src/core/areas.js`. Una prueba verifica que coincidan. Nunca
 declarar una lista de áreas dentro de un componente.
 
+### Canales de atención
+
+Mismo trato que las áreas: `backend/app/core/canales.py` y
+`frontend/src/core/canales.js`, con `tests/canales.test.mjs` verificando que
+coincidan. Estaban repetidos en cuatro archivos y ya se habían separado —el
+formulario de felicitaciones ofrecía «Llamada telefónica» donde el resto del
+portal dice «Línea telefónica», así que la misma llamada caía en dos canales
+y el reporte las contaba aparte. `normalizar()` traduce el nombre viejo al
+radicar, en los dos routers.
+
+**El canal decide el prefijo del código de seguimiento** (`PVG0010`), y de
+ese prefijo salen los reportes por sede. Cambiar cómo se escribe un canal
+deja a ese punto de venta sin su consecutivo propio, en silencio.
+
+**Los QR de los puntos de venta.** `/q/PVG` abre el formulario público ya
+marcado como Guayabal — el canal viene del letrero que el cliente tiene
+enfrente en vez de una lista donde tiene que acertar, y eso importa porque
+después de radicar el prefijo ya no se corrige. El código del QR **es** el
+prefijo del radicado, así que no se cambia: un cartel impreso y pegado en una
+sede no se actualiza solo.
+
+Se generan en `modules/pqrs/qr.py` con `segno` (Python puro, sin
+dependencias del sistema) y se imprimen desde Administración. La URL la arma
+el SERVIDOR con `FRONTEND_URL`: si la pantalla la armara con el dominio del
+navegador, un administrador entrando por la IP interna imprimiría carteles
+que apuntan a `172.20.…` y ningún cliente podría abrirlos.
+
+Los endpoints de QR son públicos a propósito —solo contienen una URL pública,
+y así la pantalla los muestra con un `<img>`, que no manda la cabecera de
+sesión— y el código se valida contra la lista cerrada, de modo que de ahí no
+sale un QR con el dominio del portal apuntando a otra parte.
+
+**Un QR no se vence.** Lo que caduca es generarlo en un sitio que crea un
+enlace intermedio suyo y lo apaga si dejas de pagar. Estos apuntan directo al
+portal: no hay servicio de terceros que se pueda caer ni cobrar.
+
 ### Interfaz
 
 - **Los colores salen de `frontend/src/index.css`, nunca de un hex suelto.**

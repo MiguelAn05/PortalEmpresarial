@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
+import { useParams } from 'react-router-dom'
 import api from '../../core/api.js'
 import { AREAS } from '../../core/areas.js'
+import { CANALES, canalPorCodigo } from '../../core/canales.js'
 import AvisoDatos from '../../core/components/AvisoDatos.jsx'
 import {
   IconoAlerta, IconoBuscar, IconoCheck, IconoCopiar, IconoFelicitacion,
@@ -35,29 +37,12 @@ const DEPARTAMENTOS = [
   'Santander','Sucre','Tolima','Valle del Cauca','Vaupés','Vichada',
 ]
 
-const CANALES_ATENCION = [
-  'Venta institucional',
-  'WhatsApp',
-  'Punto de venta Centro',
-  'Punto de venta Belén',
-  'Punto de venta Guayabal',
-  'Punto de venta La 65',
-  'Punto de venta Cristo Rey',
-  'Punto de venta Itagüí',
-  'Línea telefónica',
-]
-
-const CANALES_ATENCION_FELICITACION = [
-  'Venta institucional',
-  'Llamada telefónica',
-  'WhatsApp',
-  'Punto de venta Centro',
-  'Punto de venta Belén',
-  'Punto de venta Guayabal',
-  'Punto de venta La 65',
-  'Punto de venta Cristo Rey',
-  'Punto de venta Itagüí',
-]
+// Los canales viven en core/canales.js, gemelo de core/canales.py. Antes
+// estaban aqui en dos listas, y la de felicitaciones decia «Llamada
+// telefonica» donde esta decia «Linea telefonica»: la misma llamada caia en
+// dos canales y el reporte las contaba aparte.
+const CANALES_ATENCION = CANALES
+const CANALES_ATENCION_FELICITACION = CANALES
 
 const PRESENTACIONES = ['Unidad', 'Kilo', 'Gramo', 'Litro', 'Mililitro']
 
@@ -508,6 +493,14 @@ function BarraPasos({ pasoActual, totalPasos, labels }) {
 
 // ── Componente principal ───────────────────────────────────────────
 export default function FormularioPQRS() {
+  // De dónde entró el cliente. Si llegó por el QR de un punto de venta
+  // (`/q/PVG`), el canal viene del letrero que tiene enfrente en vez de una
+  // lista donde tendría que acertar. Importa porque el canal decide el
+  // prefijo de su código de seguimiento y de ahí salen los reportes por
+  // sede: si se equivoca, el número queda mal para siempre.
+  const { codigo: codigoQR } = useParams()
+  const canalDelQR = canalPorCodigo(codigoQR)
+
   const [paso, setPaso] = useState(1)
   const [form, setForm] = useState({
     tipo: '',
@@ -524,7 +517,8 @@ export default function FormularioPQRS() {
     cantidad_reclamo: '',
     presentacion: '',
     cantidad_presentacion: '',
-    canal_atencion: '',
+    // Precargado desde el QR del punto de venta, si vino por ahi.
+    canal_atencion: canalDelQR ?? '',
     descripcion: '',
     comentario: '',
   })
@@ -657,7 +651,8 @@ export default function FormularioPQRS() {
       cliente_email: '', cliente_telefono: '', ciudad: '', departamento: '',
       lote: '', factura_numero: '', cantidad_factura: '', cantidad_reclamo: '',
       presentacion: '', cantidad_presentacion: '',
-      canal_atencion: '',
+      // Se conserva el canal del QR: quien radica otra sigue en la misma sede.
+      canal_atencion: canalDelQR ?? '',
       descripcion: '', comentario: '',
     })
     setProductoSeleccionado(null)
@@ -695,6 +690,21 @@ export default function FormularioPQRS() {
          Portal de Radicación de PQRS
        </p>
        </div>
+
+        {/* Entró por el QR de un punto de venta: se le dice desde dónde está
+            radicando, en vez de dejarlo elegirlo de una lista donde se
+            equivoca. Sigue pudiendo cambiarlo más adelante — si alguien
+            comparte la foto del QR por WhatsApp, quien lo abra desde otro
+            lado tiene que poder corregirlo. */}
+        {canalDelQR && (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-acento/30
+            bg-acento-suave px-4 py-3">
+            <IconoRecibo tam={18} className="text-acento-fuerte flex-shrink-0" />
+            <p className="text-sm text-texto">
+              Estás radicando desde <b className="font-semibold">{canalDelQR}</b>.
+            </p>
+          </div>
+        )}
 
         <BarraPasos pasoActual={paso} totalPasos={totalPasosActual} labels={labelsActuales} />
 

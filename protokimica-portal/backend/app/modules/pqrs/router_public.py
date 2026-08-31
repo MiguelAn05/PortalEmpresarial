@@ -9,14 +9,17 @@ from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form, HTTPException,
     UploadFile, status,
 )
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.modules.pqrs.schemas import EncuestaCreate
 
+from app.core import canales
 from app.core.database import get_db
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
 from app.models.tenant import Tenant
+from app.modules.pqrs import qr
 from app.modules.pqrs.historial_publico import construir as historial_publico_de
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla,
@@ -35,6 +38,65 @@ router = APIRouter(prefix="/public", tags=["Público — PQRS"])
 # Carpeta donde se guardan los archivos subidos
 UPLOAD_DIR = "/app/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+# ── Códigos QR de los puntos de venta ────────────────────────────────
+# Van sin autenticación a propósito: lo único que contienen es una URL
+# pública del portal, y así la pantalla de impresión puede mostrarlos con un
+# `<img>` normal — una etiqueta de imagen no manda la cabecera de sesión.
+# No hay nada que proteger, y el código de canal se valida contra la lista
+# cerrada, así que de aquí no sale un QR que apunte a otra parte.
+
+@router.get("/qr", tags=["Público — QR"])
+def listar_qr():
+    """Los canales que tienen QR, con su código y la URL que lleva dentro."""
+    return qr.listar()
+
+
+@router.get("/qr/{codigo}.svg", tags=["Público — QR"])
+def qr_svg(codigo: str):
+    """El QR de un punto de venta, en vectorial: se imprime a cualquier tamaño."""
+    try:
+        contenido = qr.svg(codigo)
+    except ValueError:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No hay ningún punto de venta con el código '{codigo}'. "
+                "Los códigos válidos salen de /public/qr."
+            ),
+        )
+    return Response(
+        content=contenido,
+        media_type="image/svg+xml",
+        # Un QR de un punto de venta solo cambia si cambia el dominio del
+        # portal. Guardarlo un día evita regenerarlo en cada vista previa.
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/qr/{codigo}.png", tags=["Público — QR"])
+def qr_png(codigo: str):
+    """El mismo QR en PNG, para meterlo en un diseño o en un documento."""
+    try:
+        contenido = qr.png(codigo)
+    except ValueError:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No hay ningún punto de venta con el código '{codigo}'. "
+                "Los códigos válidos salen de /public/qr."
+            ),
+        )
+    return Response(
+        content=contenido,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "public, max-age=86400",
+            # Para que al descargarlo quede con un nombre que se entienda.
+            "Content-Disposition": f'inline; filename="qr-{codigo.upper()}.png"',
+        },
+    )
 
 
 class PQRSPublicaOut(BaseModel):
@@ -142,6 +204,11 @@ async def radicar_pqrs_publica(
     producto_codigo = (producto_codigo or "").strip() or None
     producto_nombre = (producto_nombre or "").strip() or None
     producto_por_confirmar = bool(producto_nombre) and not producto_codigo
+
+    # Un formulario viejo que quedó cacheado puede seguir mandando «Llamada
+    # telefónica»; se traduce al nombre actual para que no abra un canal
+    # paralelo en los reportes.
+    canal_atencion = canales.normalizar(canal_atencion)
 
     solicitud = PQRSSolicitud(
         tenant_id=tenant.id,
