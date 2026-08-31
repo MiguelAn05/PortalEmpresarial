@@ -45,11 +45,16 @@ export function plazoRelativo(iso, ahora = new Date()) {
  * Gerencia entra a leer los números; los demás entran a trabajar. Mandar a
  * todos a la misma pantalla obliga a la mitad a bajar cada vez que abren el
  * portal. Es la misma decisión que `pestanaInicial` en Indicadores.
+ *
+ * Los accesos rápidos van SIEMPRE al final: son un atajo para quien ya sabe
+ * a dónde va, no información. Ponerlos arriba empujaba hacia abajo lo único
+ * que hay que leer. Y «cómo va la empresa» queda de segundo para todos, que
+ * es la pregunta que sigue después de «qué me toca a mí».
  */
 export function ordenTarjetas(usuario) {
   return usuario?.rol === 'gerencia'
     ? ['empresa', 'pendientes', 'area', 'accesos']
-    : ['pendientes', 'accesos', 'area', 'empresa']
+    : ['pendientes', 'empresa', 'area', 'accesos']
 }
 
 /**

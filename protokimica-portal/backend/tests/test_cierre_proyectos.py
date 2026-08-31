@@ -204,16 +204,22 @@ def test_cerrar_y_volver_a_cerrar_deja_las_dos_actas(entorno, v):
 def test_quien_ve_el_proyecto_pero_no_lo_lidera_no_puede_cerrarlo(entorno, v):
     """
     Cerrar es afirmar que se cumplió. Le compete a quien responde por el
-    proyecto, no a cualquiera que pueda editarlo.
+    proyecto, no a cualquiera que trabaje dentro.
 
-    El proyecto va sin líder y del área de quien prueba: así se ve, se puede
-    editar, y aun así el cierre queda fuera de su alcance.
+    Quien ve un proyecto sin liderarlo es quien tiene una tarea asignada
+    adentro: desde que la visibilidad es por participación personal, ese es
+    el único camino que no pasa por el liderazgo.
     """
     portal = entorno
-    p = _crear_proyecto(portal)          # área TICS, sin líder asignado
+    p = _crear_proyecto(portal)          # lo crea admin, que queda de líder
 
-    portal.como("tics")                  # es de su área: lo ve y lo edita
-    v.check("lo puede ver",
+    # A "tics" le asignan trabajo adentro: ahí entra a ver el proyecto.
+    portal.post(f"/master-planner/proyectos/{p['id']}/tareas", json={
+        "titulo": "Migrar el servidor", "asignado_a": portal.ids["tics"],
+    })
+
+    portal.como("tics")
+    v.check("lo puede ver por su tarea",
             portal.get(f"/master-planner/proyectos/{p['id']}").status_code == 200)
 
     r = _cerrar(portal, p["id"], tipo="finalizado", entregables="ok")

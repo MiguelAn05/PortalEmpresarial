@@ -16,6 +16,9 @@ export const ACCESO_POR_MODULO = {
   pqrs: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
   master_planner: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
   indicadores: ['admin', 'gerencia', 'lider'],
+  // La mejora es trabajo de los líderes de área. Gerencia queda fuera: el
+  // avance se le reporta, no es un tablero más que mirar.
+  mejora: ['admin', 'lider'],
   encuestas: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
   admin: ['admin'],
 }
@@ -26,6 +29,7 @@ export const RUTA_DE_MODULO = {
   pqrs: '/pqrs',
   master_planner: '/master-planner',
   indicadores: '/indicadores',
+  mejora: '/mejora',
   encuestas: '/encuestas',
   admin: '/admin',
 }

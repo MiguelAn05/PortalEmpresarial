@@ -26,6 +26,12 @@ ACCESO_POR_MODULO: dict[str, set[str]] = {
     # son de quien responde por ellos. El líder entra porque le toca registrar
     # los de su área cada mes.
     "indicadores": {"admin", "gerencia", "lider"},
+    # La mejora es trabajo de los líderes de área: son quienes responden por
+    # que un indicador vuelva a su meta. Gerencia queda fuera a propósito —
+    # el avance de las oportunidades se le reporta, no se le deja abierto
+    # como un tablero más que mirar. `admin` entra porque administra el
+    # portal, no porque gestione mejoras.
+    "mejora": {"admin", "lider"},
     # Las encuestas quedan abiertas como PQRS: la satisfacción del cliente la
     # consulta cualquiera que atienda. Si un día hay que cerrarlas, se cambia
     # aquí y no en veinte endpoints.
@@ -38,6 +44,7 @@ ETIQUETAS = {
     "pqrs": "PQRS",
     "master_planner": "Master Planner",
     "indicadores": "Indicadores",
+    "mejora": "Oportunidades de Mejora",
     "encuestas": "Encuestas",
     "admin": "Administración",
 }

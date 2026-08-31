@@ -48,25 +48,31 @@ def test_permisos(entorno, v):
     v.check("el área responsable no se duplica en las participantes",
           r["areas_participantes"] == ["Calidad", "Logística"], r)
 
-    # ── Visibilidad por área ──
+    # ── Visibilidad: depende del rol ──
+    # Un LÍDER responde por su área: ve lo de su gente aunque no participe
+    # personalmente. Un AGENTE solo ve donde le asignaron trabajo.
     portal.como("tics")
     vistos = {p["nombre"] for p in portal.get("/master-planner/proyectos").json()}
-    v.check("TICS ve su área", "Portal Web" in vistos, vistos)
-    v.check("TICS ve el proyecto mixto donde es responsable", "ERP Fase 2" in vistos, vistos)
-    v.check("TICS ve el proyecto sin área", "Sin clasificar" in vistos, vistos)
-    v.check("TICS NO ve el de Calidad", "Auditoría ISO" not in vistos, vistos)
+    v.check("el líder ve los proyectos de su área", "Portal Web" in vistos, vistos)
+    v.check("y aquellos donde su área participa", "ERP Fase 2" in vistos, vistos)
+    v.check("pero no un proyecto sin área que no toca nadie de su equipo",
+          "Sin clasificar" not in vistos, vistos)
+    v.check("ni el de otra área", "Auditoría ISO" not in vistos, vistos)
+
+    # El caso que motivó esto: a alguien que no es jefe le encargan liderar un
+    # proyecto de otra área. Su jefe tiene que poder mirarlo.
+    portal.como("admin")
+    portal.patch(f"/master-planner/proyectos/{P_SIN}",
+                 json={"lider_id": portal.ids["logistica"]})
+    portal.como("logistica")
+    v.check("quien lo lidera lo ve, aunque no sea jefe",
+          "Sin clasificar" in {p["nombre"] for p in
+                               portal.get("/master-planner/proyectos").json()})
 
     portal.como("calidad")
     vistos = {p["nombre"] for p in portal.get("/master-planner/proyectos").json()}
-    v.check("Calidad ve el suyo", "Auditoría ISO" in vistos, vistos)
-    v.check("Calidad ve el mixto por ser participante", "ERP Fase 2" in vistos, vistos)
-    v.check("Calidad NO ve el de TI", "Portal Web" not in vistos, vistos)
-
-    portal.como("logistica")
-    vistos = {p["nombre"] for p in portal.get("/master-planner/proyectos").json()}
-    v.check("Logística ve el mixto por ser participante", "ERP Fase 2" in vistos, vistos)
-    v.check("Logística no ve ni TI ni Calidad",
-          "Portal Web" not in vistos and "Auditoría ISO" not in vistos, vistos)
+    v.check("cada líder ve lo suyo", "Auditoría ISO" in vistos, vistos)
+    v.check("y no lo de la otra área", "Portal Web" not in vistos, vistos)
 
     # ── Acceso directo a un proyecto ajeno ──
     portal.como("calidad")
@@ -163,28 +169,33 @@ def test_permisos(entorno, v):
     vistos = {p["nombre"] for p in portal.get("/master-planner/proyectos").json()}
     v.check("y lectura también está limitado a su área", "Auditoría ISO" not in vistos, vistos)
 
-    # ── El resumen respeta el área ──
+    # ── El resumen respeta la misma regla que el listado ──
     portal.como("calidad")
     res = portal.get("/master-planner/resumen").json()
     nombres = {p["nombre"] for p in res["proyectos"]}
-    v.check("Calidad solo ve sus proyectos (y los sin clasificar) en el resumen",
-          nombres == {"Auditoría ISO", "ERP Fase 2", "Sin clasificar"}, nombres)
-    v.check("y solo el presupuesto que le corresponde",
+    v.check("el resumen del líder trae lo de su área",
+          nombres == {"Auditoría ISO"}, nombres)
+    v.check("con el presupuesto de su área",
           res["presupuesto"]["planeado"] == 2000000, res["presupuesto"])
-    v.check("las áreas del desplegable son solo las suyas",
-          set(res["areas_disponibles"]) == {"Calidad", "TICS"}, res["areas_disponibles"])
+
+    # A TICS le entregan el liderazgo de Portal Web. Hasta aquí no lo veía
+    # —ser del área ya no basta—; desde aquí sí, y con su presupuesto.
+    portal.como("admin")
+    portal.patch(f"/master-planner/proyectos/{P_TI}", json={"lider_id": portal.ids["tics"]})
 
     portal.como("tics")
     res = portal.get("/master-planner/resumen").json()
     # TICS ve el proyecto de Calidad porque le asignaron una tarea, pero su
-    # presupuesto no debe entrar en los totales ni mostrarse en la fila.
+    # presupuesto no debe entrar en los totales ni mostrarse en la fila:
+    # trabajar en un proyecto no da acceso a su plata.
     v.check("TICS ve el proyecto de Calidad en el resumen",
-          any(p["nombre"] == "Auditoría ISO" for p in res["proyectos"]))
-    v.check("pero su plata NO entra en los totales",
-          res["presupuesto"]["planeado"] == 4000000, res["presupuesto"])
+          any(p["nombre"] == "Auditoría ISO" for p in res["proyectos"]),
+          {p["nombre"] for p in res["proyectos"]})
     fila = next(p for p in res["proyectos"] if p["nombre"] == "Auditoría ISO")
     v.check("y la fila marca el presupuesto como no visible",
           fila["presupuesto_visible"] is False and fila["planeado"] is None, fila)
+    v.check("en los totales solo entra la plata de lo que lidera",
+          res["presupuesto"]["planeado"] == 4000000, res["presupuesto"])
     propio = next(p for p in res["proyectos"] if p["nombre"] == "Portal Web")
     v.check("su propio proyecto sí muestra la plata",
           propio["presupuesto_visible"] is True and propio["planeado"] == 4000000, propio)

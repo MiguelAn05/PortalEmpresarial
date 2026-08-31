@@ -6,7 +6,7 @@ import CambiarPasswordModal from './CambiarPasswordModal.jsx'
 import { AvisoVersionNueva, ChipVersion } from './Version.jsx'
 import {
   IconoAdmin, IconoAgente, IconoCarpeta, IconoEncuestas, IconoFicha,
-  IconoIndicadores, IconoInicio, IconoLlave, IconoPQRS, IconoPanel,
+  IconoIdea, IconoIndicadores, IconoInicio, IconoLlave, IconoPQRS, IconoPanel,
   IconoProyectos, IconoSalir,
 } from './Iconos.jsx'
 
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/pqrs', Icono: IconoPQRS, label: 'PQRS', modulo: 'pqrs' },
   { to: '/master-planner', Icono: IconoProyectos, label: 'Master Planner', modulo: 'master_planner' },
   { to: '/indicadores', Icono: IconoIndicadores, label: 'Indicadores', modulo: 'indicadores' },
+  { to: '/mejora', Icono: IconoIdea, label: 'Mejora', modulo: 'mejora' },
   { to: '/encuestas', Icono: IconoEncuestas, label: 'Encuestas', modulo: 'encuestas' },
 ]
 
@@ -33,6 +34,7 @@ const TITULO_DE_MODULO = {
   pqrs: 'PQRS',
   master_planner: 'Master Planner',
   indicadores: 'Indicadores',
+  mejora: 'Oportunidades de mejora',
   encuestas: 'Encuestas',
   admin: 'Administración',
 }

@@ -50,6 +50,13 @@ check('gerencia abre con los numeros', ordenTarjetas({ rol: 'gerencia' })[0] ===
 check('un lider abre con lo suyo', ordenTarjetas({ rol: 'lider' })[0] === 'pendientes')
 check('un agente tambien', ordenTarjetas({ rol: 'agente' })[0] === 'pendientes')
 check('sin usuario no revienta', ordenTarjetas(null)[0] === 'pendientes')
+// Los accesos rapidos son un atajo, no informacion: van de ultimos siempre.
+check('los accesos rapidos van al final',
+  ['gerencia', 'lider', 'agente', 'admin', 'lectura']
+    .every(rol => ordenTarjetas({ rol }).at(-1) === 'accesos'))
+// Despues de "que me toca a mi" viene "como va la empresa".
+check('la empresa va de segunda para quien no es gerencia',
+  ordenTarjetas({ rol: 'lider' })[1] === 'empresa', ordenTarjetas({ rol: 'lider' }))
 check('siempre estan las cuatro',
   ['gerencia', 'lider', 'agente', 'admin', 'lectura']
     .every(rol => new Set(ordenTarjetas({ rol })).size === 4))

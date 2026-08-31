@@ -160,10 +160,18 @@ def crear_proyecto(
     payload: ProyectoCreate,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(solo_lectura_no),
+    usuario: User = Depends(solo_lectura_no),
 ):
     datos = payload.model_dump()
     areas = datos.pop("areas_participantes", None) or []
+
+    # Sin líder, el proyecto no lo vería NADIE: desde que la visibilidad es
+    # por participación personal, un proyecto sin líder y sin tareas queda
+    # fuera de la lista de todo el mundo apenas se guarda. Quien lo crea
+    # queda como líder hasta que se asigne a alguien más.
+    if not datos.get("lider_id"):
+        datos["lider_id"] = usuario.id
+
     proyecto = Proyecto(tenant_id=tenant_id, **datos)
     db.add(proyecto)
     _sincronizar_areas(db, proyecto, areas)

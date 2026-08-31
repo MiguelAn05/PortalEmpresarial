@@ -13,6 +13,7 @@ import EncuestaPublica from './modules/publico/EncuestaPublica.jsx'
 import Admin from './modules/admin/Admin.jsx'
 import MasterPlanner from './modules/masterPlanner/MasterPlanner.jsx'
 import Indicadores from './modules/indicadores/Indicadores.jsx'
+import Mejora from './modules/mejora/Mejora.jsx'
 import Encuestas from './modules/encuestas/Encuestas.jsx'
 
 
@@ -64,6 +65,7 @@ export default function App() {
         <Route path="admin" element={<Admin />} />
         <Route path="master-planner" element={<MasterPlanner />} />
         <Route path="indicadores" element={<Indicadores />} />
+        <Route path="mejora"      element={<Mejora />} />
         <Route path="encuestas" element={<Encuestas />} />
       </Route>
 

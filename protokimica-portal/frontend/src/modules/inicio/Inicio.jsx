@@ -8,6 +8,7 @@ import {
   IconoRecargar,
 } from '../../core/components/Iconos.jsx'
 import { formatMoneda } from '../masterPlanner/constants.js'
+import GraficaEjecucion from './components/GraficaEjecucion.jsx'
 import { obtenerInicio } from './api.js'
 import {
   montoCorto, ordenTarjetas, plazoRelativo, primerNombre, saludo, tonoPendientes,
@@ -377,16 +378,67 @@ function MiArea({ area }) {
 }
 
 /** Los números de la empresa, en grilla horizontal. Cada uno con su contexto. */
-function Empresa({ empresa, area }) {
-  const {
-    proyectos_activos: activos, pqrs_abiertas: pqrs, presupuesto_pagado: pagado,
-    presupuesto_planeado: planeado, pagado_pct: pct, indicadores_en_rojo: rojos,
-    periodo_indicadores: periodo,
-  } = empresa
+/** Una fila de la tabla de proyectos: nombre, cuándo vence y cómo va. */
+function FilaProyecto({ proyecto }) {
+  const pct = Math.round(proyecto.avance_pct || 0)
+  const { texto, vencido, urgente } = plazoRelativo(proyecto.fecha_fin)
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3 mb-3">
+    <Link
+      to={`/master-planner?proyecto=${proyecto.id}`}
+      className="group flex items-center gap-3 px-5 py-2.5 hover:bg-superficie-2
+        transition-colors duration-150 ease-suave"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-texto truncate">
+          {proyecto.nombre}
+        </span>
+        <span className={`block text-xs truncate ${
+          vencido ? 'text-negativo font-medium' : urgente ? 'text-alerta' : 'text-texto-3'
+        }`}>
+          {proyecto.fecha_fin ? texto : 'Sin fecha de entrega'}
+        </span>
+      </span>
+      {/* Barra y cifra juntas: la barra se compara de un vistazo, la cifra se
+          lee en voz alta. Una sola de las dos deja a alguien preguntando. */}
+      <span className="hidden sm:block w-16 flex-shrink-0">
+        <Barra pct={pct} tono={pct < 25 ? 'alerta' : 'acento'} />
+      </span>
+      <span className="cifra text-xs font-semibold text-texto w-9 text-right flex-shrink-0">
+        {pct}%
+      </span>
+    </Link>
+  )
+}
+
+/**
+ * La portada de gerencia: cuatro cifras, la ejecución del presupuesto mes a
+ * mes y qué proyectos están al frente.
+ *
+ * Cada cifra lleva su contexto pegado —contra el mes pasado, contra la meta o
+ * el estado en palabras— porque un número solo obliga a preguntar «¿eso es
+ * bueno?», y quien abre esto quiere responderse en tres segundos.
+ */
+function Empresa({ empresa, area }) {
+  const {
+    proyectos_activos: activos, proyectos_nuevos_mes: nuevos, proyectos = [],
+    pqrs_abiertas: pqrs, pqrs_cerradas_mes: cerradas,
+    presupuesto_pagado: pagado, presupuesto_aprobado: aprobado,
+    pagado_pct_aprobado: pctAprobado, serie_presupuesto: serie = [],
+    indicadores_en_rojo: rojos, indicadores_medidos: medidos,
+    indicadores_rojo_anterior: rojosAntes, periodo_indicadores: periodo,
+    periodo_anterior: periodoAntes,
+  } = empresa
+
+  // El delta se dice en palabras además del color: una flecha sola no se lee
+  // en voz alta ni sobrevive a una impresión en blanco y negro.
+  const deltaIndicadores = (rojos !== null && rojosAntes !== undefined && rojosAntes !== null)
+    ? rojos - rojosAntes
+    : null
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-[15px] font-semibold text-texto">Cómo va la empresa</h2>
         <Link
           to="/indicadores"
@@ -399,15 +451,20 @@ function Empresa({ empresa, area }) {
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <TarjetaCifra etiqueta="Proyectos activos" valor={activos} Icono={IconoProyectos}>
-          {area
-            ? <span>{area.total_proyectos} son de {area.area}</span>
-            : <span>en todas las áreas</span>}
+          {nuevos > 0
+            ? <span>{nuevos} {nuevos === 1 ? 'nuevo' : 'nuevos'} este mes</span>
+            : area
+              ? <span>{area.total_proyectos} de {area.area}</span>
+              : <span>ninguno nuevo este mes</span>}
         </TarjetaCifra>
 
         <TarjetaCifra etiqueta="PQRS sin cerrar" valor={pqrs} Icono={IconoPQRS}>
           {pqrs > 0
             ? <Chip tono="alerta">Esperan respuesta</Chip>
             : <Chip tono="positivo">Ninguna pendiente</Chip>}
+          {cerradas > 0 && (
+            <span className="cifra">{cerradas} cerradas este mes</span>
+          )}
         </TarjetaCifra>
 
         <TarjetaCifra
@@ -416,12 +473,16 @@ function Empresa({ empresa, area }) {
           Icono={IconoDinero}
           exacto={formatMoneda(pagado)}
         >
-          {pct === null ? (
-            <span>sin presupuesto planeado</span>
+          {/* Se mide sobre lo APROBADO, no sobre lo planeado: lo planeado
+              puede no aprobarse nunca, y la deuda real es lo aprobado. */}
+          {pctAprobado === null || pctAprobado === undefined ? (
+            <span>nada aprobado todavía</span>
           ) : (
             <>
-              <Barra pct={pct} />
-              <span className="cifra">{pct}% de {montoCorto(planeado)} planeados</span>
+              <Barra pct={pctAprobado} />
+              <span className="cifra">
+                {pctAprobado}% de {montoCorto(aprobado)} aprobados
+              </span>
             </>
           )}
         </TarjetaCifra>
@@ -431,12 +492,70 @@ function Empresa({ empresa, area }) {
             {rojos > 0
               ? <Chip tono="negativo">Bajo la meta en {periodo}</Chip>
               : <Chip tono="positivo">Ninguno bajo la meta</Chip>}
+            <span className="cifra">
+              {medidos > 0 ? `de ${medidos} medidos` : 'sin mediciones este mes'}
+              {deltaIndicadores !== null && deltaIndicadores !== 0 && periodoAntes && (
+                <span className={deltaIndicadores < 0 ? 'text-positivo' : 'text-negativo'}>
+                  {' · '}
+                  {deltaIndicadores < 0 ? 'bajó' : 'subió'} {Math.abs(deltaIndicadores)} vs {periodoAntes}
+                </span>
+              )}
+            </span>
           </TarjetaCifra>
         )}
+      </div>
+
+      {/* La gráfica pesa más que la tabla porque responde la pregunta cara
+          (¿se está ejecutando lo aprobado?); la tabla acompaña. */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        <section className="lg:col-span-7 bg-superficie rounded-xl border border-borde shadow-sm">
+          <header className="flex items-center justify-between gap-3 px-5 py-4 border-b border-borde">
+            <h3 className="text-sm font-semibold text-texto">
+              Ejecución presupuestal por mes
+            </h3>
+            <Link
+              to="/master-planner"
+              className="inline-flex items-center gap-1 text-xs font-medium text-acento
+                hover:underline flex-shrink-0"
+            >
+              Ver el detalle
+              <IconoChevron tam={12} />
+            </Link>
+          </header>
+          <div className="py-4">
+            <GraficaEjecucion serie={serie} />
+          </div>
+        </section>
+
+        <section className="lg:col-span-5 bg-superficie rounded-xl border border-borde
+          shadow-sm overflow-hidden">
+          <header className="flex items-center justify-between gap-3 px-5 py-4 border-b border-borde">
+            <h3 className="text-sm font-semibold text-texto">Proyectos al frente</h3>
+            <span className="etiqueta flex-shrink-0">Avance</span>
+          </header>
+
+          {proyectos.length === 0 ? (
+            <div className="flex items-start gap-3 px-5 py-6">
+              <IconoProyectos tam={20} className="text-texto-3 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-texto">No hay proyectos activos</p>
+                <p className="text-xs text-texto-3 mt-0.5">
+                  Los que estén en planeación o en ejecución aparecen aquí, y
+                  arriba el que vence primero.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-borde">
+              {proyectos.map(p => <FilaProyecto key={p.id} proyecto={p} />)}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )
 }
+
 
 // ── Carga y error ─────────────────────────────────────────────
 

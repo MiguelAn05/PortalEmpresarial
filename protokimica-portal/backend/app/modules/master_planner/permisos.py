@@ -1,20 +1,31 @@
 """
 Quién ve qué en Master Planner.
 
-Regla: cada quien ve los proyectos de su área. Como hay proyectos que
-involucran a varias áreas y gente a la que le asignan trabajo fuera de la
-suya, la visibilidad se amplía por cuatro caminos:
+**Regla: ves aquello en lo que participas. Un líder ve además lo de su
+gente.**
 
-  1. el proyecto es de tu área (responsable o participante),
-  2. eres el líder del proyecto,
-  3. tienes una tarea asignada dentro del proyecto,
-  4. el proyecto no tiene área definida.
+Para cualquiera (agente, lectura) hay dos caminos:
 
-El punto 4 es deliberado: un proyecto sin clasificar no debe desaparecer
-de la vista de nadie: si lo ocultáramos, se perdería sin que nadie note
-que existe. Al quedar visible, además, empuja a que le pongan área.
+  1. eres el líder del proyecto,
+  2. tienes una tarea asignada dentro del proyecto.
 
-`admin` y `gerencia` ven todo sin filtro.
+Un **líder de área** suma un tercero: los proyectos de su equipo. Cuenta como
+tal si el proyecto es de su área, o si alguien de su área lo lidera o tiene
+trabajo adentro — aunque el proyecto sea de otra área. Es el caso de a quien
+no es jefe pero le encargan liderar un proyecto: su jefe tiene que poder
+mirarlo, o el área se queda sin quien responda por él.
+
+Antes bastaba con ser del área para ver un proyecto, sin importar el rol. Eso
+llenaba la pantalla a los agentes con veinte proyectos ajenos entre los que
+buscar el suyo. La diferencia ahora es el rol: el que ejecuta ve lo suyo, el
+que responde por un área ve lo de su gente.
+
+El precio de esta regla es que **un proyecto sin líder y sin tareas no lo
+ve nadie**. Por eso al crear un proyecto sin líder se pone a quien lo creó:
+si no, desaparecería apenas se guarda (ver el router de proyectos).
+
+`admin` y `gerencia` ven todo sin filtro, y también Administración y
+Tesorería: aprueban y desembolsan la plata de TODOS los proyectos.
 """
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import or_, select
@@ -47,6 +58,22 @@ def puede_registrar_pagos(usuario: User) -> bool:
     return usuario.rol == "admin" or usuario.area == AREA_REGISTRA_PAGOS
 
 
+def _equipo_de(usuario: User):
+    """
+    Los usuarios del área de esta persona — sin los administradores.
+
+    Un `admin` suele tener un área asignada (la suya de verdad), pero crea
+    proyectos para TODA la empresa. Contarlo como parte del equipo haría que
+    el jefe de esa área viera el portal entero, que es justo lo contrario de
+    lo que se busca.
+    """
+    return select(User.id).where(
+        User.tenant_id == usuario.tenant_id,
+        User.area == usuario.area,
+        User.rol != "admin",
+    )
+
+
 def ve_todo(usuario: User) -> bool:
     """
     Quién ve todos los proyectos sin filtro de área.
@@ -70,20 +97,27 @@ def condicion_proyectos_visibles(usuario: User):
     if ve_todo(usuario):
         return None
 
+    # Participar es personal: lo lideras o te asignaron trabajo adentro.
     caminos = [
         Proyecto.lider_id == usuario.id,
         Proyecto.id.in_(
             select(Tarea.proyecto_id).where(Tarea.asignado_a == usuario.id)
         ),
-        Proyecto.area.is_(None),
     ]
-    if usuario.area:
+
+    # Un líder responde por su área: ve también lo de su gente. Sin esto, a
+    # quien le encargan liderar un proyecto sin ser jefe queda solo, porque
+    # su jefe no podría ni abrirlo.
+    if usuario.rol == "lider" and usuario.area:
+        equipo = _equipo_de(usuario)
         caminos.append(Proyecto.area == usuario.area)
+        caminos.append(Proyecto.lider_id.in_(equipo))
         caminos.append(
             Proyecto.id.in_(
-                select(ProyectoArea.proyecto_id).where(ProyectoArea.area == usuario.area)
+                select(Tarea.proyecto_id).where(Tarea.asignado_a.in_(equipo))
             )
         )
+
     return or_(*caminos)
 
 
@@ -101,25 +135,49 @@ def puede_ver_proyecto(db: Session, proyecto: Proyecto, usuario: User) -> bool:
     """
     if ve_todo(usuario):
         return True
-    if proyecto.lider_id == usuario.id or proyecto.area is None:
+    if proyecto.lider_id == usuario.id:
         return True
-    if usuario.area and (
-        proyecto.area == usuario.area or usuario.area in proyecto.areas_participantes
-    ):
+
+    es_jefe_del_area = usuario.rol == "lider" and usuario.area
+    if es_jefe_del_area and proyecto.area == usuario.area:
         return True
+
     tiene_tarea = db.query(
         select(Tarea.id)
         .where(Tarea.proyecto_id == proyecto.id, Tarea.asignado_a == usuario.id)
         .exists()
     ).scalar()
-    return bool(tiene_tarea)
+    if tiene_tarea:
+        return True
+
+    # ¿Alguien de su equipo participa? Es la misma pregunta de la lista, para
+    # un solo proyecto.
+    if es_jefe_del_area:
+        equipo = _equipo_de(usuario)
+        if proyecto.lider_id is not None:
+            lider_es_suyo = db.query(
+                select(User.id)
+                .where(User.id == proyecto.lider_id,
+                       User.area == usuario.area,
+                       User.rol != "admin")
+                .exists()
+            ).scalar()
+            if lider_es_suyo:
+                return True
+        return bool(db.query(
+            select(Tarea.id)
+            .where(Tarea.proyecto_id == proyecto.id, Tarea.asignado_a.in_(equipo))
+            .exists()
+        ).scalar())
+
+    return False
 
 
 def puede_ver_presupuesto(proyecto: Proyecto, usuario: User) -> bool:
     """
-    El presupuesto es información sensible: solo lo ve quien pertenece al
-    proyecto por área o lo lidera. Alguien de otra área con una tarea
-    asignada puede trabajar en el proyecto sin ver cuánta plata mueve.
+    El presupuesto es información sensible: solo lo ve quien lidera el
+    proyecto. Alguien con una tarea asignada puede trabajar en el proyecto
+    sin ver cuánta plata mueve.
 
     Administración y Tesorería son la excepción: aprueban y desembolsan la
     plata de TODOS los proyectos, así que sin acceso transversal no podrían
@@ -129,11 +187,12 @@ def puede_ver_presupuesto(proyecto: Proyecto, usuario: User) -> bool:
         return True
     if puede_aprobar_pagos(usuario) or puede_registrar_pagos(usuario):
         return True
-    if proyecto.lider_id == usuario.id or proyecto.area is None:
+    if proyecto.lider_id == usuario.id:
         return True
-    return bool(usuario.area) and (
-        proyecto.area == usuario.area or usuario.area in proyecto.areas_participantes
-    )
+    # El líder del área responsable: el presupuesto se le carga a su área, así
+    # que responde por él aunque el proyecto lo lidere alguien de su equipo.
+    # Tener una tarea adentro sigue sin dar acceso a la plata.
+    return usuario.rol == "lider" and bool(usuario.area) and proyecto.area == usuario.area
 
 
 def solo_aprueba_pagos(current_user: User = Depends(get_current_user)) -> User:

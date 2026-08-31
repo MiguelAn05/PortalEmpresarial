@@ -3,9 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
 import { AREAS, areasParaSelect } from '../../core/areas.js'
-import {
-  IconoCandado, IconoLlave, IconoPersonas,
-} from '../../core/components/Iconos.jsx'
+import { IconoBuscar, IconoCandado, IconoLlave, IconoPersonas } from '../../core/components/Iconos.jsx'
 
 // Las áreas viven en un solo sitio: src/core/areas.js
 
@@ -167,11 +165,26 @@ function GestionUsuarios() {
   const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'agente', area: '' })
   const [error, setError] = useState('')
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
+  const [verInactivos, setVerInactivos] = useState(false)
 
+  // Se filtra en el cliente: son decenas de usuarios, no miles, y así el
+  // buscador responde mientras se escribe sin ir al servidor por cada letra.
   const { data: usuarios = [], isLoading } = useQuery({
     queryKey: ['usuarios'],
     queryFn: async () => { const { data } = await api.get('/auth/usuarios'); return data },
   })
+
+  // Los inactivos se esconden por defecto: quien entra aquí casi siempre
+  // busca a alguien que trabaja hoy, y una lista con los que se fueron hace
+  // dos años solo estorba. Se muestran con la casilla.
+  const termino = busqueda.trim().toLowerCase()
+  const visibles = usuarios.filter(u => (
+    (verInactivos || u.activo)
+    && (!termino
+        || u.nombre?.toLowerCase().includes(termino)
+        || u.email?.toLowerCase().includes(termino))
+  ))
 
   const mutCrear = useMutation({
     mutationFn: () => api.post('/auth/usuarios', form),
@@ -267,6 +280,35 @@ function GestionUsuarios() {
         </div>
       )}
 
+      {/* Buscar por nombre o correo: con cuarenta usuarios, recorrer la lista
+          con la vista es lo que hace que nadie quiera entrar aquí. */}
+      <div className="px-5 py-3 border-b border-borde flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-3">
+            <IconoBuscar tam={15} />
+          </span>
+          <input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre o correo…"
+            className="w-full pl-9 pr-3 py-2 rounded-lg border border-borde text-sm
+              text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-texto-2">
+          <input
+            type="checkbox"
+            checked={verInactivos}
+            onChange={(e) => setVerInactivos(e.target.checked)}
+            className="rounded border-borde-fuerte"
+          />
+          Ver inactivos
+        </label>
+        <span className="cifra text-xs text-texto-3">
+          {visibles.length} de {usuarios.length}
+        </span>
+      </div>
+
       <div className="divide-y divide-borde">
         {isLoading ? (
           <div className="px-5 py-8 text-center text-sm text-texto-2">Cargando...</div>
@@ -275,8 +317,23 @@ function GestionUsuarios() {
             <div className="flex justify-center mb-3 text-texto-3"><IconoPersonas tam={24} /></div>
             <p className="text-sm text-texto-2">Aún no hay usuarios creados desde este panel.</p>
           </div>
+        ) : visibles.length === 0 ? (
+          <div className="px-5 py-8 text-center">
+            <div className="flex justify-center mb-3 text-texto-3"><IconoBuscar tam={24} /></div>
+            <p className="text-sm text-texto-2">
+              Ningún usuario coincide con «{busqueda}».
+            </p>
+            {!verInactivos && (
+              <button
+                onClick={() => setVerInactivos(true)}
+                className="text-xs font-medium text-acento hover:underline mt-1"
+              >
+                Buscar también entre los inactivos
+              </button>
+            )}
+          </div>
         ) : (
-          usuarios.map((u) => (
+          visibles.map((u) => (
             <div key={u.id} className="flex items-center gap-3 px-5 py-3.5">
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-texto truncate">
@@ -313,13 +370,39 @@ function GestionUsuarios() {
                 <IconoLlave tam={15} />
               </button>
 
+              {/* El estado y la acción, separados. Antes era un badge que
+                  cambiaba al pulsarlo, sin nada que dijera que se podía
+                  pulsar: la función existía y nadie la encontraba. */}
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                u.activo ? 'bg-positivo-bg text-positivo' : 'bg-superficie-2 text-texto-3'
+              }`}>
+                {u.activo ? 'Activo' : 'Inactivo'}
+              </span>
+
               <button
-                onClick={() => mutActualizar.mutate({ id: u.id, cambios: { activo: !u.activo } })}
-                className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 transition ${
-                  u.activo ? 'bg-positivo-bg text-positivo hover:bg-positivo-bg' : 'bg-superficie-2 text-texto-2 hover:bg-borde-fuerte'
+                onClick={() => {
+                  // Desactivar deja a alguien fuera del portal: se pregunta
+                  // antes, y se dice qué pasa y qué NO pasa.
+                  if (u.activo && !window.confirm(
+                    `¿Desactivar a ${u.nombre}?\n\n` +
+                    'No podrá entrar al portal. Su trabajo, sus tareas y sus ' +
+                    'PQRS se conservan tal como están, y puede reactivarse ' +
+                    'cuando haga falta.'
+                  )) return
+                  mutActualizar.mutate({ id: u.id, cambios: { activo: !u.activo } })
+                }}
+                disabled={u.id === usuarioActual?.id}
+                title={u.id === usuarioActual?.id
+                  ? 'No puedes desactivar tu propia cuenta'
+                  : u.activo ? 'Desactivar este usuario' : 'Volver a activarlo'}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border flex-shrink-0
+                  transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
+                  u.activo
+                    ? 'border-borde-fuerte text-texto-2 hover:border-negativo hover:text-negativo hover:bg-negativo-bg'
+                    : 'border-borde-fuerte text-acento hover:bg-acento-suave'
                 }`}
               >
-                {u.activo ? 'Activo' : 'Inactivo'}
+                {u.activo ? 'Desactivar' : 'Activar'}
               </button>
             </div>
           ))

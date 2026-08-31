@@ -128,6 +128,7 @@ gemelo en `frontend/src/core/modulos.js` (una prueba verifica que coincidan).
 |---|:-:|:-:|:-:|:-:|:-:|
 | Inicio, PQRS, Master Planner, Encuestas | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Indicadores | ✓ | ✓ | ✓ | — | — |
+| Mejora | ✓ | — | ✓ | — | — |
 | Administración | ✓ | — | — | — | — |
 
 **El rol decide a qué módulo entras; el área decide qué ves dentro.** Un líder
@@ -159,13 +160,55 @@ no les da permiso de editarlos. Ver `modules/master_planner/permisos.py`.
 Los pagos se guardan uno por uno (`mp_pagos`) y `valor_pagado` es su suma —
 nunca un campo aparte que se edite en paralelo.
 
-**Visibilidad por área (solo Master Planner):** ves un proyecto si es de tu
-área, tu área participa en él, lo lideras, tienes una tarea asignada ahí, o el
-proyecto no tiene área. Se responde **404, no 403**, para no confirmar que
-existe. Ver `modules/master_planner/permisos.py`.
+**Oportunidades de Mejora (OMP)** las manejan los **líderes de área**, que son
+quienes responden por que un indicador vuelva a su meta. Gerencia queda fuera
+del módulo a propósito: el avance se le reporta, no se le deja como un tablero
+más que mirar.
 
-El presupuesto es aparte: tener una tarea en un proyecto ajeno no da acceso a
-su plata.
+**El ciclo se defiende solo:** una OMP nace
+de un indicador que no cumplió y recorre
+`abierta → analisis → ejecucion → verificacion → cerrada`. Dos guardas no son
+negociables: **no se pasa a ejecución sin causa raíz** (sin ella las acciones
+atacan el síntoma y el indicador vuelve a caer) y **no se cierra sin
+verificar** (cerrar sin saber si funcionó es la observación clásica de una
+auditoría). Si la verificación dice que NO fue eficaz, vuelve a `analisis` —
+nunca se cierra.
+
+La verificación se hace **con dato, no con opinión**: se compara el valor que
+disparó la OMP contra la medición del mes siguiente, y si eso es una mejora
+depende de la `direccion` del indicador (subir los reprocesos es malo). Esa
+regla vive en el servidor, en `modules/mejora/service.py`, junto al semáforo
+— si el frontend la repitiera, tarde o temprano diría lo contrario.
+
+Por eso el **periodo es obligatorio** cuando la OMP nace de un indicador: sin
+él no hay contra qué comparar. Y `valor_inicial` se congela al abrirla, para
+que corregir la medición después no invalide la comparación.
+
+Lo que se intentó y no sirvió se **descarta**, no se borra: el historial de
+mejora es justamente lo que se audita. Borrar es solo de admin y para lo que
+se abrió por error.
+
+`indicadores_en_rojo_sin_omp()` responde lo que hoy no está en ninguna parte:
+**un indicador en rojo sin OMP abierta es un problema que nadie está
+trabajando.**
+
+**Visibilidad por participación (solo Master Planner):** ves un proyecto si
+**lo lideras** o si **tienes una tarea asignada** dentro. Nada más. Ser del
+área responsable ya no basta, y un proyecto sin área tampoco se le muestra a
+todo el mundo: eso llenaba la lista de proyectos ajenos y la gente entraba a
+buscar lo suyo entre veinte que no le tocaban. Se responde **404, no 403**,
+para no confirmar que existe. Ver `modules/master_planner/permisos.py`.
+
+El precio de esta regla: **un proyecto sin líder y sin tareas no lo ve nadie.**
+Por eso al crear uno sin líder se pone a quien lo creó — si no, desaparecería
+apenas se guarda.
+
+Siguen viendo todo `admin`, `gerencia`, y las áreas `Administración` y
+`Tesorería`: aprueban y desembolsan la plata de TODOS los proyectos.
+
+El presupuesto es aparte y más estrecho: solo lo ve **quien lidera** (más las
+dos áreas financieras). Tener una tarea en un proyecto deja trabajar en él,
+no mirar cuánta plata mueve.
 
 ### Áreas
 

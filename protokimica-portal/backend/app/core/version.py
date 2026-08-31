@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.13.0"
-FECHA = "2026-08-18"
+VERSION = "0.16.0"
+FECHA = "2026-08-30"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,68 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.16.0",
+        "fecha": "2026-08-30",
+        "titulo": "Cada quien ve lo suyo",
+        "cambios": [
+            ("mejora", "En Master Planner cada quien ve lo suyo: los proyectos "
+                       "que lidera y en los que tiene tareas. Antes salían todos "
+                       "los del área y había que buscar el propio entre veinte."),
+            ("mejora", "El líder de área sigue viendo lo de su equipo, incluso "
+                       "si el proyecto se lo encargaron a alguien que no es jefe "
+                       "o si es de otra área."),
+            ("nuevo", "En Administración se puede buscar un usuario por nombre o "
+                      "correo, y desactivarlo cuando sale de la empresa. Los "
+                      "inactivos quedan escondidos salvo que se pidan."),
+            ("mejora", "Al crear un proyecto sin líder queda a nombre de quien "
+                       "lo creó, para que no desaparezca de su lista."),
+            ("mejora", "Las oportunidades de mejora quedaron para los líderes de "
+                       "área, que son quienes responden por ellas."),
+        ],
+    },
+    {
+        "version": "0.15.0",
+        "fecha": "2026-08-30",
+        "titulo": "Oportunidades de mejora",
+        "cambios": [
+            ("nuevo", "Ya se pueden llevar las oportunidades de mejora en el "
+                      "portal, con su número, quién la abrió, el área y en qué "
+                      "va cada una. Reemplaza el archivo de Excel."),
+            ("nuevo", "Desde un indicador que no cumplió sale un botón para "
+                      "abrir la oportunidad, con el indicador, el mes y el "
+                      "valor ya cargados."),
+            ("nuevo", "Cada oportunidad lleva su plan: qué se hace, quién "
+                      "responde y para cuándo. El avance sale solo de lo que "
+                      "ya está hecho."),
+            ("nuevo", "Al cerrar, el portal compara el indicador de antes con "
+                      "el del mes siguiente y muestra si de verdad mejoró. Si "
+                      "no funcionó, la oportunidad vuelve a análisis en vez de "
+                      "cerrarse."),
+            ("mejora", "Los líderes de cada área manejan las oportunidades de "
+                       "su área; gerencia las ve todas."),
+        ],
+    },
+    {
+        "version": "0.14.0",
+        "fecha": "2026-08-19",
+        "titulo": "El inicio ahora muestra cómo va la empresa",
+        "cambios": [
+            ("nuevo", "El inicio trae una gráfica de la ejecución del presupuesto "
+                      "mes a mes: cuánto aprobó Administración y cuánto pagó "
+                      "Tesorería, uno al lado del otro."),
+            ("nuevo", "Aparece la lista de proyectos al frente, con el que vence "
+                      "primero arriba y su avance. Se entra al proyecto con un clic."),
+            ("mejora", "Las cifras de arriba ya dicen si son buenas o malas: PQRS "
+                       "cerradas en el mes, proyectos nuevos, y si los indicadores "
+                       "en rojo subieron o bajaron frente al mes pasado."),
+            ("mejora", "El presupuesto pagado se mide sobre lo APROBADO y no sobre "
+                       "lo planeado: lo planeado puede no aprobarse nunca, y la "
+                       "deuda real es lo aprobado."),
+            ("mejora", "Los accesos rápidos bajaron al final de la página y «cómo "
+                       "va la empresa» subió al segundo lugar."),
+        ],
+    },
     {
         "version": "0.13.0",
         "fecha": "2026-08-18",

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.modulos import modulos_de, ve_todos_los_indicadores
 from app.models.indicadores import Indicador
-from app.models.master_planner import Proyecto, Tarea
+from app.models.master_planner import ItemPresupuesto, PagoItem, Proyecto, Tarea
 from app.models.pqrs import PQRSSolicitud
 from app.models.user import User
 from app.modules.indicadores import service as ind_service
@@ -28,6 +28,16 @@ DIAS_AVISO = 3
 # Cuántos elementos se listan por tarjeta. El inicio es un titular con
 # enlaces, no la vista completa: para eso está cada módulo.
 TOPE_LISTA = 5
+
+# Cuántos meses entran en la gráfica de ejecución presupuestal. Siete cabe
+# sin apretar en pantalla y alcanza para ver una tendencia; con doce las
+# barras quedan tan delgadas que no se comparan.
+MESES_SERIE = 7
+
+MESES_CORTOS = [
+    "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+    "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+]
 
 
 def _ahora() -> datetime:
@@ -157,6 +167,95 @@ def _indicadores_por_registrar(db: Session, usuario: User) -> list[dict]:
     return pendientes[:TOPE_LISTA]
 
 
+def _meses_hacia_atras(cuantos: int) -> list[tuple[int, int]]:
+    """Los últimos N periodos (año, mes), del más viejo al más nuevo."""
+    hoy = _ahora()
+    anio, mes = hoy.year, hoy.month
+    periodos = []
+    for _ in range(cuantos):
+        periodos.append((anio, mes))
+        mes -= 1
+        if mes == 0:
+            mes, anio = 12, anio - 1
+    return list(reversed(periodos))
+
+
+def _serie_presupuesto(db: Session, ids_proyectos: list[int]) -> list[dict]:
+    """
+    Cuánto se aprobó y cuánto se pagó cada mes.
+
+    Son las dos manos del presupuesto: `Administración` aprueba y `Tesorería`
+    desembolsa. Verlas juntas mes a mes es lo que muestra si lo aprobado se
+    está ejecutando o se está quedando represado.
+
+    Se agrupa en Python y no con `date_trunc` a propósito: las pruebas corren
+    sobre SQLite y producción sobre Postgres, y esa función no existe igual en
+    las dos.
+    """
+    periodos = _meses_hacia_atras(MESES_SERIE)
+    acumulado = {p: {"aprobado": 0.0, "pagado": 0.0} for p in periodos}
+
+    if ids_proyectos:
+        desde = datetime(periodos[0][0], periodos[0][1], 1, tzinfo=timezone.utc)
+
+        pagos = (
+            db.query(PagoItem.fecha, PagoItem.valor)
+            .join(ItemPresupuesto, PagoItem.item_id == ItemPresupuesto.id)
+            .filter(ItemPresupuesto.proyecto_id.in_(ids_proyectos))
+            .all()
+        )
+        for fecha, valor in pagos:
+            fecha = _aware(fecha)
+            if fecha and fecha >= desde and (fecha.year, fecha.month) in acumulado:
+                acumulado[(fecha.year, fecha.month)]["pagado"] += float(valor or 0)
+
+        aprobaciones = (
+            db.query(ItemPresupuesto.aprobado_en, ItemPresupuesto.valor_aprobado)
+            .filter(ItemPresupuesto.proyecto_id.in_(ids_proyectos),
+                    ItemPresupuesto.aprobado_en.isnot(None))
+            .all()
+        )
+        for fecha, valor in aprobaciones:
+            fecha = _aware(fecha)
+            if fecha and fecha >= desde and (fecha.year, fecha.month) in acumulado:
+                acumulado[(fecha.year, fecha.month)]["aprobado"] += float(valor or 0)
+
+    return [
+        {
+            "anio": anio,
+            "mes": mes,
+            "etiqueta": MESES_CORTOS[mes - 1],
+            "aprobado": round(acumulado[(anio, mes)]["aprobado"], 2),
+            "pagado": round(acumulado[(anio, mes)]["pagado"], 2),
+        }
+        for (anio, mes) in periodos
+    ]
+
+
+def _proyectos_al_frente(proyectos: list) -> list[dict]:
+    """
+    Los proyectos activos ordenados por el que vence primero.
+
+    Ordenar por fecha de entrega y no por avance responde la pregunta que de
+    verdad se hace en una reunión: qué se vence pronto y cómo va. Los que no
+    tienen fecha van al final, no primero: sin plazo no hay urgencia.
+    """
+    activos = [p for p in proyectos if p.estado in ("planeacion", "en_ejecucion")]
+    lejos = datetime(2999, 1, 1, tzinfo=timezone.utc)
+    activos.sort(key=lambda p: _aware(p.fecha_fin_estimada) or lejos)
+
+    return [
+        {
+            "id": p.id,
+            "nombre": p.nombre,
+            "estado": p.estado,
+            "avance_pct": p.avance_pct,
+            "fecha_fin": p.fecha_fin_estimada,
+        }
+        for p in activos[:TOPE_LISTA]
+    ]
+
+
 def _resumen_empresa(db: Session, usuario: User) -> dict | None:
     """
     Las cuatro cifras de titular. Solo para quien responde por el conjunto:
@@ -177,26 +276,65 @@ def _resumen_empresa(db: Session, usuario: User) -> dict | None:
         .count()
     )
 
+    # Un cero de PQRS abiertas no dice si el equipo trabajó o si nadie
+    # escribió. Lo que se cerró este mes sí.
+    inicio_mes = _ahora().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    pqrs_cerradas_mes = (
+        db.query(PQRSSolicitud)
+        .filter(PQRSSolicitud.tenant_id == usuario.tenant_id,
+                PQRSSolicitud.estado == "cerrado",
+                PQRSSolicitud.fecha_cierre.isnot(None),
+                PQRSSolicitud.fecha_cierre >= inicio_mes)
+        .count()
+    )
+
     planeado = sum(p.presupuesto_total for p in proyectos)
+    aprobado = sum(p.presupuesto_aprobado for p in proyectos)
     pagado = sum(p.presupuesto_pagado for p in proyectos)
 
     resumen = {
         "proyectos_activos": len(proyectos),
+        "proyectos_nuevos_mes": len([
+            p for p in proyectos
+            if _aware(p.creado_en) and _aware(p.creado_en) >= inicio_mes
+        ]),
+        "proyectos": _proyectos_al_frente(proyectos),
         "pqrs_abiertas": pqrs_abiertas,
+        "pqrs_cerradas_mes": pqrs_cerradas_mes,
         "presupuesto_planeado": planeado,
+        "presupuesto_aprobado": aprobado,
         "presupuesto_pagado": pagado,
         "pagado_pct": round((pagado / planeado) * 100, 1) if planeado else None,
+        # El % que de verdad importa: lo pagado sobre lo APROBADO es la deuda
+        # real. Lo planeado puede no aprobarse nunca.
+        "pagado_pct_aprobado": round((pagado / aprobado) * 100, 1) if aprobado else None,
+        "serie_presupuesto": _serie_presupuesto(db, [p.id for p in proyectos]),
         "indicadores_en_rojo": None,   # se llena abajo solo si puede verlos
     }
 
     if "indicadores" in modulos_de(usuario):
         anio, mes = ind_service.periodo_por_defecto()
-        tablero = ind_service.construir_tablero(
-            db, usuario.tenant_id, anio, mes,
-            None if ve_todos_los_indicadores(usuario) else usuario.area,
-        )
+        area = None if ve_todos_los_indicadores(usuario) else usuario.area
+        tablero = ind_service.construir_tablero(db, usuario.tenant_id, anio, mes, area)
         resumen["indicadores_en_rojo"] = tablero["resumen"]["rojo"]
         resumen["periodo_indicadores"] = f"{tablero['mes_nombre']} {anio}"
+        # Cuántos tienen dato: «2 en rojo» pesa distinto sobre 3 que sobre 40.
+        # Se suman los tres colores y no "todo menos sin_datos", porque el
+        # resumen trae además totales y un porcentaje que puede venir en None.
+        resumen["indicadores_medidos"] = sum(
+            tablero["resumen"].get(color, 0) or 0
+            for color in ("verde", "amarillo", "rojo")
+        )
+
+        # Contra el mes anterior, para saber si vamos mejorando. Es una
+        # segunda pasada del tablero, no una consulta suelta: el semáforo se
+        # calcula, no se guarda, y duplicarlo aquí lo dejaría desalineado con
+        # el módulo de Indicadores.
+        anio_ant, mes_ant = (anio - 1, 12) if mes == 1 else (anio, mes - 1)
+        tablero_ant = ind_service.construir_tablero(
+            db, usuario.tenant_id, anio_ant, mes_ant, area)
+        resumen["indicadores_rojo_anterior"] = tablero_ant["resumen"]["rojo"]
+        resumen["periodo_anterior"] = MESES_CORTOS[mes_ant - 1].lower()
 
     return resumen
 

@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { GraficaTendencia, ChipSemaforo } from "./Graficas"
 import FormMedicion from "./FormMedicion"
+import FormOportunidad from "../../mejora/components/FormOportunidad.jsx"
 import {
   obtenerIndicador, listarHistorial, recalcularIndicador,
 } from "../api"
@@ -17,6 +18,7 @@ import {
 export default function IndicadorDetalle({ indicadorId, anio, mes, editable, onEditar, onCerrar }) {
   const queryClient = useQueryClient()
   const [registrando, setRegistrando] = useState(false)
+  const [abriendoOmp, setAbriendoOmp] = useState(false)
 
   const { data: ficha, isLoading } = useQuery({
     queryKey: ["ind-detalle", indicadorId, anio, mes],
@@ -194,6 +196,16 @@ export default function IndicadorDetalle({ indicadorId, anio, mes, editable, onE
           </>
         )}
       </div>
+
+      {abriendoOmp && ficha && (
+        <FormOportunidad
+          indicador={ficha}
+          periodo={{ anio, mes }}
+          valorInicial={ficha.valor}
+          onCerrar={() => setAbriendoOmp(false)}
+          onCreada={() => setAbriendoOmp(false)}
+        />
+      )}
 
       {registrando && ficha && (
         <FormMedicion
