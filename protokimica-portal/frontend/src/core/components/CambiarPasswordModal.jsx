@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import api from '../api.js'
 import { IconoCerrar, IconoCheck } from './Iconos.jsx'
+import { mensajeDeError } from '../errores.js'
 
 export default function CambiarPasswordModal({ onClose }) {
   const [form, setForm] = useState({ password_actual: '', password_nueva: '', confirmar: '' })
@@ -27,7 +28,7 @@ export default function CambiarPasswordModal({ onClose }) {
       })
       setExito(true)
     } catch (err) {
-      setError(err.response?.data?.detail || 'No se pudo cambiar la contraseña.')
+      setError(mensajeDeError(err, 'No se pudo cambiar la contraseña.'))
     } finally {
       setEnviando(false)
     }

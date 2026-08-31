@@ -7,6 +7,7 @@ import {
   IconoBuscar, IconoCheck, IconoEstrella,
 } from '../../core/components/Iconos.jsx'
 import AvisoDatos from '../../core/components/AvisoDatos.jsx'
+import { mensajeDeError } from '../../core/errores.js'
 
 /**
  * La encuesta que responde el cliente. Sin sesión.
@@ -74,7 +75,7 @@ export default function EncuestaPublica() {
       })
       setListo(data.mensaje)
     } catch (err) {
-      setError(err.response?.data?.detail || 'No se pudo enviar. Revisa tu conexión e intenta de nuevo.')
+      setError(mensajeDeError(err, 'No se pudo enviar. Revisa tu conexión e intenta de nuevo.'))
     } finally {
       setEnviando(false)
     }

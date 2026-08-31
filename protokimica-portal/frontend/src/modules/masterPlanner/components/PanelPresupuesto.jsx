@@ -9,6 +9,7 @@ import {
 } from "../constants"
 import { useAuth } from "../../../core/AuthContext"
 import { IconoCerrar, IconoClip } from '../../../core/components/Iconos.jsx'
+import { mensajeDeError } from '../../../core/errores.js'
 
 /**
  * Presupuesto del proyecto con su flujo de plata: planeado → aprobado → pagado.
@@ -44,7 +45,7 @@ export default function PanelPresupuesto({ proyectoId, editable, onCambio }) {
     setError(null)
     onCambio?.()
   }
-  const alFallar = (e) => setError(e?.response?.data?.detail || "No se pudo completar la operación.")
+  const alFallar = (e) => setError(mensajeDeError(e, "No se pudo completar la operación."))
 
   const mutAgregar = useMutation({
     mutationFn: () => agregarItemPresupuesto(proyectoId, {

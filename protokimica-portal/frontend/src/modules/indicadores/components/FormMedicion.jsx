@@ -5,6 +5,7 @@ import { MESES, formatValor } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { tieneDatos } from "../../../core/components/tieneDatos"
 import { IconoClip } from '../../../core/components/Iconos.jsx'
+import { mensajeDeError } from '../../../core/errores.js'
 
 /**
  * Registro del valor de un mes. En los indicadores de razón se piden los dos
@@ -72,7 +73,7 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
       return registrarMedicion(indicador.id, fd)
     },
     onSuccess: onGuardado,
-    onError: (e) => setError(e?.response?.data?.detail || "No se pudo guardar el valor."),
+    onError: (e) => setError(mensajeDeError(e, "No se pudo guardar el valor.")),
   })
 
   const completo = esRazon

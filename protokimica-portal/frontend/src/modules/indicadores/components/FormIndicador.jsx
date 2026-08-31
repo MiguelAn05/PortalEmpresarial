@@ -6,6 +6,7 @@ import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { AREAS } from "../../../core/areas.js"
 import { tieneDatos } from "../../../core/components/tieneDatos"
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
+import { mensajeDeError } from '../../../core/errores.js'
 
 
 
@@ -82,7 +83,7 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
       queryClient.invalidateQueries({ queryKey: ["ind-lista"] })
       onGuardado()
     },
-    onError: (e) => setError(e?.response?.data?.detail || "No se pudo guardar el indicador."),
+    onError: (e) => setError(mensajeDeError(e, "No se pudo guardar el indicador.")),
   })
 
   const completo = form.nombre && (!esAutomatico || form.fuente_automatica)
@@ -322,15 +323,15 @@ function ConfirmarBorrado({ indicador, onCerrar, onBorrado }) {
     mutationFn: (conTodo) => eliminarIndicador(indicador.id, conTodo),
     onSuccess: () => { refrescar(); onBorrado() },
     onError: (e) => {
-      if (e?.response?.status === 409) setConflicto(e.response.data.detail)
-      else setError(e?.response?.data?.detail || 'No se pudo eliminar el indicador.')
+      if (e?.response?.status === 409) setConflicto(mensajeDeError(e))
+      else setError(mensajeDeError(e, 'No se pudo eliminar el indicador.'))
     },
   })
 
   const mutDesactivar = useMutation({
     mutationFn: () => actualizarIndicador(indicador.id, { activo: false }),
     onSuccess: () => { refrescar(); onBorrado() },
-    onError: (e) => setError(e?.response?.data?.detail || 'No se pudo desactivar.'),
+    onError: (e) => setError(mensajeDeError(e, 'No se pudo desactivar.')),
   })
 
   const ocupado = mutBorrar.isPending || mutDesactivar.isPending

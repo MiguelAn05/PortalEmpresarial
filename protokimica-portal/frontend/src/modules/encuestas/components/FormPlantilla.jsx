@@ -4,6 +4,7 @@ import { crearPlantilla, actualizarPlantilla, eliminarPlantilla } from "../api"
 import { TIPOS_PREGUNTA, normalizarSlug, urlPublica } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
+import { mensajeDeError } from '../../../core/errores.js'
 
 /**
  * Crear o editar una encuesta.
@@ -88,7 +89,7 @@ export default function FormPlantilla({ plantilla, onCerrar }) {
       queryClient.invalidateQueries({ queryKey: ["enc-panel"] })
       onCerrar()
     },
-    onError: (e) => setError(e.response?.data?.detail || 'No se pudo guardar. Intenta de nuevo.'),
+    onError: (e) => setError(mensajeDeError(e, 'No se pudo guardar. Intenta de nuevo.')),
   })
 
   const mutBorrar = useMutation({
@@ -97,7 +98,7 @@ export default function FormPlantilla({ plantilla, onCerrar }) {
       queryClient.invalidateQueries({ queryKey: ["enc-plantillas"] })
       onCerrar()
     },
-    onError: (e) => setError(e.response?.data?.detail || 'No se pudo eliminar.'),
+    onError: (e) => setError(mensajeDeError(e, 'No se pudo eliminar.')),
   })
 
   const guardar = (e) => {

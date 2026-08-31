@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # curl/Postman) la única vez que se crea una empresa nueva.
     REGISTER_SETUP_KEY: str = ""
 
+    # Clave con la que el proceso del ERP manda el catálogo de productos.
+    # Es propia de esa integración y no una cuenta de usuario: un proceso
+    # automático no debe cargar con las credenciales de una persona.
+    # Vacío = la sincronización queda cerrada.
+    CLAVE_SINCRONIZACION: str = ""
+
     # Opcional: URL base de n8n para disparar automatizaciones. Vacío = se ignora.
     N8N_WEBHOOK_URL: str = ""
 

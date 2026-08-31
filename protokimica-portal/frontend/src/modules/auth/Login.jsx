@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
 import { VERSION_APP } from '../../core/version.js'
+import { mensajeDeError } from '../../core/errores.js'
 
 export default function Login() {
   const { login } = useAuth()
@@ -38,7 +39,7 @@ export default function Login() {
       navigate('/')
     } catch (err) {
       setError(
-        err.response?.data?.detail || 'Error al iniciar sesión. Verifica tus datos.'
+        mensajeDeError(err, 'Error al iniciar sesión. Verifica tus datos.')
       )
     } finally {
       setLoading(false)

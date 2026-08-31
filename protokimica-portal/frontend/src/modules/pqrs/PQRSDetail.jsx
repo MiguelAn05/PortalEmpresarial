@@ -9,6 +9,7 @@ import {
   IconoComentario, IconoEmpresa, IconoEscalar, IconoEstrella, IconoEtiqueta,
   IconoRecargar, IconoRechazo, IconoRecibo, IconoReloj, IconoUsuario,
 } from '../../core/components/Iconos.jsx'
+import { mensajeDeError } from '../../core/errores.js'
 
 const AREA_SERVICIO_CLIENTE = 'Servicio al Cliente'
 
@@ -809,7 +810,7 @@ function ReclasificarTipo({ pqrs }) {
       queryClient.invalidateQueries({ queryKey: ['pqrs'] })
       setAbierto(false); setMotivo(''); setError('')
     },
-    onError: (e) => setError(e.response?.data?.detail || 'No se pudo reclasificar.'),
+    onError: (e) => setError(mensajeDeError(e, 'No se pudo reclasificar.')),
   })
 
   const cambio = tipo !== pqrs.tipo

@@ -4,6 +4,7 @@ import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
 import { AREAS, areasParaSelect } from '../../core/areas.js'
 import { IconoBuscar, IconoCandado, IconoLlave, IconoPersonas } from '../../core/components/Iconos.jsx'
+import { mensajeDeError } from '../../core/errores.js'
 
 // Las áreas viven en un solo sitio: src/core/areas.js
 
@@ -24,7 +25,7 @@ function TiposAutorizacion() {
       setForm({ nombre: '', descripcion: '', area_autorizadora: '' })
       setError('')
     },
-    onError: (err) => setError(err.response?.data?.detail || 'Error al crear.'),
+    onError: (err) => setError(mensajeDeError(err, 'Error al crear.')),
   })
 
   const mutEliminar = useMutation({
@@ -194,13 +195,13 @@ function GestionUsuarios() {
       setError('')
       setMostrarForm(false)
     },
-    onError: (err) => setError(err.response?.data?.detail || 'Error al crear el usuario.'),
+    onError: (err) => setError(mensajeDeError(err, 'Error al crear el usuario.')),
   })
 
   const mutActualizar = useMutation({
     mutationFn: ({ id, cambios }) => api.patch(`/auth/usuarios/${id}`, cambios),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['usuarios'] }),
-    onError: (err) => alert(err.response?.data?.detail || 'Error al actualizar el usuario.'),
+    onError: (err) => alert(mensajeDeError(err, 'Error al actualizar el usuario.')),
   })
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })

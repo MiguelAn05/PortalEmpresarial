@@ -128,3 +128,15 @@ export function estadoDelPlazo(omp, ahora = new Date()) {
   if (dias <= 3) return 'por_vencer'
   return 'en_plazo'
 }
+
+/**
+ * Tope de caracteres de una acción del plan.
+ *
+ * Es el mismo `max_length` que declara `AccionCrear` en el backend. Sin este
+ * límite en el input, escribir de más devolvía un 422 — y como el detalle de
+ * un 422 es una lista de objetos, la página se quedaba en blanco en vez de
+ * avisar. El tope aquí evita que el error llegue a ocurrir.
+ *
+ * Si algún día se amplía en el schema, hay que subirlo aquí también.
+ */
+export const MAX_ACCION = 300

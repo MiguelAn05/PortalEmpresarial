@@ -5,6 +5,7 @@ import AvisoDatos from '../../core/components/AvisoDatos.jsx'
 import {
   IconoCheck, IconoEstrella, IconoFelicitacion, IconoReloj,
 } from '../../core/components/Iconos.jsx'
+import { mensajeDeError } from '../../core/errores.js'
 
 const TIPOS = [
   { value: 'peticion',     label: 'Petición'     },
@@ -118,7 +119,7 @@ export default function EncuestaPQRS() {
       await api.post(`/public/encuesta/${codigo.trim().toUpperCase()}`, form)
       setEstado('enviada')
     } catch (err) {
-      setError(err.response?.data?.detail || 'No pudimos registrar tu respuesta. Intenta de nuevo.')
+      setError(mensajeDeError(err, 'No pudimos registrar tu respuesta. Intenta de nuevo.'))
     } finally {
       setEnviando(false)
     }

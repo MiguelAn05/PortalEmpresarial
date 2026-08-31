@@ -1,7 +1,8 @@
 # Portal Empresarial Protokimica
 
-Portal de gestión interna. Módulos: **PQRS**, **Master Planner** (proyectos),
-**Indicadores**, autenticación y administración.
+Portal de gestión interna. Módulos: **Inicio**, **PQRS**, **Master Planner**
+(proyectos), **Indicadores**, **Mejora** (oportunidades de mejora, OMP),
+**Encuestas**, **Catálogo** de productos, autenticación y administración.
 
 ## Estructura
 
@@ -9,14 +10,18 @@ Portal de gestión interna. Módulos: **PQRS**, **Master Planner** (proyectos),
 protokimica-portal/
   backend/          FastAPI + SQLAlchemy + Alembic + PostgreSQL
     app/
-      core/         config, database, deps (permisos), security, areas
+      core/         config, database, deps (permisos), security, areas,
+                    dias_habiles, rate_limit, graph (Microsoft 365)
       models/       tablas SQLAlchemy, una por módulo
       modules/      un paquete por módulo: router.py, schemas.py, service.py
     alembic/versions/   migraciones, en orden
     tests/          pruebas end-to-end contra la API real
+  n8n/              flujos de automatización, versionados como JSON
+  integraciones/    scripts que corren FUERA del portal (ver ERP)
   frontend/         React + Vite + Tailwind + React Query
     src/
-      core/         api.js, AuthContext, Layout, componentes compartidos
+      core/         api.js, AuthContext, Layout, errores.js, areas.js,
+                    modulos.js, componentes compartidos
       modules/      un directorio por módulo
     dist/           SE COMMITEA (ver despliegue)
     tests/          pruebas de la lógica pura del frontend
@@ -210,6 +215,62 @@ El presupuesto es aparte y más estrecho: solo lo ve **quien lidera** (más las
 dos áreas financieras). Tener una tarea en un proyecto deja trabajar en él,
 no mirar cuánta plata mueve.
 
+### Errores y validación
+
+- **Ningún componente lee `data.detail` directo.** Todo error de API pasa por
+  `mensajeDeError(err, 'texto por defecto')` de `core/errores.js`. Un 422 trae
+  una lista de objetos y pintarla tumba la página (ver «Cosas que ya
+  mordieron»).
+- **Los mensajes del backend dicen qué hacer**, y por eso llegan tal cual a la
+  pantalla: `mensajeDeError` respeta el texto cuando el backend mandó uno.
+- **Validar en los dos lados, con el mismo número.** El backend es la
+  autoridad; el frontend evita que el error ocurra. Los límites se declaran en
+  el `constants.js` del módulo y se anota que están atados al schema.
+
+### Permisos: por área, no por cargo
+
+- **Cuando el permiso depende del trabajo, va por ÁREA; cuando depende de la
+  responsabilidad, por PERSONA.** Nunca por cargo:
+  - Cerrar y reclasificar PQRS → área `Servicio al Cliente`
+  - Aprobar presupuesto → `Administración`; pagar → `Tesorería`
+  - Responder una autorización → el área autorizadora del tipo
+  - Cerrar un proyecto → su líder (más `admin`)
+  Amarrarlo al rol dejaba fuera a quien hace el trabajo y obligaba a cambiarle
+  el cargo a alguien solo para que pudiera firmar.
+- `admin` siempre puede: es quien destraba cuando el responsable está de
+  vacaciones o alguien quedó mal configurado.
+- `solo_lectura_no` sigue protegiendo toda escritura, y bloquea también a
+  `gerencia`. Ese control va aparte del permiso por área, no en vez de él.
+- **El frontend no decide permisos**, los pregunta. El backend responde qué
+  puede hacer cada quien (por ejemplo `alcance.puede_cambiar`) y la interfaz
+  esconde lo que no aplica. Un control deshabilitado que nadie puede usar solo
+  genera la pregunta de por qué no funciona.
+
+### Borrar cosas
+
+El borrado por defecto **protege el histórico**. Cuando algo tiene datos
+asociados se responde 409 explicando qué se perdería y ofreciendo la salida
+suave (desactivar, archivar). El borrado total existe, pero hay que pedirlo a
+propósito con un parámetro explícito, y la interfaz solo lo ofrece **después**
+de decir cuántos registros se van a perder.
+
+Ejemplos: `DELETE /indicadores/{id}?incluir_mediciones=true`, cancelar un
+proyecto lo archiva sin borrar nada, retomar anula el acta pero no la elimina.
+
+### Datos que vienen de fuera
+
+- **Listas cerradas, no texto libre**, cuando el dato alimenta un reporte. Si
+  el cliente escribe el punto de venta a mano, «Centro», «centro» y «Sede
+  Centro» son tres lugares distintos y el informe deja de servir; y eso no se
+  arregla después, porque los datos ya entraron mal.
+- **Pero nunca a costa de que alguien no pueda radicar.** En PQRS, si el
+  cliente no encuentra su producto, la salida es dejarlo escribir y que el área
+  lo corrija antes de cerrar — igual que ya se hace con el tipo.
+- **Lo que se copia de otro sistema se copia mínimo.** El catálogo trae código,
+  nombre y presentación. Nada de precios ni existencias: la tabla del portal ni
+  siquiera tiene esas columnas, así que no hay forma de que se filtren por un
+  endpoint público.
+
 ### Áreas
 
 **Una sola fuente por lado**: `backend/app/core/areas.py` y
@@ -305,15 +366,147 @@ declarar una lista de áreas dentro de un componente.
   Radicar disparaba tres llamadas HTTP en serie de hasta 10 s cada una: medio
   minuto esperando. El aviso se *arma* dentro de la petición (necesita la
   sesión de base de datos) y se *manda* después.
+- **Un 422 dejaba la página en blanco.** Cuando FastAPI rechaza un dato,
+  `detail` NO es texto: es una lista de objetos `{type, loc, msg, input, ctx}`.
+  El patrón `setError(e.response?.data?.detail || '...')` guardaba esa lista y,
+  al pintarla, React lanzaba el error #31 y desmontaba la pantalla — el usuario
+  no veía el mensaje, veía la nada. **Todo error de API pasa por
+  `mensajeDeError()` de `core/errores.js`**, que además traduce los mensajes de
+  Pydantic al español. Nunca leas `data.detail` directo en un componente.
+- **Un límite del schema sin su tope en el input.** El caso anterior se disparó
+  porque un `<input>` no tenía `maxLength` y el schema exigía 300 caracteres. Si
+  un campo tiene `min_length` o `max_length` en el backend, el formulario lleva
+  el mismo tope, y la constante vive en el `constants.js` del módulo con un
+  comentario que recuerde que están sincronizados.
+- **Dos migraciones el mismo día = Alembic con dos cabezas y el backend sin
+  arrancar.** Pasa cuando dos personas crean su migración colgando del mismo
+  padre; el síntoma es `Multiple head revisions are present` en bucle. Si tu
+  migración todavía no se aplicó en ningún lado, **reencadénala** cambiando su
+  `down_revision` a la otra cabeza: la historia queda lineal y no hace falta
+  `alembic merge`. Antes de crear una migración, `git pull`.
+- **El `build` pasa con variables no definidas.** esbuild no las revisa; quien
+  las caza es `eslint`. Un `MAX_ACCION` sin importar compiló limpio y habría
+  reventado en el navegador. Por eso van los tres pasos —pruebas, eslint,
+  build— y ninguno reemplaza a otro.
+- **Los comentarios `//` no van entre atributos de JSX.** Ahí solo sirve
+  `{/* ... */}`, o el comentario arriba del elemento.
+- **El radicado de Calidad salía de un `count()`.** El mismo defecto que ya
+  había mordido en el código de seguimiento: con un hueco en el medio, el
+  siguiente número ya existe y el `commit` revienta por la restricción de
+  unicidad *después* de haber guardado la solicitud. Todo consecutivo sale del
+  MÁXIMO, nunca de un conteo.
+- **El historial público mostraba los comentarios internos.** La consulta del
+  cliente enviaba el `comentario` del seguimiento, que es donde el área escribe
+  sus notas de trabajo. Ahora el movimiento se REDACTA a partir de
+  `estado_nuevo` (ver `pqrs/historial_publico.py`), y el schema público no tiene
+  campo de comentario: no es que llegue vacío, es que no existe.
+- **Filtrar por área ignoraba las áreas participantes.** Un proyecto de TICS
+  donde Mercadeo trabaja se le mostraba a Mercadeo en la lista general y
+  desaparecía apenas filtraba por su área. Para filtrar se usa `condicion_area()`
+  en el backend y `perteneceAlArea()` en el frontend. **Pero el presupuesto se
+  le sigue atribuyendo solo al área responsable**: repartirlo entre las
+  participantes multiplicaría los totales.
+
+## Integraciones
+
+Todo lo que habla con algo de fuera falla en silencio y nunca tumba una
+petición: si Microsoft, n8n o el ERP están caídos, el portal sigue trabajando.
+
+- **Microsoft 365 (calendario).** Las tareas del Master Planner con responsable
+  y fecha aparecen en el Outlook de esa persona. Va en una sola dirección:
+  portal → Outlook. `core/graph.py` autentica como aplicación; con
+  `MS_TENANT_ID`, `MS_CLIENT_ID` y `MS_CLIENT_SECRET` vacíos la integración
+  queda apagada. **La hora se convierte a la zona local antes de enviarla**:
+  Postgres devuelve UTC, y mandar ese valor diciéndole a Graph que es hora de
+  Bogotá corría los eventos cinco horas.
+- **n8n.** Los flujos viven versionados en `n8n/*.json`, no solo dentro de la
+  herramienta. El `Path` del nodo Webhook tiene que ser EXACTAMENTE el nombre
+  del evento que dispara el backend, o el log muestra `... is not registered`.
+  Los webhooks mandan el CORREO del destinatario, nunca su id: obligar a n8n a
+  autenticarse para resolver un id es pedirle que averigüe algo que el backend
+  ya tenía a la mano. Y en el HTML de un correo, `href="{{ $json.link }}"` — el
+  campo ya es una expresión, y un `=` de más deja el enlace roto.
+- **Catálogo de productos (Oracle del ERP).** El portal NO se conecta a Oracle.
+  Un script en el servidor del ERP (`integraciones/erp/`) lee una vista de solo
+  lectura y **empuja** el catálogo al portal por HTTP. La dirección es lo que
+  importa: el portal está expuesto a internet, así que ahí no puede haber ni
+  credenciales ni rutas hacia la base del ERP. De paso, el buscador responde en
+  milisegundos y sigue funcionando aunque el ERP esté caído.
+
+## Cómo se le sirven los datos a una automatización
+
+Los endpoints que alimentan recordatorios (`/pqrs/por-vencer`,
+`/indicadores/pendientes-de-registro`,
+`/master-planner/tareas-vencidas-por-persona`) devuelven la información **ya
+agrupada por destinatario y con el correo resuelto**. n8n solo recorre y manda.
+
+Dos razones: un correo que dice «tienes 3 pendientes» se atiende, y uno con la
+lista de los 40 de la empresa se archiva sin abrir; y la lógica de agrupar y de
+contar días hábiles tiene pruebas en el backend, mientras que dentro de un flujo
+de n8n se rompe en silencio.
+
+Lo que no tiene responsable **sale aparte, nunca se descarta**: una PQRS sin
+asignar con el plazo corriendo es el caso más peligroso de todos.
 
 ## Pendientes conocidos
 
-- Flujos de n8n sin construir: `pqrs-nueva-servicio-cliente`,
-  `mp-tarea-asignada`, alertas de indicadores en rojo, y el disparo mensual de
-  `POST /indicadores/calcular-periodo`.
+- **Catálogo de productos: sin terminar.** El lado del portal está hecho
+  (tabla, sincronización, buscador con límite por IP) pero **le faltan las
+  pruebas**, y el script de `integraciones/erp/` sigue con los nombres de tabla
+  de ejemplo: hay que reemplazarlos por los reales del ERP y crear allá la
+  vista y el usuario de solo lectura. Mientras tanto, el formulario público
+  sigue usando la lista de productos quemada en `FormularioPQRS.jsx`.
+- **El buscador de productos no tiene salida de escape.** Si el cliente no
+  encuentra su producto, no puede radicar. Falta un «no encuentro mi producto»
+  que permita escribirlo y quede marcado para que Servicio al Cliente lo
+  corrija antes de cerrar — igual que ya se hace con el tipo de PQRS.
+- **Las PQRS anteriores a `estado_nuevo`** no tienen el estado guardado en sus
+  seguimientos, así que el historial público les muestra «Actualización de tu
+  solicitud» en vez del movimiento concreto.
+- **Los proyectos cerrados antes del acta** no tienen `mp_cierres`, así que su
+  pestaña de Cierre dice que siguen abiertos.
+- **`mp_proyectos_cerrados`** cuenta por `fecha_fin_real`, así que suma también
+  los cancelados. Habría que separar los que se finalizaron de los que se
+  abandonaron.
+- Flujos de n8n: quedan las alertas de indicadores en rojo y el disparo mensual
+  de `POST /indicadores/calcular-periodo` (necesita el usuario de servicio
+  `automatizaciones@protokimica.com`).
 - `/uploads` sin control de acceso real; `UPLOAD_DIR` quemado en 3 sitios.
-- `router_public.py` y `seed.py` tienen `slug == "protokimica"` quemado: el
-  formulario público solo sirve para una empresa.
+- `router_public.py` y `seed.py` tienen `slug == "protokimica"` quemado: lo
+  público solo sirve para una empresa.
 - Marca (colores, logo) quemada en el frontend.
-- Indicadores: faltan la vista de año en matriz, la portada de "cómo vamos",
-  el interruptor empresa/mi área y la exportación.
+- Indicadores: falta la exportación.
+- `src/core/AuthContext.jsx` tiene un error de lint preexistente
+  (`react-refresh/only-export-components`). No es de ningún cambio nuevo.
+
+## Si estás retomando esto en otra conversación
+
+Lo primero, en este orden:
+
+1. **`git pull`.** Se trabaja sobre `Backend-MasterPlanner`, no sobre `main`.
+2. **Levantar el entorno** y confirmar que arranca:
+   ```bash
+   cd protokimica-portal
+   docker compose up -d
+   docker compose logs backend --tail 20
+   ```
+   Si aparece `Multiple head revisions`, hay dos migraciones colgando del mismo
+   padre — ver «Cosas que ya mordieron».
+3. **Correr todo antes de tocar nada**, para saber de qué punto se parte:
+   ```bash
+   docker exec protokimica_backend pytest tests -q
+   cd frontend && npm test && npx eslint src && npm run build
+   ```
+
+Detalles del entorno que ahorran tiempo:
+
+- Docker Desktop en Windows se cae solo cada tanto. Si `docker` no responde,
+  hay que volver a abrirlo:
+  `C:\Users\<usuario>\AppData\Local\Programs\DockerDesktop\Docker Desktop.exe`
+- `pytest` no está en `requirements.txt`: dentro del contenedor,
+  `pip install pytest` antes de la primera corrida.
+- En Windows, `git` no está en el PATH de PowerShell; sí en Git Bash.
+- El servidor es `zeus` (`172.20.70.47`), se llega por VPN FortiClient. El
+  portal responde en `http://172.20.70.47:8080` sin pasar por Cloudflare, y n8n
+  en el `5679` (que exige túnel SSH por su cookie segura).
+

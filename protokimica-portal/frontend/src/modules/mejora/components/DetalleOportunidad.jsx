@@ -10,8 +10,10 @@ import {
   consultarVerificacion, eliminarAccion, obtenerOportunidad, registrarVerificacion,
 } from '../api.js'
 import {
-  CICLO, ESTADOS, estaCerrada, loQueFaltaPara, siguienteEstado, textoDeAvance,
+  CICLO, ESTADOS, MAX_ACCION, estaCerrada, loQueFaltaPara, siguienteEstado,
+  textoDeAvance,
 } from '../constants.js'
+import { mensajeDeError } from '../../../core/errores.js'
 
 /**
  * El detalle de una OMP: dónde va en el ciclo, qué falta para avanzar y si
@@ -217,7 +219,7 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
   const conError = (accion) => ({
     mutationFn: accion,
     onSuccess: () => { setError(''); refrescar() },
-    onError: (err) => setError(err.response?.data?.detail || 'No se pudo guardar.'),
+    onError: (err) => setError(mensajeDeError(err, 'No se pudo guardar.')),
   })
 
   const mutEstado = useMutation(conError((estado) => cambiarEstado(ompId, estado)))
@@ -397,8 +399,12 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
-                  if (nuevaAccion.trim().length < 3) return
-                  mutAccion.mutate({ descripcion: nuevaAccion })
+                  const texto = nuevaAccion.trim()
+                  if (texto.length < 3) return
+                  // Se manda ya recortado: el backend cuenta los espacios
+                  // dentro del límite, así que un texto que aquí se ve corto
+                  // podría pasarse allá.
+                  mutAccion.mutate({ descripcion: texto })
                   setNuevaAccion('')
                 }}
                 className="flex gap-2 mt-3"
@@ -406,6 +412,7 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
                 <input
                   value={nuevaAccion} onChange={(e) => setNuevaAccion(e.target.value)}
                   placeholder="Agregar una acción…"
+                  maxLength={MAX_ACCION}
                   className="flex-1 rounded-lg border border-borde-fuerte px-3 py-2 text-sm
                     focus:outline-none focus:border-acento"
                 />

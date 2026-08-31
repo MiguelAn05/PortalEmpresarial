@@ -4,6 +4,7 @@ import ProyectoCard from "../components/ProyectoCard"
 import { listarProyectos, archivarProyecto, eliminarProyecto } from "../api"
 import { ESTADOS_PROYECTO, AREAS, puedeEditar, perteneceAlArea } from "../constants"
 import { useAuth } from "../../../core/AuthContext"
+import { mensajeDeError } from '../../../core/errores.js'
 
 const FILTROS_VACIOS = { busqueda: "", estado: "", area: "" }
 
@@ -31,7 +32,7 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
     mutationFn: (id) => eliminarProyecto(id),
     onSuccess: () => { setError(null); refrescar() },
     // El 409 del backend trae el motivo exacto (cuántas tareas lo bloquean).
-    onError: (e) => setError(e?.response?.data?.detail || "No se pudo eliminar el proyecto."),
+    onError: (e) => setError(mensajeDeError(e, "No se pudo eliminar el proyecto.")),
   })
 
   const set = (campo) => (e) => setFiltros({ ...filtros, [campo]: e.target.value })

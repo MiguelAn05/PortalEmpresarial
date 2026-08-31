@@ -4,6 +4,7 @@ import { cerrarProyecto } from "../api"
 import { formatMoneda } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { IconoAlDia, IconoRechazo } from '../../../core/components/Iconos.jsx'
+import { mensajeDeError } from '../../../core/errores.js'
 
 /**
  * Cerrar un proyecto: finalizarlo o cancelarlo.
@@ -47,7 +48,7 @@ export default function CierreProyectoModal({ proyecto, onCerrar }) {
       queryClient.invalidateQueries({ queryKey: ["mp-resumen"] })
       onCerrar()
     },
-    onError: (e) => setError(e.response?.data?.detail || 'No se pudo cerrar el proyecto.'),
+    onError: (e) => setError(mensajeDeError(e, 'No se pudo cerrar el proyecto.')),
   })
 
   const confirmar = (e) => {

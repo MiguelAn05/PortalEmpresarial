@@ -7,6 +7,7 @@ import {
   IconoFicha, IconoFoto, IconoIdea, IconoPaquete, IconoPeticion, IconoQueja,
   IconoRecibo, IconoVideo,
 } from '../../core/components/Iconos.jsx'
+import { mensajeDeError } from '../../core/errores.js'
 
 // ── Constantes ─────────────────────────────────────────────────────
 // Cada tipo se distingue por su ICONO, no por un color de fondo distinto.
@@ -512,7 +513,7 @@ export default function FormularioPQRS() {
       setCodigoGenerado(data.codigo_seguimiento)
       setPaso(5) // pantalla de confirmación
     } catch (err) {
-      setError(err.response?.data?.detail || 'Error al enviar. Intenta de nuevo.')
+      setError(mensajeDeError(err, 'Error al enviar. Intenta de nuevo.'))
     } finally {
       setLoading(false)
     }

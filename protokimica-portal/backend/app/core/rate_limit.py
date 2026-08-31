@@ -40,3 +40,37 @@ def limitar_login(request: Request):
         raise
     except Exception:
         logger.warning("No se pudo aplicar el límite de login (Redis no disponible).")
+
+
+# El buscador de productos vive en el formulario público, así que cualquiera
+# en internet puede consultarlo. El límite no es contra fuerza bruta sino
+# contra la enumeración: sin él, alguien con paciencia se descarga el
+# catálogo entero letra por letra.
+MAX_BUSQUEDAS = 30
+VENTANA_BUSQUEDAS = 60
+
+
+def limitar_busqueda_publica(request: Request):
+    ip = request.client.host if request.client else "desconocida"
+    clave = f"busqueda_productos:{ip}"
+
+    try:
+        consultas = redis_client.incr(clave)
+        if consultas == 1:
+            redis_client.expire(clave, VENTANA_BUSQUEDAS)
+
+        if consultas > MAX_BUSQUEDAS:
+            ttl = redis_client.ttl(clave)
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Demasiadas búsquedas seguidas. Espera {max(ttl, 1)} segundos. "
+                    "Si no encuentras tu producto, escribe su nombre en la descripción."
+                ),
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        # Igual que en el login: si Redis no está, se deja pasar. Perder el
+        # límite es mejor que dejar sin formulario a quien quiere quejarse.
+        logger.warning("No se pudo aplicar el límite de búsquedas (Redis no disponible).")

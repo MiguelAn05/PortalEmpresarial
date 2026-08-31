@@ -6,6 +6,7 @@ import { useCierreSeguro } from '../../../core/components/cierreSeguro.jsx'
 import { obtenerTablero } from '../../indicadores/api.js'
 import { crearOportunidad } from '../api.js'
 import { ORIGENES } from '../constants.js'
+import { mensajeDeError } from '../../../core/errores.js'
 
 /**
  * Abrir una oportunidad de mejora.
@@ -64,7 +65,7 @@ export default function FormOportunidad({ indicador = null, periodo = null,
       onCreada?.(creada.id)
     },
     onError: (err) => setError(
-      err.response?.data?.detail || 'No se pudo abrir la oportunidad. Intenta de nuevo.',
+      mensajeDeError(err, 'No se pudo abrir la oportunidad. Intenta de nuevo.'),
     ),
   })
 

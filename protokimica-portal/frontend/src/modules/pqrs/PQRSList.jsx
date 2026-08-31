@@ -7,6 +7,7 @@ import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
 import {
   IconoBuscar, IconoCerrar, IconoFiltro, IconoPQRS,
 } from '../../core/components/Iconos.jsx'
+import { mensajeDeError } from '../../core/errores.js'
 
 // Un estado se llama y se pinta igual en la lista, en el filtro y en el
 // detalle. El color sube con la gravedad; no es un color por categoría.
@@ -153,7 +154,7 @@ function ModalCrear({ onClose, onCreated }) {
       return api.post('/pqrs', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
     },
     onSuccess: () => { onCreated(); onClose() },
-    onError: (err) => setError(err.response?.data?.detail || 'Error al crear la PQRS'),
+    onError: (err) => setError(mensajeDeError(err, 'Error al crear la PQRS')),
   })
 
   const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); setError('') }
