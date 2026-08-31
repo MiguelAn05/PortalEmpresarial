@@ -19,9 +19,14 @@ SET TRIMSPOOL ON
 -- Deja el resultado en un archivo, para poder mandarlo o revisarlo con calma.
 SPOOL explorar_catalogo.txt
 
--- Llenar DESPUÉS de correr los pasos 1 a 4.
-DEFINE esquema = 'CAMBIAME'
-DEFINE tabla   = 'CAMBIAME'
+-- Llenar DESPUÉS de correr los pasos 1 a 4, en MAYÚSCULAS y SIN comillas:
+-- SQL*Plus reemplaza el texto tal cual, así que unas comillas aquí saldrían
+-- duplicadas al sustituir y la consulta no encontraría nada.
+--
+-- Mientras digan CAMBIAME, los pasos 5 a 9 fallan con «table or view does
+-- not exist». Es lo esperado: los que interesan al principio son el 1 al 4.
+DEFINE esquema = CAMBIAME
+DEFINE tabla   = CAMBIAME
 
 
 PROMPT
@@ -70,7 +75,7 @@ PROMPT ############ 3. Tablas que TIENEN código y descripción ############
 PROMPT
 
 -- Más confiable que el nombre: la tabla buena tiene una columna de código y
--- otra de descripción, se llame como se llame la tabla. Muchos ERP le ponden
+-- otra de descripción, se llame como se llame la tabla. Muchos ERP le ponen
 -- nombres que no dicen nada (T_MAE_001), y este paso las encuentra igual.
 SELECT owner AS esquema, table_name AS tabla,
        LISTAGG(column_name, ', ') WITHIN GROUP (ORDER BY column_id) AS columnas

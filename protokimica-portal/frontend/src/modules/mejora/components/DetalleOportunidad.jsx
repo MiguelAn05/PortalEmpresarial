@@ -736,7 +736,7 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
 
           {/* ── Cómo se va a comprobar, escrito antes ── */}
           <CampoLargo
-            titulo="Cómo se va a comprobar que sirvió" valor={omp.verificacion_planeada}
+            titulo="Cómo se va a comprobar que funciono" valor={omp.verificacion_planeada}
             editable={editable}
             vacio="Sin escribir. Decidirlo después de ver el resultado es cómo se cierran acciones que no funcionaron."
             ayuda="Qué se va a revisar, con qué dato y cuándo."
