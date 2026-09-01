@@ -7,7 +7,7 @@ duplicar la misma lógica de subida de archivos y webhooks.
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
 from app.core.deps import (
@@ -195,9 +195,15 @@ def listar_proyectos(
     Por defecto solo los proyectos activos; `archivados=true` devuelve el
     archivo. Siempre acotado a lo que el usuario tiene permitido ver.
     """
-    query = db.query(Proyecto).filter(
-        Proyecto.tenant_id == tenant_id,
-        Proyecto.archivado.is_(archivados),
+    query = (
+        db.query(Proyecto)
+        # El nombre del líder se lee de la relación al serializar: sin esto,
+        # cada proyecto de la lista dispara su propia consulta.
+        .options(selectinload(Proyecto.lider))
+        .filter(
+            Proyecto.tenant_id == tenant_id,
+            Proyecto.archivado.is_(archivados),
+        )
     )
     query = aplicar_filtro_proyectos(query, current_user)
     if estado:

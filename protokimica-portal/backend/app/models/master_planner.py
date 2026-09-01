@@ -71,6 +71,20 @@ class Proyecto(Base):
     )
 
     @property
+    def lider_nombre(self) -> str | None:
+        """
+        Quién lidera, por nombre.
+
+        `ProyectoOut` declaraba este campo pero el modelo no lo tenía, así que
+        Pydantic no encontraba el atributo y caía en su valor por defecto:
+        TODOS los proyectos salían «Sin asignar» aunque tuvieran líder. El
+        `lider_id` sí viajaba, y por eso el formulario de edición mostraba a
+        la persona correcta mientras la lista y el detalle decían lo
+        contrario.
+        """
+        return self.lider.nombre if self.lider else None
+
+    @property
     def cierre_vigente(self) -> "CierreProyecto | None":
         """El acta que manda hoy. Las anuladas quedan como historia."""
         return next((c for c in self.cierres if c.anulado_en is None), None)

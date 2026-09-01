@@ -54,7 +54,10 @@ def test_permisos(entorno, v):
     portal.como("tics")
     vistos = {p["nombre"] for p in portal.get("/master-planner/proyectos").json()}
     v.check("el líder ve los proyectos de su área", "Portal Web" in vistos, vistos)
-    v.check("y aquellos donde su área participa", "ERP Fase 2" in vistos, vistos)
+    # Ojo: aquí ERP Fase 2 es de TICS, así que se ve por ser el área
+    # RESPONSABLE. El caso de área participante se prueba en
+    # test_proyecto_lider_y_areas.py, que es donde estaba el hueco.
+    v.check("y el mixto que también es suyo", "ERP Fase 2" in vistos, vistos)
     v.check("pero no un proyecto sin área que no toca nadie de su equipo",
           "Sin clasificar" not in vistos, vistos)
     v.check("ni el de otra área", "Auditoría ISO" not in vistos, vistos)
@@ -173,8 +176,11 @@ def test_permisos(entorno, v):
     portal.como("calidad")
     res = portal.get("/master-planner/resumen").json()
     nombres = {p["nombre"] for p in res["proyectos"]}
-    v.check("el resumen del líder trae lo de su área",
-          nombres == {"Auditoría ISO"}, nombres)
+    # Calidad ve los dos: «Auditoría ISO» por ser su área responsable, y
+    # «ERP Fase 2» —de TICS— porque Calidad está como área participante.
+    # Antes solo salía el primero: la visibilidad ignoraba las participantes.
+    v.check("el resumen del líder trae lo suyo y donde participa",
+          nombres == {"Auditoría ISO", "ERP Fase 2"}, nombres)
     v.check("con el presupuesto de su área",
           res["presupuesto"]["planeado"] == 2000000, res["presupuesto"])
 

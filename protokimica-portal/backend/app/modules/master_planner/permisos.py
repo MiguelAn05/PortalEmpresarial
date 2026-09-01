@@ -110,7 +110,12 @@ def condicion_proyectos_visibles(usuario: User):
     # su jefe no podría ni abrirlo.
     if usuario.rol == "lider" and usuario.area:
         equipo = _equipo_de(usuario)
-        caminos.append(Proyecto.area == usuario.area)
+        # `condicion_area` y no `Proyecto.area == …`: cuenta también los
+        # proyectos donde su área es PARTICIPANTE. Mirar solo la responsable
+        # le escondía al líder de Mercadeo un proyecto de TICS en el que su
+        # equipo trabaja — es el mismo defecto que ya había mordido en el
+        # filtro por área, que aquí no se había corregido.
+        caminos.append(condicion_area(usuario.area))
         caminos.append(Proyecto.lider_id.in_(equipo))
         caminos.append(
             Proyecto.id.in_(
@@ -139,7 +144,9 @@ def puede_ver_proyecto(db: Session, proyecto: Proyecto, usuario: User) -> bool:
         return True
 
     es_jefe_del_area = usuario.rol == "lider" and usuario.area
-    if es_jefe_del_area and proyecto.area == usuario.area:
+    # Responsable o participante: la misma regla que la lista, o el proyecto
+    # se vería en el listado y respondería 404 al abrirlo.
+    if es_jefe_del_area and usuario.area in proyecto.areas_involucradas:
         return True
 
     tiene_tarea = db.query(
