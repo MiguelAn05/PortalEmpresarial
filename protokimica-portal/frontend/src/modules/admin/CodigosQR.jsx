@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../../core/api.js'
 import { IconoRecibo } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
+import { NOMBRE_EMPRESA } from '../../core/marca.js'
 
 /**
  * Los carteles con el QR de cada punto de venta, listos para imprimir.
@@ -41,7 +42,7 @@ function Cartel({ punto }) {
       rounded-xl border border-borde bg-superficie p-8">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-texto-2">
-          Protokimica
+          {NOMBRE_EMPRESA}
         </p>
         <h3 className="text-lg font-bold text-texto mt-1">
           ¿Tiene una petición, queja, reclamo o sugerencia?

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../../core/api.js'
+import { LOGO, LOGO_ALT, NOMBRE_EMPRESA } from '../../core/marca.js'
 import AvisoDatos from '../../core/components/AvisoDatos.jsx'
 import {
   IconoCheck, IconoEstrella, IconoFelicitacion, IconoReloj,
@@ -132,7 +133,7 @@ export default function EncuestaPQRS() {
         {/* Header */}
         <div className="text-center py-6">
           <div className="flex justify-center mb-3">
-            <img src="/logo.png" alt="Protokimica" className="h-16 w-auto object-contain" />
+            <img src={LOGO} alt={LOGO_ALT} className="h-16 w-auto object-contain" />
           </div>
           <h1 className="text-xl font-bold text-acento-fuerte">Encuesta de satisfacción</h1>
           <p className="text-sm text-texto-2 mt-1">
@@ -257,7 +258,7 @@ export default function EncuestaPQRS() {
 
             <OpcionesPregunta
               numero={5}
-              pregunta="¿Recomendaría a Protokimica por la atención recibida?"
+              pregunta={`¿Recomendaría a ${NOMBRE_EMPRESA} por la atención recibida?`}
               opciones={RECOMENDARIA}
               valor={form.recomendaria}
               onChange={(v) => actualizar('recomendaria', v)}

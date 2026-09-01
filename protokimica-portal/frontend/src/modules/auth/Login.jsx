@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
+import { LOGO, LOGO_ALT, NOMBRE_EMPRESA } from '../../core/marca.js'
 import { VERSION_APP } from '../../core/version.js'
 import { mensajeDeError } from '../../core/errores.js'
 
@@ -54,13 +55,13 @@ export default function Login() {
        <div className="text-center mb-8">
        <div className="flex justify-center mb-4">
        <img
-         src="/logo.png"
-         alt="Protokimica"
+         src={LOGO}
+         alt={LOGO_ALT}
          className="h-20 w-auto object-contain"
          />
        </div>
          <h1 className="text-2xl font-bold text-acento-fuerte">
-           Protokimica
+           {NOMBRE_EMPRESA}
          </h1>
          <p className="text-sm text-texto-2 mt-1">
            Portal de Gestión Empresarial

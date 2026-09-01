@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { obtenerEncuestaPublica, responderEncuestaPublica } from "../encuestas/api"
 import { ESCALA_MAX } from "../encuestas/constants"
+import { NOMBRE_EMPRESA } from "../../core/marca.js"
 import {
   IconoBuscar, IconoCheck, IconoEstrella,
 } from '../../core/components/Iconos.jsx'
@@ -220,7 +221,7 @@ function Marco({ children }) {
       <div className="max-w-md mx-auto bg-white rounded-2xl border border-borde shadow-sm p-6">
         {children}
       </div>
-      <p className="text-center text-xs text-texto-3 mt-6">Protokimica</p>
+      <p className="text-center text-xs text-texto-3 mt-6">{NOMBRE_EMPRESA}</p>
     </div>
   )
 }

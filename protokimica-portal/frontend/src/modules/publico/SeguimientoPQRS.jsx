@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import api from '../../core/api.js'
+import { LOGO, LOGO_ALT, NOMBRE_EMPRESA } from '../../core/marca.js'
 import {
   IconoAdmin, IconoAlDia, IconoAlerta, IconoCandado, IconoEstrella,
   IconoHistorial, IconoPQRS, IconoReloj, IconoUsuario,
@@ -96,13 +97,13 @@ export default function SeguimientoPQRS() {
         <div className="text-center py-6">
          <div className="flex justify-center mb-3">
          <img
-          src="/logo.png"
-          alt="Protokimica"
+          src={LOGO}
+          alt={LOGO_ALT}
           className="h-16 w-auto object-contain"
          />
        </div>
        <h1 className="text-xl font-bold text-acento-fuerte">
-         Protokimica
+         {NOMBRE_EMPRESA}
        </h1>
         <p className="text-sm text-texto-2 mt-1">
          Consulte el estado de su solicitud

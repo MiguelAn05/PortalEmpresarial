@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../../core/api.js'
+import { LOGO, LOGO_ALT, NOMBRE_EMPRESA } from '../../core/marca.js'
 import { AREAS } from '../../core/areas.js'
 import { CANALES, canalPorCodigo } from '../../core/canales.js'
 import AvisoDatos from '../../core/components/AvisoDatos.jsx'
@@ -676,14 +677,14 @@ export default function FormularioPQRS() {
        <div className="text-center py-6">
        <div className="flex justify-center mb-4">
         <img
-         src="/logo.png"
-         alt="Protokimica"
+         src={LOGO}
+         alt={LOGO_ALT}
          className="h-20 w-auto object-contain drop-shadow-sm"
          />
        </div>
 
         <h1 className="text-2xl font-bold text-acento-fuerte">
-         Protokimica
+         {NOMBRE_EMPRESA}
         </h1>
 
         <p className="text-sm text-texto-2 mt-1">

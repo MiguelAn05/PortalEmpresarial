@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { moduloDeRuta, puedeVerModulo } from '../modulos.js'
+import { LOGO, NOMBRE_EMPRESA } from '../marca.js'
 import CambiarPasswordModal from './CambiarPasswordModal.jsx'
 import { AvisoVersionNueva, ChipVersion } from './Version.jsx'
 import {
@@ -161,11 +162,11 @@ export default function Layout() {
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 h-[60px] flex-shrink-0
           border-b border-nav-borde">
-          <img src="/logo.png" alt="" className="h-9 w-auto object-contain flex-shrink-0" />
+          <img src={LOGO} alt="" className="h-9 w-auto object-contain flex-shrink-0" />
           {!encogido && (
             <div className="min-w-0">
               <div className="text-white font-semibold text-sm leading-tight truncate">
-                Protokimica
+                {NOMBRE_EMPRESA}
               </div>
               <div className="text-nav-seccion text-[11px] leading-tight">
                 Portal de gestión
