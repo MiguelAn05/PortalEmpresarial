@@ -15,6 +15,7 @@ from app.core.deps import (
 )
 from app.models.user import User
 from app.models.master_planner import (
+    ESTADOS_TERMINALES,
     Proyecto, ProyectoArea, ItemPresupuesto, PagoItem, Tarea, TareaActualizacion,
     HistorialCambio,
 )
@@ -194,17 +195,23 @@ def listar_proyectos(
     """
     Por defecto solo los proyectos activos; `archivados=true` devuelve el
     archivo. Siempre acotado a lo que el usuario tiene permitido ver.
+
+    **Pedir un estado terminal manda sobre el archivo.** Cerrar un proyecto
+    lo archiva (ver `cierre.py`), así que filtrar por «cerrado» sobre los no
+    archivados devolvía SIEMPRE una lista vacía: los dos filtros se anulaban
+    y había que adivinar que además tocaba marcar «archivados». Si alguien
+    pide ver los cerrados, es que quiere verlos.
     """
     query = (
         db.query(Proyecto)
         # El nombre del líder se lee de la relación al serializar: sin esto,
         # cada proyecto de la lista dispara su propia consulta.
         .options(selectinload(Proyecto.lider))
-        .filter(
-            Proyecto.tenant_id == tenant_id,
-            Proyecto.archivado.is_(archivados),
-        )
+        .filter(Proyecto.tenant_id == tenant_id)
     )
+    if estado not in ESTADOS_TERMINALES:
+        query = query.filter(Proyecto.archivado.is_(archivados))
+
     query = aplicar_filtro_proyectos(query, current_user)
     if estado:
         query = query.filter(Proyecto.estado == estado)

@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.19.3"
+VERSION = "0.19.4"
 FECHA = "2026-09-01"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,20 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.19.4",
+        "fecha": "2026-09-01",
+        "titulo": "Los filtros de terminados",
+        "cambios": [
+            ("correccion", "Filtrar los proyectos por «cerrado» o «cancelado» "
+                           "devolvía una lista vacía: al cerrarlos también se "
+                           "archivan, y la lista escondía lo archivado. Ya "
+                           "aparecen sin tener que marcar nada más."),
+            ("correccion", "Lo mismo en Mejora: filtrar por «descartada» o "
+                           "«cerrada» no mostraba ninguna hasta marcar además "
+                           "«ver las terminadas». Ahora elegir el estado basta."),
+        ],
+    },
     {
         "version": "0.19.3",
         "fecha": "2026-09-01",

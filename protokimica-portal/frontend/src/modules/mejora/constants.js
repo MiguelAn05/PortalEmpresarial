@@ -116,9 +116,25 @@ export const ESTADOS_ACCION = {
   cumplida: { label: 'Cumplida', tono: 'positivo' },
 }
 
+/**
+ * Los estados en los que una OMP ya no se trabaja.
+ *
+ * La lista los esconde por defecto —un tablero de trabajo muestra lo que
+ * pide algo de alguien— pero **elegir uno en el filtro manda sobre eso**:
+ * pedir «descartada» es justamente querer verlas. Sin esta distinción, el
+ * filtro devolvía vacío hasta que además se marcaba «ver las terminadas»,
+ * y parecía que no hubiera ninguna.
+ */
+export const ESTADOS_TERMINALES = ['cerrada', 'descartada']
+
 /** Una OMP terminada ya no se mueve ni admite acciones nuevas. */
 export function estaCerrada(omp) {
-  return omp?.estado === 'cerrada' || omp?.estado === 'descartada'
+  return ESTADOS_TERMINALES.includes(omp?.estado)
+}
+
+/** ¿Este estado del filtro es uno de los que la lista esconde por defecto? */
+export function esEstadoTerminal(estado) {
+  return ESTADOS_TERMINALES.includes(estado)
 }
 
 /**

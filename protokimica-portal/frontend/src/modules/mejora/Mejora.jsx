@@ -7,7 +7,7 @@ import {
 } from '../../core/components/Iconos.jsx'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
 import { listarOportunidades } from './api.js'
-import { CICLO, ESTADOS, estadoDelPlazo } from './constants.js'
+import { CICLO, ESTADOS, esEstadoTerminal, estadoDelPlazo } from './constants.js'
 import DetalleOportunidad from './components/DetalleOportunidad.jsx'
 import FormOportunidad from './components/FormOportunidad.jsx'
 
@@ -86,9 +86,14 @@ export default function Mejora() {
   const [abierta, setAbierta] = useState(null)
   const [creando, setCreando] = useState(false)
 
+  // Elegir un estado terminal en el filtro manda sobre el interruptor: si
+  // alguien pide ver las descartadas, es que quiere verlas. Antes las dos
+  // condiciones se anulaban y el filtro devolvía vacío.
+  const soloAbiertas = !verCerradas && !esEstadoTerminal(filtros.estado)
+
   const { data: oportunidades = [], isLoading, isError } = useQuery({
-    queryKey: ['omp', { verCerradas }],
-    queryFn: () => listarOportunidades(verCerradas ? {} : { abiertas: true }),
+    queryKey: ['omp', { soloAbiertas }],
+    queryFn: () => listarOportunidades(soloAbiertas ? { abiertas: true } : {}),
   })
 
   const puedeCrear = user?.rol === 'admin' || user?.rol === 'lider'

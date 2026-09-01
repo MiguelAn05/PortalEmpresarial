@@ -10,6 +10,14 @@ from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
+# Los estados en los que un proyecto ya no se trabaja.
+#
+# Cerrar un proyecto además lo ARCHIVA (ver `cierre.py`), y de esa pareja
+# salía un defecto: la lista escondía los archivados por defecto, así que
+# filtrar por «cerrado» devolvía siempre vacío — los dos filtros se
+# anulaban. Pedir un estado terminal manda sobre el archivo.
+ESTADOS_TERMINALES = ("cerrado", "cancelado")
+
 
 class Proyecto(Base):
     __tablename__ = "mp_proyectos"
@@ -33,6 +41,9 @@ class Proyecto(Base):
     # "cerrado" y "cancelado" son distintos a propósito: uno terminó y el otro
     # se abandonó. Meterlos en el mismo estado haría que un proyecto que nadie
     # sacó adelante contara igual que uno cumplido en los indicadores.
+    #
+    # Los dos son TERMINALES, y cerrar archiva el proyecto: ver
+    # `ESTADOS_TERMINALES` más abajo y el filtro de la lista.
     estado = Column(String(20), nullable=False, default="planeacion")
     # baja | media | alta | critica
     prioridad = Column(String(20), nullable=False, default="media")
