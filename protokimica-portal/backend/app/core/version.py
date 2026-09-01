@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.19.2"
+VERSION = "0.19.3"
 FECHA = "2026-09-01"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,23 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.19.3",
+        "fecha": "2026-09-01",
+        "titulo": "Descartar una oportunidad, con freno",
+        "cambios": [
+            ("correccion", "El botón «Descartar» de una oportunidad de mejora se "
+                           "confundía con descartar lo que uno acababa de "
+                           "escribir. Ahora dice «Descartar la oportunidad» y "
+                           "pregunta antes de hacerlo."),
+            ("nuevo", "Al descartar hay que decir por qué. Queda en la ficha y "
+                      "en el historial, con el nombre de quien lo decidió."),
+            ("nuevo", "Una oportunidad descartada se puede retomar. Antes no "
+                      "había forma de volver atrás desde la pantalla."),
+            ("mejora", "El aviso aclara que descartar NO borra la oportunidad: "
+                       "queda registrada como evaluada y no seguida."),
+        ],
+    },
     {
         "version": "0.19.2",
         "fecha": "2026-09-01",

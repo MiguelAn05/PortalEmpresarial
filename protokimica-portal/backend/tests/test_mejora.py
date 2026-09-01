@@ -367,6 +367,8 @@ def test_lo_que_no_funciono_se_descarta_no_se_borra(entorno):
 
     # Un líder no borra: el historial de mejora es lo que se audita.
     assert entorno.delete(f"/mejora/{omp_id}").status_code == 403
-    r = entorno.patch(f"/mejora/{omp_id}/estado", json={"estado": "descartada"})
-    assert r.status_code == 200
+    r = entorno.patch(f"/mejora/{omp_id}/estado",
+                      json={"estado": "descartada",
+                            "motivo": "El proveedor cambió el proceso y ya no aplica."})
+    assert r.status_code == 200, r.text
     assert r.json()["estado"] == "descartada"

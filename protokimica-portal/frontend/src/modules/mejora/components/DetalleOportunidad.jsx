@@ -50,6 +50,89 @@ function fechaCorta(valor) {
   return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+/**
+ * Confirmar que se descarta, y decir por qué.
+ *
+ * El botón vivía suelto en el pie y bastaba un clic. Peor: «descartar» es la
+ * misma palabra que el portal usa para tirar los cambios de un formulario
+ * (ver `cierreSeguro`), así que se leía como «descartar lo que escribí».
+ *
+ * Tres frenos: el botón dice qué se descarta, este diálogo dice qué pasa y
+ * qué NO pasa, y el motivo obliga a pensar un segundo. El motivo además es
+ * lo único que le da sentido al registro cuando alguien pregunte, medio año
+ * después, por qué esta oportunidad no se trabajó.
+ */
+function ConfirmarDescarte({ omp, guardando, onConfirmar, onCancelar }) {
+  const [motivo, setMotivo] = useState('')
+  const listo = motivo.trim().length >= 5
+
+  return (
+    <div
+      className="fixed inset-0 bg-texto/50 flex items-center justify-center z-[60] p-4"
+      onClick={onCancelar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-superficie rounded-2xl shadow-lg w-full max-w-md"
+      >
+        <header className="px-6 py-4 border-b border-borde">
+          <h3 className="text-base font-semibold text-texto">
+            ¿Descartar esta oportunidad?
+          </h3>
+          <p className="cifra text-xs text-texto-3 mt-0.5">{omp.codigo}</p>
+        </header>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* Lo primero que hay que despejar es el miedo: no se borra nada. */}
+          <div className="rounded-xl border border-borde bg-superficie-2 p-3 space-y-1.5">
+            <p className="text-sm text-texto">
+              <b className="font-semibold">No se borra.</b> Queda registrada como
+              evaluada y no seguida, con su código y su historial.
+            </p>
+            <p className="text-sm text-texto-2">
+              Sale de la lista de trabajo, y se puede retomar después.
+            </p>
+          </div>
+
+          <div>
+            <label className="etiqueta block mb-1.5">
+              ¿Por qué se descarta? <span className="text-negativo">*</span>
+            </label>
+            <textarea
+              value={motivo} onChange={(e) => setMotivo(e.target.value)}
+              rows={3} autoFocus maxLength={MAX_TEXTO_LARGO}
+              placeholder="Ej: el proceso se rediseñó y el problema dejó de existir."
+              className={claseInput}
+            />
+            <p className="text-xs text-texto-3 mt-1.5">
+              Queda en la ficha y en el historial, con tu nombre y la fecha.
+            </p>
+          </div>
+        </div>
+
+        <footer className="flex justify-end gap-3 px-6 py-4 border-t border-borde">
+          <button
+            onClick={onCancelar}
+            className="px-4 py-2 rounded-lg border border-borde-fuerte text-sm
+              font-medium text-texto-2 hover:bg-superficie-2 transition-colors duration-150"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onConfirmar(motivo.trim())}
+            disabled={!listo || guardando}
+            className="px-4 py-2 rounded-lg bg-negativo text-white text-sm
+              font-semibold disabled:opacity-40 disabled:cursor-not-allowed
+              transition-colors duration-150"
+          >
+            {guardando ? 'Descartando…' : 'Sí, descartar'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  )
+}
+
 /** El ciclo dibujado: dónde está y qué viene. */
 function Ciclo({ estado }) {
   const actual = CICLO.indexOf(estado)
@@ -445,6 +528,7 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
   const queryClient = useQueryClient()
   const [nuevaAccion, setNuevaAccion] = useState('')
   const [verHistorial, setVerHistorial] = useState(false)
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false)
   const [error, setError] = useState('')
 
   const puedeGestionar = user?.rol === 'admin' || user?.rol === 'lider'
@@ -481,7 +565,10 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
     onError: (err) => setError(mensajeDeError(err, 'No se pudo guardar.')),
   })
 
-  const mutEstado = useMutation(conError((estado) => cambiarEstado(ompId, estado)))
+  // El motivo solo viaja al descartar; el servidor lo exige ahí.
+  const mutEstado = useMutation(conError(
+    ({ estado, motivo }) => cambiarEstado(ompId, estado, motivo),
+  ))
   const mutCampos = useMutation(conError((datos) => actualizarOportunidad(ompId, datos)))
   const mutAccion = useMutation(conError((datos) => agregarAccion(ompId, datos)))
   const mutMarcar = useMutation(conError(({ id, estado }) =>
@@ -831,11 +918,14 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
         {puedeGestionar && !cerrada && (
           <footer className="flex flex-wrap items-center justify-between gap-3
             px-6 py-4 border-t border-borde">
+            {/* Dice QUÉ se descarta. A secas, «Descartar» se confundía con
+                tirar los cambios del formulario — es la misma palabra que
+                usa `cierreSeguro` para eso. */}
             <button
-              onClick={() => mutEstado.mutate('descartada')}
+              onClick={() => setConfirmandoDescarte(true)}
               className="text-xs font-medium text-texto-3 hover:text-negativo transition-colors"
             >
-              Descartar
+              Descartar la oportunidad
             </button>
 
             <div className="flex items-center gap-3">
@@ -843,7 +933,7 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
               {falta && <span className="text-xs text-texto-3">{falta}</span>}
               {siguiente && (
                 <button
-                  onClick={() => mutEstado.mutate(siguiente)}
+                  onClick={() => mutEstado.mutate({ estado: siguiente })}
                   disabled={Boolean(falta) || mutEstado.isPending}
                   title={falta || undefined}
                   className="px-4 py-2 rounded-lg bg-acento-fuerte text-white text-sm
@@ -856,7 +946,40 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
             </div>
           </footer>
         )}
+
+        {/* Una descartada se retoma: es una decisión, y las decisiones se
+            revisan. Sin esta salida, un clic equivocado dejaba la
+            oportunidad enterrada sin forma de volver desde la pantalla. */}
+        {puedeGestionar && omp.estado === 'descartada' && (
+          <footer className="flex flex-wrap items-center justify-between gap-3
+            px-6 py-4 border-t border-borde">
+            <span className="text-xs text-texto-3">
+              Se descartó y quedó el registro. Si vuelve a aplicar, se puede retomar.
+            </span>
+            <button
+              onClick={() => mutEstado.mutate({ estado: 'analisis' })}
+              disabled={mutEstado.isPending}
+              className="px-4 py-2 rounded-lg border border-borde-fuerte text-sm
+                font-semibold text-texto-2 hover:bg-superficie-2 disabled:opacity-60
+                transition-colors duration-150"
+            >
+              Retomar la oportunidad
+            </button>
+          </footer>
+        )}
       </div>
+
+      {confirmandoDescarte && (
+        <ConfirmarDescarte
+          omp={omp}
+          guardando={mutEstado.isPending}
+          onCancelar={() => setConfirmandoDescarte(false)}
+          onConfirmar={(motivo) => {
+            mutEstado.mutate({ estado: 'descartada', motivo })
+            setConfirmandoDescarte(false)
+          }}
+        />
+      )}
     </div>
   )
 }

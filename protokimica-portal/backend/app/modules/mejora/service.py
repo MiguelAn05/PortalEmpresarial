@@ -366,17 +366,42 @@ def validar_transicion(oportunidad: Oportunidad, nuevo: str) -> None:
 
 
 def cambiar_estado(db: Session, oportunidad: Oportunidad, nuevo: str,
-                   usuario_id: int | None = None) -> Oportunidad:
+                   usuario_id: int | None = None,
+                   motivo: str | None = None) -> Oportunidad:
+    """
+    Mueve la OMP de estado y deja el rastro.
+
+    Descartar pide motivo (lo exige el router): «se evaluó y no se siguió» no
+    le sirve a nadie dentro de seis meses si no dice por qué. Queda en la
+    ficha y en el historial.
+
+    Una descartada **se puede retomar**: no es un borrado, es una decisión, y
+    las decisiones se revisan. Al volver se limpia la fecha y el motivo, que
+    ya dejaron de ser ciertos, pero el historial conserva las dos vueltas.
+    """
     validar_transicion(oportunidad, nuevo)
 
     anterior = oportunidad.estado
     oportunidad.estado = nuevo
     if nuevo in ("cerrada", ESTADO_DESCARTADA):
         oportunidad.fecha_cierre = _ahora()
+        if motivo is not None:
+            oportunidad.nota_cierre = motivo.strip() or None
     else:
         oportunidad.fecha_cierre = None
+        # Retomada: el motivo por el que se había descartado ya no describe
+        # dónde está. Se va de la ficha, no del historial.
+        if anterior == ESTADO_DESCARTADA:
+            oportunidad.nota_cierre = None
 
     registrar_cambio(db, oportunidad.id, "estado", anterior, nuevo, usuario_id)
+    if nuevo == ESTADO_DESCARTADA and (motivo or "").strip():
+        db.add(CambioMejora(
+            omp_id=oportunidad.id, campo="Motivo del descarte",
+            valor_anterior=None, valor_nuevo=motivo.strip(),
+            usuario_id=usuario_id,
+        ))
+
     db.commit()
     db.refresh(oportunidad)
     return oportunidad

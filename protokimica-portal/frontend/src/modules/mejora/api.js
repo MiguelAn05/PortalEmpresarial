@@ -18,8 +18,10 @@ export const crearOportunidad = (datos) =>
 export const actualizarOportunidad = (id, datos) =>
   api.patch(`/mejora/${id}`, datos).then(r => r.data)
 
-export const cambiarEstado = (id, estado) =>
-  api.patch(`/mejora/${id}/estado`, { estado }).then(r => r.data)
+// `motivo` solo se usa al descartar: el servidor lo exige ahí para que la
+// decisión quede explicada en el historial.
+export const cambiarEstado = (id, estado, motivo = null) =>
+  api.patch(`/mejora/${id}/estado`, { estado, motivo }).then(r => r.data)
 
 export const eliminarOportunidad = (id) =>
   api.delete(`/mejora/${id}`).then(r => r.data)

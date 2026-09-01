@@ -18,7 +18,8 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
 from app.core.modulos import requiere_modulo
 from app.models.mejora import (
-    CLASIFICACIONES, ESTADOS_ACCION, TIPOS_RESPONSABLE, AccionMejora, CambioMejora,
+    CLASIFICACIONES, ESTADO_DESCARTADA, ESTADOS_ACCION, TIPOS_RESPONSABLE,
+    AccionMejora, CambioMejora,
     ItemCatalogo, Oportunidad, RelacionMejora, ResponsableMejora, SeguimientoMejora,
 )
 from app.models.user import User
@@ -315,7 +316,22 @@ def cambiar_estado(
 ):
     permisos.exigir_puede_gestionar(usuario)
     oportunidad = _buscar(db, omp_id, tenant_id, usuario)
-    return service.cambiar_estado(db, oportunidad, payload.estado, usuario.id)
+
+    # Descartar exige decir por qué. No es burocracia: es lo que separa una
+    # decisión de un clic equivocado, y es lo único que le da sentido al
+    # registro seis meses después, cuando alguien pregunte por qué esta
+    # oportunidad no se trabajó.
+    if payload.estado == ESTADO_DESCARTADA and not (payload.motivo or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail=("Escribe por qué se descarta. La oportunidad no se borra —"
+                    " queda registrada como evaluada y no seguida— pero sin el "
+                    "motivo nadie sabrá después en qué se basó esa decisión."),
+        )
+
+    return service.cambiar_estado(
+        db, oportunidad, payload.estado, usuario.id, payload.motivo,
+    )
 
 
 @router.get("/{omp_id}/verificacion")

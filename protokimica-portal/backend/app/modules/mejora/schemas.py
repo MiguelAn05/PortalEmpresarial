@@ -214,6 +214,10 @@ class OportunidadActualizar(BaseModel):
 
 class CambioEstado(BaseModel):
     estado: str
+    # Obligatorio al descartar (lo exige el router). Queda en la ficha y en
+    # el historial: «se evaluó y no se siguió» sin el porqué no le sirve a
+    # nadie dentro de seis meses.
+    motivo: str | None = Field(default=None, max_length=MAX_TEXTO_LARGO)
 
 
 class Verificacion(BaseModel):

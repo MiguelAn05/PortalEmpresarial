@@ -644,3 +644,106 @@ def test_la_fecha_de_registro_se_puede_escribir(entorno):
 def test_sin_fecha_de_registro_es_la_de_hoy(entorno):
     entorno.como("calidad")
     assert _crear(entorno).json()["fecha_registro"] == date.today().isoformat()
+
+
+# ── Descartar: una decisión, no un clic ──────────────────────────────
+
+def test_descartar_exige_decir_por_que(entorno, v):
+    """
+    El botón estaba a un clic de distancia y sin confirmación. El motivo es
+    el freno: separa una decisión de un dedo mal puesto, y es lo único que
+    le da sentido al registro seis meses después.
+    """
+    entorno.como("calidad")
+    omp_id = _crear(entorno).json()["id"]
+
+    r = entorno.patch(f"/mejora/{omp_id}/estado", json={"estado": "descartada"})
+
+    v.check("sin motivo no pasa", r.status_code == 400, r.status_code)
+    v.check("y aclara que no se borra", "no se borra" in r.json()["detail"], r.json()["detail"])
+    v.check("la oportunidad sigue abierta",
+            entorno.get(f"/mejora/{omp_id}").json()["estado"] == "abierta")
+
+
+def test_un_motivo_en_blanco_tampoco_cuenta(entorno, v):
+    entorno.como("calidad")
+    omp_id = _crear(entorno).json()["id"]
+
+    r = entorno.patch(f"/mejora/{omp_id}/estado",
+                      json={"estado": "descartada", "motivo": "    "})
+
+    v.check("no pasa", r.status_code == 400, r.status_code)
+
+
+def test_el_motivo_queda_en_la_ficha_y_en_el_historial(entorno, v):
+    entorno.como("calidad")
+    omp_id = _crear(entorno).json()["id"]
+
+    r = entorno.patch(f"/mejora/{omp_id}/estado", json={
+        "estado": "descartada",
+        "motivo": "El proceso se rediseñó y el problema dejó de existir.",
+    })
+
+    v.check("descarta", r.status_code == 200, r.text[:200])
+    v.check("el motivo queda a la vista",
+            r.json()["nota_cierre"] == "El proceso se rediseñó y el problema dejó de existir.",
+            r.json()["nota_cierre"])
+
+    campos = [c["campo"] for c in entorno.get(f"/mejora/{omp_id}/historial").json()]
+    v.check("y también en el historial", "Motivo del descarte" in campos, campos)
+
+
+def test_descartar_no_borra_la_oportunidad(entorno, v):
+    """
+    Lo que la gente teme del botón. La OMP sigue existiendo, con su código y
+    su historial: el registro de mejora es justo lo que se audita.
+    """
+    entorno.como("calidad")
+    creada = _crear(entorno).json()
+    entorno.patch(f"/mejora/{creada['id']}/estado",
+                  json={"estado": "descartada", "motivo": "Ya no aplica."})
+
+    r = entorno.get(f"/mejora/{creada['id']}")
+    v.check("se sigue pudiendo abrir", r.status_code == 200, r.status_code)
+    v.check("conserva su código", r.json()["codigo"] == creada["codigo"], r.json())
+    v.check("y aparece en la lista filtrando por descartadas",
+            any(o["id"] == creada["id"]
+                for o in entorno.get("/mejora?estado=descartada").json()))
+
+
+def test_una_descartada_se_puede_retomar(entorno, v):
+    """
+    Es una decisión, y las decisiones se revisan. Sin esto, un clic
+    equivocado dejaba la oportunidad enterrada sin salida desde la pantalla.
+    """
+    entorno.como("calidad")
+    omp_id = _crear(entorno).json()["id"]
+    entorno.patch(f"/mejora/{omp_id}/estado",
+                  json={"estado": "descartada", "motivo": "Se creyó que no aplicaba."})
+
+    r = entorno.patch(f"/mejora/{omp_id}/estado", json={"estado": "analisis"})
+
+    v.check("vuelve al ciclo", r.status_code == 200, r.text[:200])
+    v.check("en el estado pedido", r.json()["estado"] == "analisis", r.json()["estado"])
+    v.check("sin fecha de cierre", r.json()["fecha_cierre"] is None, r.json()["fecha_cierre"])
+    # El motivo describía por qué se había descartado: ya no es cierto.
+    v.check("y sin el motivo viejo en la ficha",
+            r.json()["nota_cierre"] is None, r.json()["nota_cierre"])
+
+    # Pero el historial conserva las dos vueltas: eso es lo que se audita.
+    campos = [c["campo"] for c in entorno.get(f"/mejora/{omp_id}/historial").json()]
+    v.check("el historial guarda el motivo", "Motivo del descarte" in campos, campos)
+
+
+def test_una_cerrada_no_se_puede_descartar(entorno, v):
+    """La guarda que ya existía, para que el motivo no la haya aflojado."""
+    entorno.como("calidad")
+    omp_id = _crear(entorno).json()["id"]
+    entorno.post(f"/mejora/{omp_id}/verificacion", json={"eficaz": True})
+    entorno.post(f"/mejora/{omp_id}/validacion-sgc", json={})
+    entorno.patch(f"/mejora/{omp_id}/estado", json={"estado": "cerrada"})
+
+    r = entorno.patch(f"/mejora/{omp_id}/estado",
+                      json={"estado": "descartada", "motivo": "Me arrepentí."})
+
+    v.check("no deja", r.status_code == 400, r.status_code)
