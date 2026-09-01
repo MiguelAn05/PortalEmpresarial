@@ -39,7 +39,7 @@ function SLAInfo({ fechaLimite, cerrado }) {
     <div className="flex items-start gap-2.5 bg-negativo-bg border border-negativo/20
       rounded-xl p-3 text-sm text-negativo font-medium">
       <IconoAlerta tam={17} className="mt-0.5 flex-shrink-0" />
-      <span>El plazo de respuesta está vencido. Estamos trabajando en tu caso.</span>
+      <span>El plazo de respuesta está vencido. Estamos trabajando en su caso.</span>
     </div>
   )
   if (dias <= 2) return (
@@ -66,7 +66,7 @@ export default function SeguimientoPQRS() {
 
   const consultar = async () => {
     if (!codigo.trim()) {
-      setError('Ingresa tu código de seguimiento.')
+      setError("Ingrese su código de seguimiento.")
       return
     }
     setLoading(true)
@@ -105,7 +105,7 @@ export default function SeguimientoPQRS() {
          Protokimica
        </h1>
         <p className="text-sm text-texto-2 mt-1">
-         Consulta el estado de tu solicitud
+         Consulte el estado de su solicitud
         </p>
     </div>
 
@@ -186,7 +186,7 @@ export default function SeguimientoPQRS() {
               <div className="bg-white rounded-2xl shadow-sm border border-borde p-6">
                 <h3 className="flex items-center gap-2 font-semibold text-texto mb-4 text-sm">
                   <IconoHistorial tam={17} className="text-texto-3" />
-                  Historial de tu solicitud
+                  Historial de su solicitud
                 </h3>
                 <div className="relative">
                   <div className="absolute left-3.5 top-0 bottom-0 w-px bg-borde" />
@@ -228,7 +228,7 @@ export default function SeguimientoPQRS() {
                   Tu solicitud fue cerrada
                 </p>
                 <p className="text-xs text-texto-2">
-                  Cuéntanos cómo te fue — toma menos de un minuto
+                  Cuéntenos cómo le fue — toma menos de un minuto
                 </p>
               </a>
             )}
@@ -239,7 +239,7 @@ export default function SeguimientoPQRS() {
                 <a href="/formulario"
                 className="text-sm text-acento font-semibold hover:underline"
               >
-                ¿Tienes otra solicitud? Radícala aquí →
+                ¿Tiene otra solicitud? Radíquela aquí →
               </a>
             </div>
           </div>

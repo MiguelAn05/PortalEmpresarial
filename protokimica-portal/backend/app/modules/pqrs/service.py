@@ -202,7 +202,7 @@ def asignar_codigo_seguimiento(db, solicitud, tenant_id: int, canal_atencion: st
         status_code=500,
         detail=(
             "La solicitud quedó registrada pero no se le pudo asignar el código "
-            "de seguimiento. Avísale a un administrador con la fecha y tu nombre "
+            "de seguimiento. Informa a un administrador con la fecha y tu nombre "
             "para que te lo entregue; no vuelvas a enviar el formulario."
         ),
     )

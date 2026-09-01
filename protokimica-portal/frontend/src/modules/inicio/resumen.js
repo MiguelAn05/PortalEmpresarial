@@ -68,15 +68,15 @@ export function ordenTarjetas(usuario) {
  * entre archivos de lógica.
  */
 export function tonoPendientes(inicio) {
-  if (!inicio) return { tono: 'neutro', titulo: 'Lo que te toca hoy' }
+  if (!inicio) return { tono: 'neutro', titulo: 'Tus pendientes de hoy' }
   if (inicio.total_urgente > 0) {
     return {
       tono: 'negativo',
-      titulo: `Tienes ${inicio.total_urgente} ${inicio.total_urgente === 1 ? 'cosa vencida' : 'cosas vencidas'}`,
+      titulo: `Tienes ${inicio.total_urgente} ${inicio.total_urgente === 1 ? 'actividad vencida' : 'actividades vencidas'}`,
     }
   }
   if (inicio.total_pendiente > 0) {
-    return { tono: 'alerta', titulo: 'Lo que te toca esta semana' }
+    return { tono: 'alerta', titulo: 'Tus pendientes de esta semana' }
   }
   return { tono: 'positivo', titulo: 'Estás al día' }
 }

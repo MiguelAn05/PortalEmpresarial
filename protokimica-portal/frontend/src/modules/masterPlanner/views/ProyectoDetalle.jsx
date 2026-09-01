@@ -126,7 +126,7 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
                 {proyecto.area && (
                   <span
                     className="px-3 py-1 rounded-full text-xs font-semibold bg-acento-suave border border-borde text-acento"
-                    title="Area responsable: es la duena del presupuesto"
+                    title="Área responsable: es la dueña del presupuesto"
                   >
                     {proyecto.area}
                   </span>
@@ -304,7 +304,7 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
 
       {confirmacion && (
         <ConfirmarCambios
-          titulo="Cambiar el estado del proyecto?"
+          titulo="¿Cambiar el estado del proyecto?"
           cambios={confirmacion.cambios}
           guardando={mutCampoProyecto.isPending}
           onConfirmar={confirmacion.ejecutar}

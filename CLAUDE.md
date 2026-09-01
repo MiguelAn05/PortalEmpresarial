@@ -84,6 +84,35 @@ entorno. Siempre `up -d`, que recrea el contenedor. Confirmar después con
 **El frontend se compila en local** (`npm run build`) y `dist/` se commitea:
 el servidor no tiene internet estable para `npm ci`.
 
+### Cómo se entra al portal
+
+Hay **dos puertas**, y la de todos los días es la primera:
+
+| | Desde dónde | Cifrado |
+|---|---|---|
+| `https://portal.protokimica.com` | Cualquier lugar con internet | HTTPS |
+| `http://172.20.70.47:8080` | Solo red interna, y solo VLAN con política | HTTP plano |
+
+**La URL pública es la oficial para todo el mundo**, incluidos los puntos de
+venta. El túnel de Cloudflare (`cloudflared` en `docker-compose.prod.yml`)
+publica el portal sin abrir un solo puerto hacia internet, así que sirve igual
+desde una sede, desde la casa o desde un celular con datos — que es
+justamente lo que necesitan los QR de los puntos de venta.
+
+**Los puntos de venta están en otras VLAN** y el FortiGate no tiene política
+hacia zeus, así que por la IP interna NO llegan (a MORFEO sí, porque para eso
+sí existe la regla). Eso ya causó un «no puedo entrar al portal» que resultó
+ser gente intentando por la IP: la respuesta es el dominio, no una regla de
+firewall.
+
+La IP interna se queda como respaldo cuando el túnel se cae, y para entrar por
+VPN. **Va en HTTP plano**, así que una contraseña escrita ahí viaja sin
+cifrar: no es el camino para el uso diario.
+
+La IP pública de la empresa (`190.14.231.91`) es solo la salida a internet.
+No hay NAT hacia zeus y no debe haberlo: el túnel existe para no exponer la
+VM.
+
 ### Versiones
 
 `backend/app/core/version.py` es la **única fuente**: el backend la sirve en

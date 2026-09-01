@@ -67,7 +67,7 @@ def exigir_sgc(usuario: User) -> None:
             status_code=403,
             detail=(
                 f"Solo el área de {AREA_SGC} valida el cierre de una oportunidad. "
-                "Cuando el plan esté cumplido y verificado, pídele a Calidad que "
+                "Cuando el plan esté cumplido y verificado, solicítale a Calidad que "
                 "la revise para poderla cerrar."
             ),
         )
@@ -79,7 +79,7 @@ def exigir_puede_gestionar(usuario: User) -> None:
             status_code=403,
             detail=(
                 "Solo los líderes de área y los administradores manejan las "
-                "oportunidades de mejora. Si necesitas abrir una, pídeselo al "
+                "oportunidades de mejora. Si necesitas abrir una, solicítalo al "
                 "líder de tu área."
             ),
         )

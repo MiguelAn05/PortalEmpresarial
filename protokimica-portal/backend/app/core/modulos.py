@@ -74,7 +74,7 @@ def requiere_modulo(modulo: str):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
                     f"Tu rol no tiene acceso al módulo de {ETIQUETAS.get(modulo, modulo)}. "
-                    "Si necesitas entrar, pídeselo a un administrador."
+                    "Si necesitas entrar, solicítalo a un administrador."
                 ),
             )
         return current_user

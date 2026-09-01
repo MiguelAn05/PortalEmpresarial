@@ -71,9 +71,11 @@ check('con algo vencido va en rojo', tono(2, 5).tono === 'negativo')
 check('el tono no trae colores encima',
   !JSON.stringify(tonoPendientes(null)).includes('#'))
 // El numero va en el titulo, no solo en el color: el color no se lee en voz alta.
-check('el titulo dice cuantas hay', tono(2, 5).titulo === 'Tienes 2 cosas vencidas')
-check('una sola va en singular', tono(1, 1).titulo === 'Tienes 1 cosa vencida')
-check('sin datos no inventa nada', tonoPendientes(null).titulo === 'Lo que te toca hoy')
+// «actividad», no «cosa»: es un portal empresarial, y ademas «cosa» no
+// dice si es una tarea, una PQRS o un indicador.
+check('el titulo dice cuantas hay', tono(2, 5).titulo === 'Tienes 2 actividades vencidas')
+check('una sola va en singular', tono(1, 1).titulo === 'Tienes 1 actividad vencida')
+check('sin datos no inventa nada', tonoPendientes(null).titulo === 'Tus pendientes de hoy')
 
 console.log('\n== Monto corto de las tarjetas ==')
 check('sin plata no inventa un cero', montoCorto(null) === '—')

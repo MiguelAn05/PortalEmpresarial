@@ -44,10 +44,10 @@ function Cartel({ punto }) {
           Protokimica
         </p>
         <h3 className="text-lg font-bold text-texto mt-1">
-          ¿Tienes una petición, queja, reclamo o sugerencia?
+          ¿Tiene una petición, queja, reclamo o sugerencia?
         </h3>
         <p className="text-sm text-texto-2 mt-1">
-          Apunta la cámara de tu celular a este código.
+          Apunte la cámara de su celular a este código.
         </p>
       </div>
 

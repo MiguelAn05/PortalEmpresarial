@@ -43,7 +43,7 @@ def validar_dominio_email(email: str) -> None:
             status_code=400,
             detail=(
                 f"El correo debe ser corporativo ({permitidos}). "
-                f"Pídele a la persona su cuenta de la empresa; si de verdad "
+                f"Solicítale a la persona su cuenta de la empresa; si de verdad "
                 f"necesita entrar con otro dominio, agrégalo a "
                 f"DOMINIOS_EMAIL_PERMITIDOS en el .env del servidor."
             ),

@@ -34,7 +34,7 @@ def limitar_login(request: Request):
             ttl = redis_client.ttl(clave)
             raise HTTPException(
                 status_code=429,
-                detail=f"Demasiados intentos de inicio de sesión. Espera {max(ttl, 1)} segundos e intenta de nuevo.",
+                detail=f"Demasiados intentos de inicio de sesión. Espere {max(ttl, 1)} segundos e intente de nuevo.",
             )
     except HTTPException:
         raise
@@ -64,8 +64,8 @@ def limitar_busqueda_publica(request: Request):
             raise HTTPException(
                 status_code=429,
                 detail=(
-                    f"Demasiadas búsquedas seguidas. Espera {max(ttl, 1)} segundos. "
-                    "Si no encuentras tu producto, escribe su nombre en la descripción."
+                    f"Demasiadas búsquedas seguidas. Espere {max(ttl, 1)} segundos. "
+                    "Si no encuentra su producto, escriba su nombre en la descripción."
                 ),
             )
     except HTTPException:

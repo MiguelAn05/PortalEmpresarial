@@ -36,7 +36,7 @@ def _plantilla_activa(db: Session, slug: str) -> Plantilla:
     if not plantilla or not plantilla.activa:
         raise HTTPException(
             status_code=404,
-            detail="Esta encuesta no está disponible. Verifica el enlace o el código QR.",
+            detail="Esta encuesta no está disponible. Verifique el enlace o el código QR.",
         )
     return plantilla
 

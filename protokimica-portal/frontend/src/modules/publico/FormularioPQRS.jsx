@@ -26,7 +26,7 @@ const TIPOS = [
   { value: 'sugerencia', label: 'Sugerencia', Icono: IconoIdea,
     descripcion: 'Proponer mejoras a nuestros productos' },
   { value: 'felicitacion', label: 'Felicitación', Icono: IconoFelicitacion,
-    descripcion: 'Nos importa conocer tu opinión de nuestros servicios' },
+    descripcion: 'Nos importa conocer su opinión de nuestros servicios' },
 ]
 
 const DEPARTAMENTOS = [
@@ -133,7 +133,7 @@ function CampoAdjunto({ label, descripcion, Icono = IconoFoto, onChange, archivo
             </div>
             <div className="text-sm font-semibold text-texto mb-1">{descripcion}</div>
             <div className="text-xs text-texto-3">
-              Toca para seleccionar o arrastra aquí
+              Toque para seleccionar o arrastre aquí
             </div>
             <div className="text-xs text-texto-3 mt-1">
               {hint}
@@ -252,7 +252,7 @@ function BuscadorProducto({ value, onChange }) {
             <div className="text-xs text-texto-2 mt-0.5">
               {delCatalogo
                 ? <span className="cifra">{value.codigo}</span>
-                : 'Lo escribiste tú. Nosotros lo identificamos al revisar tu solicitud.'}
+                : 'Lo escribió usted. Nosotros lo identificamos al revisar su solicitud.'}
             </div>
           </div>
           <button
@@ -271,7 +271,7 @@ function BuscadorProducto({ value, onChange }) {
     return (
       <div>
         <label className="etiqueta block mb-1.5">
-          Escribe tu producto <span className="text-negativo">*</span>
+          Escriba su producto <span className="text-negativo">*</span>
         </label>
         <input
           value={busqueda}
@@ -284,7 +284,7 @@ function BuscadorProducto({ value, onChange }) {
             focus:ring-2 focus:ring-acento/25 transition"
         />
         <p className="text-xs text-texto-3 mt-1.5">
-          No te preocupes si no sabes el nombre exacto: escribe lo que veas y
+          No se preocupe si no sabe el nombre exacto: escriba lo que vea y
           nosotros lo identificamos.
         </p>
         <div className="flex gap-3 mt-2">
@@ -327,7 +327,7 @@ function BuscadorProducto({ value, onChange }) {
           value={busqueda}
           onChange={(e) => buscar(e.target.value)}
           onFocus={() => busqueda.trim().length >= MINIMO_BUSQUEDA && setAbierto(true)}
-          placeholder="Escribe el nombre o código del producto…"
+          placeholder="Escriba el nombre o código del producto…"
           className="w-full pl-10 pr-4 py-3 rounded-xl border border-borde-fuerte text-sm
             text-texto placeholder-texto-3 focus:outline-none focus:border-acento
             focus:ring-2 focus:ring-acento/25 transition"
@@ -427,9 +427,9 @@ function Confirmacion({ codigo, tipo, onNueva }) {
           <div className="bg-alerta-bg border border-ambar/30 rounded-xl p-4 mb-6 text-left">
             <p className="text-xs font-semibold text-ambar-texto mb-1.5">¿Qué sigue?</p>
             <ul className="text-xs text-texto-2 space-y-1.5">
-              <li>· Nuestro equipo revisará tu solicitud</li>
-              <li>· Recibirás respuesta dentro del plazo de ley</li>
-              <li>· Con tu código puedes consultar el estado cuando quieras</li>
+              <li>· Nuestro equipo revisará su solicitud</li>
+              <li>· Recibirá respuesta dentro del plazo de ley</li>
+              <li>· Con su código puede consultar el estado cuando quiera</li>
             </ul>
           </div>
 
@@ -550,7 +550,7 @@ export default function FormularioPQRS() {
   // Validaciones por paso
   const validarPaso = () => {
     if (paso === 1 && !form.tipo) {
-      setError('Selecciona el tipo de solicitud.'); return false
+      setError("Seleccione el tipo de solicitud."); return false
     }
     if (paso === 2) {
       if (!form.empresa.trim())        { setError('El nombre de la empresa es obligatorio.'); return false }
@@ -561,17 +561,17 @@ export default function FormularioPQRS() {
       if (!form.departamento)          { setError('El departamento es obligatorio.'); return false }
     }
     if (paso === 3 && esFelicitacion) {
-      if (!form.canal_atencion)       { setError('Selecciona el canal de atención.'); return false }
+      if (!form.canal_atencion)       { setError("Seleccione el canal de atención."); return false }
     }
     if (paso === 3 && esQueja) {
-      if (!form.canal_atencion)       { setError('Selecciona el canal de atención.'); return false }
-      if (!form.descripcion.trim())   { setError('Cuéntanos qué ocurrió.'); return false }
+      if (!form.canal_atencion)       { setError("Seleccione el canal de atención."); return false }
+      if (!form.descripcion.trim())   { setError("Describa lo ocurrido."); return false }
     }
     if (paso === 3 && requiereProducto) {
       // Sirve tanto el del catálogo como el escrito a mano: lo que no sirve
       // es seguir sin ninguno.
       if (!productoSeleccionado?.nombre?.trim()) {
-        setError('Elige tu producto, o usa «No encuentro mi producto» para escribirlo.')
+        setError('Elija su producto, o use «No encuentro mi producto» para escribirlo.')
         return false
       }
       if (!form.lote.trim())          { setError('El lote es obligatorio.'); return false }
@@ -701,7 +701,7 @@ export default function FormularioPQRS() {
             bg-acento-suave px-4 py-3">
             <IconoRecibo tam={18} className="text-acento-fuerte flex-shrink-0" />
             <p className="text-sm text-texto">
-              Estás radicando desde <b className="font-semibold">{canalDelQR}</b>.
+              Está radicando desde <b className="font-semibold">{canalDelQR}</b>.
             </p>
           </div>
         )}
@@ -714,7 +714,7 @@ export default function FormularioPQRS() {
           {paso === 1 && (
             <div className="p-6">
               <h2 className="text-lg font-bold text-acento-fuerte mb-1">¿Qué tipo de solicitud quieres radicar?</h2>
-              <p className="text-sm text-texto-2 mb-5">Selecciona la opción que mejor describe tu caso.</p>
+              <p className="text-sm text-texto-2 mb-5">Seleccione la opción que mejor describa su caso.</p>
               <div className="grid grid-cols-1 gap-2">
                 {TIPOS.map(({ value, label, descripcion, Icono }) => {
                   const elegido = form.tipo === value
@@ -787,7 +787,7 @@ export default function FormularioPQRS() {
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Departamento <span className="text-negativo">*</span></label>
                   <select name="departamento" value={form.departamento} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition">
-                    <option value="">Selecciona...</option>
+                    <option value="">Seleccione...</option>
                     {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
@@ -820,7 +820,7 @@ export default function FormularioPQRS() {
                       onChange={handleChange}
                       className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                     >
-                      <option value="">Selecciona...</option>
+                      <option value="">Seleccione...</option>
                       {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                     <input
@@ -844,7 +844,7 @@ export default function FormularioPQRS() {
                     onChange={handleChange}
                     className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                   >
-                    <option value="">Selecciona...</option>
+                    <option value="">Seleccione...</option>
                     {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
@@ -902,7 +902,7 @@ export default function FormularioPQRS() {
                   onChange={handleChange}
                   className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                 >
-                  <option value="">Selecciona...</option>
+                  <option value="">Seleccione...</option>
                   {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -915,7 +915,7 @@ export default function FormularioPQRS() {
                   name="descripcion"
                   value={form.descripcion}
                   onChange={handleChange}
-                  placeholder="Cuéntanos qué ocurrió, cuándo fue y quién te atendió..."
+                  placeholder="Describa qué ocurrió, cuándo fue y quién lo atendió..."
                   rows={5}
                   className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition resize-none"
                 />
@@ -937,7 +937,7 @@ export default function FormularioPQRS() {
           {paso === 3 && esFelicitacion && (
             <div className="p-6 space-y-4">
               <div>
-                <h2 className="text-lg font-bold text-acento-fuerte mb-1">¡Gracias por tu felicitación!</h2>
+                <h2 className="text-lg font-bold text-acento-fuerte mb-1">¡Gracias por su felicitación!</h2>
                 <p className="text-sm text-texto-2">Cuéntanos por dónde nos conociste y, si quieres, déjanos un comentario.</p>
               </div>
 
@@ -951,7 +951,7 @@ export default function FormularioPQRS() {
                   onChange={handleChange}
                   className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                 >
-                  <option value="">Selecciona...</option>
+                  <option value="">Seleccione...</option>
                   {CANALES_ATENCION_FELICITACION.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -964,7 +964,7 @@ export default function FormularioPQRS() {
                   name="comentario"
                   value={form.comentario}
                   onChange={handleChange}
-                  placeholder="Cuéntanos qué te gustó..."
+                  placeholder="Describa qué le gustó..."
                   rows={4}
                   className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition resize-none"
                 />

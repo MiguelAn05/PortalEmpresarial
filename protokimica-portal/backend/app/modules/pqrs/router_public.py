@@ -335,7 +335,7 @@ def consultar_estado_encuesta(codigo: str, db: Session = Depends(get_db)):
     if solicitud.encuesta.respondida_en:
         return EncuestaEstadoOut(
             disponible=False, ya_respondida=True,
-            mensaje="Ya registramos tu respuesta a esta encuesta. ¡Gracias!",
+            mensaje="Ya registramos su respuesta a esta encuesta. ¡Gracias!",
         )
 
     return EncuestaEstadoOut(
@@ -378,4 +378,4 @@ def responder_encuesta_publica(codigo: str, payload: EncuestaCreate, db: Session
     encuesta.respondida_en = datetime.now(timezone.utc)
     db.commit()
 
-    return {"mensaje": "¡Gracias por tu tiempo! Tu respuesta fue registrada."}
+    return {"mensaje": "¡Gracias por su tiempo! Su respuesta fue registrada."}

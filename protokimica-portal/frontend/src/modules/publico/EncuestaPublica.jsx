@@ -75,7 +75,7 @@ export default function EncuestaPublica() {
       })
       setListo(data.mensaje)
     } catch (err) {
-      setError(mensajeDeError(err, 'No se pudo enviar. Revisa tu conexión e intenta de nuevo.'))
+      setError(mensajeDeError(err, 'No se pudo enviar. Revise su conexión e intente de nuevo.'))
     } finally {
       setEnviando(false)
     }
@@ -130,7 +130,7 @@ export default function EncuestaPublica() {
           )}
           {quien && (
             <p className="mt-3 inline-block bg-superficie-2 border border-borde rounded-full px-3 py-1 text-sm text-texto-2">
-              Estás calificando a <b>{quien}</b>
+              Está calificando a <b>{quien}</b>
             </p>
           )}
         </header>
@@ -140,7 +140,7 @@ export default function EncuestaPublica() {
         {hayQueElegirSujeto && (
           <fieldset className="border-0 p-0 m-0">
             <legend className="text-base font-semibold text-texto mb-2">
-              ¿{encuesta.sujeto_tipo ? `Cuál ${encuesta.sujeto_tipo}` : 'Dónde'} te atendió?
+              ¿{encuesta.sujeto_tipo ? `Cuál ${encuesta.sujeto_tipo}` : 'Dónde'} lo atendió?
               <span className="text-negativo-vivo ml-1" aria-hidden="true">*</span>
             </legend>
             <select
@@ -148,7 +148,7 @@ export default function EncuestaPublica() {
               onChange={(e) => { setSujeto(e.target.value); setError('') }}
               className="w-full rounded-xl border border-borde px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-acento"
             >
-              <option value="">Selecciona una opción</option>
+              <option value="">Seleccione una opción</option>
               {encuesta.sujetos.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </fieldset>
@@ -187,7 +187,7 @@ export default function EncuestaPublica() {
                 value={respuestas[p.id] || ''}
                 onChange={(e) => responder(p.id, e.target.value)}
                 rows={3}
-                placeholder="Escribe aquí (opcional)"
+                placeholder="Escriba aquí (opcional)"
                 className="w-full rounded-xl border border-borde px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-acento"
               />
             )}

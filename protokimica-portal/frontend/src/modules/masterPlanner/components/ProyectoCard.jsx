@@ -93,7 +93,7 @@ export default function ProyectoCard({ proyecto, editable = true, onAbrir, onEdi
           <Avatar name={proyecto.lider_nombre} compact />
           <div className="flex flex-wrap gap-1 justify-end">
             {proyecto.area && (
-              <span title="Area responsable"
+              <span title="Área responsable"
                 className="text-[11px] text-acento bg-acento-suave border border-borde rounded-full px-2 py-0.5">
                 {proyecto.area}
               </span>

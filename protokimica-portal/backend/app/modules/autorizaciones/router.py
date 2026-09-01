@@ -174,7 +174,7 @@ def responder_autorizacion(
             status_code=403,
             detail=(
                 f"Esta autorización la responde el área de '{area}'. "
-                f"Pídele a alguien de esa área que la revise."
+                f"Solicítale a alguien de esa área que la revise."
             ),
         )
 

@@ -119,7 +119,7 @@ export default function EncuestaPQRS() {
       await api.post(`/public/encuesta/${codigo.trim().toUpperCase()}`, form)
       setEstado('enviada')
     } catch (err) {
-      setError(mensajeDeError(err, 'No pudimos registrar tu respuesta. Intenta de nuevo.'))
+      setError(mensajeDeError(err, 'No pudimos registrar su respuesta. Intente de nuevo.'))
     } finally {
       setEnviando(false)
     }
@@ -172,9 +172,9 @@ export default function EncuestaPQRS() {
               </span>
             </div>
             <p className="text-sm font-semibold text-texto mb-1">
-              Ya registramos tu respuesta
+              Ya registramos su respuesta
             </p>
-            <p className="text-xs text-texto-2">¡Gracias por tu tiempo!</p>
+            <p className="text-xs text-texto-2">¡Gracias por su tiempo!</p>
           </div>
         )}
 
@@ -199,7 +199,7 @@ export default function EncuestaPQRS() {
           <div className="space-y-4">
             {contexto?.cliente_nombre && (
               <p className="text-center text-xs text-texto-2">
-                Hola {contexto.cliente_nombre}, cuéntanos cómo te fue.
+                Hola {contexto.cliente_nombre}, cuéntenos cómo le fue.
               </p>
             )}
 
@@ -272,7 +272,7 @@ export default function EncuestaPQRS() {
                 value={form.comentario}
                 onChange={(e) => actualizar('comentario', e.target.value)}
                 rows={4}
-                placeholder="Escribe aquí tu comentario..."
+                placeholder="Escriba aquí su comentario..."
                 className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none"
               />
             </div>

@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.19.0"
-FECHA = "2026-08-31"
+VERSION = "0.19.1"
+FECHA = "2026-09-01"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,21 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.19.1",
+        "fecha": "2026-09-01",
+        "titulo": "Lenguaje más formal",
+        "cambios": [
+            ("correccion", "El inicio decía «tienes 2 cosas vencidas». Ahora dice "
+                           "«actividades», que además explica qué son."),
+            ("mejora", "Todo lo que ve el cliente —el formulario de PQRS, la "
+                       "consulta de su solicitud, las encuestas y los carteles "
+                       "de los puntos de venta— pasó a tratarlo de usted."),
+            ("correccion", "Se corrigieron tildes y signos de interrogación que "
+                           "faltaban en textos de Master Planner."),
+            ("nuevo", "Se agregó el área «Puntos de Venta»."),
+        ],
+    },
     {
         "version": "0.19.0",
         "fecha": "2026-08-31",

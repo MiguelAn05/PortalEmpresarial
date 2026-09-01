@@ -198,7 +198,7 @@ def asignar_codigo(db: Session, oportunidad: Oportunidad, tenant_id: int) -> str
 
     raise HTTPException(
         status_code=500,
-        detail=("La oportunidad quedó registrada pero sin código. Avísale a un "
+        detail=("La oportunidad quedó registrada pero sin código. Informa a un "
                 "administrador; no la vuelvas a crear."),
     )
 
@@ -360,7 +360,7 @@ def validar_transicion(oportunidad: Oportunidad, nuevo: str) -> None:
             raise HTTPException(
                 status_code=400,
                 detail=("Falta que Calidad valide el cierre. En el formato del SGC "
-                        "el cierre lo firma alguien: pídele a Calidad que revise "
+                        "el cierre lo firma alguien: solicítale a Calidad que revise "
                         "la evidencia y la dé por cerrada."),
             )
 

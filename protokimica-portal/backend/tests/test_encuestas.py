@@ -137,7 +137,7 @@ def test_una_encuesta_desactivada_no_recibe_respuestas(entorno, v):
     r = entorno.get("/public/encuestas/vendedores")
     v.check("el formulario deja de estar disponible", r.status_code == 404, r.status_code)
     v.check("y el mensaje orienta al cliente",
-            "Verifica el enlace" in r.json()["detail"], r.json())
+            "Verifique el enlace" in r.json()["detail"], r.json())
 
 
 # ── No se puede cambiar lo que ya respondieron ───────────────────────────
