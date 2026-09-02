@@ -66,7 +66,7 @@ export default function Indicadores() {
         <div>
           <h1 className="text-3xl font-bold text-acento-fuerte">Indicadores</h1>
           <p className="text-texto-2 mt-2">
-            Cómo vamos contra lo que nos comprometimos, mes a mes.
+            Seguimiento de metas: avance mes a mes.
           </p>
         </div>
         <div className="flex gap-3 items-center">
