@@ -29,7 +29,7 @@ export const TIPOS_CAPTURA = {
   },
   razon: {
     label: 'Numerador y denominador',
-    ayuda: 'Se registran los dos números y el % lo calcula el sistema. Es la única forma de que el acumulado trimestral y anual salga correcto.',
+    ayuda: 'Se calcula de un modulo. No tienes que digitarlo.',
   },
   valor: {
     label: 'Un solo valor',

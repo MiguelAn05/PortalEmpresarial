@@ -310,7 +310,7 @@ export default function FormOportunidad({ indicador = null, periodo = null,
               <div>
                 <label className="etiqueta block mb-1.5">Área</label>
                 <select value={form.area} onChange={cambiar('area')} className={input}>
-                  <option value="">La mía</option>
+                  <option value="">Area</option>
                   {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
               </div>

@@ -114,8 +114,7 @@ export default function Mejora() {
         <div>
           <h1 className="text-2xl font-semibold text-texto">Oportunidades de mejora</h1>
           <p className="text-sm text-texto-2 mt-1">
-            Lo que se está haciendo para que un indicador vuelva a su meta, y
-            si funcionó.
+            Acciones implementadas para llevar el indicador a su meta, y resultados obtenidos.
           </p>
         </div>
         {puedeCrear && (
