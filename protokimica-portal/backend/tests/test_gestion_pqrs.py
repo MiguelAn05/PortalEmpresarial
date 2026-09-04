@@ -353,3 +353,72 @@ def test_una_autorizacion_ya_respondida_no_se_vuelve_a_firmar(entorno, v):
     lista = portal.get(f"/autorizaciones/pqrs/{pid}").json()
     v.check("ya no ofrece firmarla otra vez",
             lista[0]["puede_responder"] is False, lista[0])
+
+
+# ── A quién se le avisa cuando el caso cambia de manos ───────────────────
+
+def test_al_area_que_firma_se_le_avisa(entorno, v):
+    """
+    Mover la PQRS a Contabilidad sin avisarle es dejarla esperando a que a
+    alguien de esa área se le ocurra abrir el portal, con el plazo corriendo.
+    """
+    from app.modules.pqrs.notificaciones import avisos_autorizacion_pendiente
+
+    portal = entorno
+    pid = _crear_pqrs(portal, area="Logística", estado="en_proceso")
+
+    db = portal.Session()
+    solicitud = db.get(PQRSSolicitud, pid)
+    avisos = avisos_autorizacion_pendiente(
+        db, portal.tenant_id, solicitud, "Calidad", "Nota crédito", "Logi",
+    )
+    db.close()
+
+    v.check("se arma un aviso", len(avisos) == 1, avisos)
+    evento, payload = avisos[0]
+    v.check("por el evento que n8n ya tiene registrado",
+            evento == "pqrs-notificacion-area", evento)
+    v.check("con su propio motivo",
+            payload["motivo"] == "autorizacion_pendiente", payload["motivo"])
+    v.check("dice a qué lo llaman", payload["autorizacion"] == "Nota crédito", payload)
+    v.check("y quién lo pidió", payload["solicitada_por"] == "Logi", payload)
+    v.check("va SOLO a los de Calidad",
+            payload["destinatarios"] == ["calidad@p.com"], payload["destinatarios"])
+
+
+def test_al_area_que_recibe_la_respuesta_tambien(entorno, v):
+    from app.modules.pqrs.notificaciones import avisos_autorizacion_respondida
+
+    portal = entorno
+    _con_area(portal, "calidad", AREA_SC)
+    pid = _crear_pqrs(portal, estado="en_proceso")
+
+    db = portal.Session()
+    solicitud = db.get(PQRSSolicitud, pid)
+    avisos = avisos_autorizacion_respondida(
+        db, portal.tenant_id, solicitud, AREA_SC, "Nota crédito", "aprobada", "Cali",
+    )
+    db.close()
+
+    v.check("se arma un aviso", len(avisos) == 1, avisos)
+    _, payload = avisos[0]
+    v.check("con el sí ya dado", payload["decision"] == "aprobada", payload)
+    v.check("y va a Servicio al Cliente",
+            payload["destinatarios"] == ["calidad@p.com"], payload["destinatarios"])
+
+
+def test_un_area_sin_gente_no_revienta_la_solicitud(entorno, v):
+    """
+    Si nadie está configurado en el área autorizadora no hay a quién avisarle,
+    pero la autorización tiene que quedar pedida igual: notificar no puede
+    tumbar lo que ya se guardó.
+    """
+    portal = entorno
+    pid = _crear_pqrs(portal, estado="en_proceso")
+    tid = _crear_tipo(portal, area_autorizadora="Tesorería")   # nadie en esa área
+
+    portal.como("logistica")
+    r = portal.post(f"/autorizaciones/pqrs/{pid}/solicitar", data={"tipo_id": tid})
+    v.check("se solicita igual", r.status_code == 201, r.text[:250])
+    v.check("y la PQRS quedó en Tesorería",
+            portal.get(f"/pqrs/{pid}").json()["area_responsable"] == "Tesorería")

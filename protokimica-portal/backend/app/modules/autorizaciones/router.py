@@ -18,7 +18,9 @@ quien reparte, y quien decide qué sigue después del sí o del no.
 """
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status,
+)
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -34,6 +36,9 @@ from app.modules.autorizaciones.schemas import (
 )
 from app.modules.pqrs.permisos import AREA_SERVICIO_CLIENTE
 from app.modules.pqrs.service import guardar_archivo
+from app.modules.pqrs.notificaciones import (
+    avisos_autorizacion_pendiente, avisos_autorizacion_respondida, enviar_avisos,
+)
 
 router = APIRouter(prefix="/autorizaciones", tags=["Autorizaciones"])
 
@@ -126,6 +131,7 @@ def listar_autorizaciones_pqrs(
 @router.post("/pqrs/{pqrs_id}/solicitar", response_model=AutorizacionOut, status_code=201)
 async def solicitar_autorizacion(
     pqrs_id: int,
+    background: BackgroundTasks,
     tipo_id: int = Form(...),
     comentario_solicitud: str | None = Form(None),
     adjunto: UploadFile | None = File(None),
@@ -209,6 +215,15 @@ async def solicitar_autorizacion(
     ))
     db.commit()
     db.refresh(autorizacion)
+
+    # El aviso se ARMA aquí, con la sesión viva, y se MANDA después de
+    # responder. Mover la PQRS al área que firma sin avisarle es dejarla
+    # esperando a que a alguien de esa área se le ocurra abrir el portal.
+    background.add_task(enviar_avisos, avisos_autorizacion_pendiente(
+        db, tenant_id, pqrs, tipo.area_autorizadora,
+        tipo.nombre, current_user.nombre,
+    ))
+
     return autorizacion
 
 
@@ -216,6 +231,7 @@ async def solicitar_autorizacion(
 async def responder_autorizacion(
     pqrs_id: int,
     autorizacion_id: int,
+    background: BackgroundTasks,
     decision: str = Form(...),
     comentario_respuesta: str | None = Form(None),
     adjunto: UploadFile | None = File(None),
@@ -294,4 +310,12 @@ async def responder_autorizacion(
     ))
     db.commit()
     db.refresh(autorizacion)
+
+    # Al área a la que vuelve el caso hay que decirle que ya hay respuesta: es
+    # la que tiene que hacer algo con el sí o con el no.
+    background.add_task(enviar_avisos, avisos_autorizacion_respondida(
+        db, tenant_id, pqrs, pqrs.area_responsable,
+        autorizacion.tipo.nombre, decision, current_user.nombre,
+    ))
+
     return autorizacion

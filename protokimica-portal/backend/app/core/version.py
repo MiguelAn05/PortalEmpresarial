@@ -54,6 +54,9 @@ HISTORIAL = [
             ("nuevo", "Al pedir una autorización, la solicitud pasa sola al área "
                       "que la firma, y al responderla vuelve a Servicio al "
                       "Cliente. Ya no hay que moverla a mano ni acordarse."),
+            ("nuevo", "A esa área le llega el correo diciéndole qué autorización "
+                      "está esperando su firma y quién la pidió; y cuando "
+                      "responde, el aviso vuelve con el sí o el no."),
             ("nuevo", "La solicitud de autorización y su respuesta admiten un "
                       "archivo de soporte: la factura o el concepto van con la "
                       "pregunta, no por correo aparte."),

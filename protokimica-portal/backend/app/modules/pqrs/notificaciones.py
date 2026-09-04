@@ -166,13 +166,26 @@ def _aviso_servicio_cliente(db: Session, tenant_id: int, solicitud) -> list[Avis
     })]
 
 
-def _aviso_area(db: Session, tenant_id: int, solicitud, area: str, motivo: str) -> list[Aviso]:
+def _aviso_area(db: Session, tenant_id: int, solicitud, area: str, motivo: str,
+                extra: dict | None = None) -> list[Aviso]:
     """
     Avisa únicamente a los usuarios pertenecientes a `area` — nunca a
     todo el sistema ni a otras áreas.
 
-    motivo: "creacion"     -> se acaba de radicar y quedó asignada a esta área
-            "reasignacion" -> se movió de otra área a esta
+    motivo: "creacion"                -> se acaba de radicar y quedó en esta área
+            "reasignacion"            -> se movió de otra área a esta
+            "autorizacion_pendiente"  -> le toca a esta área firmar una autorización
+            "autorizacion_respondida" -> ya la firmaron y el caso vuelve a esta área
+
+    Los cuatro viajan por el MISMO evento (`pqrs-notificacion-area`) y se
+    distinguen por `motivo`. Un evento nuevo obliga a crear su nodo Webhook en
+    n8n con el `Path` exacto, y hasta que alguien lo cree el aviso se pierde
+    con un «is not registered» en el log que nadie mira. Con un motivo más, lo
+    peor que pasa es que el correo llegue con el texto genérico.
+
+    `extra` agrega al payload lo que el motivo necesite —qué autorización, quién
+    la pidió— para que el correo pueda decir a qué lo están llamando a uno y no
+    solo que «tiene una PQRS».
     """
     if not area:
         return []
@@ -192,6 +205,7 @@ def _aviso_area(db: Session, tenant_id: int, solicitud, area: str, motivo: str) 
         "descripcion": (solicitud.descripcion or "")[:280],
         "destinatarios": destinatarios,
         "link_portal": f"{settings.FRONTEND_URL}/pqrs/{solicitud.id}",
+        **(extra or {}),
     })]
 
 
@@ -231,6 +245,35 @@ def avisos_creacion(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
 
 def avisos_reasignacion(db: Session, tenant_id: int, solicitud, area: str) -> list[Aviso]:
     return _protegido(_aviso_area, db, tenant_id, solicitud, area, "reasignacion")
+
+
+def avisos_autorizacion_pendiente(db: Session, tenant_id: int, solicitud, area: str,
+                                  autorizacion: str, solicitante: str) -> list[Aviso]:
+    """
+    Le avisa al área que tiene que firmar.
+
+    Mover la PQRS a esa área sin avisarle es dejar la solicitud esperando a que
+    alguien de Contabilidad, por su cuenta, se le ocurra abrir el portal. El
+    plazo de la PQRS mientras tanto sigue corriendo.
+    """
+    return _protegido(
+        _aviso_area, db, tenant_id, solicitud, area, "autorizacion_pendiente",
+        {"autorizacion": autorizacion, "solicitada_por": solicitante},
+    )
+
+
+def avisos_autorizacion_respondida(db: Session, tenant_id: int, solicitud, area: str,
+                                   autorizacion: str, decision: str,
+                                   respondida_por: str) -> list[Aviso]:
+    """Le avisa al área a la que vuelve el caso, con el sí o el no ya dado."""
+    return _protegido(
+        _aviso_area, db, tenant_id, solicitud, area, "autorizacion_respondida",
+        {
+            "autorizacion": autorizacion,
+            "decision": decision,
+            "respondida_por": respondida_por,
+        },
+    )
 
 
 def avisos_cierre(solicitud) -> list[Aviso]:
