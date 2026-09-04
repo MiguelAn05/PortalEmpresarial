@@ -45,3 +45,19 @@ def solo_servicio_al_cliente(current_user: User = Depends(get_current_user)) -> 
             ),
         )
     return current_user
+
+
+def puede_cambiar_area(usuario: User) -> bool:
+    """
+    Quién reparte el trabajo: Servicio al cliente, más admin.
+
+    El área no es una etiqueta. Decide a quién le llega el aviso, en la
+    bandeja de quién aparece el caso y contra quién corre el plazo. Si
+    cualquiera pudiera moverla, un caso incómodo cambiaría de dueño sin que
+    nadie lo hubiera decidido, y el reparto se quedaría sin responsable.
+
+    La excepción la pone el flujo, no una persona: al pedir una autorización
+    la PQRS pasa sola al área autorizadora, y al responderla vuelve sola.
+    Eso no es reasignar a mano — es el caso siguiendo su curso.
+    """
+    return es_servicio_al_cliente(usuario)

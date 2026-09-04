@@ -354,11 +354,16 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
   const [nuevoEstado, setNuevoEstado] = useState(pqrs.estado)
   const [comentario, setComentario] = useState('')
 
+  // El endpoint recibe multipart, no JSON: mandarlo como objeto respondía 422
+  // y el modal se quedaba sin guardar nada. Es la misma puerta que usa el
+  // detalle, así el cambio queda igual desde los dos lados.
   const mutation = useMutation({
-    mutationFn: () => api.patch(`/pqrs/${pqrs.id}/estado`, {
-      estado: nuevoEstado,
-      comentario,
-    }),
+    mutationFn: () => {
+      const datos = new FormData()
+      datos.append('estado', nuevoEstado)
+      if (comentario.trim()) datos.append('comentario', comentario.trim())
+      return api.patch(`/pqrs/${pqrs.id}/gestion`, datos)
+    },
     onSuccess: () => { onUpdated(); onClose() },
   })
 

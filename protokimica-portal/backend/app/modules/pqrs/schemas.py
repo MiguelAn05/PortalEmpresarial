@@ -107,9 +107,33 @@ class EncuestaOut(BaseModel):
         from_attributes = True
 
 
+class AlcancePQRS(BaseModel):
+    """
+    Qué puede hacer ESTA persona con ESTA PQRS.
+
+    El frontend no decide permisos, los pregunta: si repitiera las reglas de
+    `permisos.py` para saber a quién mostrarle qué, tarde o temprano la
+    pantalla ofrecería un botón que el servidor rechaza, o escondería uno que
+    sí estaba permitido. Aquí llegan ya resueltas y la interfaz solo esconde
+    lo que no aplica.
+    """
+    # Escribir cualquier cosa: comentario, estado o evidencia. Es falso para
+    # 'lectura' y 'gerencia', que no escriben nada en el portal.
+    puede_gestionar: bool
+    # Mover el área responsable. Es de Servicio al Cliente, que reparte.
+    puede_cambiar_area: bool
+    # Cerrar dispara la encuesta al cliente y congela la PQRS para los
+    # indicadores; por eso va aparte de gestionar.
+    puede_cerrar: bool
+    # Corregir lo que el cliente escribió mal al radicar: el tipo y el
+    # producto. Es la misma regla y el mismo dueño para los dos.
+    puede_reclasificar: bool
+
+
 class PQRSDetailOut(PQRSOut):
     seguimientos: list[SeguimientoOut] = []
     encuesta: EncuestaOut | None = None
+    alcance: AlcancePQRS | None = None
 
 
 class EncuestaCreate(BaseModel):

@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.19.4"
-FECHA = "2026-09-01"
+VERSION = "0.20.0"
+FECHA = "2026-09-04"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,35 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.20.0",
+        "fecha": "2026-09-04",
+        "titulo": "Gestionar una PQRS de una sola vez",
+        "cambios": [
+            ("mejora", "Cambiar el área, cambiar el estado, comentar y adjuntar "
+                       "la evidencia ahora se hace en un solo formulario y con "
+                       "un solo botón. Estaban repartidos por la pantalla y "
+                       "había que escribir el mismo motivo dos veces."),
+            ("correccion", "El área responsable de una PQRS solo se veía si "
+                           "podías cambiarla, así que un agente no sabía en qué "
+                           "área estaba el caso. Ahora se ve siempre, arriba "
+                           "junto al estado."),
+            ("correccion", "Aprobar o rechazar una autorización estaba limitado "
+                           "a los líderes. Ahora la responde cualquiera del área "
+                           "autorizadora, que es lo que el portal ya decía que "
+                           "hacía."),
+            ("nuevo", "Al pedir una autorización, la solicitud pasa sola al área "
+                      "que la firma, y al responderla vuelve a Servicio al "
+                      "Cliente. Ya no hay que moverla a mano ni acordarse."),
+            ("nuevo", "La solicitud de autorización y su respuesta admiten un "
+                      "archivo de soporte: la factura o el concepto van con la "
+                      "pregunta, no por correo aparte."),
+            ("nuevo", "Se puede dejar un comentario en una PQRS sin tener que "
+                      "cambiarle el estado para poder escribir."),
+            ("correccion", "Cambiar el estado desde el listado de PQRS no "
+                           "guardaba nada."),
+        ],
+    },
     {
         "version": "0.19.4",
         "fecha": "2026-09-01",

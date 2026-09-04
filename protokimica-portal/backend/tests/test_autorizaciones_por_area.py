@@ -63,7 +63,7 @@ def _preparar(portal, area_autorizadora="Calidad"):
 
     portal.como("admin")
     r = portal.post(f"/autorizaciones/pqrs/{ids[0]}/solicitar",
-                    json={"tipo_id": ids[1], "comentario_solicitud": "Se requiere"})
+                    data={"tipo_id": ids[1], "comentario_solicitud": "Se requiere"})
     assert r.status_code == 201, r.text
     return ids[0], r.json()["id"]
 
@@ -75,7 +75,7 @@ def test_el_agente_del_area_autorizadora_puede_responder(entorno, v):
 
     portal.como("logistica")   # rol agente, área Logística
     r = portal.post(f"/autorizaciones/pqrs/{pqrs_id}/{aut_id}/responder",
-                    json={"decision": "aprobada", "comentario_respuesta": "Va"})
+                    data={"decision": "aprobada", "comentario_respuesta": "Va"})
     v.check("un agente de esa área sí autoriza", r.status_code == 200, r.text[:250])
     v.check("y queda aprobada", r.json()["estado"] == "aprobada", r.json())
 
@@ -86,7 +86,7 @@ def test_un_lider_de_otra_area_recibe_403_con_instruccion(entorno, v):
 
     portal.como("tics")   # líder, pero de TICS
     r = portal.post(f"/autorizaciones/pqrs/{pqrs_id}/{aut_id}/responder",
-                    json={"decision": "aprobada"})
+                    data={"decision": "aprobada"})
     v.check("no puede", r.status_code == 403, r.status_code)
     v.check("y el mensaje dice a quién pedirle",
             "Calidad" in r.json()["detail"], r.json())
@@ -99,7 +99,7 @@ def test_lectura_no_autoriza_aunque_sea_su_area(entorno, v):
 
     portal.como("lectura")   # rol lectura, área TICS
     r = portal.post(f"/autorizaciones/pqrs/{pqrs_id}/{aut_id}/responder",
-                    json={"decision": "aprobada"})
+                    data={"decision": "aprobada"})
     v.check("se bloquea", r.status_code == 403, r.status_code)
 
 
@@ -110,5 +110,5 @@ def test_gerencia_tampoco_autoriza(entorno, v):
 
     portal.como("gerencia")
     r = portal.post(f"/autorizaciones/pqrs/{pqrs_id}/{aut_id}/responder",
-                    json={"decision": "aprobada"})
+                    data={"decision": "aprobada"})
     v.check("se bloquea", r.status_code == 403, r.status_code)

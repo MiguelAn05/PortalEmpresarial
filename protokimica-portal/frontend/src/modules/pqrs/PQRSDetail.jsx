@@ -11,8 +11,6 @@ import {
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 
-const AREA_SERVICIO_CLIENTE = 'Servicio al Cliente'
-
 // Mismos números que el buscador público y que el servidor.
 const MINIMO_BUSQUEDA = 2
 const ESPERA_BUSQUEDA_MS = 300
@@ -218,36 +216,208 @@ function SLALabel({ fechaLimite, cerrado }) {
   return linea(IconoAlDia, 'text-positivo', `Vence en ${dias} días`)
 }
 
+// ── Panel de gestión ───────────────────────────────────────────────
+/**
+ * Mover el área, cambiar el estado, comentar y adjuntar: un solo formulario
+ * y un solo guardado.
+ *
+ * Antes eran dos tarjetas separadas en la columna angosta. Para pasar un caso
+ * a Calidad explicando por qué había que escribir el motivo arriba, al
+ * asignar el área, y volver a escribirlo abajo, al cambiar el estado — y el
+ * historial terminaba con el mismo texto dos veces.
+ *
+ * Qué campos se muestran lo dice el `alcance` que manda el servidor. La
+ * pantalla no repite las reglas de permisos: las pregunta.
+ */
+function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
+  const [area, setArea]             = useState('')
+  const [estado, setEstado]         = useState('')
+  const [comentario, setComentario] = useState('')
+  const [evidencia, setEvidencia]   = useState(null)
+  const [error, setError]           = useState('')
+  const archivoRef = useRef(null)
+
+  const mutacion = useMutation({
+    mutationFn: () => {
+      const datos = new FormData()
+      // Solo viaja lo que cambió: un campo vacío no es "ponlo en vacío",
+      // es "no lo toques".
+      if (area) datos.append('area', area)
+      if (estado) datos.append('estado', estado)
+      if (comentario.trim()) datos.append('comentario', comentario.trim())
+      if (evidencia) datos.append('evidencia', evidencia)
+      return api.patch(`/pqrs/${pqrs.id}/gestion`, datos)
+    },
+    onSuccess: () => {
+      invalidar()
+      setArea(''); setEstado(''); setComentario(''); setEvidencia(null)
+      setError('')
+      if (archivoRef.current) archivoRef.current.value = ''
+    },
+    onError: (err) => setError(mensajeDeError(err, 'No se pudo guardar la gestión.')),
+  })
+
+  const hayAlgoQueGuardar = Boolean(area || estado || comentario.trim() || evidencia)
+
+  return (
+    <div className="bg-white rounded-xl border border-borde p-5 shadow-sm">
+      <h3 className="font-semibold text-acento-fuerte mb-4 text-sm">Gestionar solicitud</h3>
+
+      {hayPendiente && (
+        <div className="bg-alerta-bg border border-ambar/30 rounded-lg p-3 text-sm text-alerta mb-4">
+          Hay una autorización pendiente y el estado queda congelado hasta que
+          se responda. Sí puedes dejar un comentario o adjuntar un soporte.
+        </div>
+      )}
+
+      <div className="grid sm:grid-cols-2 gap-3 mb-3">
+        {alcance?.puede_cambiar_area && (
+          <div>
+            <label htmlFor="gestion-area" className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
+              Área responsable
+            </label>
+            <select
+              id="gestion-area"
+              value={area}
+              onChange={(e) => setArea(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento"
+            >
+              <option value="">Sin cambio — {pqrs.area_responsable || 'sin asignar'}</option>
+              {AREAS.filter(a => a !== pqrs.area_responsable).map(a => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label htmlFor="gestion-estado" className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
+            Estado
+          </label>
+          <select
+            id="gestion-estado"
+            value={estado}
+            onChange={(e) => setEstado(e.target.value)}
+            disabled={hayPendiente}
+            className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento disabled:bg-superficie-2 disabled:text-texto-3"
+          >
+            <option value="">Sin cambio — {ESTADOS[pqrs.estado]?.label}</option>
+            {Object.entries(ESTADOS)
+              .filter(([clave]) => clave !== pqrs.estado)
+              // 'cerrado' solo aparece si esta persona puede cerrar: mejor no
+              // ofrecerlo que dar un 403 al guardar.
+              .filter(([clave]) => clave !== 'cerrado' || alcance?.puede_cerrar)
+              .map(([clave, { label }]) => (
+                <option key={clave} value={clave}>{label}</option>
+              ))
+            }
+          </select>
+        </div>
+      </div>
+
+      {!alcance?.puede_cerrar && (
+        <p className="text-xs text-texto-2 bg-superficie-2 rounded-lg px-3 py-2 mb-3">
+          Márcala como <strong>Resuelto</strong> cuando termines. El cierre lo hace
+          Servicio al Cliente, que revisa y clasifica antes de cerrar.
+        </p>
+      )}
+
+      {!alcance?.puede_cambiar_area && (
+        <p className="text-xs text-texto-2 bg-superficie-2 rounded-lg px-3 py-2 mb-3">
+          El área la reparte Servicio al Cliente. Si este caso no es de tu área,
+          escríbelo en el comentario y ellos lo mueven.
+        </p>
+      )}
+
+      <label htmlFor="gestion-comentario" className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
+        Comentario
+      </label>
+      <textarea
+        id="gestion-comentario"
+        value={comentario}
+        onChange={(e) => setComentario(e.target.value)}
+        placeholder="Qué pasó, qué hiciste, qué falta..."
+        rows={3}
+        className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none mb-3"
+      />
+
+      <label htmlFor="gestion-evidencia" className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
+        Evidencia (opcional)
+      </label>
+      <input
+        id="gestion-evidencia"
+        ref={archivoRef}
+        type="file"
+        accept=".jpg,.jpeg,.png,.webp,.pdf"
+        onChange={(e) => setEvidencia(e.target.files?.[0] || null)}
+        className="w-full text-xs text-texto-2 mb-3 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde"
+      />
+      {evidencia && (
+        <p className="text-xs text-texto-2 mb-3 -mt-2">{evidencia.name}</p>
+      )}
+
+      {error && <p role="alert" className="text-sm text-negativo mb-3">{error}</p>}
+
+      <button
+        onClick={() => mutacion.mutate()}
+        disabled={!hayAlgoQueGuardar || mutacion.isPending}
+        className="w-full bg-acento-fuerte hover:bg-acento text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
+      >
+        {mutacion.isPending ? 'Guardando...' : 'Guardar gestión'}
+      </button>
+    </div>
+  )
+}
+
 // ── Panel de autorizaciones ────────────────────────────────────────
 function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, hayPendiente, invalidar }) {
   const [tipoId, setTipoId]         = useState('')
   const [comentario, setComentario] = useState('')
-  const [respuesta, setRespuesta]   = useState({ id: null, decision: '', comentario: '' })
+  const [adjunto, setAdjunto]       = useState(null)
+  const [respuesta, setRespuesta]   = useState({ id: null, comentario: '', adjunto: null })
+  const [error, setError]           = useState('')
+  const archivoRef = useRef(null)
 
   const mutSolicitar = useMutation({
-    mutationFn: () => api.post(`/autorizaciones/pqrs/${pqrsId}/solicitar`, {
-      tipo_id: parseInt(tipoId),
-      comentario_solicitud: comentario,
-    }),
+    mutationFn: () => {
+      const datos = new FormData()
+      datos.append('tipo_id', tipoId)
+      if (comentario.trim()) datos.append('comentario_solicitud', comentario.trim())
+      if (adjunto) datos.append('adjunto', adjunto)
+      return api.post(`/autorizaciones/pqrs/${pqrsId}/solicitar`, datos)
+    },
     onSuccess: () => {
       invalidar()
-      setTipoId(''); setComentario('')
+      setTipoId(''); setComentario(''); setAdjunto(null); setError('')
+      if (archivoRef.current) archivoRef.current.value = ''
     },
+    onError: (err) => setError(mensajeDeError(err, 'No se pudo solicitar la autorización.')),
   })
 
   const mutResponder = useMutation({
-    mutationFn: ({ autId, decision, comentario }) =>
-      api.post(`/autorizaciones/pqrs/${pqrsId}/${autId}/responder`, {
-        decision, comentario_respuesta: comentario,
-      }),
+    mutationFn: ({ autId, decision, comentario, adjunto }) => {
+      const datos = new FormData()
+      datos.append('decision', decision)
+      if (comentario?.trim()) datos.append('comentario_respuesta', comentario.trim())
+      if (adjunto) datos.append('adjunto', adjunto)
+      return api.post(`/autorizaciones/pqrs/${pqrsId}/${autId}/responder`, datos)
+    },
     onSuccess: () => {
       invalidar()
-      setRespuesta({ id: null, decision: '', comentario: '' })
+      setRespuesta({ id: null, comentario: '', adjunto: null })
+      setError('')
     },
+    onError: (err) => setError(mensajeDeError(err, 'No se pudo registrar la decisión.')),
   })
 
-  const puedeAutorizar = user?.rol === 'admin' || user?.rol === 'lider'
-  const puedeSolicitar = user?.rol !== 'lectura'
+  // Quién firma lo decide el servidor por ÁREA y llega en `puede_responder`.
+  // Esto miraba el ROL y le escondía los botones a los agentes del área
+  // autorizadora, que son quienes hacen ese trabajo.
+  const puedeSolicitar = ['admin', 'lider', 'agente'].includes(user?.rol)
+
+  // Para avisar a dónde se va a mover la PQRS antes de que la persona pulse:
+  // que el caso cambie de área es una consecuencia y no una sorpresa.
+  const tipoSeleccionado = tipos.find(t => String(t.id) === String(tipoId))
 
   return (
     <div className="bg-white rounded-xl border border-borde p-5">
@@ -286,25 +456,59 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
 
               {aut.comentario_solicitud && (
                 <p className="text-xs text-texto-2 mb-2">
-                  Solicitud: {aut.comentario_solicitud}
+                  Solicitud{aut.solicitante_nombre ? ` de ${aut.solicitante_nombre}` : ''}: {aut.comentario_solicitud}
                 </p>
+              )}
+
+              {aut.adjunto_solicitud && (
+                <a
+                  href={aut.adjunto_solicitud} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-acento font-medium hover:underline mb-2"
+                >
+                  <IconoClip tam={14} /> Soporte de la solicitud
+                </a>
               )}
 
               {aut.comentario_respuesta && (
                 <p className="text-xs text-texto-2">
-                  Respuesta: {aut.comentario_respuesta}
+                  Respuesta{aut.autorizador_nombre ? ` de ${aut.autorizador_nombre}` : ''}: {aut.comentario_respuesta}
                 </p>
               )}
 
-              {/* Botones de respuesta para líderes */}
-              {aut.estado === 'pendiente' && puedeAutorizar && (
+              {aut.adjunto_respuesta && (
+                <a
+                  href={aut.adjunto_respuesta} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-acento font-medium hover:underline mt-1"
+                >
+                  <IconoClip tam={14} /> Soporte de la respuesta
+                </a>
+              )}
+
+              {/* Firma quien pertenece al área autorizadora, sea líder o
+                  agente. El servidor ya lo resolvió en `puede_responder`. */}
+              {aut.puede_responder && (
                 <div className="mt-3 space-y-2">
                   <textarea
                     value={respuesta.id === aut.id ? respuesta.comentario : ''}
-                    onChange={(e) => setRespuesta({ id: aut.id, decision: respuesta.decision, comentario: e.target.value })}
+                    onChange={(e) => setRespuesta({
+                      id: aut.id,
+                      comentario: e.target.value,
+                      adjunto: respuesta.id === aut.id ? respuesta.adjunto : null,
+                    })}
                     placeholder="Comentario de la decisión (opcional)..."
                     rows={2}
                     className="w-full px-3 py-2 rounded-lg border border-borde text-xs text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none"
+                  />
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf"
+                    aria-label="Soporte de la decisión (opcional)"
+                    onChange={(e) => setRespuesta({
+                      id: aut.id,
+                      comentario: respuesta.id === aut.id ? respuesta.comentario : '',
+                      adjunto: e.target.files?.[0] || null,
+                    })}
+                    className="w-full text-xs text-texto-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde"
                   />
                   <div className="flex gap-2">
                     <button
@@ -312,9 +516,10 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
                         autId: aut.id,
                         decision: 'aprobada',
                         comentario: respuesta.id === aut.id ? respuesta.comentario : '',
+                        adjunto: respuesta.id === aut.id ? respuesta.adjunto : null,
                       })}
                       disabled={mutResponder.isPending}
-                      className="flex-1 bg-positivo-vivo hover:bg-positivo-vivo text-white font-bold py-2 rounded-lg text-xs transition disabled:opacity-50"
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 bg-positivo-vivo hover:bg-positivo-vivo text-white font-bold py-2 rounded-lg text-xs transition disabled:opacity-50"
                     >
                       <IconoAlDia tam={15} /> Aprobar
                     </button>
@@ -323,9 +528,10 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
                         autId: aut.id,
                         decision: 'rechazada',
                         comentario: respuesta.id === aut.id ? respuesta.comentario : '',
+                        adjunto: respuesta.id === aut.id ? respuesta.adjunto : null,
                       })}
                       disabled={mutResponder.isPending}
-                      className="flex-1 bg-negativo-vivo hover:bg-negativo-vivo text-white font-bold py-2 rounded-lg text-xs transition disabled:opacity-50"
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 bg-negativo-vivo hover:bg-negativo-vivo text-white font-bold py-2 rounded-lg text-xs transition disabled:opacity-50"
                     >
                       <IconoRechazo tam={15} /> Rechazar
                     </button>
@@ -362,6 +568,28 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
             rows={2}
             className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none mb-3"
           />
+          <label htmlFor="autorizacion-adjunto" className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
+            Soporte (opcional)
+          </label>
+          <input
+            id="autorizacion-adjunto"
+            ref={archivoRef}
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,.pdf"
+            onChange={(e) => setAdjunto(e.target.files?.[0] || null)}
+            className="w-full text-xs text-texto-2 mb-3 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde"
+          />
+          {adjunto && (
+            <p className="text-xs text-texto-2 mb-3 -mt-2">{adjunto.name}</p>
+          )}
+          {/* El área se mueve sola: el caso viaja con la pregunta, así le
+              aparece en la bandeja a quien puede firmarla. */}
+          {tipoSeleccionado && (
+            <p className="text-xs text-texto-2 bg-superficie-2 rounded-lg px-3 py-2 mb-3">
+              La solicitud pasa a <strong>{tipoSeleccionado.area_autorizadora}</strong>,
+              que es quien la responde. Al responderla vuelve a Servicio al Cliente.
+            </p>
+          )}
           <button
             onClick={() => mutSolicitar.mutate()}
             disabled={!tipoId || mutSolicitar.isPending}
@@ -371,6 +599,8 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
           </button>
         </div>
       )}
+
+      {error && <p role="alert" className="text-sm text-negativo mt-3">{error}</p>}
 
       {tipos.length === 0 && (
         <p className="text-xs text-texto-3 text-center py-2">
@@ -475,11 +705,6 @@ export default function PQRSDetail() {
   const queryClient = useQueryClient()
   const { user }    = useAuth()
 
-  const [nuevoEstado, setNuevoEstado]   = useState('')
-  const [comentario, setComentario]     = useState('')
-  const [evidencia, setEvidencia]       = useState(null)
-  const [nuevaArea, setNuevaArea]       = useState('')
-
   const { data: pqrs, isLoading, isError } = useQuery({
     queryKey: ['pqrs', id],
     queryFn: async () => { const { data } = await api.get(`/pqrs/${id}`); return data },
@@ -505,30 +730,6 @@ export default function PQRSDetail() {
     queryClient.invalidateQueries({ queryKey: ['pqrs'] })
   }
 
-  const mutEstado = useMutation({
-    mutationFn: () => {
-      const formData = new FormData()
-      formData.append('estado', nuevoEstado)
-      if (comentario) formData.append('comentario', comentario)
-      if (evidencia) formData.append('evidencia', evidencia)
-      return api.patch(`/pqrs/${id}/estado`, formData)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pqrs', id] })
-      queryClient.invalidateQueries({ queryKey: ['pqrs'] })
-      setNuevoEstado(''); setComentario(''); setEvidencia(null)
-    },
-  })
-
-  const mutArea = useMutation({
-    mutationFn: () => api.patch(`/pqrs/${id}/area`, { area: nuevaArea }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pqrs', id] })
-      queryClient.invalidateQueries({ queryKey: ['pqrs'] })
-      setNuevaArea('')
-    },
-  })
-
   const mutAreaCausante = useMutation({
     mutationFn: (area_causante) => api.patch(`/pqrs/${id}/area-causante`, { area_causante }),
     onSuccess: () => {
@@ -548,11 +749,16 @@ export default function PQRSDetail() {
     </div>
   )
 
-  const puedeEditar = user?.rol !== 'lectura'
+  // Qué puede hacer esta persona lo decide el servidor y llega en `alcance`.
+  // Mientras carga el detalle no hay alcance, así que no se ofrece nada:
+  // mejor un botón que aparece un instante después que uno que se ofrece y
+  // luego resulta rechazado.
+  const alcance = pqrs.alcance
+  const puedeEditar = Boolean(alcance?.puede_gestionar)
   // Cerrar y reclasificar son de Servicio al cliente: el tipo que elige el
-  // cliente al radicar suele estar mal, y esa clasificacion alimenta los
+  // cliente al radicar suele estar mal, y esa clasificación alimenta los
   // indicadores. Admin siempre puede, para destrabar.
-  const esServicioCliente = user?.rol === 'admin' || user?.area === AREA_SERVICIO_CLIENTE
+  const esServicioCliente = Boolean(alcance?.puede_reclasificar)
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -585,6 +791,20 @@ export default function PQRSDetail() {
               )}
               <span className="bg-white/10 text-white/70 text-xs px-2 py-0.5 rounded-full">
                 {pqrs.origen_publico === 'publico' ? 'Formulario web' : 'Interno'}
+              </span>
+            </div>
+
+            {/* En qué área está el caso ahora mismo. Va en la cabecera y no
+                dentro del control de reasignar, que es donde estaba: quien no
+                puede mover el área tampoco veía cuál era, y esa es la primera
+                pregunta de cualquiera que abre una PQRS ajena. */}
+            <div className="flex items-center gap-1.5 text-sm text-white/80 mt-3">
+              <IconoEmpresa tam={15} />
+              <span>
+                Área responsable:{' '}
+                <strong className="text-white">
+                  {pqrs.area_responsable || 'Sin asignar'}
+                </strong>
               </span>
             </div>
           </div>
@@ -729,103 +949,9 @@ export default function PQRSDetail() {
             </div>
           )}
 
-          {/* Asignar área */}
-          {puedeEditar && pqrs.estado !== 'cerrado' && (user?.rol === 'admin' || user?.rol === 'lider') && (
-            <div className="bg-white rounded-xl border border-borde p-5">
-              <h3 className="font-semibold text-acento-fuerte mb-3 text-sm">Asignar área</h3>
-              <div className="text-xs text-texto-2 mb-2">
-                Área actual: <strong>{pqrs.area_responsable || 'Sin asignar'}</strong>
-              </div>
-              {pqrs.radicado_calidad && (
-                <div className="text-xs text-texto-2 mb-2">
-                  Radicado de Calidad: <strong>{pqrs.radicado_calidad}</strong>
-                </div>
-              )}
-              <select
-                value={nuevaArea}
-                onChange={(e) => setNuevaArea(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento mb-3"
-              >
-                <option value="">Seleccionar área...</option>
-                {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
-              <button
-                onClick={() => mutArea.mutate()}
-                disabled={!nuevaArea || mutArea.isPending}
-                className="w-full bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
-              >
-                {mutArea.isPending ? 'Asignando...' : 'Asignar área'}
-              </button>
-            </div>
-          )}
-
           {/* Reclasificar el tipo — solo Servicio al cliente y antes de cerrar */}
           {esServicioCliente && pqrs.estado !== 'cerrado' && (
             <ReclasificarTipo pqrs={pqrs} />
-          )}
-
-          {/* Cambiar estado */}
-          {puedeEditar && pqrs.estado !== 'cerrado' && (
-            <div className="bg-white rounded-xl border border-borde p-5">
-              <h3 className="font-semibold text-acento-fuerte mb-3 text-sm">Cambiar estado</h3>
-
-              {hayPendiente ? (
-                <div className="bg-alerta-bg border border-ambar/30 rounded-lg p-3 text-sm text-alerta">
-                  Hay una autorización pendiente. No puedes cambiar el estado hasta que sea aprobada o rechazada.
-                </div>
-              ) : (
-                <>
-                  <select
-                    value={nuevoEstado}
-                    onChange={(e) => setNuevoEstado(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento mb-3"
-                  >
-                    <option value="">Seleccionar estado...</option>
-                    {Object.entries(ESTADOS)
-                      .filter(([key]) => key !== pqrs.estado)
-                      // 'cerrado' solo aparece si la persona puede cerrar:
-                      // mejor no ofrecerlo que dar un 403 al guardar.
-                      .filter(([key]) => key !== 'cerrado' || esServicioCliente)
-                      .map(([key, { label }]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))
-                    }
-                  </select>
-                  {!esServicioCliente && (
-                    <p className="text-xs text-texto-2 bg-superficie-2 rounded-lg px-3 py-2 mb-3 -mt-1">
-                      Marcala como <strong>Resuelto</strong> cuando termines. El cierre lo hace
-                      Servicio al Cliente, que revisa y clasifica antes de cerrar.
-                    </p>
-                  )}
-                  <textarea
-                    value={comentario}
-                    onChange={(e) => setComentario(e.target.value)}
-                    placeholder="Comentario (opcional)..."
-                    rows={3}
-                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none mb-3"
-                  />
-                  <label className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
-                    Evidencia (opcional)
-                  </label>
-                  <input
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.webp,.pdf"
-                    onChange={(e) => setEvidencia(e.target.files?.[0] || null)}
-                    className="w-full text-xs text-texto-2 mb-3 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde"
-                  />
-                  {evidencia && (
-                    <p className="text-xs text-texto-2 mb-3 -mt-2">{evidencia.name}</p>
-                  )}
-                  <button
-                    onClick={() => mutEstado.mutate()}
-                    disabled={!nuevoEstado || mutEstado.isPending}
-                    className="w-full bg-acento-fuerte hover:bg-acento text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
-                  >
-                    {mutEstado.isPending ? 'Guardando...' : 'Guardar cambio'}
-                  </button>
-                </>
-              )}
-            </div>
           )}
 
           {/* Encuesta si está cerrada y el cliente ya respondió */}
@@ -837,11 +963,23 @@ export default function PQRSDetail() {
         {/* Columna derecha */}
         <div className="col-span-2 space-y-5">
 
-          {/* Descripción */}
+          {/* Descripción: primero se lee de qué se trata el caso y después se
+              actúa sobre él. Al revés, la pantalla pedía decidir el estado
+              antes de haber leído lo que el cliente escribió. */}
           <div className="bg-white rounded-xl border border-borde p-5">
             <h3 className="font-semibold text-acento-fuerte mb-3 text-sm">Descripción del caso</h3>
             <p className="text-sm text-texto leading-relaxed whitespace-pre-wrap">{pqrs.descripcion}</p>
           </div>
+
+          {/* Gestionar: área, estado, comentario y evidencia en un solo guardado. */}
+          {puedeEditar && pqrs.estado !== 'cerrado' && (
+            <PanelGestion
+              pqrs={pqrs}
+              alcance={alcance}
+              hayPendiente={hayPendiente}
+              invalidar={invalidarAutorizaciones}
+            />
+          )}
 
           {/* Autorizaciones */}
           <PanelAutorizaciones

@@ -3,8 +3,6 @@ Endpoints del módulo PQRS.
 Todos quedan aislados bajo /pqrs y filtrados siempre por tenant_id del usuario
 logueado, para que cada empresa solo vea sus propias solicitudes.
 """
-from datetime import datetime, timezone
-
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form, HTTPException,
     UploadFile, status,
@@ -15,22 +13,24 @@ from app.core import canales
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
 from app.models.user import User
-from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta
-from app.models.autorizacion import AutorizacionPQRS
+from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
 from app.models.catalogo import ProductoCatalogo
 from app.modules.pqrs.schemas import (
-    PQRSOut, PQRSDetailOut, PQRSAsignar,
+    AlcancePQRS, PQRSOut, PQRSDetailOut, PQRSAsignar,
     PQRSAsignarArea, PQRSAreaCausante,
 )
-from app.modules.pqrs.permisos import solo_servicio_al_cliente, es_servicio_al_cliente
+from app.modules.pqrs.permisos import (
+    solo_servicio_al_cliente, es_servicio_al_cliente, puede_cambiar_area,
+)
 from app.modules.pqrs import pendientes
+from app.modules.pqrs.gestion import aplicar_gestion
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
     asignar_codigo_seguimiento, generar_radicado_calidad, guardar_archivo,
     EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB, SLA_DIAS_POR_TIPO,
 )
 from app.modules.pqrs.notificaciones import (
-    avisos_creacion, avisos_reasignacion, avisos_cierre, enviar_avisos,
+    avisos_creacion, enviar_avisos,
 )
 
 router = APIRouter(prefix="/pqrs", tags=["PQRS"])
@@ -186,7 +186,17 @@ def obtener_pqrs(
     pqrs_id: int,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
 ):
+    """
+    El detalle, más el `alcance`: qué puede hacer quien está mirando.
+
+    El alcance viaja con la solicitud para que la pantalla no tenga que
+    repetir las reglas de `permisos.py`. Repetirlas era ofrecer un botón que
+    el servidor después rechaza —o esconder uno que sí estaba permitido, que
+    es lo que le pasaba a los agentes con las autorizaciones de su propia
+    área.
+    """
     solicitud = (
         db.query(PQRSSolicitud)
         .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
@@ -194,7 +204,20 @@ def obtener_pqrs(
     )
     if not solicitud:
         raise HTTPException(status_code=404, detail="PQRS no encontrada.")
-    return solicitud
+
+    # 'lectura' y 'gerencia' no escriben nada en el portal. Es la misma regla
+    # de solo_lectura_no, que es quien de verdad la impone al guardar.
+    escribe = current_user.rol not in ("lectura", "gerencia")
+    servicio_cliente = es_servicio_al_cliente(current_user)
+
+    detalle = PQRSDetailOut.model_validate(solicitud)
+    detalle.alcance = AlcancePQRS(
+        puede_gestionar=escribe,
+        puede_cambiar_area=escribe and puede_cambiar_area(current_user),
+        puede_cerrar=escribe and servicio_cliente,
+        puede_reclasificar=escribe and servicio_cliente,
+    )
+    return detalle
 
 
 @router.patch("/{pqrs_id}/asignar", response_model=PQRSOut)
@@ -235,6 +258,46 @@ def asignar_pqrs(
     return solicitud
 
 
+@router.patch("/{pqrs_id}/gestion", response_model=PQRSOut)
+async def gestionar_pqrs(
+    pqrs_id: int,
+    background: BackgroundTasks,
+    area: str | None = Form(None),
+    estado: str | None = Form(None),
+    comentario: str | None = Form(None),
+    evidencia: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
+):
+    """
+    Mover el área, cambiar el estado, comentar y adjuntar: todo de una vez.
+
+    Es la puerta que usa la pantalla. Los campos son todos opcionales y se
+    manda solo lo que cambió, así pasar un caso a Calidad explicando por qué
+    es un guardado y un evento en el historial, y no dos de cada uno con el
+    mismo texto repetido.
+
+    Qué se puede hacer con cada campo lo decide `gestion.aplicar_gestion`; el
+    detalle de la PQRS trae eso mismo resuelto en `alcance` para que la
+    pantalla no ofrezca lo que después va a ser rechazado.
+    """
+    ruta_evidencia = None
+    if evidencia is not None and evidencia.filename:
+        ruta_evidencia = await guardar_archivo(evidencia, "evidencias")
+
+    solicitud, avisos = aplicar_gestion(
+        db, tenant_id, pqrs_id, current_user,
+        area=area, estado=estado, comentario=comentario,
+        ruta_evidencia=ruta_evidencia,
+    )
+    for aviso in avisos:
+        background.add_task(enviar_avisos, aviso)
+
+    return solicitud
+
+
 @router.patch("/{pqrs_id}/area", response_model=PQRSOut)
 def asignar_area(
     pqrs_id: int,
@@ -245,42 +308,20 @@ def asignar_area(
     current_user: User = Depends(get_current_user),
     _: User = Depends(solo_lectura_no),
 ):
-    """Asigna el área responsable de una PQRS (actualiza el campo real, no solo el historial)."""
-    solicitud = (
-        db.query(PQRSSolicitud)
-        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
-        .first()
+    """
+    Mover solo el área.
+
+    Es `/gestion` con un campo, y llama a la misma función a propósito: dos
+    implementaciones de "reasignar" terminan divergiendo, y la que se quede
+    atrás es la que un día deja de generar el radicado de Calidad o de avisar
+    al área nueva sin que nadie se entere.
+    """
+    solicitud, avisos = aplicar_gestion(
+        db, tenant_id, pqrs_id, current_user,
+        area=payload.area, comentario=payload.comentario,
     )
-    if not solicitud:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
-    if solicitud.estado == "cerrado":
-        raise HTTPException(status_code=400, detail="No se puede reasignar área en una PQRS cerrada.")
-
-    area_anterior = solicitud.area_responsable
-    solicitud.area_responsable = payload.area
-
-    # Si se asigna a Calidad, se genera su propio consecutivo de radicado interno,
-    # distinto del código de seguimiento del cliente.
-    if payload.area.strip().lower() == "calidad" and not solicitud.radicado_calidad:
-        solicitud.radicado_calidad = generar_radicado_calidad(db, tenant_id)
-
-    comentario = payload.comentario or f"Área asignada: {payload.area}."
-    if solicitud.radicado_calidad and payload.area.strip().lower() == "calidad":
-        comentario += f" Radicado de Calidad: {solicitud.radicado_calidad}."
-
-    db.add(PQRSSeguimiento(
-        pqrs_id=solicitud.id,
-        usuario_id=current_user.id,
-        tipo_evento="asignacion_area",
-        comentario=comentario,
-    ))
-    db.commit()
-    db.refresh(solicitud)
-
-    if payload.area != area_anterior:
-        background.add_task(
-            enviar_avisos, avisos_reasignacion(db, tenant_id, solicitud, payload.area),
-        )
+    for aviso in avisos:
+        background.add_task(enviar_avisos, aviso)
 
     return solicitud
 
@@ -505,83 +546,23 @@ async def cambiar_estado_pqrs(
     current_user: User = Depends(get_current_user),
     _: User = Depends(solo_lectura_no),
 ):
-    estados_validos = {"recibido", "asignado", "en_proceso", "resuelto", "cerrado"}
-    if estado not in estados_validos:
-        raise HTTPException(status_code=400, detail=f"Estado inválido. Usa uno de: {estados_validos}")
+    """
+    Cambiar solo el estado.
 
-    solicitud = (
-        db.query(PQRSSolicitud)
-        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
-        .first()
-    )
-    if not solicitud:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
-
-    # Cerrar es la unica transicion restringida: es la que dispara la
-    # encuesta al cliente y congela la PQRS para los indicadores.
-    if estado == "cerrado" and not es_servicio_al_cliente(current_user):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "Solo el área de Servicio al Cliente puede cerrar una PQRS. "
-                "Marcala como 'resuelto' y ellos la revisan y la cierran."
-            ),
-        )
-
-    if estado == "cerrado":
-        hay_pendiente = db.query(AutorizacionPQRS).filter(
-            AutorizacionPQRS.pqrs_id == pqrs_id,
-            AutorizacionPQRS.estado == "pendiente",
-        ).first()
-        if hay_pendiente:
-            raise HTTPException(
-                status_code=400,
-                detail="No se puede cerrar la PQRS: hay una autorización pendiente de respuesta."
-            )
-
-    # El cliente escribió el producto porque no lo encontró en el buscador.
-    # Se corrige ANTES de cerrar, igual que el tipo: después ya no se puede,
-    # y un nombre suelto vuelve inservible el informe por producto — que es
-    # justo el que dice cuál da más problemas.
-    if estado == "cerrado" and solicitud.producto_por_confirmar:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Falta confirmar el producto. El cliente escribió "
-                f"«{solicitud.producto_nombre}» porque no lo encontró en el "
-                "buscador. Búscalo en el catálogo y confírmalo antes de cerrar: "
-                "después ya no se puede corregir y el informe por producto "
-                "quedaría mal."
-            ),
-        )
-
-    solicitud.estado = estado
-
-    if estado == "cerrado":
-        solicitud.fecha_cierre = datetime.now(timezone.utc)
-        # Crea automáticamente el registro de encuesta pendiente de respuesta
-        if not solicitud.encuesta:
-            db.add(PQRSEncuesta(pqrs_id=solicitud.id))
-
+    Igual que `/area`, es `/gestion` con un campo y comparte su
+    implementación. Se mantiene porque es la ruta que ya conocen las
+    automatizaciones y las pruebas.
+    """
     ruta_evidencia = None
-    if evidencia is not None:
+    if evidencia is not None and evidencia.filename:
         ruta_evidencia = await guardar_archivo(evidencia, "evidencias")
 
-    db.add(PQRSSeguimiento(
-        pqrs_id=solicitud.id,
-        usuario_id=current_user.id,
-        tipo_evento="cambio_estado",
-        comentario=comentario or f"Estado actualizado a '{estado}'.",
-        adjunto_evidencia=ruta_evidencia,
-        # El estado va aparte del comentario: es lo que permite redactarle
-        # al cliente el movimiento sin mostrarle las notas internas.
-        estado_nuevo=estado,
-    ))
-    db.commit()
-    db.refresh(solicitud)
-
-    if estado == "cerrado":
-        background.add_task(enviar_avisos, avisos_cierre(solicitud))
+    solicitud, avisos = aplicar_gestion(
+        db, tenant_id, pqrs_id, current_user,
+        estado=estado, comentario=comentario, ruta_evidencia=ruta_evidencia,
+    )
+    for aviso in avisos:
+        background.add_task(enviar_avisos, aviso)
 
     return solicitud
 

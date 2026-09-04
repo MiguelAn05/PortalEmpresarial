@@ -41,9 +41,26 @@ class AutorizacionPQRS(Base):
     comentario_solicitud = Column(Text, nullable=True)
     comentario_respuesta = Column(Text, nullable=True)
 
+    # La evidencia con la que se pide y con la que se responde. Antes el
+    # soporte (la factura, la foto, el concepto) se mandaba por fuera del
+    # portal y la autorización quedaba aprobada sin nada que la sustentara.
+    adjunto_solicitud = Column(String(255), nullable=True)
+    adjunto_respuesta = Column(String(255), nullable=True)
+
     fecha_solicitud = Column(DateTime(timezone=True), server_default=func.now())
     fecha_respuesta = Column(DateTime(timezone=True), nullable=True)
 
     tipo = relationship("TipoAutorizacion", back_populates="autorizaciones")
     solicitante = relationship("User", foreign_keys=[solicitado_por])
     autorizador = relationship("User", foreign_keys=[autorizado_por])
+
+    # El nombre de quien pide y de quien firma, para que la pantalla no tenga
+    # que resolver un id contra otra consulta. Mismo patrón que en
+    # PQRSSeguimiento.usuario_nombre.
+    @property
+    def solicitante_nombre(self):
+        return self.solicitante.nombre if self.solicitante else None
+
+    @property
+    def autorizador_nombre(self):
+        return self.autorizador.nombre if self.autorizador else None
