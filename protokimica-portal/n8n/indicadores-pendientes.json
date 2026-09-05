@@ -88,7 +88,7 @@
     },
     {
       "parameters": {
-        "fromEmail": "notificaciones@protokimica.com",
+        "fromEmail": "recepcion@protokimica.com",
         "toEmail": "calidad@protokimica.com",
         "subject": "=Indicadores sin registrar de {{ $json.mes_nombre }} · {{ $json.total }} pendientes",
         "emailFormat": "html",
@@ -115,7 +115,7 @@
     },
     {
       "parameters": {
-        "fromEmail": "notificaciones@protokimica.com",
+        "fromEmail": "recepcion@protokimica.com",
         "toEmail": "={{ $json.email }}",
         "subject": "=Te faltan {{ $json.total }} indicador{{ $json.total === 1 ? '' : 'es' }} por registrar",
         "emailFormat": "html",

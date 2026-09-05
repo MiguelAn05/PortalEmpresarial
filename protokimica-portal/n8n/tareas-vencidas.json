@@ -77,7 +77,7 @@
     },
     {
       "parameters": {
-        "fromEmail": "notificaciones@protokimica.com",
+        "fromEmail": "recepcion@protokimica.com",
         "toEmail": "={{ $json.email }}",
         "subject": "=Tu semana · {{ $json.vencidas }} tarea(s) vencida(s) y {{ $json.por_vencer }} por vencer",
         "emailFormat": "html",

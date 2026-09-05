@@ -79,7 +79,7 @@
     },
     {
       "parameters": {
-        "fromEmail": "notificaciones@protokimica.com",
+        "fromEmail": "recepcion@protokimica.com",
         "toEmail": "={{ $json.email }}",
         "subject": "=PQRS por vencer · {{ $json.total }} caso{{ $json.total === 1 ? '' : 's' }} requieren tu atención",
         "emailFormat": "html",
@@ -125,7 +125,7 @@
     },
     {
       "parameters": {
-        "fromEmail": "notificaciones@protokimica.com",
+        "fromEmail": "recepcion@protokimica.com",
         "toEmail": "sacliente@protokimica.com",
         "subject": "=Atención: {{ $json.sin_responsable.length }} PQRS sin responsable y con el plazo corriendo",
         "emailFormat": "html",

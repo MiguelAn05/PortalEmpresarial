@@ -20,3 +20,8 @@ Thumbs.db
 # OJO: protokimica-portal/frontend/dist/ SÍ se commitea a propósito.
 # El servidor no tiene internet estable para `npm ci`, así que el build se
 # hace en local y se sube compilado. Ver CLAUDE.md.
+
+# Adjuntos subidos por el portal. Los que ya estaban rastreados siguen
+# estandolo; esto evita que la basura que generan las pruebas del adjunto
+# vuelva a colarse en un commit.
+protokimica-portal/backend/uploads/

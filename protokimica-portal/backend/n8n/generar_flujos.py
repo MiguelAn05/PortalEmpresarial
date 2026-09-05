@@ -15,8 +15,20 @@ si allá se agrega un campo, aquí se puede usar como {{ $json.body.campo }}.
 import json
 import os
 
-# Ajusta esto a la cuenta desde la que salen los correos.
-REMITENTE = "notificaciones@protokimica.com"
+# De qué buzón sale cada correo.
+#
+# Son DOS y no uno porque no todos los correos vienen del mismo sitio: los que
+# ve el cliente —y el reparto de PQRS a las áreas— salen del buzón de Servicio
+# al Cliente, que es quien responde si alguien contesta; los avisos internos
+# del portal salen del de recepción.
+#
+# **El remitente tiene que ser el mismo buzón de la credencial SMTP del nodo.**
+# Exchange rechaza con `554 5.2.252 SendAsDenied` cuando la cuenta autenticada
+# no coincide con el `From`, y el correo no sale: no es que llegue a spam, es
+# que nunca se manda. Si aquí se cambia una dirección, hay que cambiar la
+# credencial del nodo en n8n con ella.
+REMITENTE_SERVICIO_CLIENTE = "sacliente@protokimica.com"
+REMITENTE_INTERNO = "recepcion@protokimica.com"
 
 AZUL = "#0D2B5E"
 GRIS = "#55607A"
@@ -31,6 +43,20 @@ def plantilla(titulo: str, cuerpo: str, boton: tuple[str, str] | None = None) ->
     llamado = ""
     if boton:
         texto, enlace = boton
+        # Un '=' al principio del enlace ya rompió estos cuatro correos.
+        #
+        # El campo HTML entero es una expresión de n8n —empieza por '='—, y
+        # dentro de una expresión solo se evalúan las {{ }}. Un '=' escrito
+        # después de href=" se queda como texto, así que el botón apunta a
+        # "=https://portal..." : una ruta relativa que no lleva a ningún lado.
+        # El correo se ve perfecto y el botón no hace nada, que es la peor
+        # forma de fallar.
+        if enlace.startswith("="):
+            raise ValueError(
+                f"El enlace del botón «{texto}» empieza por '='. Quítaselo: "
+                "aquí adentro solo van las llaves {{ }}, el '=' lo pone una "
+                "sola vez el campo HTML completo."
+            )
         llamado = f"""
         <tr><td style="padding:8px 24px 24px 24px">
           <a href="{enlace}" style="display:inline-block;background:{AZUL};color:#ffffff;
@@ -64,8 +90,15 @@ def dato(etiqueta: str, valor: str) -> str:
             f'<strong style="color:#121A2B">{valor}</strong></p>')
 
 
-def flujo(nombre: str, path: str, para: str, asunto: str, html: str) -> dict:
-    """Un flujo = webhook que escucha + correo que sale."""
+def flujo(nombre: str, path: str, para: str, asunto: str, html: str,
+          remitente: str) -> dict:
+    """
+    Un flujo = webhook que escucha + correo que sale.
+
+    `remitente` va sin valor por defecto a propósito: un flujo nuevo tiene que
+    decir de qué buzón sale. Con un defecto, el que se olvide de ponerlo hereda
+    el del vecino y falla con SendAsDenied el día que corra de madrugada.
+    """
     return {
         "name": nombre,
         "nodes": [
@@ -87,7 +120,7 @@ def flujo(nombre: str, path: str, para: str, asunto: str, html: str) -> dict:
             },
             {
                 "parameters": {
-                    "fromEmail": REMITENTE,
+                    "fromEmail": remitente,
                     "toEmail": para,
                     "subject": asunto,
                     "emailFormat": "html",
@@ -115,6 +148,9 @@ B = "$json.body"   # el cuerpo que manda el portal
 
 FLUJOS = [
     flujo(
+        # Lo lee el cliente y puede responderlo: sale del buzón donde alguien
+        # atiende esa respuesta.
+        remitente=REMITENTE_SERVICIO_CLIENTE,
         nombre="PQRS · confirmación al cliente",
         path="pqrs-creada-cliente",
         para=f"={{{{ {B}.cliente_email }}}}",
@@ -129,10 +165,13 @@ FLUJOS = [
                 f'color:{AZUL}">{{{{ {B}.codigo_seguimiento }}}}</p>'
                 "Te responderemos dentro del plazo de ley."
             ),
-            boton=("Consultar mi solicitud", f"={{{{ {B}.link_seguimiento }}}}"),
+            boton=("Consultar mi solicitud", f"{{{{ {B}.link_seguimiento }}}}"),
         ),
     ),
     flujo(
+        # Aviso interno: le llega al propio equipo de Servicio al Cliente, así
+        # que no puede salir de su mismo buzón.
+        remitente=REMITENTE_INTERNO,
         nombre="PQRS · aviso a Servicio al Cliente",
         path="pqrs-nueva-servicio-cliente",
         para=f"={{{{ {B}.destinatarios.join(', ') }}}}",
@@ -148,10 +187,13 @@ FLUJOS = [
                 + f'<p style="margin:14px 0 0 0;padding:12px;background:#EFF3F9;'
                   f'border-radius:8px">{{{{ {B}.descripcion }}}}</p>'
             ),
-            boton=("Abrir en el portal", f"={{{{ {B}.link_portal }}}}"),
+            boton=("Abrir en el portal", f"{{{{ {B}.link_portal }}}}"),
         ),
     ),
     flujo(
+        # Repartir la PQRS a un área es trabajo de Servicio al Cliente, y el
+        # área le responde a ellos si algo no cuadra.
+        remitente=REMITENTE_SERVICIO_CLIENTE,
         nombre="PQRS · aviso al área responsable",
         path="pqrs-notificacion-area",
         para=f"={{{{ {B}.destinatarios.join(', ') }}}}",
@@ -169,10 +211,12 @@ FLUJOS = [
                 + f'<p style="margin:14px 0 0 0;padding:12px;background:#EFF3F9;'
                   f'border-radius:8px">{{{{ {B}.descripcion }}}}</p>'
             ),
-            boton=("Abrir en el portal", f"={{{{ {B}.link_portal }}}}"),
+            boton=("Abrir en el portal", f"{{{{ {B}.link_portal }}}}"),
         ),
     ),
     flujo(
+        # Va al cliente y lo invita a calificar: mismo buzón que su confirmación.
+        remitente=REMITENTE_SERVICIO_CLIENTE,
         nombre="PQRS · cierre y encuesta al cliente",
         path="pqrs-cerrada",
         para=f"={{{{ {B}.cliente_email }}}}",
@@ -184,7 +228,7 @@ FLUJOS = [
                 f"<strong>{{{{ {B}.codigo_seguimiento }}}}</strong> quedó cerrada. "
                 "Nos ayudarías mucho contándonos cómo te fue: es menos de un minuto."
             ),
-            boton=("Calificar la atención", f"={{{{ {B}.link_encuesta }}}}"),
+            boton=("Calificar la atención", f"{{{{ {B}.link_encuesta }}}}"),
         ),
     ),
 ]

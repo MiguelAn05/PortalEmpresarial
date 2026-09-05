@@ -140,8 +140,25 @@ consentimiento del administrador, los correos pueden salir por Microsoft Graph
 nodo *Enviar correo* por un *HTTP Request* a
 `https://graph.microsoft.com/v1.0/users/<buzón>/sendMail`.
 
-Ajusta también el remitente si no es `notificaciones@protokimica.com`: está en
-`generar_flujos.py`, se cambia ahí y se regenera.
+### El remitente y la credencial van en pareja
+
+Los correos salen de **dos** buzones, declarados en `generar_flujos.py`:
+
+| Constante | Buzón | Qué manda |
+|---|---|---|
+| `REMITENTE_SERVICIO_CLIENTE` | `sacliente@protokimica.com` | lo que ve el cliente y el reparto de PQRS a las áreas |
+| `REMITENTE_INTERNO` | `recepcion@protokimica.com` | avisos internos: PQRS nueva, tareas, indicadores |
+
+**El `From` de un nodo tiene que ser el mismo buzón de su credencial SMTP.**
+Si no coinciden, Exchange responde `554 5.2.252 SendAsDenied` y el correo no
+sale — no llega a spam, no se manda. Así que cambiar una dirección aquí obliga
+a cambiar también la credencial del nodo en n8n.
+
+Eso ya mordió: los flujos salían de `notificaciones@protokimica.com`, una
+cuenta que dejó de usarse, y fallaban con ese error. Los que corren de
+madrugada (`pqrs-por-vencer`, `tareas-vencidas`, `indicadores-pendientes`)
+fallaban sin que nadie lo viera, porque nadie está mirando la pantalla de
+ejecuciones a esa hora.
 
 **Al final hay que activar cada flujo** (el interruptor de arriba a la
 derecha). Un flujo importado pero inactivo no responde: n8n devuelve 404 y el
