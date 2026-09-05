@@ -62,6 +62,25 @@ def test_cada_flujo_escucha_un_evento_real():
     )
 
 
+def test_cada_evento_declarado_tiene_su_flujo():
+    """
+    El reverso del anterior, y el que de verdad duele.
+
+    Un flujo huérfano no hace daño: nadie lo despierta. Un evento SIN flujo sí,
+    porque el portal dispara, n8n contesta 404 y el correo no existe — el
+    mismo silencio que describe el encabezado de este archivo, pero al revés.
+    Faltaba comprobarlo, y por eso se podía agregar un aviso nuevo al backend
+    y darlo por hecho sin que nadie lo escuchara del otro lado.
+    """
+    from app.modules.pqrs.notificaciones import EVENTOS
+
+    sin_flujo = set(EVENTOS) - set(flujos_definidos())
+    assert not sin_flujo, (
+        f"El portal manda estos avisos y no hay flujo que los reciba: "
+        f"{sorted(sin_flujo)}. Se agregan en generar_flujos.py y se regenera."
+    )
+
+
 def test_el_nombre_del_archivo_es_el_path_del_webhook():
     """Se buscan por nombre de archivo; si no coincide, se importa el que no era."""
     for nombre, flujo in flujos_definidos().items():

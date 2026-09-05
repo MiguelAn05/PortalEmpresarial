@@ -57,12 +57,14 @@ EVENTO_CREADA_CLIENTE = "pqrs-creada-cliente"
 EVENTO_SERVICIO_CLIENTE = "pqrs-nueva-servicio-cliente"
 EVENTO_AREA = "pqrs-notificacion-area"
 EVENTO_CERRADA = "pqrs-cerrada"
+EVENTO_AUTORIZACION = "pqrs-autorizacion"
 
 EVENTOS = frozenset({
     EVENTO_CREADA_CLIENTE,
     EVENTO_SERVICIO_CLIENTE,
     EVENTO_AREA,
     EVENTO_CERRADA,
+    EVENTO_AUTORIZACION,
 })
 
 
@@ -166,26 +168,17 @@ def _aviso_servicio_cliente(db: Session, tenant_id: int, solicitud) -> list[Avis
     })]
 
 
-def _aviso_area(db: Session, tenant_id: int, solicitud, area: str, motivo: str,
-                extra: dict | None = None) -> list[Aviso]:
+def _aviso_area(db: Session, tenant_id: int, solicitud, area: str, motivo: str) -> list[Aviso]:
     """
     Avisa únicamente a los usuarios pertenecientes a `area` — nunca a
     todo el sistema ni a otras áreas.
 
-    motivo: "creacion"                -> se acaba de radicar y quedó en esta área
-            "reasignacion"            -> se movió de otra área a esta
-            "autorizacion_pendiente"  -> le toca a esta área firmar una autorización
-            "autorizacion_respondida" -> ya la firmaron y el caso vuelve a esta área
+    motivo: "creacion"     -> se acaba de radicar y quedó asignada a esta área
+            "reasignacion" -> se movió de otra área a esta
 
-    Los cuatro viajan por el MISMO evento (`pqrs-notificacion-area`) y se
-    distinguen por `motivo`. Un evento nuevo obliga a crear su nodo Webhook en
-    n8n con el `Path` exacto, y hasta que alguien lo cree el aviso se pierde
-    con un «is not registered» en el log que nadie mira. Con un motivo más, lo
-    peor que pasa es que el correo llegue con el texto genérico.
-
-    `extra` agrega al payload lo que el motivo necesite —qué autorización, quién
-    la pidió— para que el correo pueda decir a qué lo están llamando a uno y no
-    solo que «tiene una PQRS».
+    Lo de las autorizaciones va por su propio evento (`_aviso_autorizacion`):
+    compartir esta plantilla hacía que a quien le pedían firmar le llegara un
+    «Les asignaron una PQRS».
     """
     if not area:
         return []
@@ -205,7 +198,6 @@ def _aviso_area(db: Session, tenant_id: int, solicitud, area: str, motivo: str,
         "descripcion": (solicitud.descripcion or "")[:280],
         "destinatarios": destinatarios,
         "link_portal": f"{settings.FRONTEND_URL}/pqrs/{solicitud.id}",
-        **(extra or {}),
     })]
 
 
@@ -247,8 +239,51 @@ def avisos_reasignacion(db: Session, tenant_id: int, solicitud, area: str) -> li
     return _protegido(_aviso_area, db, tenant_id, solicitud, area, "reasignacion")
 
 
+def _aviso_autorizacion(db: Session, tenant_id: int, solicitud, area: str,
+                        motivo: str, autorizacion: str, persona: str,
+                        decision: str, comentario: str | None,
+                        tiene_adjunto: bool) -> list[Aviso]:
+    """
+    El correo de una autorización: la piden, o ya la respondieron.
+
+    Va por su propio evento y no montado en el aviso de área, porque dice otra
+    cosa. Cuando compartían plantilla, a quien le pedían autorizar una nota
+    crédito le llegaba un correo que decía «Les asignaron una PQRS»: llegaba,
+    y no decía a qué lo estaban llamando.
+
+    motivo: "pendiente"  -> a esta área le toca firmar
+            "respondida" -> ya hay sí o no, y el caso vuelve
+
+    **El adjunto viaja como un sí/no, nunca como enlace.** `/uploads` todavía
+    no tiene control de acceso, así que meter la URL en un correo es repartir
+    una evidencia de auditoría a quien reenvíe el mensaje. El botón lleva al
+    portal, donde hay sesión.
+    """
+    destinatarios = _correos_por_area(db, tenant_id, area)
+    if not destinatarios:
+        return []
+
+    return [(EVENTO_AUTORIZACION, {
+        "pqrs_id": solicitud.id,
+        "codigo_seguimiento": solicitud.codigo_seguimiento,
+        "tipo": solicitud.tipo,
+        "cliente_nombre": solicitud.cliente_nombre,
+        "area": area,
+        "motivo": motivo,
+        "autorizacion": autorizacion,
+        "persona": persona,
+        "decision": decision,
+        "comentario": (comentario or "")[:280],
+        "tiene_adjunto": tiene_adjunto,
+        "destinatarios": destinatarios,
+        "link_portal": f"{settings.FRONTEND_URL}/pqrs/{solicitud.id}",
+    })]
+
+
 def avisos_autorizacion_pendiente(db: Session, tenant_id: int, solicitud, area: str,
-                                  autorizacion: str, solicitante: str) -> list[Aviso]:
+                                  autorizacion: str, solicitante: str,
+                                  comentario: str | None = None,
+                                  tiene_adjunto: bool = False) -> list[Aviso]:
     """
     Le avisa al área que tiene que firmar.
 
@@ -257,22 +292,21 @@ def avisos_autorizacion_pendiente(db: Session, tenant_id: int, solicitud, area: 
     plazo de la PQRS mientras tanto sigue corriendo.
     """
     return _protegido(
-        _aviso_area, db, tenant_id, solicitud, area, "autorizacion_pendiente",
-        {"autorizacion": autorizacion, "solicitada_por": solicitante},
+        _aviso_autorizacion, db, tenant_id, solicitud, area,
+        "pendiente", autorizacion, solicitante, "", comentario, tiene_adjunto,
     )
 
 
 def avisos_autorizacion_respondida(db: Session, tenant_id: int, solicitud, area: str,
                                    autorizacion: str, decision: str,
-                                   respondida_por: str) -> list[Aviso]:
+                                   respondida_por: str,
+                                   comentario: str | None = None,
+                                   tiene_adjunto: bool = False) -> list[Aviso]:
     """Le avisa al área a la que vuelve el caso, con el sí o el no ya dado."""
     return _protegido(
-        _aviso_area, db, tenant_id, solicitud, area, "autorizacion_respondida",
-        {
-            "autorizacion": autorizacion,
-            "decision": decision,
-            "respondida_por": respondida_por,
-        },
+        _aviso_autorizacion, db, tenant_id, solicitud, area,
+        "respondida", autorizacion, respondida_por, decision,
+        comentario, tiene_adjunto,
     )
 
 

@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.20.0"
-FECHA = "2026-09-04"
+VERSION = "0.21.0"
+FECHA = "2026-09-05"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,26 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.21.0",
+        "fecha": "2026-09-05",
+        "titulo": "Los correos de autorización",
+        "cambios": [
+            ("nuevo", "Cuando alguien pide una autorización, al área que tiene "
+                      "que firmarla le llega un correo diciendo cuál es, quién "
+                      "la pidió y por qué. Antes había que estar mirando el "
+                      "portal para enterarse."),
+            ("nuevo", "Y cuando la responden, el aviso vuelve con el sí o el no "
+                      "a quien está esperando para seguir con el caso."),
+            ("correccion", "El botón de los correos automáticos no abría nada. "
+                           "Afectaba a los cuatro, incluido el de calificar la "
+                           "atención que se manda al cerrar una PQRS: el enlace "
+                           "de la encuesta llevaba a una página en blanco."),
+            ("correccion", "Los correos automáticos salían de una cuenta que ya "
+                           "no se usa y el servidor de correo los rechazaba, así "
+                           "que no llegaban."),
+        ],
+    },
     {
         "version": "0.20.0",
         "fecha": "2026-09-04",

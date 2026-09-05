@@ -371,19 +371,47 @@ def test_al_area_que_firma_se_le_avisa(entorno, v):
     solicitud = db.get(PQRSSolicitud, pid)
     avisos = avisos_autorizacion_pendiente(
         db, portal.tenant_id, solicitud, "Calidad", "Nota crédito", "Logi",
+        comentario="Reemplaza la factura POS#141840", tiene_adjunto=True,
     )
     db.close()
 
     v.check("se arma un aviso", len(avisos) == 1, avisos)
     evento, payload = avisos[0]
-    v.check("por el evento que n8n ya tiene registrado",
-            evento == "pqrs-notificacion-area", evento)
-    v.check("con su propio motivo",
-            payload["motivo"] == "autorizacion_pendiente", payload["motivo"])
+    v.check("por su propio evento, no el de área",
+            evento == "pqrs-autorizacion", evento)
+    v.check("marcado como pendiente de firma",
+            payload["motivo"] == "pendiente", payload["motivo"])
     v.check("dice a qué lo llaman", payload["autorizacion"] == "Nota crédito", payload)
-    v.check("y quién lo pidió", payload["solicitada_por"] == "Logi", payload)
+    v.check("y quién lo pidió", payload["persona"] == "Logi", payload)
+    v.check("lleva el motivo escrito",
+            "POS#141840" in payload["comentario"], payload["comentario"])
     v.check("va SOLO a los de Calidad",
             payload["destinatarios"] == ["calidad@p.com"], payload["destinatarios"])
+
+
+def test_el_soporte_se_anuncia_pero_no_se_enlaza(entorno, v):
+    """
+    `/uploads` no pide sesión: meter la URL del adjunto en un correo reparte
+    una evidencia de auditoría a quien reenvíe el mensaje. El correo dice que
+    existe y el botón lleva al portal.
+    """
+    from app.modules.pqrs.notificaciones import avisos_autorizacion_pendiente
+
+    portal = entorno
+    pid = _crear_pqrs(portal, estado="en_proceso")
+
+    db = portal.Session()
+    solicitud = db.get(PQRSSolicitud, pid)
+    avisos = avisos_autorizacion_pendiente(
+        db, portal.tenant_id, solicitud, "Calidad", "Nota crédito", "Logi",
+        tiene_adjunto=True,
+    )
+    db.close()
+
+    _, payload = avisos[0]
+    v.check("avisa que hay soporte", payload["tiene_adjunto"] is True, payload)
+    v.check("y no manda ninguna ruta de /uploads",
+            not any("uploads" in str(valor) for valor in payload.values()), payload)
 
 
 def test_al_area_que_recibe_la_respuesta_tambien(entorno, v):

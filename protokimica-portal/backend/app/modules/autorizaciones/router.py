@@ -222,6 +222,8 @@ async def solicitar_autorizacion(
     background.add_task(enviar_avisos, avisos_autorizacion_pendiente(
         db, tenant_id, pqrs, tipo.area_autorizadora,
         tipo.nombre, current_user.nombre,
+        comentario=comentario_solicitud,
+        tiene_adjunto=bool(ruta_adjunto),
     ))
 
     return autorizacion
@@ -316,6 +318,8 @@ async def responder_autorizacion(
     background.add_task(enviar_avisos, avisos_autorizacion_respondida(
         db, tenant_id, pqrs, pqrs.area_responsable,
         autorizacion.tipo.nombre, decision, current_user.nombre,
+        comentario=comentario_respuesta,
+        tiene_adjunto=bool(ruta_adjunto),
     ))
 
     return autorizacion

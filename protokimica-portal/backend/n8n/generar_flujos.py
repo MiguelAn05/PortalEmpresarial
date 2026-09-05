@@ -215,6 +215,44 @@ FLUJOS = [
         ),
     ),
     flujo(
+        # Aviso interno entre áreas: quien pide y quien firma son de la casa.
+        remitente=REMITENTE_INTERNO,
+        nombre="PQRS · autorización pedida o respondida",
+        path="pqrs-autorizacion",
+        para=f"={{{{ {B}.destinatarios.join(', ') }}}}",
+        asunto=(
+            f"={{{{ {B}.motivo === 'pendiente' "
+            f"? 'Autorización pendiente · ' + {B}.autorizacion "
+            f": 'Autorización ' + {B}.decision + ' · ' + {B}.autorizacion }}}}"
+            f" · {{{{ {B}.codigo_seguimiento }}}}"
+        ),
+        html="=" + plantilla(
+            titulo=(
+                f"{{{{ {B}.motivo === 'pendiente' "
+                f"? 'Necesitan que autoricen: ' + {B}.autorizacion "
+                f": 'Autorización ' + {B}.decision + ': ' + {B}.autorizacion }}}}"
+            ),
+            cuerpo=(
+                # Quién pidió o quién firmó, con la etiqueta que corresponde:
+                # un correo que no dice de quién viene obliga a abrir el portal
+                # solo para averiguarlo.
+                f"{{{{ ({B}.motivo === 'pendiente' ? 'La pidió' : 'La respondió') }}}}"
+                f": <strong>{{{{ {B}.persona }}}}</strong>"
+                + dato("Solicitud", f"{{{{ {B}.codigo_seguimiento }}}}")
+                + dato("Tipo", f"{{{{ {B}.tipo }}}}")
+                + dato("Cliente", f"{{{{ {B}.cliente_nombre }}}}")
+                + f"{{{{ {B}.comentario "
+                  f"? '<p style=\"margin:14px 0 0 0;padding:12px;background:#EFF3F9;"
+                  f"border-radius:8px\">' + {B}.comentario + '</p>' : '' }}}}"
+                # El adjunto se anuncia, no se enlaza: /uploads no pide sesión.
+                + f"{{{{ {B}.tiene_adjunto "
+                  f"? '<p style=\"margin:10px 0 0 0;font-size:13px\">Adjuntaron un "
+                  f"soporte; se ve en el portal.</p>' : '' }}}}"
+            ),
+            boton=("Abrir en el portal", f"{{{{ {B}.link_portal }}}}"),
+        ),
+    ),
+    flujo(
         # Va al cliente y lo invita a calificar: mismo buzón que su confirmación.
         remitente=REMITENTE_SERVICIO_CLIENTE,
         nombre="PQRS · cierre y encuesta al cliente",
