@@ -13,12 +13,12 @@ comprobara sería una promesa vacía — se otorgaría creyendo que protege algo
 y no protegería nada. Lo que SÍ se administra desde el portal es A QUIÉN se
 le da cada una, que es exactamente lo que guarda `CapacidadOtorgada`.
 
-**Fase 1 de la migración: esto no cambia el comportamiento de nada.** Ningún
-módulo existente llama todavía a `tiene()` — siguen con su constante de
-siempre. `sembrar_capacidades_iniciales()` dejó la tabla con exactamente las
-mismas cinco reglas que ya rigen, para que el día que un módulo migre, la
-prueba comparativa (`tests/test_capacidades.py`) demuestre que nadie perdió
-un permiso en el camino.
+**La migración va módulo por módulo, con su propia prueba comparativa antes
+de borrar la constante vieja** (`tests/test_capacidades.py` para la garantía
+general; cada módulo migrado suma la suya). `notas_credito` fue el primero
+—ver `modules/notas_credito/permisos.py`—; los demás (`pqrs.cerrar`,
+`mejora.validar_sgc`, `presupuesto.aprobar`, `presupuesto.pagar`) siguen
+todavía con su constante de siempre.
 """
 from datetime import datetime, timezone
 
@@ -74,6 +74,36 @@ def tiene(db: Session, usuario: User, capacidad: str) -> bool:
             CapacidadOtorgada.area == usuario.area,
         ),
     ).first() is not None
+
+
+def correos_de(db: Session, tenant_id: int, capacidad: str) -> list[str]:
+    """
+    Los correos de todos los que tienen esta capacidad hoy — por área o a
+    título personal — listos para un aviso.
+
+    Sustituye a mandarle el correo a una sola área quemada en el código: si
+    un administrador le otorga esta capacidad también a Aseguramiento, el
+    aviso tiene que llegarle a Aseguramiento sin que nadie tenga que tocar el
+    módulo que arma el correo.
+
+    Vive aquí y no en `pqrs/notificaciones.py` a propósito: ese módulo es de
+    PQRS, no de capacidades, y `core/` no puede depender de un módulo — sería
+    la dependencia al revés.
+    """
+    _validar(capacidad)
+    otorgamientos = quienes_tienen(db, tenant_id, capacidad)
+    areas = {o.area for o in otorgamientos if o.area}
+    usuarios_directos = {o.usuario_id for o in otorgamientos if o.usuario_id}
+    if not areas and not usuarios_directos:
+        return []
+
+    usuarios = db.query(User).filter(
+        User.tenant_id == tenant_id, User.activo.is_(True),
+    ).all()
+    return sorted({
+        u.email for u in usuarios
+        if u.email and (u.area in areas or u.id in usuarios_directos)
+    })
 
 
 def quienes_tienen(db: Session, tenant_id: int, capacidad: str) -> list[CapacidadOtorgada]:
@@ -183,19 +213,22 @@ def revocar(db: Session, tenant_id: int, otorgamiento_id: int) -> None:
         db.commit()
 
 
-# ── Semilla: las cinco reglas que hoy viven en una constante por módulo ──
+# ── Semilla: el estado base que un tenant nuevo debe traer ──────────────
 #
-# (capacidad, área que hoy la tiene quemada, módulo de origen)
-# El módulo de origen es solo documentación — nadie lo lee en tiempo de
-# ejecución — para que quien migre un módulo sepa qué constante puede borrar
-# después de que la prueba comparativa confirme que `tiene()` responde igual.
+# (capacidad, área que la tiene por defecto, de dónde salió esa regla)
+# El origen es solo documentación — nadie lo lee en tiempo de ejecución.
+# `notas_credito.*` ya YA MIGRÓ (ver `modules/notas_credito/permisos.py`):
+# esta fila sigue aquí porque su trabajo no era "ayudar a migrar" sino ser el
+# estado de arranque de un tenant nuevo, y ese sigue siendo el mismo — para
+# los cuatro que faltan, además marca qué constante se podrá borrar el día
+# que su propia prueba comparativa confirme que `tiene()` responde igual.
 SEMILLA_INICIAL = [
-    ("pqrs.cerrar",             "Servicio al Cliente", "pqrs/permisos.py::AREA_SERVICIO_CLIENTE"),
-    ("mejora.validar_sgc",      "Calidad",              "mejora/permisos.py::AREA_SGC"),
-    ("presupuesto.aprobar",     "Administración",       "master_planner/permisos.py::AREA_APRUEBA_PAGOS"),
-    ("presupuesto.pagar",       "Tesorería",             "master_planner/permisos.py::AREA_REGISTRA_PAGOS"),
-    ("notas_credito.autorizar", "Contabilidad",          "notas_credito/permisos.py::AREA_AUTORIZADORA"),
-    ("notas_credito.registrar", "Contabilidad",          "notas_credito/permisos.py::AREA_AUTORIZADORA"),
+    ("pqrs.cerrar",             "Servicio al Cliente", "pqrs/permisos.py::AREA_SERVICIO_CLIENTE (por migrar)"),
+    ("mejora.validar_sgc",      "Calidad",              "mejora/permisos.py::AREA_SGC (por migrar)"),
+    ("presupuesto.aprobar",     "Administración",       "master_planner/permisos.py::AREA_APRUEBA_PAGOS (por migrar)"),
+    ("presupuesto.pagar",       "Tesorería",             "master_planner/permisos.py::AREA_REGISTRA_PAGOS (por migrar)"),
+    ("notas_credito.autorizar", "Contabilidad",          "ya migrado — ver notas_credito/permisos.py"),
+    ("notas_credito.registrar", "Contabilidad",          "ya migrado — ver notas_credito/permisos.py"),
 ]
 
 

@@ -2,13 +2,14 @@
 Capacidades otorgadas: quién puede hacer qué, más allá de a qué área
 pertenece.
 
-El problema que esto resuelve: hoy "quién autoriza notas crédito" o "quién
-cierra una PQRS" vive en una constante de Python (`AREA_AUTORIZADORA`,
-`AREA_SGC`...) repetida en cinco módulos. Mientras el área coincida con quién
-hace el trabajo, funciona. El día que no —Aseguramiento también tramita notas
-crédito, no solo Contabilidad— la única salida es cambiarle el área a esa
-persona, y con eso le das también todo lo demás que esa área decide en otros
-módulos.
+El problema que esto resuelve: "quién cierra una PQRS" o "quién aprueba un
+presupuesto" vivía en una constante de Python (`AREA_SGC`, `AREA_APRUEBA_PAGOS`...)
+repetida en varios módulos. Mientras el área coincidiera con quién hace el
+trabajo, funcionaba. El día que no —Aseguramiento también tramita notas
+crédito, no solo Contabilidad, que fue el primer caso real— la única salida
+era cambiarle el área a esa persona, y con eso se le daba también todo lo
+demás que esa área decide en otros módulos. `notas_credito` ya migró a este
+sistema (ver `modules/notas_credito/permisos.py`); los demás siguen en fila.
 
 **Una capacidad se otorga a un ÁREA (lo normal, se hereda solo cuando entra
 gente nueva) o a una PERSONA (la excepción, explícita y visible).** Nunca a

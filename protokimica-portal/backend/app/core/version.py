@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.23.0"
-FECHA = "2026-09-05"
+VERSION = "0.24.0"
+FECHA = "2026-09-07"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,20 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.24.0",
+        "fecha": "2026-09-07",
+        "titulo": "Darle notas crédito a otra área, y que funcione de verdad",
+        "cambios": [
+            ("correccion", "Otorgarle a otra área el permiso de notas crédito "
+                           "desde Administración › Capacidades no tenía "
+                           "ningún efecto: la pantalla guardaba el permiso, "
+                           "pero nadie lo comprobaba todavía. Ya funciona."),
+            ("mejora", "El mensaje de «no tienes permiso» al autorizar una "
+                      "nota crédito ahora dice quién sí puede en este "
+                      "momento, en vez de nombrar siempre a Contabilidad."),
+        ],
+    },
     {
         "version": "0.23.0",
         "fecha": "2026-09-05",

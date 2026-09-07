@@ -5,11 +5,20 @@ Lo que se defiende:
   - el consecutivo sale del MÁXIMO y no de un conteo;
   - el punto de venta es lista cerrada, porque de ahí sale el informe por
     almacén;
-  - autoriza el ÁREA de Contabilidad, no un cargo;
+  - autoriza y registra quien tenga la CAPACIDAD (por defecto, el área de
+    Contabilidad), no un cargo — primer módulo migrado al sistema de
+    permisos por capacidad, ver `core/capacidades.py`;
   - el número de la nota crédito solo se registra sobre una ya aprobada —es
     lo que separa «aprobada» de «hecha»;
   - quien radica ve lo suyo y nada más.
+
+**Estar en el área de Contabilidad ya NO basta por sí solo**: hace falta que
+la capacidad esté otorgada. En producción eso lo garantizó la migración de
+datos `d81f6a4c92e3` para los tenants que ya existían; aquí, cada prueba que
+necesita un autorizador la otorga explícitamente con `_dar_capacidades_nc`
+— es la versión de prueba de lo que esa migración hizo una sola vez.
 """
+from app.core.capacidades import otorgar_a_area
 from app.models.nota_credito import SolicitudNotaCredito
 from app.models.user import User
 
@@ -22,6 +31,14 @@ def _con_area(portal, clave, area):
     u = db.get(User, portal.ids[clave])
     u.area = area
     db.commit()
+    db.close()
+
+
+def _dar_capacidades_nc(portal, area=AREA_CONTABILIDAD):
+    """Otorga las dos capacidades de notas crédito a un área, para pruebas."""
+    db = portal.Session()
+    otorgar_a_area(db, portal.tenant_id, "notas_credito.autorizar", area, portal.ids["admin"])
+    otorgar_a_area(db, portal.tenant_id, "notas_credito.registrar", area, portal.ids["admin"])
     db.close()
 
 
@@ -116,6 +133,7 @@ def test_solo_contabilidad_autoriza(entorno, v):
     v.check("un líder de otra área no puede", r.status_code in (403, 404), r.status_code)
 
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
+    _dar_capacidades_nc(portal)
     portal.como("calidad")
     r = portal.post(f"/notas-credito/{sid}/responder",
                     json={"decision": "aprobada", "comentario": "Va"})
@@ -131,6 +149,7 @@ def test_un_agente_de_contabilidad_tambien_autoriza(entorno, v):
     sid = _radicar(portal).json()["id"]
 
     _con_area(portal, "logistica", AREA_CONTABILIDAD)   # rol agente
+    _dar_capacidades_nc(portal)
     portal.como("logistica")
     r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobada"})
     v.check("el agente del área firma", r.status_code == 200, r.text[:250])
@@ -139,6 +158,7 @@ def test_un_agente_de_contabilidad_tambien_autoriza(entorno, v):
 def test_no_se_responde_dos_veces(entorno, v):
     portal = entorno
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
+    _dar_capacidades_nc(portal)
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
 
@@ -153,6 +173,7 @@ def test_no_se_responde_dos_veces(entorno, v):
 def test_el_numero_de_la_nc_cierra_el_ciclo(entorno, v):
     portal = entorno
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
+    _dar_capacidades_nc(portal)
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
 
@@ -172,6 +193,7 @@ def test_no_se_aplica_lo_que_nadie_aprobo(entorno, v):
     """
     portal = entorno
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
+    _dar_capacidades_nc(portal)
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
 
@@ -207,6 +229,7 @@ def test_contabilidad_las_ve_todas(entorno, v):
     _radicar(portal)
 
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
+    _dar_capacidades_nc(portal)
     portal.como("calidad")
     v.check("ve las dos", len(portal.get("/notas-credito").json()) == 2)
 
@@ -215,6 +238,7 @@ def test_el_alcance_dice_la_verdad(entorno, v):
     """El frontend no decide permisos: los pregunta."""
     portal = entorno
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
+    _dar_capacidades_nc(portal)
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
 
@@ -291,6 +315,7 @@ def test_a_contabilidad_le_llega_la_solicitud(entorno, v):
 
     portal = entorno
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
+    _dar_capacidades_nc(portal)
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
 
@@ -339,6 +364,7 @@ def test_el_soporte_no_viaja_como_enlace(entorno, v):
 
     portal = entorno
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
+    _dar_capacidades_nc(portal)
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
 
@@ -353,3 +379,45 @@ def test_el_soporte_no_viaja_como_enlace(entorno, v):
     v.check("avisa que hay soporte", payload["tiene_adjunto"] is True, payload)
     v.check("pero no manda la ruta",
             not any("uploads" in str(x) for x in payload.values()), payload)
+
+
+# ── El caso real que motivó la migración ──────────────────────────────────
+
+def test_una_segunda_area_autoriza_sin_quitarle_nada_a_contabilidad(entorno, v):
+    """
+    Aseguramiento también tramita notas crédito, no solo Contabilidad — el
+    caso real que hizo migrar este módulo al sistema de capacidades. Se
+    otorga por la MISMA API que usaría un administrador desde Administración
+    › Capacidades, y de ahí en adelante es el flujo real de autorizar:
+    endpoint /responder, no una llamada directa a una función de permisos.
+    """
+    from app.core.capacidades import otorgar_a_area
+
+    portal = entorno
+    # Contabilidad ya tenía la capacidad —en producción, por la migración de
+    # datos que sembró el estado base; aquí, con el mismo helper que usa el
+    # resto del archivo—. Aseguramiento la recibe AHORA, con una persona ya
+    # trabajando en el portal, sin tocar código ni desplegar nada.
+    _dar_capacidades_nc(portal)
+
+    portal.como("logistica")
+    sid = _radicar(portal).json()["id"]
+
+    _con_area(portal, "tics", "Aseguramiento")
+    db = portal.Session()
+    otorgar_a_area(db, portal.tenant_id, "notas_credito.autorizar",
+                   "Aseguramiento", portal.ids["admin"])
+    db.close()
+
+    portal.como("tics")
+    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobada"})
+    v.check("Aseguramiento autoriza", r.status_code == 200, r.text[:250])
+
+    # Y Contabilidad conserva su capacidad intacta: otorgar a una segunda
+    # área no le quitó nada a la primera.
+    portal.como("logistica")
+    sid2 = _radicar(portal).json()["id"]
+    _con_area(portal, "calidad", AREA_CONTABILIDAD)
+    portal.como("calidad")
+    r = portal.post(f"/notas-credito/{sid2}/responder", json={"decision": "aprobada"})
+    v.check("Contabilidad sigue autorizando", r.status_code == 200, r.text[:250])

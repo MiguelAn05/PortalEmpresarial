@@ -26,7 +26,8 @@ from app.models.nota_credito import (
 from app.models.user import User
 from app.modules.notas_credito import service
 from app.modules.notas_credito.permisos import (
-    AREA_AUTORIZADORA, puede_autorizar, puede_radicar, puede_ver,
+    mensaje_falta_capacidad, puede_autorizar, puede_radicar,
+    puede_registrar, puede_ver,
 )
 from app.modules.notas_credito.schemas import (
     AlcanceNotaCredito, AplicarSolicitud, MotivoCreate, MotivoOut,
@@ -218,7 +219,7 @@ def listar_solicitudes(
     if estado:
         query = query.filter(SolicitudNotaCredito.estado == estado)
 
-    ve_todas = current_user.rol in ("admin", "gerencia") or puede_autorizar(current_user)
+    ve_todas = current_user.rol in ("admin", "gerencia") or puede_autorizar(db, current_user)
     if not ve_todas:
         query = query.filter(SolicitudNotaCredito.solicitado_por == current_user.id)
 
@@ -236,7 +237,7 @@ def _buscar(db: Session, tenant_id: int, solicitud_id: int, usuario: User) -> So
         SolicitudNotaCredito.id == solicitud_id,
         SolicitudNotaCredito.tenant_id == tenant_id,
     ).first()
-    if not solicitud or not puede_ver(usuario, solicitud):
+    if not solicitud or not puede_ver(db, usuario, solicitud):
         raise HTTPException(status_code=404, detail="Solicitud no encontrada.")
     return solicitud
 
@@ -251,14 +252,18 @@ def obtener_solicitud(
     solicitud = _buscar(db, tenant_id, solicitud_id, current_user)
 
     escribe = current_user.rol not in ("lectura", "gerencia")
-    autoriza = escribe and puede_autorizar(current_user)
+    autoriza = escribe and puede_autorizar(db, current_user)
+    registra = escribe and puede_registrar(db, current_user)
 
     detalle = SolicitudDetailOut.model_validate(solicitud)
     detalle.alcance = AlcanceNotaCredito(
         puede_autorizar=autoriza and solicitud.estado == ESTADO_SOLICITADA,
-        # Solo se registra el número de una que ya fue aprobada: dejarlo antes
-        # sería anotar una nota crédito que nadie autorizó.
-        puede_aplicar=autoriza and solicitud.estado == ESTADO_APROBADA,
+        # Es la capacidad de REGISTRAR, no la de autorizar — hoy las tiene la
+        # misma gente porque así quedó sembrado, pero son dos permisos
+        # distintos y pueden separarse desde Administración › Capacidades.
+        # Solo aplica sobre una ya aprobada: dejarlo antes sería anotar una
+        # nota crédito que nadie autorizó.
+        puede_aplicar=registra and solicitud.estado == ESTADO_APROBADA,
     )
     return detalle
 
@@ -272,18 +277,17 @@ def responder_solicitud(
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(solo_lectura_no),
 ):
-    """Contabilidad aprueba o rechaza. Manda el área, no el cargo."""
+    """Aprueba o rechaza. Manda la capacidad otorgada, no el cargo."""
     if payload.decision not in (ESTADO_APROBADA, ESTADO_RECHAZADA):
         raise HTTPException(status_code=400, detail="La decisión debe ser 'aprobada' o 'rechazada'.")
 
     solicitud = _buscar(db, tenant_id, solicitud_id, current_user)
 
-    if not puede_autorizar(current_user):
+    if not puede_autorizar(db, current_user):
         raise HTTPException(
             status_code=403,
-            detail=(
-                f"Las notas crédito las autoriza el área de {AREA_AUTORIZADORA}. "
-                "Pídele a alguien de esa área que la revise."
+            detail=mensaje_falta_capacidad(
+                db, tenant_id, "notas_credito.autorizar", "Autorizar una nota crédito",
             ),
         )
     if solicitud.estado != ESTADO_SOLICITADA:
@@ -324,10 +328,13 @@ def aplicar_solicitud(
     """
     solicitud = _buscar(db, tenant_id, solicitud_id, current_user)
 
-    if not puede_autorizar(current_user):
+    if not puede_registrar(db, current_user):
         raise HTTPException(
             status_code=403,
-            detail=f"El número de la nota crédito lo registra el área de {AREA_AUTORIZADORA}.",
+            detail=mensaje_falta_capacidad(
+                db, tenant_id, "notas_credito.registrar",
+                "Registrar el número de una nota crédito emitida",
+            ),
         )
     if solicitud.estado != ESTADO_APROBADA:
         raise HTTPException(

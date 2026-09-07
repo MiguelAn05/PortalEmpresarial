@@ -13,12 +13,11 @@ próximo webhook con un salto de línea al final.
 """
 from sqlalchemy.orm import Session
 
+from app.core.capacidades import correos_de
 from app.core.config import settings
 from app.models.user import User
-from app.modules.pqrs.notificaciones import (
-    Aviso, _correos_por_area, _protegido,
-)
-from app.modules.notas_credito.permisos import AREA_AUTORIZADORA
+from app.modules.pqrs.notificaciones import Aviso, _protegido
+from app.modules.notas_credito.permisos import CAP_AUTORIZAR
 
 # El nombre del evento ES el path del webhook en n8n. Una prueba compara esta
 # lista contra los flujos de `backend/n8n/`: un path mal escrito no falla, n8n
@@ -48,8 +47,13 @@ def _base(solicitud) -> dict:
 
 
 def _aviso_solicitada(db: Session, tenant_id: int, solicitud, solicitante: str) -> list[Aviso]:
-    """Le avisa a Contabilidad que hay una nota crédito esperando su firma."""
-    destinatarios = _correos_por_area(db, tenant_id, AREA_AUTORIZADORA)
+    """
+    Le avisa a quien tenga la capacidad de autorizar que hay una nota crédito
+    esperando su firma — a Contabilidad por defecto, y a cualquier área o
+    persona que un administrador haya agregado desde Administración ›
+    Capacidades.
+    """
+    destinatarios = correos_de(db, tenant_id, CAP_AUTORIZAR)
     if not destinatarios:
         return []
     return [(EVENTO_SOLICITADA, {

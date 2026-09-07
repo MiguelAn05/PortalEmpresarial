@@ -1,13 +1,18 @@
 """
-Fase 1 del sistema de permisos por capacidad: la tabla, `tiene()`, y la
-prueba que hace segura la migración.
+Base del sistema de permisos por capacidad: la tabla, `tiene()`, y la prueba
+que hace segura la migración de cada módulo.
 
-**Nada de esto toca un permiso existente todavía.** Los cinco módulos siguen
-preguntando por su constante de siempre (`AREA_SERVICIO_CLIENTE`, `AREA_SGC`,
-...). Lo que se prueba aquí es que, sembrada la tabla, `tiene()` responde
-EXACTAMENTE lo mismo que esas cinco funciones para cualquier combinación de
-rol y área — esa es la garantía que permite, más adelante, borrar cada
-constante una por una sin que nadie pierda un permiso en el camino.
+**`notas_credito` ya migró** (ver `modules/notas_credito/permisos.py`) y por
+eso ya no aparece aquí: su comparación contra la constante vieja vivió en
+este archivo hasta el día que se borró esa constante, y quedó su propia
+prueba (`tests/test_notas_credito.py`) verificando el comportamiento nuevo.
+
+Los cuatro que faltan siguen preguntando por su constante de siempre
+(`AREA_SERVICIO_CLIENTE`, `AREA_SGC`, `AREA_APRUEBA_PAGOS`,
+`AREA_REGISTRA_PAGOS`). Lo que se prueba aquí es que, sembrada la tabla,
+`tiene()` responde EXACTAMENTE lo mismo que esas cuatro funciones para
+cualquier combinación de rol y área — la garantía que permitirá borrar cada
+constante, una por una, sin que nadie pierda un permiso en el camino.
 """
 import pytest
 
@@ -18,16 +23,13 @@ from app.core.capacidades import (
 from app.models.capacidad import CapacidadOtorgada
 from app.models.user import User
 
-# Las mismas cinco reglas, leídas de los módulos reales — no reescritas a
+# Las mismas cuatro reglas, leídas de los módulos reales — no reescritas a
 # mano — para que esta prueba se rompa sola si alguna cambia de área y nadie
 # actualizó la semilla.
 from app.modules.mejora.permisos import AREA_SGC, es_sgc
 from app.modules.master_planner.permisos import (
     AREA_APRUEBA_PAGOS, AREA_REGISTRA_PAGOS,
     puede_aprobar_pagos, puede_registrar_pagos,
-)
-from app.modules.notas_credito.permisos import (
-    AREA_AUTORIZADORA as AREA_NC, puede_autorizar as nc_puede_autorizar,
 )
 from app.modules.pqrs.permisos import (
     AREA_SERVICIO_CLIENTE, es_servicio_al_cliente,
@@ -69,11 +71,10 @@ def test_pedir_una_capacidad_inexistente_revienta(entorno, v):
 # ── tiene() reproduce las cinco reglas, para cada rol y área de prueba ───
 
 @pytest.mark.parametrize("clave,area_usuario,capacidad,funcion_vieja", [
-    ("calidad",   "Calidad",   "mejora.validar_sgc",      es_sgc),
-    ("calidad",   "Calidad",   "pqrs.cerrar",             es_servicio_al_cliente),
-    ("logistica", "Logística", "notas_credito.autorizar", nc_puede_autorizar),
-    ("logistica", "Logística", "presupuesto.aprobar",     puede_aprobar_pagos),
-    ("logistica", "Logística", "presupuesto.pagar",       puede_registrar_pagos),
+    ("calidad",   "Calidad",   "mejora.validar_sgc",  es_sgc),
+    ("calidad",   "Calidad",   "pqrs.cerrar",         es_servicio_al_cliente),
+    ("logistica", "Logística", "presupuesto.aprobar", puede_aprobar_pagos),
+    ("logistica", "Logística", "presupuesto.pagar",   puede_registrar_pagos),
 ])
 def test_tiene_coincide_con_area_ajena(entorno, v, clave, area_usuario, capacidad, funcion_vieja):
     """Alguien de un área que NO tiene la capacidad: los dos deben decir que no."""
@@ -96,11 +97,10 @@ def test_tiene_coincide_con_area_ajena(entorno, v, clave, area_usuario, capacida
 
 
 @pytest.mark.parametrize("capacidad,area_regla,funcion_vieja", [
-    ("mejora.validar_sgc",      AREA_SGC,              es_sgc),
-    ("pqrs.cerrar",             AREA_SERVICIO_CLIENTE, es_servicio_al_cliente),
-    ("notas_credito.autorizar", AREA_NC,               nc_puede_autorizar),
-    ("presupuesto.aprobar",     AREA_APRUEBA_PAGOS,    puede_aprobar_pagos),
-    ("presupuesto.pagar",       AREA_REGISTRA_PAGOS,   puede_registrar_pagos),
+    ("mejora.validar_sgc",  AREA_SGC,               es_sgc),
+    ("pqrs.cerrar",         AREA_SERVICIO_CLIENTE,  es_servicio_al_cliente),
+    ("presupuesto.aprobar", AREA_APRUEBA_PAGOS,     puede_aprobar_pagos),
+    ("presupuesto.pagar",   AREA_REGISTRA_PAGOS,    puede_registrar_pagos),
 ])
 def test_tiene_coincide_con_el_area_dueña(entorno, v, capacidad, area_regla, funcion_vieja):
     """Alguien del área que SÍ tiene la capacidad: los dos deben decir que sí."""
