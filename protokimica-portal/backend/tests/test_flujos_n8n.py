@@ -24,13 +24,18 @@ CODIGO = RAIZ / "app"
 
 def eventos_que_dispara_el_portal() -> set[str]:
     """
-    Todo lo que el portal puede mandarle a n8n: los eventos declarados en
-    `notificaciones.EVENTOS` más las llamadas sueltas de otros módulos, que
-    sí pasan el nombre como literal.
+    Todo lo que el portal puede mandarle a n8n: los eventos declarados en cada
+    módulo que notifica, más las llamadas sueltas de otros módulos, que sí
+    pasan el nombre como literal.
+
+    Cada `EVENTOS` nuevo se agrega aquí. Si no, sus flujos parecen huérfanos y
+    esta prueba falla — que es molesto, pero muchísimo mejor que lo contrario:
+    un flujo que nadie declara es un correo que nadie recibe.
     """
+    from app.modules.notas_credito.notificaciones import EVENTOS as EVENTOS_NC
     from app.modules.pqrs.notificaciones import EVENTOS
 
-    encontrados = set(EVENTOS)
+    encontrados = set(EVENTOS) | set(EVENTOS_NC)
     for archivo in CODIGO.rglob("*.py"):
         texto = archivo.read_text(encoding="utf-8")
         encontrados |= set(re.findall(r'disparar_webhook_n8n\(\s*"([\w-]+)"', texto))
@@ -72,9 +77,10 @@ def test_cada_evento_declarado_tiene_su_flujo():
     Faltaba comprobarlo, y por eso se podía agregar un aviso nuevo al backend
     y darlo por hecho sin que nadie lo escuchara del otro lado.
     """
+    from app.modules.notas_credito.notificaciones import EVENTOS as EVENTOS_NC
     from app.modules.pqrs.notificaciones import EVENTOS
 
-    sin_flujo = set(EVENTOS) - set(flujos_definidos())
+    sin_flujo = (set(EVENTOS) | set(EVENTOS_NC)) - set(flujos_definidos())
     assert not sin_flujo, (
         f"El portal manda estos avisos y no hay flujo que los reciba: "
         f"{sorted(sin_flujo)}. Se agregan en generar_flujos.py y se regenera."

@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.21.0"
+VERSION = "0.22.0"
 FECHA = "2026-09-05"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,30 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.22.0",
+        "fecha": "2026-09-05",
+        "titulo": "Las notas crédito ya no se piden por correo",
+        "cambios": [
+            ("nuevo", "Los puntos de venta y los vendedores institucionales "
+                      "piden la nota crédito desde el portal: la factura, qué "
+                      "pasó, el motivo y el soporte, en un solo formulario. "
+                      "Está en la pestaña «Notas crédito», al lado de PQRS."),
+            ("nuevo", "Contabilidad recibe el correo con la solicitud, la "
+                      "aprueba o la rechaza desde el portal, y quien la pidió "
+                      "se entera por correo de la respuesta."),
+            ("nuevo", "Al final se registra el número de la nota crédito que se "
+                      "emitió. Eso es lo que deja ver de un vistazo cuáles se "
+                      "aprobaron y todavía no se han hecho — algo que por "
+                      "correo era invisible."),
+            ("nuevo", "Los motivos son una lista que Administración puede "
+                      "cambiar, para poder responder después por qué se están "
+                      "haciendo las notas crédito."),
+            ("mejora", "El punto de venta se elige de una lista, no se escribe: "
+                       "así el informe por almacén no queda partido entre tres "
+                       "formas de escribir el mismo nombre."),
+        ],
+    },
     {
         "version": "0.21.0",
         "fecha": "2026-09-05",

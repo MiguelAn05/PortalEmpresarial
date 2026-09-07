@@ -253,6 +253,69 @@ FLUJOS = [
         ),
     ),
     flujo(
+        # Entre el punto de venta y Contabilidad: puro interno.
+        remitente=REMITENTE_INTERNO,
+        nombre="Nota crédito · pedida a Contabilidad",
+        path="nc-solicitada",
+        para=f"={{{{ {B}.destinatarios.join(', ') }}}}",
+        asunto=f"=Nota crédito por autorizar · {{{{ {B}.codigo }}}} · {{{{ {B}.punto_venta }}}}",
+        html="=" + plantilla(
+            titulo=f"{{{{ {B}.punto_venta }}}} pide una nota crédito",
+            cuerpo=(
+                dato("Solicitud", f"{{{{ {B}.codigo }}}}")
+                + dato("La pidió", f"{{{{ {B}.solicitada_por }}}}")
+                + dato("Factura", f"{{{{ {B}.factura_afectada }}}}")
+                + f"{{{{ {B}.factura_reemplaza "
+                  f"? '{dato('La reemplaza', '@@V@@')}'.replace('@@V@@', {B}.factura_reemplaza) "
+                  f": '' }}}}"
+                + f"{{{{ {B}.producto "
+                  f"? '{dato('Producto', '@@V@@')}'.replace('@@V@@', {B}.producto) "
+                  f": '' }}}}"
+                + f"{{{{ {B}.valor "
+                  f"? '{dato('Valor', '@@V@@')}'.replace('@@V@@', {B}.valor) "
+                  f": '' }}}}"
+                + f"{{{{ {B}.motivo "
+                  f"? '{dato('Motivo', '@@V@@')}'.replace('@@V@@', {B}.motivo) "
+                  f": '' }}}}"
+                + f'<p style="margin:14px 0 0 0;padding:12px;background:#EFF3F9;'
+                  f'border-radius:8px">{{{{ {B}.observaciones }}}}</p>'
+                # El soporte se anuncia, no se enlaza: /uploads no pide sesión.
+                + f"{{{{ {B}.tiene_adjunto "
+                  f"? '<p style=\"margin:10px 0 0 0;font-size:13px\">Adjuntaron un "
+                  f"soporte; se ve en el portal.</p>' : '' }}}}"
+            ),
+            boton=("Revisar en el portal", f"{{{{ {B}.link_portal }}}}"),
+        ),
+    ),
+    flujo(
+        remitente=REMITENTE_INTERNO,
+        nombre="Nota crédito · respondida a quien la pidió",
+        path="nc-respondida",
+        # A la PERSONA que la pidió, no al área: es quien está esperando para
+        # atender a su cliente.
+        para=f"={{{{ {B}.destinatarios.join(', ') }}}}",
+        asunto=f"=Tu nota crédito {{{{ {B}.codigo }}}} quedó {{{{ {B}.decision }}}}",
+        html="=" + plantilla(
+            titulo=(
+                f"{{{{ {B}.decision === 'aplicada' "
+                f"? 'Ya se emitió la nota crédito' "
+                f": 'Tu solicitud quedó ' + {B}.decision }}}}"
+            ),
+            cuerpo=(
+                dato("Solicitud", f"{{{{ {B}.codigo }}}}")
+                + dato("Factura", f"{{{{ {B}.factura_afectada }}}}")
+                + dato("La respondió", f"{{{{ {B}.respondida_por }}}}")
+                + f"{{{{ {B}.numero_nc "
+                  f"? '{dato('Número de la nota crédito', '@@V@@')}'.replace('@@V@@', {B}.numero_nc) "
+                  f": '' }}}}"
+                + f"{{{{ {B}.comentario "
+                  f"? '<p style=\"margin:14px 0 0 0;padding:12px;background:#EFF3F9;"
+                  f"border-radius:8px\">' + {B}.comentario + '</p>' : '' }}}}"
+            ),
+            boton=("Ver en el portal", f"{{{{ {B}.link_portal }}}}"),
+        ),
+    ),
+    flujo(
         # Va al cliente y lo invita a calificar: mismo buzón que su confirmación.
         remitente=REMITENTE_SERVICIO_CLIENTE,
         nombre="PQRS · cierre y encuesta al cliente",
