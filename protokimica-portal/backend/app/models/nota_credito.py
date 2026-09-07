@@ -87,13 +87,13 @@ class SolicitudNotaCredito(Base):
     factura_afectada = Column(String(60), nullable=False)
     factura_reemplaza = Column(String(60), nullable=True)
 
-    # Opcionales: hay notas crédito de una factura completa, sin un producto
-    # puntual que señalar. Cuando sí lo hay, sale del catálogo del ERP.
-    producto_codigo = Column(String(60), nullable=True)
-    producto_nombre = Column(String(300), nullable=True)
+    # NO hay producto a propósito. Una factura trae varios renglones, así que
+    # un solo campo de producto miente más de lo que ayuda: o se llena con uno
+    # de los tres que venían, o se deja vacío y estorba. Lo que sí identifica
+    # el caso es la factura, y eso ya está arriba.
 
-    # Cuánto se devuelve. Opcional porque no siempre se sabe al pedirla, pero
-    # es lo primero que mira quien autoriza.
+    # El valor de la factura. Opcional porque no siempre se sabe al pedirla,
+    # pero es lo primero que mira quien autoriza.
     valor = Column(Numeric(14, 2), nullable=True)
 
     motivo_id = Column(Integer, ForeignKey("nc_motivos.id"), nullable=True)

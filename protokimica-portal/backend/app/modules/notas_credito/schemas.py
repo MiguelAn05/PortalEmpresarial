@@ -49,8 +49,6 @@ class SolicitudOut(BaseModel):
     punto_venta: str
     factura_afectada: str
     factura_reemplaza: str | None = None
-    producto_codigo: str | None = None
-    producto_nombre: str | None = None
     valor: Decimal | None = None
     motivo_id: int | None = None
     motivo_nombre: str | None = None

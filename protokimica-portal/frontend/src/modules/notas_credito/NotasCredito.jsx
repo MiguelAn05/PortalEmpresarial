@@ -67,8 +67,6 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
     punto_venta: '',
     factura_afectada: '',
     factura_reemplaza: '',
-    producto_codigo: '',
-    producto_nombre: '',
     valor: '',
     motivo_id: '',
     observaciones: '',
@@ -157,19 +155,12 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-4">
+          {/* Sin campo de producto a propósito: una factura trae varios
+              renglones, así que uno solo obliga a elegir cuál —y el informe
+              queda contando mal. Ver models/nota_credito.py. */}
+          <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="nc-prod-cod" className={etiqueta}>Código producto</label>
-              <input id="nc-prod-cod" name="producto_codigo" value={form.producto_codigo}
-                     onChange={cambiar} placeholder="MP60733021" className={campo} />
-            </div>
-            <div>
-              <label htmlFor="nc-prod-nom" className={etiqueta}>Producto</label>
-              <input id="nc-prod-nom" name="producto_nombre" value={form.producto_nombre}
-                     onChange={cambiar} placeholder="Alcohol al 70%" className={campo} />
-            </div>
-            <div>
-              <label htmlFor="nc-valor" className={etiqueta}>Valor</label>
+              <label htmlFor="nc-valor" className={etiqueta}>Valor de la factura</label>
               <input id="nc-valor" name="valor" value={form.valor} onChange={cambiar}
                      type="number" min="0" step="0.01" placeholder="0" className={`${campo} cifra`} />
             </div>
@@ -282,15 +273,6 @@ function Tarjeta({ solicitud, invalidar }) {
               <div>
                 <span className="text-xs text-texto-2 block">La reemplaza</span>
                 <span className="font-medium cifra">{solicitud.factura_reemplaza}</span>
-              </div>
-            )}
-            {solicitud.producto_nombre && (
-              <div>
-                <span className="text-xs text-texto-2 block">Producto</span>
-                <span className="font-medium">
-                  {solicitud.producto_nombre}
-                  {solicitud.producto_codigo && ` (${solicitud.producto_codigo})`}
-                </span>
               </div>
             )}
             {solicitud.numero_nc && (

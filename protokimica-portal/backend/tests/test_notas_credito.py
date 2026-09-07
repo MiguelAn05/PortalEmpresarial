@@ -50,13 +50,13 @@ def test_radicar_deja_consecutivo_y_estado(entorno, v):
     v.check("y de qué punto de venta", cuerpo["punto_venta"] == PUNTO, cuerpo)
 
 
-def test_producto_y_soporte_son_opcionales(entorno, v):
-    """No siempre hay un producto puntual, ni el soporte a la mano."""
+def test_valor_y_soporte_son_opcionales(entorno, v):
+    """No siempre se sabe el valor al pedirla, ni se tiene el soporte a la mano."""
     portal = entorno
     portal.como("logistica")
     r = _radicar(portal)
-    v.check("se radica sin producto ni adjunto", r.status_code == 201, r.text[:200])
-    v.check("producto vacío", r.json()["producto_codigo"] is None, r.json())
+    v.check("se radica sin adjunto", r.status_code == 201, r.text[:200])
+    v.check("y sin valor", r.json()["valor"] is None, r.json())
     v.check("adjunto vacío", r.json()["adjunto"] is None, r.json())
 
 

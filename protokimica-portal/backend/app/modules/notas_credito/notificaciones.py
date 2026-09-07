@@ -37,7 +37,6 @@ def _base(solicitud) -> dict:
         "punto_venta": solicitud.punto_venta,
         "factura_afectada": solicitud.factura_afectada,
         "factura_reemplaza": solicitud.factura_reemplaza,
-        "producto": solicitud.producto_nombre or "",
         "valor": str(solicitud.valor) if solicitud.valor is not None else "",
         "motivo": solicitud.motivo_nombre or "",
         "observaciones": (solicitud.observaciones or "")[:280],
