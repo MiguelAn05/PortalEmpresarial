@@ -40,6 +40,7 @@ from app.modules.inicio.router import router as inicio_router
 from app.modules.encuestas.router import router as encuestas_router
 from app.modules.encuestas.router_public import router as encuestas_public_router
 from app.modules.notas_credito.router import router as notas_credito_router
+from app.modules.capacidades.router import router as capacidades_router
 from app.models import (
     tenant, user, pqrs, autorizacion, master_planner, indicadores, encuestas,
     mejora, catalogo, nota_credito, capacidad,
@@ -139,3 +140,4 @@ app.include_router(inicio_router)
 app.include_router(encuestas_router)
 app.include_router(encuestas_public_router)
 app.include_router(notas_credito_router)
+app.include_router(capacidades_router)

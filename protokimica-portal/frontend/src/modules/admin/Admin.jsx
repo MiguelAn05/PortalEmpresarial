@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import CodigosQR from './CodigosQR.jsx'
+import Capacidades from './Capacidades.jsx'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
@@ -437,6 +438,7 @@ export default function Admin() {
       <div className="space-y-5">
         <GestionUsuarios />
         <TiposAutorizacion />
+        <Capacidades />
         <CodigosQR />
       </div>
     </div>

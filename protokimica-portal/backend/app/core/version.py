@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.22.0"
+VERSION = "0.23.0"
 FECHA = "2026-09-05"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,20 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.23.0",
+        "fecha": "2026-09-05",
+        "titulo": "Quién puede qué, sin depender del área",
+        "cambios": [
+            ("nuevo", "Administración tiene una sección nueva, «Capacidades», "
+                      "para decidir quién autoriza notas crédito, aprueba "
+                      "presupuesto, cierra PQRS y las demás cosas que antes "
+                      "solo podía hacer una sola área."),
+            ("nuevo", "Se puede dar el permiso a un área completa, o a una "
+                      "persona puntual cuando su área no alcanza — sin tener "
+                      "que cambiarle el área a nadie ni tocar código."),
+        ],
+    },
     {
         "version": "0.22.0",
         "fecha": "2026-09-05",
