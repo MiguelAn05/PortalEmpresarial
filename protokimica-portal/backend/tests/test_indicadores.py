@@ -64,29 +64,47 @@ def test_indicadores(entorno, v):
 
     # ── Registrar mediciones ──
     r = portal.post(f"/indicadores/{I_RAZON}/mediciones",
-               data={"anio": A, "mes": M, "numerador": 18, "denominador": 20})
+               data={"anio": A, "mes": M, "numerador": 18, "denominador": 20,
+                     "analisis": "18 de 20 capacitaciones realizadas"})
     v.check("registrar razon -> 201", r.status_code == 201, r.text[:150])
     v.check("calcula el porcentaje solo", r.json()["valor"] == 90.0, r.json())
 
-    r = portal.post(f"/indicadores/{I_RAZON}/mediciones", data={"anio": A, "mes": M, "valor": 50})
+    r = portal.post(f"/indicadores/{I_RAZON}/mediciones",
+               data={"anio": A, "mes": M, "valor": 50, "analisis": "prueba"})
     v.check("faltando num/den -> 400", r.status_code == 400, r.text[:120])
     r = portal.post(f"/indicadores/{I_RAZON}/mediciones",
-               data={"anio": A, "mes": M, "numerador": 5, "denominador": 0})
+               data={"anio": A, "mes": M, "numerador": 5, "denominador": 0, "analisis": "prueba"})
     v.check("denominador cero -> 400", r.status_code == 400, r.text[:120])
-    r = portal.post(f"/indicadores/{I_RAZON}/mediciones", data={"anio": A, "mes": 13, "numerador": 1, "denominador": 2})
+    r = portal.post(f"/indicadores/{I_RAZON}/mediciones",
+               data={"anio": A, "mes": 13, "numerador": 1, "denominador": 2, "analisis": "prueba"})
     v.check("mes invalido -> 400", r.status_code == 400, r.text[:100])
 
-    r = portal.post(f"/indicadores/{I_AUTO}/mediciones", data={"anio": A, "mes": M, "valor": 99})
+    r = portal.post(f"/indicadores/{I_RAZON}/mediciones",
+               data={"anio": A, "mes": M, "numerador": 1, "denominador": 2})
+    # El campo directamente ausente lo corta FastAPI antes de que el
+    # endpoint corra (422, con una lista de errores de Pydantic, no texto).
+    v.check("sin análisis -> no se registra", r.status_code == 422, r.text[:150])
+
+    r = portal.post(f"/indicadores/{I_RAZON}/mediciones",
+               data={"anio": A, "mes": M, "numerador": 1, "denominador": 2, "analisis": "   "})
+    v.check("solo espacios tampoco cuenta como análisis -> 400", r.status_code == 400, r.text[:150])
+    v.check("y el mensaje dice qué hacer",
+          "análisis" in r.json().get("detail", "").lower(), r.json())
+
+    r = portal.post(f"/indicadores/{I_AUTO}/mediciones",
+               data={"anio": A, "mes": M, "valor": 99, "analisis": "prueba"})
     v.check("no se puede digitar un automatico -> 400", r.status_code == 400, r.text[:120])
 
-    portal.post(f"/indicadores/{I_ACC}/mediciones", data={"anio": A, "mes": M, "valor": 2})
+    portal.post(f"/indicadores/{I_ACC}/mediciones",
+               data={"anio": A, "mes": M, "valor": 2, "analisis": "Dos incidentes menores en bodega"})
 
     # ── Correccion y historial ──
     v.check("sin cambios aun, historial vacio",
           portal.get(f"/indicadores/{I_RAZON}/historial").json() == [])
     r = portal.post(f"/indicadores/{I_RAZON}/mediciones",
                data={"anio": A, "mes": M, "numerador": 19, "denominador": 20,
-                     "motivo": "Faltaba registrar una capacitacion"})
+                     "motivo": "Faltaba registrar una capacitacion",
+                     "analisis": "19 de 20, se sumó la que faltaba"})
     v.check("corregir el valor -> 201", r.status_code == 201, r.text[:120])
     v.check("el valor quedo actualizado", r.json()["valor"] == 95.0, r.json())
     h = portal.get(f"/indicadores/{I_RAZON}/historial").json()
@@ -97,7 +115,8 @@ def test_indicadores(entorno, v):
     v.check("y quien lo hizo", h[0]["usuario_nombre"] == "Admin", h[0])
 
     # Volver a guardar lo mismo no debe ensuciar el historial
-    portal.post(f"/indicadores/{I_RAZON}/mediciones", data={"anio": A, "mes": M, "numerador": 19, "denominador": 20})
+    portal.post(f"/indicadores/{I_RAZON}/mediciones",
+               data={"anio": A, "mes": M, "numerador": 19, "denominador": 20, "analisis": "sin cambios"})
     v.check("reguardar el mismo valor no genera historial",
           len(portal.get(f"/indicadores/{I_RAZON}/historial").json()) == 1)
 
@@ -111,16 +130,19 @@ def test_indicadores(entorno, v):
     v.check("95% con umbral 90 = verde", semaforo_de(I_RAZON) == "verde", semaforo_de(I_RAZON))
     # Accidentes: mejor hacia abajo, verde<=0, amarillo<=1; hay 2 => rojo
     v.check("2 accidentes con meta 0 = rojo", semaforo_de(I_ACC) == "rojo", semaforo_de(I_ACC))
-    portal.post(f"/indicadores/{I_ACC}/mediciones", data={"anio": A, "mes": 6, "valor": 1})
+    portal.post(f"/indicadores/{I_ACC}/mediciones",
+               data={"anio": A, "mes": 6, "valor": 1, "analisis": "Un incidente menor"})
     v.check("1 accidente = amarillo", semaforo_de(I_ACC, mes=6) == "amarillo", semaforo_de(I_ACC, mes=6))
-    portal.post(f"/indicadores/{I_ACC}/mediciones", data={"anio": A, "mes": 5, "valor": 0})
+    portal.post(f"/indicadores/{I_ACC}/mediciones",
+               data={"anio": A, "mes": 5, "valor": 0, "analisis": "Sin incidentes"})
     v.check("0 accidentes = verde", semaforo_de(I_ACC, mes=5) == "verde", semaforo_de(I_ACC, mes=5))
     v.check("un mes sin registrar = sin_datos", semaforo_de(I_RAZON, mes=2) == "sin_datos")
 
     # ── Acumulados ──
     # Junio 2/2 (100%) y Julio 19/20 (95%): el acumulado correcto es 21/22 = 95.45,
     # NO el promedio 97.5.
-    portal.post(f"/indicadores/{I_RAZON}/mediciones", data={"anio": A, "mes": 6, "numerador": 2, "denominador": 2})
+    portal.post(f"/indicadores/{I_RAZON}/mediciones",
+               data={"anio": A, "mes": 6, "numerador": 2, "denominador": 2, "analisis": "2 de 2"})
     ficha = portal.get(f"/indicadores/{I_RAZON}?anio={A}&mes={M}").json()
     anual = ficha["acumulado_anio"]
     v.check("el acumulado suma num y den, no promedia porcentajes",
@@ -160,7 +182,7 @@ def test_indicadores(entorno, v):
     v.check("recalcular -> 200", r.status_code == 200, r.text[:150])
     v.check("calcula 1 de 2 = 50%", r.json()["valor"] == 50.0, r.json())
     v.check("guarda numerador y denominador", r.json()["numerador"] == 1 and r.json()["denominador"] == 2, r.json())
-    v.check("y explica de donde sale", "de 2" in (r.json()["observacion"] or ""), r.json())
+    v.check("y explica de donde sale", "de 2" in (r.json()["analisis"] or ""), r.json())
 
     r = portal.post(f"/indicadores/{I_AUTO}/calcular?anio={A}&mes={M}")
     v.check("recalcular es idempotente", r.status_code == 200 and r.json()["valor"] == 50.0)
@@ -224,7 +246,8 @@ def test_indicadores(entorno, v):
           portal.post("/indicadores", json={"nombre": "X"}).status_code == 403)
     v.check("gerencia NO registra mediciones",
           portal.post(f"/indicadores/{I_RAZON}/mediciones",
-                 data={"anio": A, "mes": 3, "numerador": 1, "denominador": 2}).status_code == 403)
+                 data={"anio": A, "mes": 3, "numerador": 1, "denominador": 2,
+                       "analisis": "prueba"}).status_code == 403)
     v.check("gerencia NO recalcula",
           portal.post(f"/indicadores/{I_AUTO}/calcular?anio={A}&mes={M}").status_code == 403)
     v.check("gerencia NO edita la ficha",

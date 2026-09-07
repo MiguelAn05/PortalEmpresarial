@@ -23,7 +23,7 @@ def _indicador(portal, nombre="Disponibilidad"):
 
 def _medir(portal, ind, anio=2026, mes=7, valor=95):
     r = portal.post(f"/indicadores/{ind}/mediciones",
-                    data={"anio": anio, "mes": mes, "valor": valor})
+                    data={"anio": anio, "mes": mes, "valor": valor, "analisis": "prueba"})
     assert r.status_code in (200, 201), r.text
 
 

@@ -18,7 +18,7 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
     valor: indicador.valor ?? "",
     numerador: indicador.numerador ?? "",
     denominador: indicador.denominador ?? "",
-    observacion: indicador.observacion ?? "",
+    analisis: indicador.analisis ?? "",
     motivo: "",
   })
   const [evidencia, setEvidencia] = useState(null)
@@ -30,7 +30,7 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
     valor: indicador.valor ?? "",
     numerador: indicador.numerador ?? "",
     denominador: indicador.denominador ?? "",
-    observacion: indicador.observacion ?? "",
+    analisis: indicador.analisis ?? "",
     motivo: "",
   }
   const hayCambios = tieneDatos(form, inicial) || evidencia !== null
@@ -67,7 +67,7 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
       } else {
         fd.append("valor", form.valor)
       }
-      if (form.observacion) fd.append("observacion", form.observacion)
+      fd.append("analisis", form.analisis.trim())
       if (form.motivo) fd.append("motivo", form.motivo)
       if (evidencia) fd.append("evidencia", evidencia)
       return registrarMedicion(indicador.id, fd)
@@ -76,9 +76,9 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
     onError: (e) => setError(mensajeDeError(e, "No se pudo guardar el valor.")),
   })
 
-  const completo = esRazon
+  const completo = (esRazon
     ? form.numerador !== "" && form.denominador !== "" && Number(form.denominador) !== 0
-    : form.valor !== ""
+    : form.valor !== "") && form.analisis.trim() !== ""
 
   return (
     <div className="fixed inset-0 bg-acento-fuerte/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]" onClick={intentarCerrar}>
@@ -159,10 +159,10 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
 
           <div>
             <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
-              Observación (opcional)
+              Análisis <span className="text-negativo">· obligatorio</span>
             </label>
-            <textarea value={form.observacion} onChange={set('observacion')} rows={2}
-              placeholder="Contexto del resultado, si hace falta"
+            <textarea value={form.analisis} onChange={set('analisis')} rows={2}
+              placeholder="Qué explica este resultado: causas, contexto, qué se hizo distinto"
               className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none" />
           </div>
 

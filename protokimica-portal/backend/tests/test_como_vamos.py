@@ -22,7 +22,8 @@ def _crear(portal, nombre, area, meta=90, direccion="arriba",
 
 def _medir(portal, indicador_id, anio, mes, valor):
     return portal.post(f"/indicadores/{indicador_id}/mediciones",
-                       data={"anio": anio, "mes": mes, "valor": valor})
+                       data={"anio": anio, "mes": mes, "valor": valor,
+                             "analisis": "prueba"})
 
 
 # ── Qué cuenta como movimiento ───────────────────────────────────────────

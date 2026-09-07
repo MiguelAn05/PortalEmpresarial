@@ -331,7 +331,7 @@ async def registrar_medicion(
     valor: float | None = Form(None),
     numerador: float | None = Form(None),
     denominador: float | None = Form(None),
-    observacion: str | None = Form(None),
+    analisis: str = Form(...),
     motivo: str | None = Form(None),
     evidencia: UploadFile | None = File(None),
     db: Session = Depends(get_db),
@@ -345,6 +345,13 @@ async def registrar_medicion(
     """
     indicador = _get_indicador_o_404(db, indicador_id, tenant_id, current_user)
     _validar_periodo(anio, mes)
+
+    analisis = analisis.strip()
+    if not analisis:
+        raise HTTPException(
+            status_code=400,
+            detail="Escribe el análisis del resultado: qué lo explica, para que quede en el histórico.",
+        )
 
     if indicador.es_automatico:
         raise HTTPException(
@@ -400,7 +407,7 @@ async def registrar_medicion(
     medicion.valor = valor
     medicion.numerador = numerador
     medicion.denominador = denominador
-    medicion.observacion = observacion
+    medicion.analisis = analisis
     medicion.registrado_por = current_user.id
     medicion.registrado_en = datetime.now(timezone.utc)
     if ruta:

@@ -142,7 +142,7 @@ export default function IndicadorDetalle({ indicadorId, anio, mes, editable, onE
                   valor={ficha.umbral_verde !== null
                     ? `Cumple ${ficha.direccion === 'arriba' ? '≥' : '≤'} ${formatValor(ficha.umbral_verde, ficha.unidad)} · Alerta ${ficha.direccion === 'arriba' ? '≥' : '≤'} ${formatValor(ficha.umbral_amarillo, ficha.unidad)}`
                     : null} />
-                {ficha.observacion && <Campo titulo="Observación del periodo" valor={ficha.observacion} />}
+                {ficha.analisis && <Campo titulo="Análisis del periodo" valor={ficha.analisis} />}
                 {ficha.evidencia && (
                   <div>
                     <p className="text-[11px] font-semibold text-texto-3 uppercase tracking-wide mb-1">Evidencia</p>

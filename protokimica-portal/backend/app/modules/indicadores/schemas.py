@@ -111,7 +111,7 @@ class MedicionOut(BaseModel):
     valor: float | None
     numerador: float | None
     denominador: float | None
-    observacion: str | None
+    analisis: str | None
     evidencia: str | None
     registrado_por: int | None
     registrado_por_nombre: str | None = None

@@ -165,7 +165,8 @@ def test_un_indicador_sin_responsable_sale_aparte(entorno, v):
 def test_lo_ya_registrado_no_se_recuerda(entorno, v):
     portal = entorno
     ind = _indicador(portal, "Disponibilidad", portal.ids["tics"])
-    portal.post(f"/indicadores/{ind}/mediciones", data={"anio": 2026, "mes": 7, "valor": 95})
+    portal.post(f"/indicadores/{ind}/mediciones",
+               data={"anio": 2026, "mes": 7, "valor": 95, "analisis": "prueba"})
 
     datos = portal.get("/indicadores/pendientes-de-registro",
                        params={"anio": 2026, "mes": 7}).json()

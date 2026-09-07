@@ -27,14 +27,16 @@ def test_la_division_va_en_el_orden_correcto(entorno, v):
 
     # 20 atendidos de 30 recibidos: 20/30 = 66.67%, NO 30/20 = 150%.
     r = portal.post(f"/indicadores/{ind['id']}/mediciones",
-                    data={"anio": 2026, "mes": 7, "numerador": 20, "denominador": 30})
+                    data={"anio": 2026, "mes": 7, "numerador": 20, "denominador": 30,
+                          "analisis": "20 de 30"})
     v.check("registrar -> 201", r.status_code == 201, r.text[:150])
     v.check("20 de 30 da 66.67%", round(r.json()["valor"], 2) == 66.67, r.json())
     v.check("y no 150%", r.json()["valor"] != 150, r.json())
 
     # Al revés da el numero equivocado — asi se veia el problema.
     r = portal.post(f"/indicadores/{ind['id']}/mediciones",
-                    data={"anio": 2026, "mes": 6, "numerador": 30, "denominador": 20})
+                    data={"anio": 2026, "mes": 6, "numerador": 30, "denominador": 20,
+                          "analisis": "prueba"})
     v.check("invertidos da 150%, que es la señal del error",
             r.json()["valor"] == 150, r.json())
 
@@ -67,7 +69,8 @@ def test_editar_no_borra_las_mediciones(entorno, v):
     portal = entorno
     ind = _crear_razon(portal)
     portal.post(f"/indicadores/{ind['id']}/mediciones",
-                data={"anio": 2026, "mes": 7, "numerador": 20, "denominador": 30})
+                data={"anio": 2026, "mes": 7, "numerador": 20, "denominador": 30,
+                      "analisis": "prueba"})
 
     portal.patch(f"/indicadores/{ind['id']}", json={"nombre": "Otro nombre"})
     ficha = portal.get(f"/indicadores/{ind['id']}?anio=2026&mes=7").json()
@@ -79,7 +82,8 @@ def test_cambiar_los_umbrales_recalcula_el_semaforo(entorno, v):
     portal = entorno
     ind = _crear_razon(portal)   # verde >= 90
     portal.post(f"/indicadores/{ind['id']}/mediciones",
-                data={"anio": 2026, "mes": 7, "numerador": 20, "denominador": 30})
+                data={"anio": 2026, "mes": 7, "numerador": 20, "denominador": 30,
+                      "analisis": "prueba"})
 
     ficha = portal.get(f"/indicadores/{ind['id']}?anio=2026&mes=7").json()
     v.check("66.67% con umbral 90 no cumple", ficha["semaforo"] == "rojo", ficha["semaforo"])

@@ -123,7 +123,7 @@ def calcular_automatico(db: Session, indicador: Indicador, tenant_id: int,
     medicion.valor = resultado.valor
     medicion.numerador = resultado.numerador
     medicion.denominador = resultado.denominador
-    medicion.observacion = resultado.detalle
+    medicion.analisis = resultado.detalle
     return medicion
 
 
@@ -145,7 +145,7 @@ def serie_del_anio(indicador: Indicador, anio: int) -> list[dict]:
             "numerador": _f(m.numerador) if m else None,
             "denominador": _f(m.denominador) if m else None,
             "semaforo": semaforo(indicador, valor),
-            "observacion": m.observacion if m else None,
+            "analisis": m.analisis if m else None,
             "tiene_evidencia": bool(m.evidencia) if m else False,
             "registrado_por": m.registrado_por_nombre if m else None,
         })
@@ -214,7 +214,7 @@ def resumen_indicador(indicador: Indicador, anio: int, mes: int) -> dict:
         "semaforo": semaforo(indicador, valor_actual),
         "numerador": _f(actual.numerador) if actual else None,
         "denominador": _f(actual.denominador) if actual else None,
-        "observacion": actual.observacion if actual else None,
+        "analisis": actual.analisis if actual else None,
         "tiene_evidencia": bool(actual.evidencia) if actual else False,
         "evidencia": actual.evidencia if actual else None,
         "registrado_por": actual.registrado_por_nombre if actual else None,

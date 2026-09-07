@@ -120,7 +120,11 @@ class Medicion(Base):
     numerador = Column(Numeric(16, 4), nullable=True)
     denominador = Column(Numeric(16, 4), nullable=True)
 
-    observacion = Column(Text, nullable=True)
+    # Antes era una observación opcional; ahora el registro exige explicar el
+    # resultado, así que el campo cuenta lo que dice: `nullable=True` queda
+    # a propósito para los meses ya registrados antes de este cambio, que se
+    # quedan sin análisis y no hay que inventárselo con datos falsos.
+    analisis = Column(Text, nullable=True)
     evidencia = Column(String(255), nullable=True)
 
     registrado_por = Column(Integer, ForeignKey("users.id"), nullable=True)

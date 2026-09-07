@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.24.0"
-FECHA = "2026-09-07"
+VERSION = "0.25.0"
+FECHA = "2026-09-08"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,18 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.25.0",
+        "fecha": "2026-09-08",
+        "titulo": "El análisis ya no es opcional",
+        "cambios": [
+            ("nuevo", "Al registrar el valor mensual de un indicador ya no "
+                      "basta con el número: hay que escribir qué lo explica. "
+                      "Antes era una observación opcional; ahora es "
+                      "obligatoria, para que el histórico sirva seis meses "
+                      "después."),
+        ],
+    },
     {
         "version": "0.24.0",
         "fecha": "2026-09-07",
