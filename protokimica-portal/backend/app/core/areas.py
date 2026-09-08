@@ -39,6 +39,7 @@ AREAS = [
     "Administración",
     "Tesorería",
     "Puntos de Venta",
+    "Ambiental",
 ]
 
 # Nombres viejos que quedaron en datos ya guardados y a qué área corresponden

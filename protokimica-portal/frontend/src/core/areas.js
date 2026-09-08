@@ -29,6 +29,7 @@ export const AREAS = [
   'Administración',
   'Tesorería',
   'Puntos de Venta',
+  'Ambiental',
 ]
 
 /**
