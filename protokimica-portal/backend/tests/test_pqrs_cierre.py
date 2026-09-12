@@ -57,7 +57,8 @@ def test_solo_servicio_al_cliente_cierra(entorno, v):
             "Servicio al Cliente" in r.json().get("detail", ""), r.json())
 
     # Pero si puede mover la PQRS a otros estados
-    r = portal.patch(f"/pqrs/{pid}/estado", data={"estado": "resuelto"})
+    r = portal.patch(f"/pqrs/{pid}/estado",
+                     data={"estado": "resuelto", "solucion": "Se revisó el lote."})
     v.check("Logistica si puede marcar 'resuelto'", r.status_code == 200, r.text[:120])
 
     # Servicio al cliente si cierra

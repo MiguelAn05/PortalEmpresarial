@@ -353,6 +353,9 @@ function ModalCrear({ onClose, onCreated }) {
 function ModalDetalle({ pqrs, onClose, onUpdated }) {
   const [nuevoEstado, setNuevoEstado] = useState(pqrs.estado)
   const [comentario, setComentario] = useState('')
+  const [solucion, setSolucion] = useState('')
+  const [adjuntosSolucion, setAdjuntosSolucion] = useState([])
+  const [error, setError] = useState('')
 
   // El endpoint recibe multipart, no JSON: mandarlo como objeto respondía 422
   // y el modal se quedaba sin guardar nada. Es la misma puerta que usa el
@@ -362,10 +365,22 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
       const datos = new FormData()
       datos.append('estado', nuevoEstado)
       if (comentario.trim()) datos.append('comentario', comentario.trim())
+      if (nuevoEstado === 'resuelto') {
+        datos.append('solucion', solucion.trim())
+        adjuntosSolucion.forEach((archivo) => datos.append('adjuntos_solucion', archivo))
+      }
       return api.patch(`/pqrs/${pqrs.id}/gestion`, datos)
     },
     onSuccess: () => { onUpdated(); onClose() },
+    // Antes esto no tenía onError: si el servidor rechazaba el cambio (por
+    // ejemplo, un 403 porque quien lo intenta no es de Servicio al Cliente),
+    // el modal se quedaba tal cual, sin decir nada — y eso se lee igual que
+    // "no me deja cambiar el estado".
+    onError: (err) => setError(mensajeDeError(err, 'No se pudo guardar el cambio.')),
   })
+
+  const esResuelto = nuevoEstado === 'resuelto'
+  const listo = !esResuelto || solucion.trim() !== ''
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -436,7 +451,41 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
               rows={3}
               className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none"
             />
+
+            {esResuelto && (
+              <div className="mt-3 bg-superficie-2 rounded-lg p-3">
+                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1">
+                  Solución <span className="text-negativo">· obligatorio</span>
+                </label>
+                <p className="text-xs text-texto-2 mb-2">
+                  Esto se le envía al cliente pidiéndole que confirme si quedó bien.
+                </p>
+                <textarea
+                  value={solucion}
+                  onChange={(e) => setSolucion(e.target.value)}
+                  rows={3}
+                  placeholder="Qué se hizo para solucionar el caso..."
+                  className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none mb-2"
+                />
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  multiple
+                  onChange={(e) => setAdjuntosSolucion(Array.from(e.target.files || []))}
+                  className="w-full text-xs text-texto-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde"
+                />
+                {adjuntosSolucion.length > 0 && (
+                  <p className="text-xs text-texto-2 mt-1">
+                    {adjuntosSolucion.length} archivo(s): {adjuntosSolucion.map((f) => f.name).join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
+
+          {error && (
+            <p role="alert" className="text-sm text-negativo">{error}</p>
+          )}
         </div>
 
         <div className="px-6 py-4 border-t border-borde flex justify-end gap-3">
@@ -448,7 +497,7 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
           </button>
           <button
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || nuevoEstado === pqrs.estado}
+            disabled={mutation.isPending || nuevoEstado === pqrs.estado || !listo}
             className="px-4 py-2 rounded-lg bg-acento-fuerte hover:bg-acento text-white text-sm font-bold transition disabled:opacity-50"
           >
             {mutation.isPending ? 'Guardando...' : 'Guardar cambio'}

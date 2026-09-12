@@ -113,7 +113,8 @@ def test_el_evento_sigue_siendo_cambio_estado(entorno, v):
     pid = _crear_pqrs(portal)
 
     portal.como("calidad")
-    portal.patch(f"/pqrs/{pid}/gestion", data={"area": "Calidad", "estado": "resuelto"})
+    portal.patch(f"/pqrs/{pid}/gestion",
+                data={"area": "Calidad", "estado": "resuelto", "solucion": "Se cambió el producto."})
 
     evento = _seguimientos(portal, pid)[-1]
     v.check("el tipo de evento es cambio_estado",

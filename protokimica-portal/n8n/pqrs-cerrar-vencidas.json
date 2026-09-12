@@ -1,0 +1,73 @@
+{
+  "name": "PQRS · cerrar las resueltas sin respuesta",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "cron-pqrs-cerrar-vencidas",
+      "name": "Cada mañana hábil",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "notes": "Antes que el recordatorio de por-vencer, para que una PQRS que ya se cerró sola no siga apareciendo ahí como pendiente."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8000/auth/login",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"tenant_slug\": \"protokimica\",\n  \"email\": \"automatizaciones@protokimica.com\",\n  \"password\": \"CAMBIAR-POR-LA-CLAVE-DEL-USUARIO-DE-SERVICIO\"\n}",
+        "options": {}
+      },
+      "id": "login-pqrs-cerrar-vencidas",
+      "name": "Entrar al portal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "notes": "Usa el usuario de servicio, nunca la cuenta de una persona."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8000/pqrs/cerrar-vencidas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cerrar-pqrs-vencidas",
+      "name": "Cerrar las que vencieron",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "notes": "El backend calcula quién venció (3 días hábiles desde 'resuelto', ver cierre_automatico.py), las cierra y manda el correo de cierre de cada una — este flujo no hace nada más que dispararlo."
+    }
+  ],
+  "connections": {
+    "Cada mañana hábil": {
+      "main": [[{ "node": "Entrar al portal", "type": "main", "index": 0 }]]
+    },
+    "Entrar al portal": {
+      "main": [[{ "node": "Cerrar las que vencieron", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

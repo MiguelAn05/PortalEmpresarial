@@ -20,6 +20,9 @@ from app.core.database import get_db
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
 from app.models.tenant import Tenant
 from app.modules.pqrs import qr
+from app.modules.pqrs.cierre_automatico import (
+    confirmar_solucion, plazo_confirmacion, rechazar_solucion,
+)
 from app.modules.pqrs.historial_publico import construir as historial_publico_de
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla,
@@ -379,3 +382,89 @@ def responder_encuesta_publica(codigo: str, payload: EncuestaCreate, db: Session
     db.commit()
 
     return {"mensaje": "¡Gracias por su tiempo! Su respuesta fue registrada."}
+
+
+# ── Confirmar la solución (sin sesión, por código) ───────────────────
+# El cliente responde con un clic desde el correo de "resuelto". El mismo
+# patrón que la encuesta: el código de seguimiento ES la autenticación, no
+# hace falta que tenga cuenta en el portal — es SU caso.
+
+class ConfirmarEstadoOut(BaseModel):
+    disponible: bool
+    ya_decidido: bool
+    cliente_nombre: str | None = None
+    tipo: str | None = None
+    solucion: str | None = None
+    adjuntos: list[str] = []
+    plazo: datetime | None = None
+    mensaje: str
+
+
+class ConfirmarSolucionIn(BaseModel):
+    conforme: bool
+    comentario: str | None = None
+
+
+@router.get("/confirmar/{codigo}", response_model=ConfirmarEstadoOut)
+def consultar_confirmacion(codigo: str, db: Session = Depends(get_db)):
+    solicitud = db.query(PQRSSolicitud).filter(
+        PQRSSolicitud.codigo_seguimiento == codigo.upper()
+    ).first()
+
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="No encontramos ninguna solicitud con ese código.")
+
+    if solicitud.estado == "cerrado":
+        return ConfirmarEstadoOut(
+            disponible=False, ya_decidido=True,
+            mensaje="Esta solicitud ya está cerrada. ¡Gracias por su tiempo!",
+        )
+    if solicitud.estado != "resuelto":
+        return ConfirmarEstadoOut(
+            disponible=False, ya_decidido=False,
+            mensaje="Esta solicitud todavía no tiene una solución para confirmar.",
+        )
+
+    return ConfirmarEstadoOut(
+        disponible=True, ya_decidido=False,
+        cliente_nombre=solicitud.cliente_nombre,
+        tipo=solicitud.tipo,
+        solucion=solicitud.solucion,
+        adjuntos=[a.ruta for a in solicitud.adjuntos_solucion],
+        plazo=plazo_confirmacion(solicitud.fecha_resuelto) if solicitud.fecha_resuelto else None,
+        mensaje="Solución disponible.",
+    )
+
+
+@router.post("/confirmar/{codigo}")
+def responder_confirmacion(
+    codigo: str, payload: ConfirmarSolucionIn, background: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    solicitud = db.query(PQRSSolicitud).filter(
+        PQRSSolicitud.codigo_seguimiento == codigo.upper()
+    ).first()
+
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="No encontramos ninguna solicitud con ese código.")
+    if solicitud.estado != "resuelto":
+        raise HTTPException(
+            status_code=400,
+            detail="Esta solicitud ya no está esperando confirmación.",
+        )
+
+    if payload.conforme:
+        avisos = confirmar_solucion(db, solicitud)
+        mensaje = "¡Gracias por confirmar! Su solicitud quedó cerrada."
+    else:
+        comentario = (payload.comentario or "").strip()
+        if not comentario:
+            raise HTTPException(
+                status_code=400,
+                detail="Cuéntenos qué falta: es lo que le llega al área que atiende su caso.",
+            )
+        avisos = rechazar_solucion(db, solicitud, comentario)
+        mensaje = "Gracias por avisarnos. Su caso vuelve a quedar en proceso."
+
+    background.add_task(enviar_avisos, avisos)
+    return {"mensaje": mensaje}

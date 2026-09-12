@@ -25,10 +25,14 @@ from sqlalchemy.orm import Session
 
 from app.core.areas import AREAS
 from app.models.autorizacion import AutorizacionPQRS
-from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta
+from app.models.pqrs import (
+    PQRSAdjuntoSolucion, PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta,
+)
 from app.models.user import User
 from app.modules.pqrs.permisos import es_servicio_al_cliente, puede_cambiar_area
-from app.modules.pqrs.notificaciones import avisos_reasignacion, avisos_cierre
+from app.modules.pqrs.notificaciones import (
+    avisos_reasignacion, avisos_cierre, avisos_resuelta,
+)
 from app.modules.pqrs.service import generar_radicado_calidad
 
 ESTADOS_VALIDOS = ("recibido", "asignado", "en_proceso", "resuelto", "cerrado")
@@ -45,7 +49,7 @@ ESTADO_LEGIBLE = {
 
 
 def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
-             area: str | None, estado: str | None) -> None:
+             area: str | None, estado: str | None, solucion: str | None) -> None:
     """
     Todo lo que puede impedir el guardado, ANTES de tocar la solicitud.
 
@@ -84,6 +88,19 @@ def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
         raise HTTPException(
             status_code=400,
             detail=f"Estado inválido. Usa uno de: {', '.join(ESTADOS_VALIDOS)}.",
+        )
+
+    # Marcarla "resuelto" sin decir QUÉ se solucionó es la mitad del trabajo:
+    # el cliente nunca se enteraba de nada más que "ya quedó", y el correo de
+    # cierre solo traía la encuesta. Ahora la solución viaja con el estado, en
+    # el mismo movimiento — igual que el análisis obligatorio de Indicadores.
+    if estado == "resuelto" and not (solucion or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Escribe qué se le solucionó al cliente: es lo que se le va a "
+                "enviar por correo pidiéndole que confirme."
+            ),
         )
 
     if estado != "cerrado":
@@ -144,6 +161,8 @@ def aplicar_gestion(
     estado: str | None = None,
     comentario: str | None = None,
     ruta_evidencia: str | None = None,
+    solucion: str | None = None,
+    rutas_adjuntos_solucion: list[str] | None = None,
 ) -> tuple[PQRSSolicitud, list]:
     """
     Aplica el movimiento y deja UN evento en el historial.
@@ -174,7 +193,7 @@ def aplicar_gestion(
     if not solicitud:
         raise HTTPException(status_code=404, detail="PQRS no encontrada.")
 
-    _validar(db, solicitud, usuario, area, estado)
+    _validar(db, solicitud, usuario, area, estado, solucion)
 
     area_anterior = solicitud.area_responsable
     estado_anterior = solicitud.estado
@@ -208,6 +227,17 @@ def aplicar_gestion(
             # desde el enlace que le llega en el correo de cierre.
             if not solicitud.encuesta:
                 db.add(PQRSEncuesta(pqrs_id=solicitud.id))
+        elif estado == "resuelto":
+            solicitud.solucion = solucion.strip()
+            solicitud.fecha_resuelto = datetime.now(timezone.utc)
+            for ruta in (rutas_adjuntos_solucion or []):
+                db.add(PQRSAdjuntoSolucion(pqrs_id=solicitud.id, ruta=ruta))
+        elif estado_anterior == "resuelto":
+            # Se reabre. El reloj de los 3 días hábiles se borra: si no, una
+            # PQRS reabierta y resuelta de nuevo más tarde se cerraría sola
+            # con el plazo de la primera vez, antes de que el cliente
+            # llegara siquiera a ver la solución nueva.
+            solicitud.fecha_resuelto = None
 
     # El comentario de quien gestiona va UNA vez y al final. Lo de arriba lo
     # redacta el servidor a partir de lo que cambió, así que no hay que
@@ -240,5 +270,7 @@ def aplicar_gestion(
         avisos.append(avisos_reasignacion(db, tenant_id, solicitud, area))
     if cambio_estado and estado == "cerrado":
         avisos.append(avisos_cierre(solicitud))
+    if cambio_estado and estado == "resuelto":
+        avisos.append(avisos_resuelta(solicitud))
 
     return solicitud, avisos

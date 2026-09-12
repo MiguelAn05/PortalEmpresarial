@@ -10,6 +10,7 @@ import NotasCredito from './modules/notas_credito/NotasCredito.jsx'
 import FormularioPQRS from './modules/publico/FormularioPQRS.jsx'
 import SeguimientoPQRS from './modules/publico/SeguimientoPQRS.jsx'
 import EncuestaPQRS from './modules/publico/EncuestaPQRS.jsx'
+import ConfirmarPQRS from './modules/publico/ConfirmarPQRS.jsx'
 import EncuestaPublica from './modules/publico/EncuestaPublica.jsx'
 import Admin from './modules/admin/Admin.jsx'
 import MasterPlanner from './modules/masterPlanner/MasterPlanner.jsx'
@@ -53,6 +54,7 @@ export default function App() {
       <Route path="/q/:codigo"   element={<FormularioPQRS />} />
       <Route path="/seguimiento" element={<SeguimientoPQRS />} />
       <Route path="/encuesta/:codigo" element={<EncuestaPQRS />} />
+      <Route path="/confirmar/:codigo" element={<ConfirmarPQRS />} />
       {/* Corta a propósito: va impresa en el QR de un punto de venta. */}
       <Route path="/e/:slug" element={<EncuestaPublica />} />
 

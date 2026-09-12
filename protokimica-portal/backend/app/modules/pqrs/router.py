@@ -23,6 +23,7 @@ from app.modules.pqrs.permisos import (
     solo_servicio_al_cliente, es_servicio_al_cliente, puede_cambiar_area,
 )
 from app.modules.pqrs import pendientes
+from app.modules.pqrs.cierre_automatico import cerrar_vencidas, plazo_confirmacion
 from app.modules.pqrs.gestion import aplicar_gestion
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
@@ -181,6 +182,26 @@ def pqrs_por_vencer(
     return pendientes.por_vencer(db, tenant_id, dias)
 
 
+@router.post("/cerrar-vencidas")
+def pqrs_cerrar_vencidas(
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(solo_lectura_no),
+):
+    """
+    Cierra solas las PQRS "resuelto" cuyo plazo de confirmación ya venció.
+
+    Lo consume una automatización diaria, igual que `/por-vencer`. Va
+    declarada antes que `/{pqrs_id}` por la misma razón: o el path variable
+    se la come.
+    """
+    cerradas = cerrar_vencidas(db, tenant_id)
+    for _solicitud, avisos in cerradas:
+        background.add_task(enviar_avisos, avisos)
+    return {"cerradas": [s.id for s, _avisos in cerradas]}
+
+
 @router.get("/{pqrs_id}", response_model=PQRSDetailOut)
 def obtener_pqrs(
     pqrs_id: int,
@@ -217,6 +238,8 @@ def obtener_pqrs(
         puede_cerrar=escribe and servicio_cliente,
         puede_reclasificar=escribe and servicio_cliente,
     )
+    if solicitud.estado == "resuelto" and solicitud.fecha_resuelto:
+        detalle.plazo_confirmacion = plazo_confirmacion(solicitud.fecha_resuelto)
     return detalle
 
 
@@ -266,6 +289,8 @@ async def gestionar_pqrs(
     estado: str | None = Form(None),
     comentario: str | None = Form(None),
     evidencia: UploadFile | None = File(None),
+    solucion: str | None = Form(None),
+    adjuntos_solucion: list[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
@@ -282,15 +307,27 @@ async def gestionar_pqrs(
     Qué se puede hacer con cada campo lo decide `gestion.aplicar_gestion`; el
     detalle de la PQRS trae eso mismo resuelto en `alcance` para que la
     pantalla no ofrezca lo que después va a ser rechazado.
+
+    `solucion` y `adjuntos_solucion` solo se usan cuando `estado="resuelto"`
+    — es lo que se le manda al cliente pidiéndole que confirme. Los
+    adjuntos pueden ser varios: una factura, la foto del producto cambiado,
+    el antes y el después.
     """
     ruta_evidencia = None
     if evidencia is not None and evidencia.filename:
         ruta_evidencia = await guardar_archivo(evidencia, "evidencias")
 
+    rutas_adjuntos_solucion = [
+        await guardar_archivo(archivo, "pqrs-soluciones")
+        for archivo in adjuntos_solucion
+        if archivo is not None and archivo.filename
+    ]
+
     solicitud, avisos = aplicar_gestion(
         db, tenant_id, pqrs_id, current_user,
         area=area, estado=estado, comentario=comentario,
         ruta_evidencia=ruta_evidencia,
+        solucion=solucion, rutas_adjuntos_solucion=rutas_adjuntos_solucion,
     )
     for aviso in avisos:
         background.add_task(enviar_avisos, aviso)
@@ -541,6 +578,7 @@ async def cambiar_estado_pqrs(
     estado: str = Form(...),
     comentario: str | None = Form(None),
     evidencia: UploadFile | None = File(None),
+    solucion: str | None = Form(None),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
@@ -552,6 +590,11 @@ async def cambiar_estado_pqrs(
     Igual que `/area`, es `/gestion` con un campo y comparte su
     implementación. Se mantiene porque es la ruta que ya conocen las
     automatizaciones y las pruebas.
+
+    `solucion` va aparte porque `estado="resuelto"` la exige (ver
+    `gestion._validar`); esta ruta no admite adjuntos de solución —para eso
+    está `/gestion`— pero sí necesita poder mandar el texto, o quedaría sin
+    forma de llegar a "resuelto".
     """
     ruta_evidencia = None
     if evidencia is not None and evidencia.filename:
@@ -560,6 +603,7 @@ async def cambiar_estado_pqrs(
     solicitud, avisos = aplicar_gestion(
         db, tenant_id, pqrs_id, current_user,
         estado=estado, comentario=comentario, ruta_evidencia=ruta_evidencia,
+        solucion=solucion,
     )
     for aviso in avisos:
         background.add_task(enviar_avisos, aviso)

@@ -55,9 +55,25 @@ class PQRSSolicitud(Base):
     fecha_limite_sla = Column(DateTime(timezone=True), nullable=True)
     fecha_cierre = Column(DateTime(timezone=True), nullable=True)
 
+    # Qué se le dijo al cliente al marcarla "resuelto": es lo que antes solo
+    # vivía en la cabeza de quien atendió, y el cliente nunca llegaba a leer
+    # —el correo de cierre solo traía la encuesta—. Obligatoria al entrar a
+    # "resuelto" (ver `pqrs/gestion.py`); nullable=True porque las PQRS ya
+    # resueltas antes de este cambio no tienen con qué rellenarla.
+    solucion = Column(Text, nullable=True)
+
+    # Cuándo entró a "resuelto" por última vez. De aquí sale el plazo de
+    # espera antes del cierre automático (3 días hábiles) y se BORRA si se
+    # reabre: si no, una PQRS reabierta y vuelta a resolver heredaría el
+    # reloj de la primera vez, y podría cerrarse sola con una solución vieja.
+    fecha_resuelto = Column(DateTime(timezone=True), nullable=True)
+
     asignado = relationship('User', foreign_keys=[asignado_a])
     seguimientos = relationship('PQRSSeguimiento', back_populates='pqrs', cascade='all, delete-orphan')
     encuesta = relationship('PQRSEncuesta', back_populates='pqrs', uselist=False, cascade='all, delete-orphan')
+    adjuntos_solucion = relationship(
+        'PQRSAdjuntoSolucion', back_populates='pqrs', cascade='all, delete-orphan',
+    )
 
 
 class PQRSSeguimiento(Base):
@@ -93,6 +109,24 @@ class PQRSSeguimiento(Base):
     @property
     def usuario_rol(self):
         return self.usuario.rol if self.usuario else None
+
+
+class PQRSAdjuntoSolucion(Base):
+    """
+    El soporte de la solución: pueden ser varias imágenes y/o un PDF, así
+    que va en tabla propia y no en una columna de texto — una sola columna
+    solo alcanza para un archivo, y aquí el agente puede tener que mostrar
+    el antes y el después, o la factura de la nota crédito junto con la foto
+    del producto cambiado.
+    """
+    __tablename__ = 'pqrs_adjuntos_solucion'
+
+    id = Column(Integer, primary_key=True, index=True)
+    pqrs_id = Column(Integer, ForeignKey('pqrs_solicitudes.id'), nullable=False, index=True)
+    ruta = Column(String(500), nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    pqrs = relationship('PQRSSolicitud', back_populates='adjuntos_solucion')
 
 
 class PQRSEncuesta(Base):

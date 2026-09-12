@@ -89,6 +89,20 @@ class PQRSOut(BaseModel):
     fecha_limite_sla: datetime | None = None
     fecha_cierre: datetime | None = None
 
+    # Qué se le dijo al cliente al marcar "resuelto", y desde cuándo. Ver
+    # `pqrs/cierre_automatico.py` para el plazo que sale de `fecha_resuelto`.
+    solucion: str | None = None
+    fecha_resuelto: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class AdjuntoSolucionOut(BaseModel):
+    id: int
+    ruta: str
+    creado_en: datetime
+
     class Config:
         from_attributes = True
 
@@ -134,6 +148,12 @@ class PQRSDetailOut(PQRSOut):
     seguimientos: list[SeguimientoOut] = []
     encuesta: EncuestaOut | None = None
     alcance: AlcancePQRS | None = None
+    adjuntos_solucion: list[AdjuntoSolucionOut] = []
+    # Cuándo se cierra sola si el cliente no contesta. Solo tiene sentido
+    # con `estado == "resuelto"`; se calcula en el router porque depende de
+    # una función (`cierre_automatico.plazo_confirmacion`), no de una
+    # columna.
+    plazo_confirmacion: datetime | None = None
 
 
 class EncuestaCreate(BaseModel):

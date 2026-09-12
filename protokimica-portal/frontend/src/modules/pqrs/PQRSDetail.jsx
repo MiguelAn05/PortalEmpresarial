@@ -234,8 +234,13 @@ function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
   const [estado, setEstado]         = useState('')
   const [comentario, setComentario] = useState('')
   const [evidencia, setEvidencia]   = useState(null)
+  const [solucion, setSolucion]     = useState('')
+  const [adjuntosSolucion, setAdjuntosSolucion] = useState([])
   const [error, setError]           = useState('')
   const archivoRef = useRef(null)
+  const archivosSolucionRef = useRef(null)
+
+  const esResuelto = estado === 'resuelto'
 
   const mutacion = useMutation({
     mutationFn: () => {
@@ -246,18 +251,25 @@ function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
       if (estado) datos.append('estado', estado)
       if (comentario.trim()) datos.append('comentario', comentario.trim())
       if (evidencia) datos.append('evidencia', evidencia)
+      if (esResuelto) {
+        datos.append('solucion', solucion.trim())
+        adjuntosSolucion.forEach((archivo) => datos.append('adjuntos_solucion', archivo))
+      }
       return api.patch(`/pqrs/${pqrs.id}/gestion`, datos)
     },
     onSuccess: () => {
       invalidar()
       setArea(''); setEstado(''); setComentario(''); setEvidencia(null)
+      setSolucion(''); setAdjuntosSolucion([])
       setError('')
       if (archivoRef.current) archivoRef.current.value = ''
+      if (archivosSolucionRef.current) archivosSolucionRef.current.value = ''
     },
     onError: (err) => setError(mensajeDeError(err, 'No se pudo guardar la gestión.')),
   })
 
   const hayAlgoQueGuardar = Boolean(area || estado || comentario.trim() || evidencia)
+  const listo = hayAlgoQueGuardar && (!esResuelto || solucion.trim() !== '')
 
   return (
     <div className="bg-white rounded-xl border border-borde p-5 shadow-sm">
@@ -267,6 +279,23 @@ function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
         <div className="bg-alerta-bg border border-ambar/30 rounded-lg p-3 text-sm text-alerta mb-4">
           Hay una autorización pendiente y el estado queda congelado hasta que
           se responda. Sí puedes dejar un comentario o adjuntar un soporte.
+        </div>
+      )}
+
+      {/* Ya está "resuelto": muestra qué se le mandó al cliente y hasta
+          cuándo puede responder, para que quien mira el caso no tenga que
+          adivinar por qué está en este estado hace días. */}
+      {pqrs.estado === 'resuelto' && pqrs.solucion && (
+        <div className="bg-info-bg border border-info/25 rounded-lg p-3 mb-4">
+          <p className="text-xs font-semibold text-info uppercase tracking-wide mb-1">
+            Esperando confirmación del cliente
+          </p>
+          <p className="text-sm text-texto whitespace-pre-wrap mb-1">{pqrs.solucion}</p>
+          {pqrs.plazo_confirmacion && (
+            <p className="text-xs text-texto-2">
+              Si no responde antes del {formatFecha(pqrs.plazo_confirmacion)}, se cierra sola.
+            </p>
+          )}
         </div>
       )}
 
@@ -329,6 +358,46 @@ function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
         </p>
       )}
 
+      {/* La solución solo aparece cuando se elige "resuelto": es lo que se le
+          manda al cliente pidiéndole que confirme, así que sin esto no hay
+          nada que enviarle — de ahí que el servidor la exija. */}
+      {esResuelto && (
+        <div className="bg-superficie-2 rounded-lg p-3 mb-3">
+          <label htmlFor="gestion-solucion" className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
+            Solución <span className="text-negativo">· obligatorio</span>
+          </label>
+          <p className="text-xs text-texto-2 mb-2">
+            Esto se le envía al cliente por correo pidiéndole que confirme si quedó bien.
+            Si no responde en 3 días hábiles, la solicitud se cierra sola.
+          </p>
+          <textarea
+            id="gestion-solucion"
+            value={solucion}
+            onChange={(e) => setSolucion(e.target.value)}
+            rows={3}
+            placeholder="Qué se hizo para solucionar el caso..."
+            className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none mb-2"
+          />
+          <label htmlFor="gestion-adjuntos-solucion" className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
+            Soporte (opcional, varios archivos)
+          </label>
+          <input
+            id="gestion-adjuntos-solucion"
+            ref={archivosSolucionRef}
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,.pdf"
+            multiple
+            onChange={(e) => setAdjuntosSolucion(Array.from(e.target.files || []))}
+            className="w-full text-xs text-texto-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde"
+          />
+          {adjuntosSolucion.length > 0 && (
+            <p className="text-xs text-texto-2 mt-1">
+              {adjuntosSolucion.length} archivo(s): {adjuntosSolucion.map((f) => f.name).join(', ')}
+            </p>
+          )}
+        </div>
+      )}
+
       <label htmlFor="gestion-comentario" className="block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1">
         Comentario
       </label>
@@ -360,7 +429,7 @@ function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
 
       <button
         onClick={() => mutacion.mutate()}
-        disabled={!hayAlgoQueGuardar || mutacion.isPending}
+        disabled={!listo || mutacion.isPending}
         className="w-full bg-acento-fuerte hover:bg-acento text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
       >
         {mutacion.isPending ? 'Guardando...' : 'Guardar gestión'}

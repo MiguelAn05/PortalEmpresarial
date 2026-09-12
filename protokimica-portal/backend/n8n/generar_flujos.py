@@ -199,8 +199,11 @@ FLUJOS = [
         para=f"={{{{ {B}.destinatarios.join(', ') }}}}",
         asunto=f"=PQRS para {{{{ {B}.area }}}} · {{{{ {B}.codigo_seguimiento }}}}",
         html="=" + plantilla(
-            titulo=(f"{{{{ {B}.motivo === 'reasignacion' "
-                    f"? 'Les reasignaron una PQRS' : 'Les asignaron una PQRS' }}}}"),
+            titulo=(
+                f"{{{{ {B}.motivo === 'reasignacion' ? 'Les reasignaron una PQRS' "
+                f": {B}.motivo === 'cliente_rechazo' ? 'El cliente dice que no quedó bien' "
+                f": 'Les asignaron una PQRS' }}}}"
+            ),
             cuerpo=(
                 dato("Código", f"{{{{ {B}.codigo_seguimiento }}}}")
                 + dato("Tipo", f"{{{{ {B}.tipo }}}}")
@@ -208,6 +211,12 @@ FLUJOS = [
                 + f"{{{{ {B}.radicado_calidad ? "
                   f"'{dato('Radicado de Calidad', '@@RC@@')}'.replace('@@RC@@', {B}.radicado_calidad) "
                   f": '' }}}}"
+                # Cuando es un rechazo, `descripcion` trae lo que escribió el
+                # cliente sobre por qué la solución no le sirvió — no la
+                # descripción original de la PQRS.
+                + f"{{{{ {B}.motivo === 'cliente_rechazo' "
+                  f"? '<p style=\"margin:4px 0\"><span style=\"color:#8A93A9\">"
+                  f"El cliente dijo:</span></p>' : '' }}}}"
                 + f'<p style="margin:14px 0 0 0;padding:12px;background:#EFF3F9;'
                   f'border-radius:8px">{{{{ {B}.descripcion }}}}</p>'
             ),
@@ -313,6 +322,31 @@ FLUJOS = [
         ),
     ),
     flujo(
+        # Sale del mismo buzón que la confirmación al cliente: es SU botón,
+        # no un aviso interno.
+        remitente=REMITENTE_SERVICIO_CLIENTE,
+        nombre="PQRS · solución, pidiendo confirmación",
+        path="pqrs-resuelta-cliente",
+        para=f"={{{{ {B}.cliente_email }}}}",
+        asunto=f"=Esto le solucionamos · {{{{ {B}.codigo_seguimiento }}}}",
+        html="=" + plantilla(
+            titulo=f"Hola {{{{ {B}.cliente_nombre }}}}, esto hicimos con tu solicitud",
+            cuerpo=(
+                f'<p style="margin:0 0 14px 0;padding:12px;background:#EFF3F9;'
+                f'border-radius:8px">{{{{ {B}.solucion }}}}</p>'
+                # El soporte se anuncia, nunca se enlaza en el correo: /uploads
+                # no pide sesión, y la página de confirmar sí las muestra.
+                + f"{{{{ {B}.tiene_adjuntos "
+                  f"? '<p style=\"margin:0 0 14px 0;font-size:13px\">Adjuntamos "
+                  f"soporte; lo ves al abrir el enlace.</p>' : '' }}}}"
+                + f"¿Quedó bien? Cuéntanos en los próximos "
+                  f"{{{{ {B}.dias_espera }}}} días hábiles — si no nos escribes, "
+                  "damos tu solicitud por resuelta y la cerramos."
+            ),
+            boton=("Confirmar la solución", f"{{{{ {B}.link_confirmar }}}}"),
+        ),
+    ),
+    flujo(
         # Va al cliente y lo invita a calificar: mismo buzón que su confirmación.
         remitente=REMITENTE_SERVICIO_CLIENTE,
         nombre="PQRS · cierre y encuesta al cliente",
@@ -322,9 +356,20 @@ FLUJOS = [
         html="=" + plantilla(
             titulo=f"Hola {{{{ {B}.cliente_nombre }}}}, cerramos tu solicitud",
             cuerpo=(
-                f"Tu {{{{ {B}.tipo }}}} con código "
-                f"<strong>{{{{ {B}.codigo_seguimiento }}}}</strong> quedó cerrada. "
-                "Nos ayudarías mucho contándonos cómo te fue: es menos de un minuto."
+                f"{{{{ {B}.motivo_cierre === 'automatico' "
+                f"? 'No supimos de ti en el plazo que te dimos, así que damos "
+                f"tu ' + {B}.tipo + ' <strong>' + {B}.codigo_seguimiento + '</strong> "
+                f"por resuelta y la cerramos. Si el problema sigue, puedes "
+                f"reabrirla cuando quieras.' "
+                f": 'Tu ' + {B}.tipo + ' con código <strong>' + "
+                f"{B}.codigo_seguimiento + '</strong> quedó cerrada.' }}}}"
+                # La solución va de recuerdo: si cerró por plazo vencido o el
+                # cliente confirmó hace rato, no todo el mundo guarda el
+                # correo anterior.
+                + f"{{{{ {B}.solucion "
+                  f"? '<p style=\"margin:14px 0;padding:12px;background:#EFF3F9;"
+                  f"border-radius:8px\">' + {B}.solucion + '</p>' : '' }}}}"
+                + "Nos ayudarías mucho contándonos cómo te fue: es menos de un minuto."
             ),
             boton=("Calificar la atención", f"{{{{ {B}.link_encuesta }}}}"),
         ),

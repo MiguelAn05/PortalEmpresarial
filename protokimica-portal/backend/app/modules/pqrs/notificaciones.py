@@ -28,7 +28,11 @@ No hace falta tocar nada más.
 
 Eventos que disparamos hoy (nombres = path del webhook en n8n):
   - pqrs-creada-cliente          -> confirmación de radicación al cliente
-  - pqrs-cerrada                 -> aviso de cierre al cliente (+ encuesta)
+  - pqrs-resuelta-cliente        -> la solución, pidiendo que confirme
+                                     (ver `pqrs/cierre_automatico.py` para
+                                     qué pasa si no contesta)
+  - pqrs-cerrada                 -> aviso de cierre al cliente (+ encuesta),
+                                     con la solución de recuerdo
   - pqrs-notificacion-area       -> aviso a los usuarios de un área
                                      (motivo: "creacion" | "reasignacion")
   - pqrs-nueva-servicio-cliente  -> aviso SIEMPRE a Servicio al Cliente
@@ -58,6 +62,7 @@ EVENTO_SERVICIO_CLIENTE = "pqrs-nueva-servicio-cliente"
 EVENTO_AREA = "pqrs-notificacion-area"
 EVENTO_CERRADA = "pqrs-cerrada"
 EVENTO_AUTORIZACION = "pqrs-autorizacion"
+EVENTO_RESUELTA = "pqrs-resuelta-cliente"
 
 EVENTOS = frozenset({
     EVENTO_CREADA_CLIENTE,
@@ -65,7 +70,16 @@ EVENTOS = frozenset({
     EVENTO_AREA,
     EVENTO_CERRADA,
     EVENTO_AUTORIZACION,
+    EVENTO_RESUELTA,
 })
+
+# Días hábiles que se le dan al cliente para confirmar la solución antes de
+# cerrar solo. Vive aquí —y no en `cierre_automatico.py`, que es quien lo
+# usa para calcular el plazo— porque el correo de "resuelto" también lo
+# necesita para decir el número correcto, y notificaciones.py no puede
+# importar de cierre_automatico.py sin crear un ciclo (ese módulo sí importa
+# de aquí, para mandar avisos_cierre al cerrar solo).
+DIAS_ESPERA_CLIENTE = 3
 
 
 def enviar_avisos(avisos: list[Aviso]) -> None:
@@ -201,8 +215,47 @@ def _aviso_area(db: Session, tenant_id: int, solicitud, area: str, motivo: str) 
     })]
 
 
-def _aviso_cliente_cierre(solicitud) -> list[Aviso]:
-    """Aviso al cliente de que su PQRS fue cerrada (con link a la encuesta)."""
+def _aviso_cliente_resuelta(solicitud) -> list[Aviso]:
+    """
+    La solución, pidiéndole al cliente que confirme si quedó bien.
+
+    Antes el cliente nunca se enteraba de QUÉ se le solucionó — el correo
+    de cierre solo traía la encuesta. El soporte (fotos, PDF) se ANUNCIA,
+    nunca se enlaza: `/uploads` todavía no tiene control de acceso, así que
+    poner la URL en un correo es repartir una evidencia a quien lo reenvíe.
+    El botón lleva a una página del portal que sí las muestra.
+    """
+    if not solicitud.cliente_email:
+        return []
+    return [(EVENTO_RESUELTA, {
+        "pqrs_id": solicitud.id,
+        "codigo_seguimiento": solicitud.codigo_seguimiento,
+        "cliente_nombre": solicitud.cliente_nombre,
+        "cliente_email": solicitud.cliente_email,
+        "tipo": solicitud.tipo,
+        "solucion": solicitud.solucion or "",
+        "tiene_adjuntos": bool(solicitud.adjuntos_solucion),
+        # Se repite aquí en vez de que n8n lo calcule: el número de días es
+        # una decisión de negocio (`cierre_automatico.DIAS_ESPERA_CLIENTE`),
+        # y el correo no puede quedar diciendo un plazo que el código ya
+        # cambió.
+        "dias_espera": DIAS_ESPERA_CLIENTE,
+        "link_confirmar": f"{settings.FRONTEND_URL}/confirmar/{solicitud.codigo_seguimiento}",
+    })]
+
+
+def _aviso_cliente_cierre(solicitud, motivo_cierre: str) -> list[Aviso]:
+    """
+    Aviso al cliente de que su PQRS fue cerrada (con link a la encuesta).
+
+    motivo_cierre: "manual"           -> Servicio al Cliente la cerró directo
+                   "cliente_confirmo" -> el cliente dijo que sí quedó bien
+                   "automatico"       -> no respondió en el plazo
+
+    La solución va de recuerdo: si cerró por confirmación o por plazo
+    vencido, el cliente ya la vio en el correo de "resuelto", pero no
+    todo el mundo guarda ese correo.
+    """
     if not solicitud.cliente_email:
         return []
     return [(EVENTO_CERRADA, {
@@ -212,6 +265,8 @@ def _aviso_cliente_cierre(solicitud) -> list[Aviso]:
         "cliente_email": solicitud.cliente_email,
         "tipo": solicitud.tipo,
         "area_responsable": solicitud.area_responsable,
+        "motivo_cierre": motivo_cierre,
+        "solucion": solicitud.solucion or "",
         "link_seguimiento": f"{settings.FRONTEND_URL}/seguimiento",
         "link_encuesta": f"{settings.FRONTEND_URL}/encuesta/{solicitud.codigo_seguimiento}",
     })]
@@ -310,5 +365,43 @@ def avisos_autorizacion_respondida(db: Session, tenant_id: int, solicitud, area:
     )
 
 
-def avisos_cierre(solicitud) -> list[Aviso]:
-    return _protegido(_aviso_cliente_cierre, solicitud)
+def avisos_cierre(solicitud, motivo_cierre: str = "manual") -> list[Aviso]:
+    return _protegido(_aviso_cliente_cierre, solicitud, motivo_cierre)
+
+
+def avisos_resuelta(solicitud) -> list[Aviso]:
+    return _protegido(_aviso_cliente_resuelta, solicitud)
+
+
+def _aviso_area_rechazo(db: Session, tenant_id: int, solicitud,
+                        comentario_cliente: str) -> list[Aviso]:
+    """
+    El cliente dijo que la solución NO le sirvió: avisa al área que tiene
+    el caso hoy. Va por el mismo evento que el resto de avisos de área
+    (`EVENTO_AREA`) y se distingue por `motivo`, en vez de abrir un webhook
+    nuevo en n8n para un aviso que en el fondo es "esto necesita que alguien
+    lo mire otra vez".
+    """
+    area = solicitud.area_responsable
+    if not area:
+        return []
+    destinatarios = _correos_por_area(db, tenant_id, area)
+    if not destinatarios:
+        return []
+    return [(EVENTO_AREA, {
+        "pqrs_id": solicitud.id,
+        "codigo_seguimiento": solicitud.codigo_seguimiento,
+        "radicado_calidad": solicitud.radicado_calidad,
+        "area": area,
+        "motivo": "cliente_rechazo",
+        "tipo": solicitud.tipo,
+        "cliente_nombre": solicitud.cliente_nombre,
+        "descripcion": (comentario_cliente or "")[:280],
+        "destinatarios": destinatarios,
+        "link_portal": f"{settings.FRONTEND_URL}/pqrs/{solicitud.id}",
+    })]
+
+
+def avisos_cliente_rechazo(db: Session, tenant_id: int, solicitud,
+                           comentario_cliente: str) -> list[Aviso]:
+    return _protegido(_aviso_area_rechazo, db, tenant_id, solicitud, comentario_cliente)
