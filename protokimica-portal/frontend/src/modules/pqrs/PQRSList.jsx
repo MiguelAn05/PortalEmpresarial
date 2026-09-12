@@ -349,6 +349,56 @@ function ModalCrear({ onClose, onCreated }) {
 }
 
 
+// Cerrar manda la encuesta de inmediato: elegir "Cerrado" sin querer y
+// guardar no debe tener el mismo costo que cualquier otro cambio de estado.
+function ConfirmarCierre({ pqrs, guardando, onConfirmar, onCancelar }) {
+  return (
+    <div
+      className="fixed inset-0 bg-texto/50 flex items-center justify-center z-[60] p-4"
+      onClick={onCancelar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl shadow-lg w-full max-w-md"
+      >
+        <div className="px-6 py-4 border-b border-borde">
+          <h3 className="text-base font-bold text-acento-fuerte">¿Cerrar esta PQRS?</h3>
+          {pqrs.codigo_seguimiento && (
+            <p className="cifra text-xs text-texto-3 mt-0.5">{pqrs.codigo_seguimiento}</p>
+          )}
+        </div>
+        <div className="px-6 py-5">
+          <div className="rounded-xl border border-borde bg-superficie-2 p-3">
+            <p className="text-sm text-texto">
+              Se le manda la encuesta de satisfacción al cliente de inmediato.
+            </p>
+            <p className="text-sm text-texto-2 mt-1">
+              Si la cierras por error, puedes volver a abrirla desde aquí —
+              pero el correo ya se habrá enviado.
+            </p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 px-6 py-4 bg-superficie-2 border-t border-borde">
+          <button
+            onClick={onCancelar}
+            className="px-4 py-2 rounded-lg border border-borde text-sm font-semibold text-texto-2 hover:bg-white transition"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirmar}
+            autoFocus
+            disabled={guardando}
+            className="px-4 py-2 rounded-lg bg-acento-fuerte hover:bg-acento text-white text-sm font-bold transition disabled:opacity-50"
+          >
+            {guardando ? 'Cerrando...' : 'Sí, cerrar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Modal detalle / cambiar estado ─────────────────────────────────
 function ModalDetalle({ pqrs, onClose, onUpdated }) {
   const [nuevoEstado, setNuevoEstado] = useState(pqrs.estado)
@@ -356,6 +406,7 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
   const [solucion, setSolucion] = useState('')
   const [adjuntosSolucion, setAdjuntosSolucion] = useState([])
   const [error, setError] = useState('')
+  const [confirmandoCierre, setConfirmandoCierre] = useState(false)
 
   // El endpoint recibe multipart, no JSON: mandarlo como objeto respondía 422
   // y el modal se quedaba sin guardar nada. Es la misma puerta que usa el
@@ -496,7 +547,7 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
             Cerrar
           </button>
           <button
-            onClick={() => mutation.mutate()}
+            onClick={() => nuevoEstado === 'cerrado' ? setConfirmandoCierre(true) : mutation.mutate()}
             disabled={mutation.isPending || nuevoEstado === pqrs.estado || !listo}
             className="px-4 py-2 rounded-lg bg-acento-fuerte hover:bg-acento text-white text-sm font-bold transition disabled:opacity-50"
           >
@@ -504,6 +555,15 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
           </button>
         </div>
       </div>
+
+      {confirmandoCierre && (
+        <ConfirmarCierre
+          pqrs={pqrs}
+          guardando={mutation.isPending}
+          onConfirmar={() => { setConfirmandoCierre(false); mutation.mutate() }}
+          onCancelar={() => setConfirmandoCierre(false)}
+        />
+      )}
     </div>
   )
 }

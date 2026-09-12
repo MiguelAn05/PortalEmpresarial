@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.26.0"
+VERSION = "0.26.1"
 FECHA = "2026-09-12"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,17 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.26.1",
+        "fecha": "2026-09-12",
+        "titulo": "Cerrar una PQRS ahora pregunta antes",
+        "cambios": [
+            ("correccion", "Elegir «Cerrado» y guardar mandaba la encuesta al "
+                           "cliente de una vez, sin avisar — un clic de más "
+                           "y ya estaba enviada. Ahora pide confirmar antes "
+                           "de guardar el cierre."),
+        ],
+    },
     {
         "version": "0.26.0",
         "fecha": "2026-09-12",

@@ -218,6 +218,63 @@ function SLALabel({ fechaLimite, cerrado }) {
 
 // ── Panel de gestión ───────────────────────────────────────────────
 /**
+ * El freno antes de cerrar por error.
+ *
+ * Cerrar no es un cambio de estado cualquiera: dispara la encuesta al
+ * cliente EN EL ACTO. Si se selecciona "Cerrado" sin querer —el select
+ * queda justo debajo de "En proceso" en la lista— y se guarda, el correo ya
+ * salió; reabrir la PQRS después no lo deshace. Antes no había nada entre
+ * elegir la opción y guardarla.
+ */
+function ConfirmarCierre({ pqrs, guardando, onConfirmar, onCancelar }) {
+  return (
+    <div
+      className="fixed inset-0 bg-texto/50 flex items-center justify-center z-[70] p-4"
+      onClick={onCancelar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl shadow-lg w-full max-w-md"
+      >
+        <div className="px-6 py-4 border-b border-borde">
+          <h3 className="text-base font-bold text-acento-fuerte">¿Cerrar esta PQRS?</h3>
+          {pqrs.codigo_seguimiento && (
+            <p className="cifra text-xs text-texto-3 mt-0.5">{pqrs.codigo_seguimiento}</p>
+          )}
+        </div>
+        <div className="px-6 py-5">
+          <div className="rounded-xl border border-borde bg-superficie-2 p-3">
+            <p className="text-sm text-texto">
+              Se le manda la encuesta de satisfacción al cliente de inmediato.
+            </p>
+            <p className="text-sm text-texto-2 mt-1">
+              Si la cierras por error, puedes volver a abrirla desde aquí —
+              pero el correo ya se habrá enviado.
+            </p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 px-6 py-4 bg-superficie-2 border-t border-borde">
+          <button
+            onClick={onCancelar}
+            className="px-4 py-2 rounded-lg border border-borde text-sm font-semibold text-texto-2 hover:bg-white transition"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirmar}
+            autoFocus
+            disabled={guardando}
+            className="px-4 py-2 rounded-lg bg-acento-fuerte hover:bg-acento text-white text-sm font-bold transition disabled:opacity-50"
+          >
+            {guardando ? 'Cerrando...' : 'Sí, cerrar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Mover el área, cambiar el estado, comentar y adjuntar: un solo formulario
  * y un solo guardado.
  *
@@ -237,6 +294,7 @@ function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
   const [solucion, setSolucion]     = useState('')
   const [adjuntosSolucion, setAdjuntosSolucion] = useState([])
   const [error, setError]           = useState('')
+  const [confirmandoCierre, setConfirmandoCierre] = useState(false)
   const archivoRef = useRef(null)
   const archivosSolucionRef = useRef(null)
 
@@ -428,12 +486,21 @@ function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
       {error && <p role="alert" className="text-sm text-negativo mb-3">{error}</p>}
 
       <button
-        onClick={() => mutacion.mutate()}
+        onClick={() => estado === 'cerrado' ? setConfirmandoCierre(true) : mutacion.mutate()}
         disabled={!listo || mutacion.isPending}
         className="w-full bg-acento-fuerte hover:bg-acento text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50"
       >
         {mutacion.isPending ? 'Guardando...' : 'Guardar gestión'}
       </button>
+
+      {confirmandoCierre && (
+        <ConfirmarCierre
+          pqrs={pqrs}
+          guardando={mutacion.isPending}
+          onConfirmar={() => { setConfirmandoCierre(false); mutacion.mutate() }}
+          onCancelar={() => setConfirmandoCierre(false)}
+        />
+      )}
     </div>
   )
 }
