@@ -14,10 +14,9 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
 from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
-from app.models.catalogo import ProductoCatalogo
 from app.modules.pqrs.schemas import (
     AlcancePQRS, PQRSOut, PQRSDetailOut, PQRSAsignar,
-    PQRSAsignarArea, PQRSAreaCausante, PQRSEditarDatos,
+    PQRSAsignarArea, PQRSAreaCausante, PQRSEditarDatos, ProductoCorregir, ProductoIn,
     PuntoVentaOut, VisibilidadPQRS,
 )
 from app.modules.pqrs.permisos import (
@@ -25,6 +24,7 @@ from app.modules.pqrs.permisos import (
     filtrar_visibles, obtener_visible, puntos_visibles,
 )
 from app.modules.pqrs import edicion, pendientes
+from app.modules.pqrs import productos as pqrs_productos
 from app.modules.pqrs.cierre_automatico import cerrar_vencidas, plazo_confirmacion
 from app.modules.pqrs.gestion import aplicar_gestion
 from app.modules.pqrs.service import (
@@ -59,7 +59,10 @@ async def crear_pqrs(
     cliente_telefono: str = Form(None),
     ciudad: str = Form(None),
     departamento: str = Form(None),
-    # Datos del producto
+    # Datos del producto. `productos` es la lista (JSON) que manda el
+    # formulario: uno o varios, cada uno con su lote y cantidades. Los campos
+    # sueltos son de cuando había un solo producto y se siguen aceptando.
+    productos: str = Form(None),
     producto_codigo: str = Form(None),
     producto_nombre: str = Form(None),
     presentacion: str = Form(None),
@@ -77,6 +80,15 @@ async def crear_pqrs(
     # Primero, antes de guardar archivos: un texto que no cabe en su columna
     # tumbaba el guardado con un 500 sin decir qué campo era.
     validar_largos(locals())
+    # Igual que en el formulario público: sin código no hay producto
+    # identificado. Aquí también pasa —una PQRS que entra por teléfono se
+    # escribe mientras el cliente habla— y esa queda igual de marcada.
+    filas_productos = pqrs_productos.leer_productos(productos, {
+        "producto_codigo": producto_codigo, "producto_nombre": producto_nombre,
+        "presentacion": presentacion, "cantidad_presentacion": cantidad_presentacion,
+        "lote": lote, "cantidad_factura": cantidad_factura,
+        "cantidad_reclamo": cantidad_reclamo,
+    })
 
     ruta_producto = None
     ruta_factura = None
@@ -92,11 +104,6 @@ async def crear_pqrs(
             max_mb=MAX_TAMANIO_VIDEO_MB,
         )
 
-    # Igual que en el formulario público: sin código no hay producto
-    # identificado. Aquí también pasa —una PQRS que entra por teléfono se
-    # escribe mientras el cliente habla— y esa queda igual de marcada.
-    producto_codigo = (producto_codigo or "").strip() or None
-    producto_nombre = (producto_nombre or "").strip() or None
     canal_atencion = canales.normalizar(canal_atencion)
 
     solicitud = PQRSSolicitud(
@@ -109,16 +116,8 @@ async def crear_pqrs(
         cliente_telefono=cliente_telefono,
         ciudad=ciudad,
         departamento=departamento,
-        producto_codigo=producto_codigo,
-        producto_nombre=producto_nombre,
-        producto_por_confirmar=bool(producto_nombre) and not producto_codigo,
-        presentacion=presentacion,
-        cantidad_presentacion=cantidad_presentacion,
         canal_atencion=canal_atencion,
-        lote=lote,
         factura_numero=factura_numero,
-        cantidad_factura=cantidad_factura,
-        cantidad_reclamo=cantidad_reclamo,
         adjunto_producto=ruta_producto,
         adjunto_factura=ruta_factura,
         adjunto_video=ruta_video,
@@ -129,6 +128,7 @@ async def crear_pqrs(
         fecha_limite_sla=calcular_fecha_limite_sla(tipo),
         origen_publico="interno",
     )
+    pqrs_productos.agregar_a_solicitud(solicitud, filas_productos)
     db.add(solicitud)
     db.commit()
     db.refresh(solicitud)
@@ -410,78 +410,76 @@ def asignar_area_causante(
     return solicitud
 
 
-@router.patch("/{pqrs_id}/producto", response_model=PQRSOut)
+# ── Productos de la PQRS ───────────────────────────────────────────────
+# Uno o varios, cada uno con su lote y cantidades. La lógica y sus reglas
+# viven en `pqrs/productos.py`; aquí solo se resuelve quién y cuál.
+
+@router.post("/{pqrs_id}/productos", response_model=PQRSOut, status_code=status.HTTP_201_CREATED)
+def agregar_producto_pqrs(
+    pqrs_id: int,
+    payload: ProductoIn,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
+):
+    """Un producto que faltó al radicar. Escrito a mano queda por confirmar."""
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
+    return pqrs_productos.agregar(db, solicitud, current_user, payload.model_dump())
+
+
+@router.patch("/{pqrs_id}/productos/{producto_id}", response_model=PQRSOut)
+def corregir_producto_pqrs(
+    pqrs_id: int,
+    producto_id: int,
+    payload: ProductoCorregir,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
+):
+    """Lote, presentación y cantidades de un producto. Solo lo que llega."""
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
+    return pqrs_productos.corregir(
+        db, solicitud, current_user, producto_id, payload.model_dump(exclude_unset=True),
+    )
+
+
+@router.delete("/{pqrs_id}/productos/{producto_id}", response_model=PQRSOut)
+def quitar_producto_pqrs(
+    pqrs_id: int,
+    producto_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
+):
+    """Un producto que no correspondía. Sus datos quedan escritos en el historial."""
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
+    return pqrs_productos.quitar(db, solicitud, current_user, producto_id)
+
+
+@router.patch("/{pqrs_id}/productos/{producto_id}/confirmar", response_model=PQRSOut)
 def confirmar_producto_pqrs(
     pqrs_id: int,
+    producto_id: int,
     producto_codigo: str = Form(...),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(solo_servicio_al_cliente),
 ):
     """
-    Cambia el producto escrito a mano por el del catálogo.
+    Cambia un producto escrito a mano por el del catálogo.
 
     Existe por la misma razón que la reclasificación del tipo: el dato que
     entra por el formulario público no siempre es el bueno, y es el que
-    alimenta los informes. Un cliente que escribe «hipoclorito» no está
-    equivocándose — está diciendo lo que sabe; quien tiene el catálogo
-    enfrente es Servicio al Cliente.
-
-    El nombre NO se recibe del formulario: se toma del catálogo a partir del
-    código. Si se aceptara escrito, volveríamos al mismo problema que esto
-    viene a resolver.
+    alimenta los informes. Quien tiene el catálogo enfrente es Servicio al
+    Cliente.
     """
     solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
-
-    # Cerrada ya entró a los indicadores del mes con ese producto.
-    if solicitud.estado == "cerrado":
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "No se puede cambiar el producto de una PQRS cerrada. Se "
-                "confirma antes de cerrarla."
-            ),
-        )
-
-    producto = (
-        db.query(ProductoCatalogo)
-        .filter(
-            ProductoCatalogo.tenant_id == tenant_id,
-            ProductoCatalogo.codigo == producto_codigo.strip(),
-            ProductoCatalogo.activo.is_(True),
-        )
-        .first()
+    return pqrs_productos.confirmar(
+        db, tenant_id, solicitud, current_user, producto_id, producto_codigo,
     )
-    if not producto:
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "Ese producto no está en el catálogo. Búscalo de nuevo; si de "
-                "verdad no existe, revisa con TIC's que la sincronización con "
-                "el ERP esté corriendo."
-            ),
-        )
-
-    escrito_por_el_cliente = solicitud.producto_nombre
-    solicitud.producto_codigo = producto.codigo
-    solicitud.producto_nombre = producto.nombre
-    solicitud.producto_por_confirmar = False
-
-    # Queda en la trazabilidad qué escribió el cliente: si mucha gente pide
-    # el mismo producto con un nombre que no está en el catálogo, eso es una
-    # señal sobre el catálogo, no sobre los clientes.
-    db.add(PQRSSeguimiento(
-        pqrs_id=solicitud.id,
-        usuario_id=current_user.id,
-        tipo_evento="confirmacion_producto",
-        comentario=(
-            f"Producto confirmado: «{escrito_por_el_cliente}» (escrito por el "
-            f"cliente) -> {producto.codigo} {producto.nombre}."
-        ),
-    ))
-    db.commit()
-    db.refresh(solicitud)
-    return solicitud
 
 
 @router.patch("/{pqrs_id}/datos", response_model=PQRSOut)

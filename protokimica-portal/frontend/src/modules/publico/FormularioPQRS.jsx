@@ -8,10 +8,12 @@ import AvisoDatos from '../../core/components/AvisoDatos.jsx'
 import {
   IconoAlerta, IconoBuscar, IconoCheck, IconoCopiar, IconoFelicitacion,
   IconoFicha, IconoFoto, IconoIdea, IconoPaquete, IconoPeticion, IconoQueja,
-  IconoRecibo, IconoVideo,
+  IconoPapelera, IconoRecibo, IconoVideo,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
-import { LIMITES_RADICACION } from '../pqrs/constants.js'
+import {
+  LIMITES_RADICACION, MAX_PRODUCTOS, faltaEnProductos, productoVacio, productosParaEnviar,
+} from '../pqrs/constants.js'
 
 // ── Constantes ─────────────────────────────────────────────────────
 // Cada tipo se distingue por su ICONO, no por un color de fondo distinto.
@@ -63,12 +65,23 @@ const ESPERA_BUSQUEDA_MS = 300
 const MAX_NOMBRE_PRODUCTO = 300
 
 // ── Componente: campo de adjunto ───────────────────────────────────
-function CampoAdjunto({ label, descripcion, Icono = IconoFoto, onChange, archivo, obligatorio, accept = 'image/*,.pdf', hint = 'JPG, PNG, PDF — máx. 10MB' }) {
+function CampoAdjunto({ label, descripcion, Icono = IconoFoto, onChange, archivo, obligatorio, accept = '.jpg,.jpeg,.png,.webp,.pdf', hint = 'JPG, PNG, PDF — máx. 10MB' }) {
   const inputRef = useRef(null)
 
   const handleChange = (e) => {
     const file = e.target.files[0]
     if (file) onChange(file)
+    // Se limpia el input: si no, elegir otra vez el MISMO archivo después de
+    // quitarlo no dispara `onChange` y parece que el botón no funciona.
+    e.target.value = ''
+  }
+
+  // Quitar sin reemplazar: el cliente adjuntó la foto que no era y lo que
+  // quiere es no mandar nada ahí (o elegir otra con calma).
+  const quitar = (e) => {
+    e.stopPropagation()
+    onChange(null)
+    if (inputRef.current) inputRef.current.value = ''
   }
 
   const handleDrop = (e) => {
@@ -120,12 +133,24 @@ function CampoAdjunto({ label, descripcion, Icono = IconoFoto, onChange, archivo
               <div className="cifra text-xs text-texto-2 mt-0.5">
                 {(archivo.size / 1024 / 1024).toFixed(2)} MB
               </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); onChange(null) }}
-                className="text-xs text-negativo hover:underline mt-1"
-              >
-                Cambiar archivo
-              </button>
+              {/* Antes había un solo «Cambiar archivo» que en realidad lo
+                  quitaba: nadie adivinaba que servía para dejarlo vacío. */}
+              <div className="flex gap-3 mt-1.5">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
+                  className="text-xs font-medium text-acento hover:underline"
+                >
+                  Cambiar
+                </button>
+                <button
+                  type="button"
+                  onClick={quitar}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-negativo hover:underline"
+                >
+                  <IconoPapelera tam={13} /> Quitar
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -386,6 +411,77 @@ function BuscadorProducto({ value, onChange }) {
   )
 }
 
+// ── Componente: un producto dentro del reclamo ─────────────────────
+/**
+ * Un reclamo puede ser por varios productos de la misma compra, y cada uno
+ * tiene su lote y sus cantidades. Por eso cada producto es una tarjeta con
+ * sus propios campos, y no una lista de nombres con un solo lote para todos.
+ */
+function FilaProducto({ numero, fila, total, onCambiar, onQuitar }) {
+  const campo = 'w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition'
+  const etiqueta = 'block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5'
+  const cambiar = (e) => onCambiar({ [e.target.name]: e.target.value })
+
+  return (
+    <div className="rounded-xl border border-borde bg-superficie-2/40 p-4 space-y-3">
+      {/* Con uno solo no hace falta numerarlo ni ofrecer quitarlo. */}
+      {total > 1 && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-acento-fuerte">Producto {numero}</span>
+          <button
+            type="button"
+            onClick={onQuitar}
+            className="inline-flex items-center gap-1 text-xs font-medium text-negativo hover:underline"
+          >
+            <IconoPapelera tam={13} /> Quitar este producto
+          </button>
+        </div>
+      )}
+
+      <BuscadorProducto
+        value={fila.producto_nombre ? { codigo: fila.producto_codigo || null, nombre: fila.producto_nombre } : null}
+        onChange={(elegido) => onCambiar({
+          producto_codigo: elegido?.codigo || '',
+          producto_nombre: elegido?.nombre || '',
+        })}
+      />
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={etiqueta}>Lote <span className="text-negativo">*</span></label>
+          <input name="lote" maxLength={LIMITES_RADICACION.lote} value={fila.lote} onChange={cambiar} placeholder="Ej: L240815" className={campo} />
+        </div>
+        <div>
+          <label className={etiqueta}>Presentación</label>
+          <div className="flex gap-2">
+            <select name="presentacion" value={fila.presentacion} onChange={cambiar} className={campo}>
+              <option value="">Seleccione...</option>
+              {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <input
+              name="cantidad_presentacion" maxLength={LIMITES_RADICACION.cantidad_presentacion}
+              value={fila.cantidad_presentacion} onChange={cambiar}
+              disabled={!fila.presentacion} placeholder="Cant." aria-label="Cantidad de la presentación"
+              className="w-20 px-3 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition disabled:bg-superficie-2 disabled:cursor-not-allowed"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={etiqueta}>Cant. en factura <span className="text-negativo">*</span></label>
+          <input name="cantidad_factura" maxLength={LIMITES_RADICACION.cantidad_factura} value={fila.cantidad_factura} onChange={cambiar} placeholder="Ej: 10" className={campo} />
+        </div>
+        <div>
+          <label className={etiqueta}>Cant. en reclamo</label>
+          <input name="cantidad_reclamo" maxLength={LIMITES_RADICACION.cantidad_reclamo} value={fila.cantidad_reclamo} onChange={cambiar} placeholder="Ej: 3" className={campo} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Pantalla de confirmación ───────────────────────────────────────
 function Confirmacion({ codigo, tipo, onNueva }) {
   const [copiado, setCopiado] = useState(false)
@@ -513,18 +609,21 @@ export default function FormularioPQRS() {
     cliente_telefono: '',
     ciudad: '',
     departamento: '',
-    lote: '',
     factura_numero: '',
-    cantidad_factura: '',
-    cantidad_reclamo: '',
-    presentacion: '',
-    cantidad_presentacion: '',
     // Precargado desde el QR del punto de venta, si vino por ahi.
     canal_atencion: canalDelQR ?? '',
+    area_responsable: '',
     descripcion: '',
     comentario: '',
   })
-  const [productoSeleccionado, setProductoSeleccionado] = useState(null)
+  // Uno o varios, cada uno con su lote y cantidades. Arranca con uno.
+  const [productos, setProductos] = useState(() => [productoVacio()])
+  const cambiarProducto = (clave, cambios) => {
+    setProductos(lista => lista.map(p => (p.clave === clave ? { ...p, ...cambios } : p)))
+    setError('')
+  }
+  const quitarProducto = (clave) => setProductos(lista => lista.filter(p => p.clave !== clave))
+  const agregarProducto = () => setProductos(lista => [...lista, productoVacio()])
   const [adjuntoProducto, setAdjuntoProducto] = useState(null)
   const [adjuntoFactura, setAdjuntoFactura]   = useState(null)
   const [adjuntoVideo, setAdjuntoVideo]       = useState(null)
@@ -572,13 +671,10 @@ export default function FormularioPQRS() {
     if (paso === 3 && requiereProducto) {
       // Sirve tanto el del catálogo como el escrito a mano: lo que no sirve
       // es seguir sin ninguno.
-      if (!productoSeleccionado?.nombre?.trim()) {
-        setError('Elija su producto, o use «No encuentro mi producto» para escribirlo.')
-        return false
-      }
-      if (!form.lote.trim())          { setError('El lote es obligatorio.'); return false }
+      // Cada producto con su lote y su cantidad; el mensaje dice cuál falta.
+      const falta = faltaEnProductos(productos, { exigirDetalle: true })
+      if (falta)                      { setError(falta); return false }
       if (!form.factura_numero.trim()){ setError('El número de factura es obligatorio.'); return false }
-      if (!form.cantidad_factura.trim()){ setError('La cantidad en factura es obligatoria.'); return false }
     }
     if (paso === 4 && requiereProducto) {
       if (!form.descripcion.trim())   { setError('La descripción es obligatoria.'); return false }
@@ -621,14 +717,8 @@ export default function FormularioPQRS() {
         if (adjuntoVideo) formData.append('adjunto_video', adjuntoVideo)
       } else {
         formData.append('descripcion', form.descripcion)
-        formData.append('producto_codigo', productoSeleccionado?.codigo || '')
-        formData.append('producto_nombre', productoSeleccionado?.nombre || '')
-        formData.append('presentacion', form.presentacion)
-        formData.append('cantidad_presentacion', form.cantidad_presentacion)
-        formData.append('lote', form.lote)
+        formData.append('productos', JSON.stringify(productosParaEnviar(productos)))
         formData.append('factura_numero', form.factura_numero)
-        formData.append('cantidad_factura', form.cantidad_factura)
-        formData.append('cantidad_reclamo', form.cantidad_reclamo)
         if (adjuntoProducto) formData.append('adjunto_producto', adjuntoProducto)
         if (adjuntoFactura)  formData.append('adjunto_factura', adjuntoFactura)
         if (adjuntoVideo)    formData.append('adjunto_video', adjuntoVideo)
@@ -651,13 +741,13 @@ export default function FormularioPQRS() {
     setForm({
       tipo: '', empresa: '', nit_cedula: '', cliente_nombre: '',
       cliente_email: '', cliente_telefono: '', ciudad: '', departamento: '',
-      lote: '', factura_numero: '', cantidad_factura: '', cantidad_reclamo: '',
-      presentacion: '', cantidad_presentacion: '',
+      factura_numero: '',
       // Se conserva el canal del QR: quien radica otra sigue en la misma sede.
       canal_atencion: canalDelQR ?? '',
+      area_responsable: '',
       descripcion: '', comentario: '',
     })
-    setProductoSeleccionado(null)
+    setProductos([productoVacio()])
     setAdjuntoProducto(null)
     setAdjuntoFactura(null)
     setAdjuntoVideo(null)
@@ -802,39 +892,37 @@ export default function FormularioPQRS() {
             <div className="p-6 space-y-4">
               <div>
                 <h2 className="text-lg font-bold text-acento-fuerte mb-1">Información del producto</h2>
-                <p className="text-sm text-texto-2">Datos del producto y la factura relacionada.</p>
+                <p className="text-sm text-texto-2">
+                  Si el reclamo es por varios productos, agréguelos todos: cada uno con su lote y sus cantidades.
+                </p>
               </div>
 
-              <BuscadorProducto
-                value={productoSeleccionado}
-                onChange={setProductoSeleccionado}
-              />
+              {productos.map((fila, i) => (
+                <FilaProducto
+                  key={fila.clave}
+                  numero={i + 1}
+                  fila={fila}
+                  total={productos.length}
+                  onCambiar={(cambios) => cambiarProducto(fila.clave, cambios)}
+                  onQuitar={() => quitarProducto(fila.clave)}
+                />
+              ))}
 
-              <div className="grid grid-cols-2 gap-3">
+              {productos.length < MAX_PRODUCTOS && (
+                <button
+                  type="button"
+                  onClick={agregarProducto}
+                  className="w-full border-2 border-dashed border-borde-fuerte hover:border-acento hover:bg-acento-suave text-acento font-semibold py-3 rounded-xl text-sm transition"
+                >
+                  + Agregar otro producto
+                </button>
+              )}
+
+              {/* La factura y el canal son de la compra, no de cada producto. */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
                 <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
-                    Presentación
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      name="presentacion"
-                      value={form.presentacion}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
-                    >
-                      <option value="">Seleccione...</option>
-                      {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                    <input
-                      type="text"
-                      name="cantidad_presentacion" maxLength={LIMITES_RADICACION.cantidad_presentacion}
-                      value={form.cantidad_presentacion}
-                      onChange={handleChange}
-                      disabled={!form.presentacion}
-                      placeholder="Cant."
-                      className="w-20 px-3 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition disabled:bg-superficie-2 disabled:cursor-not-allowed"
-                    />
-                  </div>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">N° Factura <span className="text-negativo">*</span></label>
+                  <input name="factura_numero" maxLength={LIMITES_RADICACION.factura_numero} value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
@@ -849,28 +937,6 @@ export default function FormularioPQRS() {
                     <option value="">Seleccione...</option>
                     {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Lote <span className="text-negativo">*</span></label>
-                  <input name="lote" maxLength={LIMITES_RADICACION.lote} value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">N° Factura <span className="text-negativo">*</span></label>
-                  <input name="factura_numero" maxLength={LIMITES_RADICACION.factura_numero} value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Cant. en factura <span className="text-negativo">*</span></label>
-                  <input name="cantidad_factura" maxLength={LIMITES_RADICACION.cantidad_factura} value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Cant. en reclamo</label>
-                  <input name="cantidad_reclamo" maxLength={LIMITES_RADICACION.cantidad_reclamo} value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
               </div>
 

@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import {
   nombrePrincipal, cambiosDeDatos, datosEditables, aplicaProducto, LIMITES_DATOS,
-  LIMITES_RADICACION,
+  LIMITES_RADICACION, MAX_PRODUCTOS, productoVacio, productosParaEnviar, faltaEnProductos,
 } from '../src/modules/pqrs/constants.js'
 
 const PY = readFileSync(new URL('../../backend/app/modules/pqrs/schemas.py', import.meta.url), 'utf8')
@@ -44,7 +44,7 @@ check('pero si la queja ya trae factura, sí (hay que poder corregirla)',
   aplicaProducto({ tipo: 'queja', factura_numero: 'FV-1' }))
 
 console.log('\n== Qué se manda al corregir ==')
-const pqrs = { empresa: 'ACME', cliente_email: 'a@b.com', ciudad: null, lote: 'L1' }
+const pqrs = { empresa: 'ACME', cliente_email: 'a@b.com', ciudad: null, factura_numero: 'FV-1' }
 const form = datosEditables(pqrs)
 check('el formulario arranca sin null', form.ciudad === '', form)
 check('sin tocar nada no viaja nada', Object.keys(cambiosDeDatos(pqrs, form)).length === 0)
@@ -55,8 +55,8 @@ check('viaja solo lo que cambió', JSON.stringify(c) === JSON.stringify({ client
 c = cambiosDeDatos(pqrs, { ...form, empresa: '  ACME  ' })
 check('agregar espacios no es un cambio', Object.keys(c).length === 0, c)
 
-c = cambiosDeDatos(pqrs, { ...form, lote: '' })
-check('vaciar un campo viaja como cadena vacía', c.lote === '', c)
+c = cambiosDeDatos(pqrs, { ...form, factura_numero: '' })
+check('vaciar un campo viaja como cadena vacía', c.factura_numero === '', c)
 
 c = cambiosDeDatos(pqrs, { ...form, ciudad: 'Bello' })
 check('llenar uno que estaba vacío', c.ciudad === 'Bello', c)

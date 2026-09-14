@@ -20,6 +20,7 @@ from app.core.database import get_db
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
 from app.models.tenant import Tenant
 from app.modules.pqrs import qr
+from app.modules.pqrs import productos as pqrs_productos
 from app.modules.pqrs.cierre_automatico import (
     confirmar_solucion, plazo_confirmacion, rechazar_solucion,
 )
@@ -160,7 +161,9 @@ async def radicar_pqrs_publica(
     cliente_telefono: str = Form(None),
     ciudad: str = Form(None),
     departamento: str = Form(None),
-    # Datos del producto
+    # Datos del producto: `productos` es la lista (JSON); los sueltos, el
+    # formato de un solo producto que aún mandan los formularios cacheados.
+    productos: str = Form(None),
     producto_codigo: str = Form(None),
     producto_nombre: str = Form(None),
     presentacion: str = Form(None),
@@ -178,6 +181,18 @@ async def radicar_pqrs_publica(
     # Antes que nada: un texto más largo que su columna llegaba al `commit` y
     # el cliente veía un error sin saber qué corregir. Ver `validar_largos`.
     validar_largos(locals())
+
+    # Los productos: uno o varios, cada uno con su lote y cantidades. Si el
+    # producto vino del catálogo o lo escribió el cliente se DEDUCE de los
+    # datos («hay nombre y no hay código») en `pqrs/productos.py`, nunca de
+    # una bandera del formulario. Los campos sueltos son los de un formulario
+    # viejo que quedó cacheado en el celular: se siguen aceptando.
+    filas_productos = pqrs_productos.leer_productos(productos, {
+        "producto_codigo": producto_codigo, "producto_nombre": producto_nombre,
+        "presentacion": presentacion, "cantidad_presentacion": cantidad_presentacion,
+        "lote": lote, "cantidad_factura": cantidad_factura,
+        "cantidad_reclamo": cantidad_reclamo,
+    })
 
     tenant = db.query(Tenant).filter(Tenant.slug == "protokimica").first()
     if not tenant:
@@ -201,18 +216,6 @@ async def radicar_pqrs_publica(
             max_mb=MAX_TAMANIO_VIDEO_MB,
         )
 
-    # ¿El producto vino del catálogo o lo escribió el cliente?
-    #
-    # Se DEDUCE de los datos en vez de confiar en una bandera del formulario:
-    # una bandera puede llegar diciendo lo contrario de lo que muestran los
-    # campos —por un error del navegador o porque alguien arme la petición a
-    # mano— y entonces un nombre escrito a mano entraría al catálogo de los
-    # informes como si fuera un código real. Sin código no hay producto
-    # identificado, y punto.
-    producto_codigo = (producto_codigo or "").strip() or None
-    producto_nombre = (producto_nombre or "").strip() or None
-    producto_por_confirmar = bool(producto_nombre) and not producto_codigo
-
     # Un formulario viejo que quedó cacheado puede seguir mandando «Llamada
     # telefónica»; se traduce al nombre actual para que no abra un canal
     # paralelo en los reportes.
@@ -228,16 +231,8 @@ async def radicar_pqrs_publica(
         cliente_telefono=cliente_telefono,
         ciudad=ciudad,
         departamento=departamento,
-        producto_codigo=producto_codigo,
-        producto_nombre=producto_nombre,
-        producto_por_confirmar=producto_por_confirmar,
-        presentacion=presentacion,
-        cantidad_presentacion=cantidad_presentacion,
         canal_atencion=canal_atencion,
-        lote=lote,
         factura_numero=factura_numero,
-        cantidad_factura=cantidad_factura,
-        cantidad_reclamo=cantidad_reclamo,
         adjunto_producto=ruta_producto,
         adjunto_factura=ruta_factura,
         adjunto_video=ruta_video,
@@ -248,6 +243,7 @@ async def radicar_pqrs_publica(
         fecha_limite_sla=calcular_fecha_limite_sla(tipo),
         origen_publico="publico",
     )
+    pqrs_productos.agregar_a_solicitud(solicitud, filas_productos)
     db.add(solicitud)
     db.commit()
     db.refresh(solicitud)

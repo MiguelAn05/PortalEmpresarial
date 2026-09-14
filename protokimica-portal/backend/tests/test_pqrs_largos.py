@@ -44,7 +44,8 @@ def test_publica_rechaza_igual(entorno, v):
 
 
 def test_el_limite_exacto_si_cabe(entorno, v):
-    r = entorno.post("/pqrs", data={**BASE, "cantidad_factura": "1" * 20})
+    r = entorno.post("/pqrs", data={**BASE, "producto_nombre": "Hipoclorito",
+                                    "cantidad_factura": "1" * 20})
     v.check("20 de 20 se registra", r.status_code == 201, r.text[:200])
 
 

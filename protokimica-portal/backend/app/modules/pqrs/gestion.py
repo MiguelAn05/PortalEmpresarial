@@ -140,15 +140,16 @@ def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
     # Se corrige ANTES de cerrar, igual que el tipo: después ya no se puede,
     # y un nombre suelto vuelve inservible el informe por producto — que es
     # justo el que dice cuál da más problemas.
-    if solicitud.producto_por_confirmar:
+    pendientes = [p.producto_nombre for p in solicitud.productos if p.por_confirmar]
+    if pendientes:
+        escritos = ", ".join(f"«{n}»" for n in pendientes)
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Falta confirmar el producto. El cliente escribió "
-                f"«{solicitud.producto_nombre}» porque no lo encontró en el "
-                "buscador. Búscalo en el catálogo y confírmalo antes de cerrar: "
-                "después ya no se puede corregir y el informe por producto "
-                "quedaría mal."
+                f"Falta confirmar el producto. El cliente escribió {escritos} "
+                "porque no lo encontró en el buscador. Búscalo en el catálogo "
+                "y confírmalo antes de cerrar: después ya no se puede corregir "
+                "y el informe por producto quedaría mal."
             ),
         )
 

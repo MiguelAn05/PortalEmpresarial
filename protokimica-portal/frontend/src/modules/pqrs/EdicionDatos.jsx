@@ -7,7 +7,7 @@ import {
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 import {
-  DEPARTAMENTOS, LIMITES_DATOS, PRESENTACIONES, aplicaProducto, cambiosDeDatos,
+  DEPARTAMENTOS, LIMITES_DATOS, aplicaProducto, cambiosDeDatos,
   datosEditables,
 } from './constants.js'
 
@@ -130,22 +130,17 @@ export function ModalEditarDatos({ pqrs, onCerrar, onGuardado }) {
 
           {aplicaProducto(pqrs) && (
             <section>
-              <p className="text-xs font-bold text-acento-fuerte uppercase tracking-wide mb-3">Producto y factura</p>
+              <p className="text-xs font-bold text-acento-fuerte uppercase tracking-wide mb-3">Factura</p>
               <div className="grid sm:grid-cols-2 gap-3">
-                <Lista nombre="presentacion" etiqueta="Presentación" opciones={PRESENTACIONES} {...props} />
-                <Campo nombre="cantidad_presentacion" etiqueta="Cantidad de la presentación" placeholder="Ej: 5" {...props} />
-                <Campo nombre="lote" etiqueta="Lote" {...props} />
                 <Campo nombre="factura_numero" etiqueta="N.° de factura" {...props} />
-                <Campo nombre="cantidad_factura" etiqueta="Cant. en factura" {...props} />
-                <Campo nombre="cantidad_reclamo" etiqueta="Cant. en reclamo" {...props} />
               </div>
             </section>
           )}
 
           <p className="text-xs text-texto-2 bg-superficie-2 rounded-lg px-3 py-2">
             Cada corrección queda en el historial con el dato anterior, tu nombre y la fecha.
-            El tipo y el producto se corrigen en su propia tarjeta; el canal y la
-            descripción no se cambian porque son lo que el cliente radicó.
+            El tipo se corrige en su propia tarjeta, y el lote y las cantidades en cada
+            producto; el canal y la descripción no se cambian porque son lo que el cliente radicó.
           </p>
 
           {error && <p role="alert" className="text-sm text-negativo">{error}</p>}

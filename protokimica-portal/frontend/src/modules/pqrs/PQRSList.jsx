@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
@@ -6,11 +6,12 @@ import { AREAS } from '../../core/areas.js'
 import { CANALES, canalesConPrefijo } from '../../core/canales.js'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
 import {
-  IconoBuscar, IconoCerrar, IconoEmpresa, IconoFiltro, IconoPQRS,
+  IconoBuscar, IconoCerrar, IconoClip, IconoEmpresa, IconoFiltro, IconoPapelera, IconoPQRS,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 import {
-  DEPARTAMENTOS, LIMITES_RADICACION, PRESENTACIONES, nombrePrincipal,
+  DEPARTAMENTOS, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES, faltaEnProductos,
+  nombrePrincipal, productoVacio, productosParaEnviar,
 } from './constants.js'
 
 // Un estado se llama y se pinta igual en la lista, en el filtro y en el
@@ -77,6 +78,54 @@ const CANALES_ATENCION_FELICITACION = CANALES
 
 const AREAS_PQRS = AREAS
 
+/**
+ * Un archivo elegido antes de enviar: se ve cuál es y se puede quitar.
+ *
+ * El `<input type="file">` suelto no deja quitar lo elegido — solo elegir
+ * otro —, así que quien adjuntaba la foto equivocada tenía que cerrar el
+ * formulario y empezar de nuevo, o mandarla igual.
+ */
+function ArchivoElegido({ etiqueta, acepta, ayuda, archivo, onCambio }) {
+  const entrada = useRef(null)
+  const labelCls = 'block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5'
+
+  const quitar = () => {
+    onCambio(null)
+    // Sin esto, volver a elegir el mismo archivo no dispara `onChange`.
+    if (entrada.current) entrada.current.value = ''
+  }
+
+  return (
+    <div>
+      <span className={labelCls}>{etiqueta}</span>
+      {archivo ? (
+        <div className="flex items-center gap-2 rounded-lg border border-positivo/30 bg-positivo-bg px-3 py-2">
+          <IconoClip tam={14} className="text-positivo" />
+          <span className="text-xs text-texto truncate flex-1" title={archivo.name}>{archivo.name}</span>
+          <span className="cifra text-xs text-texto-3">{(archivo.size / 1024 / 1024).toFixed(1)} MB</span>
+          <button
+            type="button"
+            onClick={quitar}
+            aria-label={`Quitar ${etiqueta.toLowerCase()}`}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-texto-2 hover:text-negativo px-1.5 py-0.5 rounded transition-colors duration-150"
+          >
+            <IconoPapelera tam={13} /> Quitar
+          </button>
+        </div>
+      ) : (
+        <input
+          ref={entrada}
+          type="file"
+          accept={acepta}
+          onChange={(e) => onCambio(e.target.files?.[0] || null)}
+          className="w-full text-xs text-texto-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde"
+        />
+      )}
+      {ayuda && <p className="text-xs text-texto-3 mt-1">{ayuda}</p>}
+    </div>
+  )
+}
+
 // ── Modal para crear PQRS ──────────────────────────────────────────
 // Mismos campos que el formulario público (/formulario), para que una
 // PQRS registrada por un agente interno guarde exactamente la misma
@@ -94,38 +143,18 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
     cliente_telefono: '',
     ciudad: '',
     departamento: '',
-    producto_codigo: '',
-    producto_nombre: '',
-    presentacion: '',
-    cantidad_presentacion: '',
     canal_atencion: canalInicial,
-    lote: '',
     factura_numero: '',
-    cantidad_factura: '',
-    cantidad_reclamo: '',
     area_responsable: '',
     descripcion: '',
   }
   const [form, setForm] = useState(FORM_VACIO)
+  // Uno o varios productos, cada uno con su lote y cantidades.
+  const [productos, setProductos] = useState(() => [productoVacio()])
   const [adjuntoProducto, setAdjuntoProducto] = useState(null)
   const [adjuntoFactura, setAdjuntoFactura]   = useState(null)
   const [adjuntoVideo, setAdjuntoVideo]       = useState(null)
   const [error, setError] = useState('')
-
-  const mutation = useMutation({
-    mutationFn: () => {
-      const formData = new FormData()
-      Object.entries(form).forEach(([key, value]) => formData.append(key, value ?? ''))
-      if (adjuntoProducto) formData.append('adjunto_producto', adjuntoProducto)
-      if (adjuntoFactura)  formData.append('adjunto_factura', adjuntoFactura)
-      if (adjuntoVideo)    formData.append('adjunto_video', adjuntoVideo)
-      return api.post('/pqrs', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-    },
-    onSuccess: () => { onCreated(); onClose() },
-    onError: (err) => setError(mensajeDeError(err, 'Error al crear la PQRS')),
-  })
-
-  const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); setError('') }
 
   // Una felicitación no necesita producto/factura/lote — solo el canal
   // por el que llegó y un comentario opcional. Una queja tampoco, porque
@@ -134,6 +163,35 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
   const esFelicitacion = form.tipo === 'felicitacion'
   const esQueja = form.tipo === 'queja'
   const mostrarProducto = !esFelicitacion && !esQueja
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      const formData = new FormData()
+      Object.entries(form).forEach(([key, value]) => formData.append(key, value ?? ''))
+      // Lo que está escondido no viaja: si alguien llenó un producto y luego
+      // cambió el tipo a queja, ese producto no es parte de la queja.
+      if (mostrarProducto) {
+        formData.append('productos', JSON.stringify(productosParaEnviar(productos)))
+        if (adjuntoProducto) formData.append('adjunto_producto', adjuntoProducto)
+        if (adjuntoFactura)  formData.append('adjunto_factura', adjuntoFactura)
+      }
+      if (adjuntoVideo && !esFelicitacion) formData.append('adjunto_video', adjuntoVideo)
+      return api.post('/pqrs', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    },
+    onSuccess: () => { onCreated(); onClose() },
+    onError: (err) => setError(mensajeDeError(err, 'Error al crear la PQRS')),
+  })
+
+  const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); setError('') }
+  const cambiarProducto = (clave, e) => {
+    const { name, value } = e.target
+    setProductos(lista => lista.map(p => (p.clave === clave ? { ...p, [name]: value } : p)))
+    setError('')
+  }
+  // Internamente no se exige producto (una PQRS por teléfono se escribe con
+  // lo que el cliente sabe), pero sí que ninguna fila quede a medio llenar.
+  const faltaProducto = mostrarProducto ? faltaEnProductos(productos) : null
+  const filaIncompleta = Boolean(faltaProducto) && faltaProducto.startsWith('Producto')
 
   const inputCls = "w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento"
   const labelCls = "block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5"
@@ -226,80 +284,98 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
           {/* Producto — no aplica a felicitaciones ni quejas */}
           {mostrarProducto && (
             <div>
-              <p className="text-xs font-bold text-acento-fuerte uppercase tracking-wide mb-2">Producto y factura</p>
-              <div className="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                  <label className={labelCls}>Código de producto</label>
-                  <input name="producto_codigo" maxLength={LIMITES_RADICACION.producto_codigo} value={form.producto_codigo} onChange={handleChange} placeholder="Ej: PK-001" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Nombre del producto</label>
-                  <input name="producto_nombre" maxLength={LIMITES_RADICACION.producto_nombre} value={form.producto_nombre} onChange={handleChange} placeholder="Ej: Hipoclorito de Sodio 13%" className={inputCls} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                  <label className={labelCls}>Presentación</label>
-                  <div className="flex gap-2">
-                    <select name="presentacion" value={form.presentacion} onChange={handleChange} className={inputCls}>
-                      <option value="">Selecciona...</option>
-                      {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                    <input
-                      type="text"
-                      name="cantidad_presentacion" maxLength={LIMITES_RADICACION.cantidad_presentacion}
-                      value={form.cantidad_presentacion}
-                      onChange={handleChange}
-                      disabled={!form.presentacion}
-                      placeholder="Cant."
-                      className={`${inputCls} w-20 disabled:bg-superficie-2 disabled:cursor-not-allowed`}
-                    />
+              <p className="text-xs font-bold text-acento-fuerte uppercase tracking-wide mb-2">Productos</p>
+              <div className="space-y-3">
+                {productos.map((fila, i) => (
+                  <div key={fila.clave} className="rounded-xl border border-borde p-4">
+                    {productos.length > 1 && (
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold text-acento-fuerte">Producto {i + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => setProductos(lista => lista.filter(p => p.clave !== fila.clave))}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-texto-2 hover:text-negativo hover:bg-negativo-bg px-2 py-1 rounded-lg transition-colors duration-150"
+                        >
+                          <IconoPapelera tam={13} /> Quitar
+                        </button>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className={labelCls}>Código</label>
+                        <input name="producto_codigo" maxLength={LIMITES_RADICACION.producto_codigo} value={fila.producto_codigo} onChange={(e) => cambiarProducto(fila.clave, e)} placeholder="Ej: PK-001" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Nombre</label>
+                        <input name="producto_nombre" maxLength={LIMITES_RADICACION.producto_nombre} value={fila.producto_nombre} onChange={(e) => cambiarProducto(fila.clave, e)} placeholder="Ej: Hipoclorito de Sodio 13%" className={inputCls} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className={labelCls}>Presentación</label>
+                        <div className="flex gap-2">
+                          <select name="presentacion" value={fila.presentacion} onChange={(e) => cambiarProducto(fila.clave, e)} className={inputCls}>
+                            <option value="">Selecciona...</option>
+                            {PRESENTACIONES.map(p => <option key={p} value={p}>{p}</option>)}
+                          </select>
+                          <input
+                            name="cantidad_presentacion" maxLength={LIMITES_RADICACION.cantidad_presentacion}
+                            value={fila.cantidad_presentacion} onChange={(e) => cambiarProducto(fila.clave, e)}
+                            disabled={!fila.presentacion} placeholder="Cant." aria-label="Cantidad de la presentación"
+                            className={`${inputCls} w-20 disabled:bg-superficie-2 disabled:cursor-not-allowed`}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Lote</label>
+                        <input name="lote" maxLength={LIMITES_RADICACION.lote} value={fila.lote} onChange={(e) => cambiarProducto(fila.clave, e)} placeholder="Ej: L240815" className={inputCls} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>Cant. en factura</label>
+                        <input name="cantidad_factura" maxLength={LIMITES_RADICACION.cantidad_factura} value={fila.cantidad_factura} onChange={(e) => cambiarProducto(fila.clave, e)} placeholder="Ej: 10" className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Cant. en reclamo</label>
+                        <input name="cantidad_reclamo" maxLength={LIMITES_RADICACION.cantidad_reclamo} value={fila.cantidad_reclamo} onChange={(e) => cambiarProducto(fila.clave, e)} placeholder="Ej: 3" className={inputCls} />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <label className={labelCls}>Lote</label>
-                  <input name="lote" maxLength={LIMITES_RADICACION.lote} value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className={inputCls} />
-                </div>
+                ))}
               </div>
-              <div className="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                  <label className={labelCls}>N° Factura</label>
-                  <input name="factura_numero" maxLength={LIMITES_RADICACION.factura_numero} value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Cant. en factura</label>
-                  <input name="cantidad_factura" maxLength={LIMITES_RADICACION.cantidad_factura} value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Cant. en reclamo</label>
-                  <input name="cantidad_reclamo" maxLength={LIMITES_RADICACION.cantidad_reclamo} value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className={inputCls} />
-                </div>
+              {productos.length < MAX_PRODUCTOS && (
+                <button
+                  type="button"
+                  onClick={() => setProductos(lista => [...lista, productoVacio()])}
+                  className="mt-3 w-full border-2 border-dashed border-borde-fuerte hover:border-acento hover:bg-acento-suave text-acento font-semibold py-2.5 rounded-xl text-sm transition"
+                >
+                  + Agregar otro producto
+                </button>
+              )}
+              {filaIncompleta && <p role="alert" className="text-xs text-negativo mt-2">{faltaProducto}</p>}
+
+              {/* La factura es de la compra, no de cada producto. */}
+              <div className="mt-4">
+                <label className={labelCls}>N° Factura</label>
+                <input name="factura_numero" maxLength={LIMITES_RADICACION.factura_numero} value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className={inputCls} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelCls}>Foto del producto</label>
-                  <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={(e) => setAdjuntoProducto(e.target.files[0] || null)} className="text-xs text-texto-2" />
-                </div>
-                <div>
-                  <label className={labelCls}>Foto de la factura</label>
-                  <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={(e) => setAdjuntoFactura(e.target.files[0] || null)} className="text-xs text-texto-2" />
-                </div>
+              <div className="grid grid-cols-2 gap-4 mt-3">
+                <ArchivoElegido etiqueta="Foto del producto" acepta=".jpg,.jpeg,.png,.webp,.pdf" archivo={adjuntoProducto} onCambio={setAdjuntoProducto} />
+                <ArchivoElegido etiqueta="Foto de la factura" acepta=".jpg,.jpeg,.png,.webp,.pdf" archivo={adjuntoFactura} onCambio={setAdjuntoFactura} />
               </div>
             </div>
           )}
 
           {/* Video de evidencia — opcional, aplica a todo menos felicitaciones */}
           {!esFelicitacion && (
-            <div>
-              <label className={labelCls}>Video de evidencia (opcional)</label>
-              <input
-                type="file"
-                accept="video/mp4,video/quicktime,video/webm"
-                onChange={(e) => setAdjuntoVideo(e.target.files[0] || null)}
-                className="text-xs text-texto-2"
-              />
-              <p className="text-xs text-texto-3 mt-1">MP4, MOV o WEBM — máx. 20MB (~20-30 seg)</p>
-            </div>
+            <ArchivoElegido
+              etiqueta="Video de evidencia (opcional)"
+              acepta=".mp4,.mov,.webm"
+              ayuda="MP4, MOV o WEBM — máx. 20MB (~20-30 seg)"
+              archivo={adjuntoVideo}
+              onCambio={setAdjuntoVideo}
+            />
           )}
 
           {/* Descripción / comentario */}
@@ -334,7 +410,7 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
           </button>
           <button
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || !form.cliente_nombre || (!esFelicitacion && !form.descripcion)}
+            disabled={mutation.isPending || !form.cliente_nombre || (!esFelicitacion && !form.descripcion) || filaIncompleta}
             className="px-4 py-2 rounded-lg bg-ambar hover:bg-ambar-claro text-acento-fuerte text-sm font-bold transition disabled:opacity-50"
           >
             {mutation.isPending ? 'Creando...' : 'Crear PQRS'}

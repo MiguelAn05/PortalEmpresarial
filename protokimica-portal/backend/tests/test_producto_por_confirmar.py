@@ -37,6 +37,13 @@ def _radicar(entorno, **extra):
     return entorno.post("/pqrs", data=cuerpo)
 
 
+def _confirmar(entorno, pqrs_id, codigo):
+    """Confirma el primer producto de la PQRS contra el catálogo."""
+    producto_id = entorno.get(f"/pqrs/{pqrs_id}").json()["productos"][0]["id"]
+    return entorno.patch(f"/pqrs/{pqrs_id}/productos/{producto_id}/confirmar",
+                         data={"producto_codigo": codigo})
+
+
 # ── Al radicar ───────────────────────────────────────────────────────
 
 def test_un_producto_del_catalogo_no_queda_pendiente(entorno, v):
@@ -58,7 +65,7 @@ def test_un_producto_escrito_a_mano_queda_marcado(entorno, v):
     v.check("radica igual", r.status_code == 201, r.text[:200])
     v.check("queda marcada", r.json()["producto_por_confirmar"] is True, r.json())
     v.check("y se conserva lo que escribió",
-            r.json()["producto_nombre"] == "hipoclorito el de 20 litros", r.json())
+            r.json()["productos"][0]["producto_nombre"] == "hipoclorito el de 20 litros", r.json())
 
 
 def test_sin_producto_no_hay_nada_que_confirmar(entorno, v):
@@ -73,7 +80,7 @@ def test_un_nombre_de_puros_espacios_no_es_un_producto(entorno, v):
 
     v.check("no queda marcada", r.json()["producto_por_confirmar"] is False, r.json())
     v.check("y el nombre entra vacío, no con espacios",
-            r.json()["producto_nombre"] is None, r.json())
+            r.json()["productos"] == [], r.json())
 
 
 def test_la_marca_se_deduce_de_los_datos_no_del_formulario(entorno, v):
@@ -104,7 +111,8 @@ def test_el_formulario_publico_marca_igual(entorno, v):
     db = entorno.Session()
     solicitud = db.query(PQRSSolicitud).order_by(PQRSSolicitud.id.desc()).first()
     v.check("queda marcada", solicitud.producto_por_confirmar is True)
-    v.check("sin código", solicitud.producto_codigo is None, solicitud.producto_codigo)
+    v.check("sin código", solicitud.productos[0].producto_codigo is None,
+            solicitud.productos[0].producto_codigo)
     db.close()
 
 
@@ -136,12 +144,12 @@ def test_confirmarlo_toma_el_nombre_del_catalogo(entorno, v):
     codigo = _producto(entorno)
     pqrs_id = _radicar(entorno, producto_nombre="hipoclorito el de 20 litros").json()["id"]
 
-    r = entorno.patch(f"/pqrs/{pqrs_id}/producto", data={"producto_codigo": codigo})
+    r = _confirmar(entorno, pqrs_id, codigo)
 
     v.check("confirma", r.status_code == 200, r.text[:200])
     v.check("queda el nombre del catálogo",
-            r.json()["producto_nombre"] == "Hipoclorito de Sodio 13% x 20L", r.json())
-    v.check("con su código", r.json()["producto_codigo"] == codigo, r.json())
+            r.json()["productos"][0]["producto_nombre"] == "Hipoclorito de Sodio 13% x 20L", r.json())
+    v.check("con su código", r.json()["productos"][0]["producto_codigo"] == codigo, r.json())
     v.check("y ya no está marcada",
             r.json()["producto_por_confirmar"] is False, r.json())
 
@@ -150,7 +158,7 @@ def test_una_vez_confirmado_ya_cierra(entorno, v):
     entorno.como("admin")
     codigo = _producto(entorno)
     pqrs_id = _radicar(entorno, producto_nombre="el blanqueador ese").json()["id"]
-    entorno.patch(f"/pqrs/{pqrs_id}/producto", data={"producto_codigo": codigo})
+    _confirmar(entorno, pqrs_id, codigo)
 
     r = entorno.patch(f"/pqrs/{pqrs_id}/estado", data={"estado": "cerrado"})
 
@@ -165,7 +173,7 @@ def test_queda_en_la_trazabilidad_que_escribio_el_cliente(entorno, v):
     entorno.como("admin")
     codigo = _producto(entorno)
     pqrs_id = _radicar(entorno, producto_nombre="hipoclorito el de 20 litros").json()["id"]
-    entorno.patch(f"/pqrs/{pqrs_id}/producto", data={"producto_codigo": codigo})
+    _confirmar(entorno, pqrs_id, codigo)
 
     detalle = entorno.get(f"/pqrs/{pqrs_id}").json()
     eventos = [s for s in detalle["seguimientos"]
@@ -189,7 +197,7 @@ def test_solo_servicio_al_cliente_confirma_el_producto(entorno, v):
     pqrs_id = _radicar(entorno, producto_nombre="el blanqueador ese").json()["id"]
 
     entorno.como("logistica")
-    r = entorno.patch(f"/pqrs/{pqrs_id}/producto", data={"producto_codigo": codigo})
+    r = _confirmar(entorno, pqrs_id, codigo)
 
     v.check("no puede", r.status_code == 403, r.status_code)
 
@@ -198,7 +206,7 @@ def test_un_codigo_que_no_esta_en_el_catalogo_se_rechaza(entorno, v):
     entorno.como("admin")
     pqrs_id = _radicar(entorno, producto_nombre="el blanqueador ese").json()["id"]
 
-    r = entorno.patch(f"/pqrs/{pqrs_id}/producto", data={"producto_codigo": "NO-EXISTE"})
+    r = _confirmar(entorno, pqrs_id, "NO-EXISTE")
 
     v.check("responde 404", r.status_code == 404, r.status_code)
     v.check("y sugiere revisar la sincronización",
@@ -219,7 +227,7 @@ def test_un_producto_descontinuado_no_sirve_para_confirmar(entorno, v):
     db.close()
 
     pqrs_id = _radicar(entorno, producto_nombre="el blanqueador ese").json()["id"]
-    r = entorno.patch(f"/pqrs/{pqrs_id}/producto", data={"producto_codigo": codigo})
+    r = _confirmar(entorno, pqrs_id, codigo)
 
     v.check("no deja confirmarlo", r.status_code == 404, r.status_code)
 
@@ -232,7 +240,7 @@ def test_una_pqrs_cerrada_ya_no_cambia_de_producto(entorno, v):
                        producto_nombre="Hipoclorito de Sodio 13% x 20L").json()["id"]
     entorno.patch(f"/pqrs/{pqrs_id}/estado", data={"estado": "cerrado"})
 
-    r = entorno.patch(f"/pqrs/{pqrs_id}/producto", data={"producto_codigo": codigo})
+    r = _confirmar(entorno, pqrs_id, codigo)
 
     v.check("no deja", r.status_code == 400, r.status_code)
     v.check("y explica cuándo se hace", "antes de cerrarla" in r.json()["detail"],
@@ -251,8 +259,9 @@ def test_un_nombre_largo_del_catalogo_cabe_en_la_pqrs(entorno, v):
     codigo = _producto(entorno, codigo="PK-LARGO", nombre=largo[:300])
     pqrs_id = _radicar(entorno, producto_nombre="el que tiene el nombre largo").json()["id"]
 
-    r = entorno.patch(f"/pqrs/{pqrs_id}/producto", data={"producto_codigo": codigo})
+    r = _confirmar(entorno, pqrs_id, codigo)
 
     v.check("confirma sin truncar", r.status_code == 200, r.text[:200])
     v.check("con el nombre completo",
-            r.json()["producto_nombre"] == largo[:300], len(r.json()["producto_nombre"] or ""))
+            r.json()["productos"][0]["producto_nombre"] == largo[:300],
+            len(r.json()["productos"][0]["producto_nombre"] or ""))

@@ -60,18 +60,13 @@ class PQRSOut(BaseModel):
     ciudad: str | None = None
     departamento: str | None = None
 
-    producto_codigo: str | None = None
-    producto_nombre: str | None = None
-    # El cliente lo escribió porque no lo encontró en el buscador. Servicio
-    # al Cliente lo confirma contra el catálogo antes de poder cerrar.
+    # Uno o varios, cada uno con su lote y cantidades. Ver `pqrs/productos.py`.
+    productos: list["ProductoOut"] = []
+    # Algún producto lo escribió el cliente y falta confirmarlo contra el
+    # catálogo. Se deriva de `productos`; se manda ya resuelto.
     producto_por_confirmar: bool = False
-    presentacion: str | None = None
-    cantidad_presentacion: str | None = None
     canal_atencion: str | None = None
-    lote: str | None = None
     factura_numero: str | None = None
-    cantidad_factura: str | None = None
-    cantidad_reclamo: str | None = None
 
     adjunto_producto: str | None = None
     adjunto_factura: str | None = None
@@ -176,12 +171,50 @@ class PQRSEditarDatos(BaseModel):
     cliente_telefono: str | None = Field(None, max_length=40)
     ciudad: str | None = Field(None, max_length=100)
     departamento: str | None = Field(None, max_length=100)
+    factura_numero: str | None = Field(None, max_length=50)
+
+
+class ProductoIn(BaseModel):
+    """
+    Un producto nuevo en una PQRS ya radicada. Los topes son los de
+    `pqrs_productos` y `LIMITES_PRODUCTO` en el frontend los repite.
+    """
+    producto_codigo: str | None = Field(None, max_length=50)
+    producto_nombre: str | None = Field(None, max_length=300)
     presentacion: str | None = Field(None, max_length=30)
     cantidad_presentacion: str | None = Field(None, max_length=20)
     lote: str | None = Field(None, max_length=50)
-    factura_numero: str | None = Field(None, max_length=50)
     cantidad_factura: str | None = Field(None, max_length=20)
     cantidad_reclamo: str | None = Field(None, max_length=20)
+
+
+class ProductoCorregir(BaseModel):
+    """Lo que se corrige de un producto: el código y el nombre van por el catálogo."""
+    presentacion: str | None = Field(None, max_length=30)
+    cantidad_presentacion: str | None = Field(None, max_length=20)
+    lote: str | None = Field(None, max_length=50)
+    cantidad_factura: str | None = Field(None, max_length=20)
+    cantidad_reclamo: str | None = Field(None, max_length=20)
+
+
+class ProductoOut(BaseModel):
+    id: int
+    producto_codigo: str | None = None
+    producto_nombre: str | None = None
+    por_confirmar: bool = False
+    presentacion: str | None = None
+    cantidad_presentacion: str | None = None
+    lote: str | None = None
+    cantidad_factura: str | None = None
+    cantidad_reclamo: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+# `PQRSOut` nombra a `ProductoOut` antes de que exista: se resuelve aquí.
+PQRSOut.model_rebuild()
+PQRSDetailOut.model_rebuild()
 
 
 class PuntoVentaOut(BaseModel):

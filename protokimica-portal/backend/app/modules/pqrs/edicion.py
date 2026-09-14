@@ -11,8 +11,8 @@ detalle — es el cliente que nunca recibe la solución ni la encuesta.
 queda en él, porque ese camino existe por algo:
 
 - El **tipo** se reclasifica (`PATCH /tipo`): recalcula el plazo y exige motivo.
-- El **producto** se confirma contra el catálogo (`PATCH /producto`): escrito a
-  mano volvería a ensuciar el informe por producto.
+- El **producto** se confirma contra el catálogo, y sus lotes y cantidades se
+  corrigen en cada producto (`pqrs/productos.py`): hay uno por fila.
 - El **canal** no se toca: de él salió el prefijo del radicado, y cambiarlo
   dejaría un `PVG0010` diciendo que entró por Belén.
 - La **descripción** tampoco: es lo que el cliente dijo, con sus palabras, y es
@@ -41,12 +41,7 @@ CAMPOS_EDITABLES = {
     "cliente_telefono": "Teléfono",
     "ciudad": "Ciudad",
     "departamento": "Departamento",
-    "presentacion": "Presentación",
-    "cantidad_presentacion": "Cantidad de la presentación",
-    "lote": "Lote",
     "factura_numero": "N.° de factura",
-    "cantidad_factura": "Cantidad en factura",
-    "cantidad_reclamo": "Cantidad en reclamo",
 }
 
 # Los tres archivos que adjunta el cliente al radicar: columna, cómo se

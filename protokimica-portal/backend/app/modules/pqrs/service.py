@@ -106,7 +106,7 @@ NOMBRES_CAMPOS = {
 }
 
 
-def validar_largos(campos: dict) -> None:
+def validar_largos(campos: dict, modelo=None, prefijo: str = "") -> None:
     """
     Rechaza con un mensaje claro lo que no cabe en su columna.
 
@@ -121,12 +121,16 @@ def validar_largos(campos: dict) -> None:
     hay un segundo número que se quede atrás el día que la columna crezca.
     Va antes de guardar los adjuntos, o cada rechazo dejaría archivos
     huérfanos en /uploads.
+
+    `modelo` es la tabla contra la que se mide (por defecto la solicitud; los
+    productos pasan `PQRSProducto`), y `prefijo` antepone al mensaje de qué
+    fila se trata: «Producto 2: …».
     """
     # Import local: el modelo importa de `app.core`, y este módulo lo usan
     # los routers; así no se crea un ciclo al arrancar.
     from app.models.pqrs import PQRSSolicitud
 
-    columnas = PQRSSolicitud.__table__.columns
+    columnas = (modelo or PQRSSolicitud).__table__.columns
     for campo, valor in campos.items():
         if not isinstance(valor, str) or campo not in columnas:
             continue
@@ -136,7 +140,7 @@ def validar_largos(campos: dict) -> None:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"«{nombre}» admite máximo {tope} caracteres y tiene "
+                    f"{prefijo}«{nombre}» admite máximo {tope} caracteres y tiene "
                     f"{len(valor)}. Acórtalo; si necesitas explicar más, "
                     "escríbelo en la descripción."
                 ),

@@ -19,24 +19,93 @@ export const LIMITES_DATOS = {
   cliente_telefono: 40,
   ciudad: 100,
   departamento: 100,
+  factura_numero: 50,
+}
+
+/**
+ * Tope de cada dato de UN producto. ATADOS a las columnas de
+ * `pqrs_productos` (`models/pqrs.py`, que la prueba lee) y a `ProductoIn`.
+ */
+export const LIMITES_PRODUCTO = {
+  producto_codigo: 50,
+  producto_nombre: 300,
   presentacion: 30,
   cantidad_presentacion: 20,
   lote: 50,
-  factura_numero: 50,
   cantidad_factura: 20,
   cantidad_reclamo: 20,
 }
 
 /**
- * Topes al RADICAR (formulario interno y público): los corregibles más el
- * producto. Atados a las columnas de `pqrs_solicitudes`, que el servidor
- * vuelve a revisar en `validar_largos()`. Sin el tope en pantalla, escribir
- * «5 galones de 20 litros» en una cantidad no dejaba registrar la PQRS.
+ * Topes al RADICAR (formulario interno y público): datos de la solicitud y de
+ * cada producto. El servidor los vuelve a revisar en `validar_largos()`. Sin
+ * el tope en pantalla, escribir «5 galones de 20 litros» en una cantidad no
+ * dejaba registrar la PQRS.
  */
 export const LIMITES_RADICACION = {
   ...LIMITES_DATOS,
-  producto_codigo: 50,
-  producto_nombre: 300,
+  ...LIMITES_PRODUCTO,
+}
+
+/** Cuántos productos admite una PQRS. ATADO a `MAX_PRODUCTOS` de `pqrs/productos.py`. */
+export const MAX_PRODUCTOS = 20
+
+// Cada fila lleva una clave propia y no su posición: al quitar la segunda de
+// tres, React tiene que saber que la tercera sigue siendo la misma, o el
+// buscador de producto de una fila aparecería con lo que se escribió en otra.
+let siguienteClave = 0
+
+/** Una fila de producto en blanco, lista para el formulario. */
+export function productoVacio() {
+  siguienteClave += 1
+  return {
+    clave: `p${siguienteClave}`,
+    producto_codigo: '', producto_nombre: '', presentacion: '', cantidad_presentacion: '',
+    lote: '', cantidad_factura: '', cantidad_reclamo: '',
+  }
+}
+
+const CAMPOS_FILA = Object.keys(LIMITES_PRODUCTO)
+const filaVacia = (fila) => CAMPOS_FILA.every(c => !(fila?.[c] ?? '').trim())
+
+/**
+ * Las filas listas para mandar como `productos`: sin espacios de sobra, sin la
+ * clave de pantalla y sin filas en blanco. Una fila que alguien agregó y no
+ * llenó no es un producto.
+ */
+export function productosParaEnviar(filas) {
+  return (filas ?? [])
+    .filter(f => !filaVacia(f))
+    .map(f => Object.fromEntries(CAMPOS_FILA.map(c => [c, (f[c] ?? '').trim()])))
+}
+
+/**
+ * Qué le falta a la lista de productos, o `null` si está completa.
+ *
+ * El formulario público exige lote y cantidad en factura de CADA producto
+ * (igual que antes con el único); el interno no, porque una PQRS que entra
+ * por teléfono se escribe con lo que el cliente sabe en ese momento.
+ * El mensaje dice cuál producto, porque «falta el lote» con cuatro filas en
+ * pantalla obliga a revisarlas todas.
+ */
+export function faltaEnProductos(filas, { exigirDetalle = false } = {}) {
+  const llenas = (filas ?? []).filter(f => !filaVacia(f))
+  if (llenas.length === 0) {
+    return 'Agregue al menos un producto. Si no lo encuentra, use «No encuentro mi producto».'
+  }
+  if (llenas.length > MAX_PRODUCTOS) {
+    return `Una solicitud admite hasta ${MAX_PRODUCTOS} productos.`
+  }
+  for (const [i, f] of (filas ?? []).entries()) {
+    if (filaVacia(f)) continue
+    const n = i + 1
+    if (!f.producto_nombre?.trim() && !f.producto_codigo?.trim()) {
+      return `Producto ${n}: elija cuál es, o quite esa fila.`
+    }
+    if (exigirDetalle && !f.lote?.trim()) return `Producto ${n}: falta el lote.`
+    if (exigirDetalle && !f.cantidad_factura?.trim()) return `Producto ${n}: falta la cantidad en factura.`
+  }
+  return null
 }
 
 /** Los datos corregibles, en el orden de la pantalla. */
@@ -86,8 +155,8 @@ export function nombrePrincipal(pqrs) {
  */
 export function aplicaProducto(pqrs) {
   if (!['queja', 'felicitacion'].includes(pqrs?.tipo)) return true
-  return ['presentacion', 'lote', 'factura_numero', 'cantidad_factura', 'cantidad_reclamo',
-    'adjunto_producto', 'adjunto_factura'].some(c => pqrs[c])
+  return Boolean(pqrs.productos?.length)
+    || ['factura_numero', 'adjunto_producto', 'adjunto_factura'].some(c => pqrs[c])
 }
 
 /** Los valores de la PQRS que se ponen en el formulario de corrección. */

@@ -37,8 +37,21 @@ HISTORIAL = [
     {
         "version": "0.27.0",
         "fecha": "2026-09-14",
-        "titulo": "Corregir una PQRS y ver solo las de tu punto de venta",
+        "titulo": "Varios productos por PQRS, y corregirla sin empezar de nuevo",
         "cambios": [
+            ("nuevo", "Un reclamo puede tener varios productos, cada uno con "
+                      "su lote y sus cantidades, desde el formulario del "
+                      "cliente y desde el interno. En el detalle se corrige "
+                      "el lote de cada uno, se quita el que no era o se "
+                      "agrega el que faltó."),
+            ("mejora", "Un archivo elegido por error se puede quitar antes de "
+                       "enviar, en los dos formularios. Antes solo se podía "
+                       "cambiar por otro."),
+            ("correccion", "Escribir un dato más largo de lo permitido (por "
+                           "ejemplo una cantidad larga) no dejaba registrar "
+                           "la PQRS y no decía por qué. Ahora el formulario "
+                           "no deja pasarse y, si pasa, dice qué campo "
+                           "acortar."),
             ("nuevo", "Los datos del cliente y de la factura ya se pueden "
                       "corregir desde el detalle con el botón «Editar»: un "
                       "correo mal escrito ya no deja al cliente sin la "

@@ -214,7 +214,7 @@ acotando a alguien el día que vuelva.
 
 **PQRS — corregir datos y adjuntos:** quien gestiona el caso
 (`alcance.puede_editar_datos`) corrige los datos del cliente y de la factura
-(`PATCH /pqrs/{id}/datos`) y cambia o quita la foto del producto, la factura
+(`PATCH /pqrs/{id}/datos`; el lote y las cantidades, en cada producto) y cambia o quita la foto del producto, la factura
 y el video (`PUT`/`DELETE /pqrs/{id}/adjuntos/{campo}`). Nunca con la PQRS
 cerrada. Cada corrección queda en el historial **con el valor anterior**.
 Lo que **no** se corrige ahí, a propósito (ver `pqrs/edicion.py`): el tipo
@@ -223,6 +223,21 @@ Lo que **no** se corrige ahí, a propósito (ver `pqrs/edicion.py`): el tipo
 se audita; una aclaración va como comentario). Quitar un adjunto **no borra
 el archivo del servidor**: se desvincula y su ruta queda en el historial,
 por si se quitó el de la fila equivocada.
+
+**PQRS — varios productos:** un reclamo puede ser por varios productos de la
+misma compra, cada uno con **su** lote, presentación y cantidades. Van en
+`pqrs_productos` (una fila por producto), no en columnas de la solicitud; la
+**factura y los adjuntos siguen siendo de la solicitud**, porque la compra es
+una. Los formularios mandan `productos` como JSON en el multipart, y los
+campos sueltos del formato viejo se siguen aceptando (un formulario cacheado
+en el celular del cliente no puede quedarse sin radicar). La lógica vive en
+`modules/pqrs/productos.py`: `por_confirmar` se deduce **por producto**,
+`producto_por_confirmar` de la solicitud es una propiedad derivada (no una
+columna), no se cierra mientras quede uno por confirmar, y quitar un producto
+deja todos sus datos escritos en el historial. El nombre y el código de un
+producto radicado no se editan a mano: se confirman contra el catálogo
+(`PATCH /pqrs/{id}/productos/{producto_id}/confirmar`); lote y cantidades sí.
+Tope: `MAX_PRODUCTOS = 20`, atado al `constants.js` del módulo.
 
 **Master Planner — aprobar y pagar:** el presupuesto recorre
 `planeado → aprobado → pagado`. `Administración` aprueba cuánto se desembolsa
@@ -476,6 +491,10 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   entrar uno; la puntuación tipográfica (`→ — · …`) no cuenta, es texto.
   Icono nuevo: se agrega a `Iconos.jsx` con el mismo trazo, nunca suelto en el
   componente.
+- **Un archivo elegido se puede quitar antes de enviar.** En los formularios
+  de radicación (público: `CampoAdjunto`; interno: `ArchivoElegido`) cada
+  adjunto ofrece «Cambiar» y «Quitar», y el `<input>` se limpia al quitar: si
+  no, volver a elegir el mismo archivo no dispara `onChange`.
 - **Una PQRS se nombra por la empresa**, con el contacto debajo: así se
   reconoce al cliente en la lista. Una persona natural escribe su nombre en
   «Empresa / Persona», así que cuando coinciden sale una sola vez. La regla

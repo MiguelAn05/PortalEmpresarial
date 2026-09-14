@@ -18,29 +18,12 @@ class PQRSSolicitud(Base):
     cliente_telefono = Column(String(40), nullable=True)
     ciudad = Column(String(100), nullable=True)
     departamento = Column(String(100), nullable=True)
-    producto_codigo = Column(String(50), nullable=True)
-    # 300 y no 200: es el mismo largo que `cat_productos.nombre`. Un producto
-    # del catálogo con nombre largo no cabía y se truncaba al radicar.
-    producto_nombre = Column(String(300), nullable=True)
-
-    # El cliente no encontró su producto en el buscador y lo escribió.
-    #
-    # Existe porque la salida no puede ser dejarlo sin radicar: quien tiene un
-    # reclamo tiene que poder ponerlo. Pero un nombre escrito a mano no sirve
-    # para un informe —«Hipoclorito», «hipoclorito 13» y «HIPOCLORITO x20L»
-    # son tres productos distintos para un reporte— así que queda MARCADO y
-    # Servicio al Cliente lo corrige contra el catálogo antes de cerrar,
-    # igual que ya se hace con el tipo.
-    producto_por_confirmar = Column(
-        Boolean, nullable=False, default=False, server_default="false",
-    )
-    presentacion = Column(String(30), nullable=True)  # unidad | kilo | gramo | litro | mililitro
-    cantidad_presentacion = Column(String(20), nullable=True)  # cantidad asociada a la presentación, ej: "5"
+    # Los productos (con su lote y cantidades) viven en `pqrs_productos`: un
+    # reclamo puede ser por varios. Ver `PQRSProducto`.
     canal_atencion = Column(String(50), nullable=True)
-    lote = Column(String(50), nullable=True)
+    # La factura es UNA por solicitud: los productos de un mismo reclamo
+    # casi siempre vienen de la misma compra.
     factura_numero = Column(String(50), nullable=True)
-    cantidad_factura = Column(String(20), nullable=True)
-    cantidad_reclamo = Column(String(20), nullable=True)
     adjunto_producto = Column(String(500), nullable=True)
     adjunto_factura = Column(String(500), nullable=True)
     adjunto_video = Column(String(500), nullable=True)
@@ -74,6 +57,63 @@ class PQRSSolicitud(Base):
     adjuntos_solucion = relationship(
         'PQRSAdjuntoSolucion', back_populates='pqrs', cascade='all, delete-orphan',
     )
+    productos = relationship(
+        'PQRSProducto', back_populates='pqrs', cascade='all, delete-orphan',
+        order_by='PQRSProducto.orden',
+    )
+
+    @property
+    def producto_por_confirmar(self) -> bool:
+        """
+        Algún producto lo escribió el cliente a mano y falta amarrarlo al
+        catálogo. Se DERIVA de los productos, no se guarda aparte: dos
+        columnas que dicen lo mismo terminan diciendo cosas distintas.
+        """
+        return any(p.por_confirmar for p in self.productos)
+
+
+class PQRSProducto(Base):
+    """
+    Un producto dentro de una PQRS, con SU lote y SUS cantidades.
+
+    Antes la PQRS tenía un solo producto en columnas propias, y un reclamo
+    por tres productos de la misma compra obligaba a radicar tres PQRS —con
+    tres plazos, tres correos y tres encuestas para un solo problema— o a
+    meter los otros dos en la descripción, donde ningún informe los ve. Cada
+    producto trae lote y cantidades distintos, así que va en su propia fila.
+    """
+    __tablename__ = 'pqrs_productos'
+
+    id = Column(Integer, primary_key=True, index=True)
+    pqrs_id = Column(
+        Integer, ForeignKey('pqrs_solicitudes.id', ondelete='CASCADE'),
+        nullable=False, index=True,
+    )
+    # En qué orden los escribió quien radicó: así se muestran siempre igual.
+    orden = Column(Integer, nullable=False, default=0)
+
+    producto_codigo = Column(String(50), nullable=True)
+    # 300 y no 200: es el mismo largo que `cat_productos.nombre`. Un producto
+    # del catálogo con nombre largo no cabía y se truncaba al radicar.
+    producto_nombre = Column(String(300), nullable=True)
+
+    # El cliente no encontró este producto en el buscador y lo escribió.
+    #
+    # Existe porque la salida no puede ser dejarlo sin radicar: quien tiene un
+    # reclamo tiene que poder ponerlo. Pero un nombre escrito a mano no sirve
+    # para un informe —«Hipoclorito», «hipoclorito 13» y «HIPOCLORITO x20L»
+    # son tres productos distintos para un reporte— así que queda MARCADO y
+    # Servicio al Cliente lo corrige contra el catálogo antes de cerrar.
+    # Se DEDUCE («hay nombre y no hay código»), nunca se recibe.
+    por_confirmar = Column(Boolean, nullable=False, default=False, server_default="false")
+
+    presentacion = Column(String(30), nullable=True)  # unidad | kilo | gramo | litro | mililitro
+    cantidad_presentacion = Column(String(20), nullable=True)  # ej: "5"
+    lote = Column(String(50), nullable=True)
+    cantidad_factura = Column(String(20), nullable=True)
+    cantidad_reclamo = Column(String(20), nullable=True)
+
+    pqrs = relationship('PQRSSolicitud', back_populates='productos')
 
 
 class PQRSSeguimiento(Base):
