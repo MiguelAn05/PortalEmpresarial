@@ -28,6 +28,8 @@ class UserOut(BaseModel):
     email: str
     rol: str
     area: str | None
+    # Prefijo del punto de venta (`PVG`…). Ver `models/user.py`.
+    punto_venta: str | None = None
     tenant_id: int
 
     class Config:
@@ -40,11 +42,16 @@ class UsuarioCreate(BaseModel):
     password: str
     rol: str = "agente"
     area: str | None = None
+    punto_venta: str | None = None
 
 
 class UsuarioUpdate(BaseModel):
     rol: str | None = None
     area: str | None = None
+    # A diferencia de `area`, aquí `null` SÍ significa «quítaselo»: se mira
+    # si el campo llegó (`model_fields_set`), no si trae valor. Quitarle el
+    # punto a alguien es justamente convertirlo en coordinador.
+    punto_venta: str | None = None
     activo: bool | None = None
     password: str | None = None  # para que un admin pueda restablecerla si alguien la olvidó
 
@@ -60,6 +67,7 @@ class UsuarioOut(BaseModel):
     email: str
     rol: str
     area: str | None
+    punto_venta: str | None = None
     activo: bool
 
     class Config:

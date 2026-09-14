@@ -5,10 +5,36 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
 import { AREAS, areasParaSelect } from '../../core/areas.js'
+import { prefijoDe, puntosDeVenta } from '../../core/canales.js'
 import { IconoBuscar, IconoCandado, IconoLlave, IconoPersonas } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 
 // Las áreas viven en un solo sitio: src/core/areas.js
+
+// El punto de venta solo existe dentro de esta área, y la escritura tiene que
+// ser exactamente la de areas.js y pqrs/permisos.py.
+const AREA_PUNTOS_DE_VENTA = 'Puntos de Venta'
+
+/**
+ * En qué sede trabaja alguien de «Puntos de Venta». Acota las PQRS que ve a
+ * las de su punto; «Todos los puntos» es el coordinador. Fuera del área no se
+ * muestra: no significa nada y el servidor lo descarta.
+ */
+function SelectPuntoVenta({ valor, onChange, className }) {
+  return (
+    <select
+      value={valor || ''}
+      onChange={(e) => onChange(e.target.value || null)}
+      title="Qué PQRS ve: las de su punto, o las de todos si coordina"
+      className={className}
+    >
+      <option value="">Todos los puntos</option>
+      {puntosDeVenta().map(canal => (
+        <option key={canal} value={prefijoDe(canal)}>{canal.replace('Punto de venta ', '')}</option>
+      ))}
+    </select>
+  )
+}
 
 function TiposAutorizacion() {
   const queryClient = useQueryClient()
@@ -165,7 +191,7 @@ const NOTA_AREA = 'En Master Planner el área determina qué proyectos ve la per
 function GestionUsuarios() {
   const queryClient = useQueryClient()
   const { user: usuarioActual } = useAuth()
-  const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'agente', area: '' })
+  const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'agente', area: '', punto_venta: null })
   const [error, setError] = useState('')
   const [mostrarForm, setMostrarForm] = useState(false)
   const [busqueda, setBusqueda] = useState('')
@@ -193,7 +219,7 @@ function GestionUsuarios() {
     mutationFn: () => api.post('/auth/usuarios', form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['usuarios'] })
-      setForm({ nombre: '', email: '', password: '', rol: 'agente', area: '' })
+      setForm({ nombre: '', email: '', password: '', rol: 'agente', area: '', punto_venta: null })
       setError('')
       setMostrarForm(false)
     },
@@ -268,6 +294,22 @@ function GestionUsuarios() {
               </select>
             </div>
           </div>
+
+          {form.area === AREA_PUNTOS_DE_VENTA && (
+            <div>
+              <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
+                Punto de venta
+              </label>
+              <SelectPuntoVenta
+                valor={form.punto_venta}
+                onChange={(punto) => setForm({ ...form, punto_venta: punto })}
+                className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm focus:outline-none focus:ring-2 focus:ring-acento"
+              />
+              <p className="text-xs text-texto-2 mt-1">
+                Verá solo las PQRS de ese punto. «Todos los puntos» es para quien coordina las sedes.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="bg-negativo-bg border border-negativo/25 rounded-lg px-3 py-2 text-sm text-negativo">{error}</div>
@@ -361,6 +403,14 @@ function GestionUsuarios() {
                 <option value="">Sin área</option>
                 {areasParaSelect(u.area).map(a => <option key={a} value={a}>{a}</option>)}
               </select>
+
+              {u.area === AREA_PUNTOS_DE_VENTA && (
+                <SelectPuntoVenta
+                  valor={u.punto_venta}
+                  onChange={(punto) => mutActualizar.mutate({ id: u.id, cambios: { punto_venta: punto } })}
+                  className="text-xs border border-borde rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-acento"
+                />
+              )}
 
               <button
                 onClick={() => {

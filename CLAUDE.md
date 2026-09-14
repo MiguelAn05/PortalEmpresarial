@@ -186,6 +186,44 @@ casi nunca acierta al radicar y esa clasificación alimenta los indicadores.
 Al reclasificar se recalcula el SLA **desde la radicación** y la prioridad se
 ajusta al tipo nuevo salvo que alguien la haya cambiado a mano.
 
+**PQRS — cada punto de venta ve las suyas:** todo el portal ve todas las
+PQRS, **menos el área `Puntos de Venta`**. A una sede le interesan las de su
+mostrador; las de las otras cinco y las de Venta institucional son ruido.
+El área es una sola para las seis sedes, así que cada usuario lleva
+`users.punto_venta` con el **prefijo** (`PVG`, `PVC`…), que se elige en
+Admin › Usuarios y solo aparece si el área es `Puntos de Venta`:
+
+| Usuario | Ve |
+|---|---|
+| Área `Puntos de Venta` con punto | Las de su punto + las que le asignen |
+| Área `Puntos de Venta` sin punto (coordinador) | Las de los seis puntos + las pasadas al área + las asignadas |
+| Cualquier otra área, `admin`, `gerencia` | Todas, como siempre |
+
+Se decidió **por punto y no solo por área** porque con el área sola Guayabal
+vería las de Belén y tendría que filtrar cada vez — y el filtro que hay que
+acordarse de poner es el que un día no se pone. La PQRS se reconoce por el
+canal **o** por el prefijo del radicado (con cuidado: `PVCR0001` también
+empieza por `PVC`). Fuera de alcance responde **404**. Todo endpoint que
+reciba un `pqrs_id` —incluidas las autorizaciones— pasa por
+`obtener_visible()` de `modules/pqrs/permisos.py`; la lista usa
+`filtrar_visibles()`. `GET /pqrs/visibilidad` le dice a la pantalla qué se
+está viendo, para que una lista acotada no se lea como «solo hay estas».
+«Venta institucional» tiene prefijo pero **no es un punto de venta**: no se
+le asigna a nadie. Salir del área borra el punto, para que no reaparezca
+acotando a alguien el día que vuelva.
+
+**PQRS — corregir datos y adjuntos:** quien gestiona el caso
+(`alcance.puede_editar_datos`) corrige los datos del cliente y de la factura
+(`PATCH /pqrs/{id}/datos`) y cambia o quita la foto del producto, la factura
+y el video (`PUT`/`DELETE /pqrs/{id}/adjuntos/{campo}`). Nunca con la PQRS
+cerrada. Cada corrección queda en el historial **con el valor anterior**.
+Lo que **no** se corrige ahí, a propósito (ver `pqrs/edicion.py`): el tipo
+(se reclasifica), el producto (se confirma contra el catálogo), el canal (de
+él salió el prefijo) y la descripción (es lo que el cliente radicó y lo que
+se audita; una aclaración va como comentario). Quitar un adjunto **no borra
+el archivo del servidor**: se desvincula y su ruta queda en el historial,
+por si se quitó el de la fila equivocada.
+
 **Master Planner — aprobar y pagar:** el presupuesto recorre
 `planeado → aprobado → pagado`. `Administración` aprueba cuánto se desembolsa
 y `Tesorería` registra los abonos: dos manos distintas a propósito. Las dos
@@ -287,7 +325,8 @@ se abrió por error.
 **un indicador en rojo sin OMP abierta es un problema que nadie está
 trabajando.**
 
-**Visibilidad por participación (solo Master Planner):** ves un proyecto si
+**Visibilidad por participación (Master Planner; PQRS tiene la suya por
+punto de venta, ver arriba):** ves un proyecto si
 **lo lideras** o si **tienes una tarea asignada** dentro. Nada más. Ser del
 área responsable ya no basta, y un proyecto sin área tampoco se le muestra a
 todo el mundo: eso llenaba la lista de proyectos ajenos y la gente entraba a
@@ -437,6 +476,11 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   entrar uno; la puntuación tipográfica (`→ — · …`) no cuenta, es texto.
   Icono nuevo: se agrega a `Iconos.jsx` con el mismo trazo, nunca suelto en el
   componente.
+- **Una PQRS se nombra por la empresa**, con el contacto debajo: así se
+  reconoce al cliente en la lista. Una persona natural escribe su nombre en
+  «Empresa / Persona», así que cuando coinciden sale una sola vez. La regla
+  vive en `nombrePrincipal()` de `modules/pqrs/constants.js`; no la repitas
+  en un componente.
 - **Toda cifra lleva contexto y `cifra`** (la utilidad de `tabular-nums`). Un
   número sin meta, delta ni estado obliga a preguntar «¿eso es bueno?»: un 0
   de PQRS sin cerrar se acompaña de «Ninguna pendiente» en verde.
@@ -516,6 +560,18 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   un campo tiene `min_length` o `max_length` en el backend, el formulario lleva
   el mismo tope, y la constante vive en el `constants.js` del módulo con un
   comentario que recuerde que están sincronizados.
+- **Un texto más largo que su columna no dejaba radicar una PQRS.** Ni el
+  formulario interno ni el público tenían `maxLength`, y el servidor no
+  revisaba largos: «5 galones de 20 litros» en una cantidad (`String(20)`)
+  llegaba al `commit` y Postgres respondía `value too long for type
+  character varying(20)` — un 500 que la pantalla mostraba como «Error al
+  crear la PQRS», sin decir qué campo. **Las pruebas no lo veían porque
+  SQLite no aplica el largo de un VARCHAR.** Ahora `validar_largos()` de
+  `pqrs/service.py` lee el tope de la propia columna y responde 400 con el
+  nombre del campo, antes de guardar adjuntos; y los dos formularios usan
+  `LIMITES_RADICACION` de `modules/pqrs/constants.js`, que una prueba ata a
+  `models/pqrs.py`. Todo endpoint que guarde texto libre en un `String(n)`
+  necesita las dos cosas.
 - **Dos migraciones el mismo día = Alembic con dos cabezas y el backend sin
   arrancar.** Pasa cuando dos personas crean su migración colgando del mismo
   padre; el síntoma es `Multiple head revisions are present` en bucle. Si tu
@@ -611,6 +667,12 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   y `omp_acciones.evidencia` guardan texto; subir el archivo depende de que
   antes se arregle `/uploads`, que hoy no tiene control de acceso — y las
   evidencias de auditoría no pueden quedar en una URL adivinable.
+- **PQRS: los adjuntos quitados o reemplazados se acumulan en `/uploads`.**
+  Es a propósito (se pueden recuperar desde la ruta del historial), pero no
+  hay limpieza periódica.
+- **Inicio: la cifra de PQRS abiertas no respeta el punto de venta.** Un
+  líder de `Puntos de Venta` ve en el resumen el total de la empresa aunque
+  en PQRS solo vea las de su sede.
 - **Las PQRS anteriores a `estado_nuevo`** no tienen el estado guardado en sus
   seguimientos, así que el historial público les muestra «Actualización de tu
   solicitud» en vez del movimiento concreto.

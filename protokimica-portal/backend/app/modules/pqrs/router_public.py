@@ -29,6 +29,7 @@ from app.modules.pqrs.service import (
     calcular_prioridad,
     asignar_codigo_seguimiento,
     guardar_archivo,
+    validar_largos,
     EXTENSIONES_VIDEO_PERMITIDAS,
     MAX_TAMANIO_VIDEO_MB,
 )
@@ -174,6 +175,10 @@ async def radicar_pqrs_publica(
     adjunto_factura: UploadFile = File(None),
     adjunto_video: UploadFile = File(None),
 ):
+    # Antes que nada: un texto más largo que su columna llegaba al `commit` y
+    # el cliente veía un error sin saber qué corregir. Ver `validar_largos`.
+    validar_largos(locals())
+
     tenant = db.query(Tenant).filter(Tenant.slug == "protokimica").first()
     if not tenant:
         raise HTTPException(status_code=500, detail="Error de configuración.")

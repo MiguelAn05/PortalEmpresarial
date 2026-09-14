@@ -17,17 +17,20 @@ from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
 from app.models.catalogo import ProductoCatalogo
 from app.modules.pqrs.schemas import (
     AlcancePQRS, PQRSOut, PQRSDetailOut, PQRSAsignar,
-    PQRSAsignarArea, PQRSAreaCausante,
+    PQRSAsignarArea, PQRSAreaCausante, PQRSEditarDatos,
+    PuntoVentaOut, VisibilidadPQRS,
 )
 from app.modules.pqrs.permisos import (
     solo_servicio_al_cliente, es_servicio_al_cliente, puede_cambiar_area,
+    filtrar_visibles, obtener_visible, puntos_visibles,
 )
-from app.modules.pqrs import pendientes
+from app.modules.pqrs import edicion, pendientes
 from app.modules.pqrs.cierre_automatico import cerrar_vencidas, plazo_confirmacion
 from app.modules.pqrs.gestion import aplicar_gestion
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
     asignar_codigo_seguimiento, generar_radicado_calidad, guardar_archivo,
+    validar_largos,
     EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB, SLA_DIAS_POR_TIPO,
 )
 from app.modules.pqrs.notificaciones import (
@@ -71,6 +74,10 @@ async def crear_pqrs(
     adjunto_factura: UploadFile = File(None),
     adjunto_video: UploadFile = File(None),
 ):
+    # Primero, antes de guardar archivos: un texto que no cabe en su columna
+    # tumbaba el guardado con un 500 sin decir qué campo era.
+    validar_largos(locals())
+
     ruta_producto = None
     ruta_factura = None
     ruta_video = None
@@ -156,13 +163,34 @@ def listar_pqrs(
     tipo: str | None = None,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
 ):
     query = db.query(PQRSSolicitud).filter(PQRSSolicitud.tenant_id == tenant_id)
+    # Un punto de venta solo ve las de su sede. Ver `permisos.filtrar_visibles`.
+    query = filtrar_visibles(query, current_user)
     if estado:
         query = query.filter(PQRSSolicitud.estado == estado)
     if tipo:
         query = query.filter(PQRSSolicitud.tipo == tipo)
     return query.order_by(PQRSSolicitud.fecha_creacion.desc()).all()
+
+
+@router.get("/visibilidad", response_model=VisibilidadPQRS)
+def visibilidad_pqrs(current_user: User = Depends(get_current_user)):
+    """
+    Qué parte de las PQRS ve quien pregunta.
+
+    Existe para que la pantalla lo diga en voz alta. Una lista acotada que no
+    avisa que está acotada se lee como «en la empresa solo hay estas cinco».
+    Va antes que `/{pqrs_id}`, o el path variable se la come.
+    """
+    puntos = puntos_visibles(current_user)
+    if puntos is None:
+        return VisibilidadPQRS(restringida=False)
+    return VisibilidadPQRS(
+        restringida=True,
+        puntos=[PuntoVentaOut(canal=c, prefijo=canales.prefijo_de(c)) for c in puntos],
+    )
 
 
 @router.get("/por-vencer")
@@ -218,13 +246,7 @@ def obtener_pqrs(
     es lo que le pasaba a los agentes con las autorizaciones de su propia
     área.
     """
-    solicitud = (
-        db.query(PQRSSolicitud)
-        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
-        .first()
-    )
-    if not solicitud:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
 
     # 'lectura' y 'gerencia' no escriben nada en el portal. Es la misma regla
     # de solo_lectura_no, que es quien de verdad la impone al guardar.
@@ -237,6 +259,7 @@ def obtener_pqrs(
         puede_cambiar_area=escribe and puede_cambiar_area(current_user),
         puede_cerrar=escribe and servicio_cliente,
         puede_reclasificar=escribe and servicio_cliente,
+        puede_editar_datos=escribe and solicitud.estado != "cerrado",
     )
     if solicitud.estado == "resuelto" and solicitud.fecha_resuelto:
         detalle.plazo_confirmacion = plazo_confirmacion(solicitud.fecha_resuelto)
@@ -252,13 +275,7 @@ def asignar_pqrs(
     current_user: User = Depends(get_current_user),
     _: User = Depends(solo_lectura_no),
 ):
-    solicitud = (
-        db.query(PQRSSolicitud)
-        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
-        .first()
-    )
-    if not solicitud:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
 
     solicitud.asignado_a = payload.usuario_id
     if solicitud.estado == "recibido":
@@ -378,13 +395,7 @@ def asignar_area_causante(
     a día) — este campo es de uso interno, no lo llena el cliente, y sirve
     para sacar reportes de cuántas PQRS son causadas por cada área.
     """
-    solicitud = (
-        db.query(PQRSSolicitud)
-        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
-        .first()
-    )
-    if not solicitud:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
 
     solicitud.area_causante = payload.area_causante
 
@@ -420,13 +431,7 @@ def confirmar_producto_pqrs(
     código. Si se aceptara escrito, volveríamos al mismo problema que esto
     viene a resolver.
     """
-    solicitud = (
-        db.query(PQRSSolicitud)
-        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
-        .first()
-    )
-    if not solicitud:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
 
     # Cerrada ya entró a los indicadores del mes con ese producto.
     if solicitud.estado == "cerrado":
@@ -479,6 +484,73 @@ def confirmar_producto_pqrs(
     return solicitud
 
 
+@router.patch("/{pqrs_id}/datos", response_model=PQRSOut)
+def editar_datos_pqrs(
+    pqrs_id: int,
+    payload: PQRSEditarDatos,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
+):
+    """
+    Corrige los datos del cliente y de la factura.
+
+    Solo cambia lo que llega en el cuerpo. Tipo, producto, canal y
+    descripción NO están aquí a propósito: ver `pqrs/edicion.py`.
+    """
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
+    return edicion.editar_datos(
+        db, solicitud, current_user, payload.model_dump(exclude_unset=True),
+    )
+
+
+@router.put("/{pqrs_id}/adjuntos/{campo}", response_model=PQRSOut)
+async def reemplazar_adjunto_pqrs(
+    pqrs_id: int,
+    campo: str,
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
+):
+    """
+    Pone o reemplaza la foto del producto, la factura o el video
+    (`campo` = `producto` | `factura` | `video`).
+    """
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
+    # Se valida ANTES de escribir el archivo en disco: un rechazo después
+    # dejaría un huérfano en /uploads.
+    config = edicion.validar_adjunto(solicitud, campo)
+    if config["video"]:
+        ruta = await guardar_archivo(
+            archivo, config["carpeta"],
+            extensiones_permitidas=EXTENSIONES_VIDEO_PERMITIDAS,
+            max_mb=MAX_TAMANIO_VIDEO_MB,
+        )
+    else:
+        ruta = await guardar_archivo(archivo, config["carpeta"])
+    return edicion.cambiar_adjunto(db, solicitud, current_user, campo, ruta)
+
+
+@router.delete("/{pqrs_id}/adjuntos/{campo}", response_model=PQRSOut)
+def quitar_adjunto_pqrs(
+    pqrs_id: int,
+    campo: str,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
+):
+    """
+    Quita un adjunto que no correspondía. El archivo se desvincula pero no se
+    borra del servidor: su ruta queda en el historial.
+    """
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
+    return edicion.cambiar_adjunto(db, solicitud, current_user, campo, None)
+
+
 @router.patch("/{pqrs_id}/tipo", response_model=PQRSOut)
 def reclasificar_tipo_pqrs(
     pqrs_id: int,
@@ -505,13 +577,7 @@ def reclasificar_tipo_pqrs(
             detail=f"Tipo invalido. Usa uno de: {', '.join(sorted(tipos_validos))}.",
         )
 
-    solicitud = (
-        db.query(PQRSSolicitud)
-        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
-        .first()
-    )
-    if not solicitud:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
 
     # Una PQRS cerrada ya se reporto y su tipo entro en los indicadores del
     # mes. Reclasificar despues cambiaria cifras ya presentadas.

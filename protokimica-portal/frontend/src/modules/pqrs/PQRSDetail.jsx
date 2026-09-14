@@ -6,10 +6,12 @@ import api from '../../core/api.js'
 import { AREAS } from '../../core/areas.js'
 import {
   IconoAlDia, IconoAlerta, IconoBuscar, IconoCandado, IconoClip,
-  IconoComentario, IconoEmpresa, IconoEscalar, IconoEstrella, IconoEtiqueta,
-  IconoRecargar, IconoRechazo, IconoRecibo, IconoReloj, IconoUsuario,
+  IconoComentario, IconoEditar, IconoEmpresa, IconoEscalar, IconoEstrella,
+  IconoEtiqueta, IconoRecargar, IconoRechazo, IconoRecibo, IconoReloj, IconoUsuario,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
+import { nombrePrincipal } from './constants.js'
+import { BotonEditar, ModalEditarDatos, PanelAdjuntos } from './EdicionDatos.jsx'
 
 // Mismos números que el buscador público y que el servidor.
 const MINIMO_BUSQUEDA = 2
@@ -178,6 +180,8 @@ const EVENTOS = {
   autorizacion_respondida: { Icono: IconoAlDia,     label: 'Autorización respondida'},
   reclasificacion:         { Icono: IconoEtiqueta,  label: 'Reclasificación'        },
   confirmacion_producto:   { Icono: IconoRecibo,    label: 'Producto confirmado'    },
+  edicion_datos:           { Icono: IconoEditar,    label: 'Datos corregidos'       },
+  cambio_adjunto:          { Icono: IconoClip,      label: 'Adjunto cambiado'       },
 }
 
 // Las áreas viven en un solo sitio: src/core/areas.js
@@ -840,6 +844,7 @@ export default function PQRSDetail() {
   const navigate    = useNavigate()
   const queryClient = useQueryClient()
   const { user }    = useAuth()
+  const [editandoDatos, setEditandoDatos] = useState(false)
 
   const { data: pqrs, isLoading, isError } = useQuery({
     queryKey: ['pqrs', id],
@@ -895,6 +900,13 @@ export default function PQRSDetail() {
   // cliente al radicar suele estar mal, y esa clasificación alimenta los
   // indicadores. Admin siempre puede, para destrabar.
   const esServicioCliente = Boolean(alcance?.puede_reclasificar)
+  // Corregir datos y adjuntos: el servidor ya descartó la PQRS cerrada.
+  const puedeEditarDatos = Boolean(alcance?.puede_editar_datos)
+  const { titulo, subtitulo } = nombrePrincipal(pqrs)
+  const refrescarDetalle = () => {
+    queryClient.invalidateQueries({ queryKey: ['pqrs', id] })
+    queryClient.invalidateQueries({ queryKey: ['pqrs'] })
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -910,9 +922,11 @@ export default function PQRSDetail() {
               {pqrs.codigo_seguimiento || `PQRS #${pqrs.id}`}
               {pqrs.radicado_calidad && ` · Calidad: ${pqrs.radicado_calidad}`}
             </div>
-            <h1 className="text-xl font-bold mb-1">{pqrs.empresa || pqrs.cliente_nombre}</h1>
-            {pqrs.empresa && (
-              <p className="text-white/70 text-sm mb-2">{pqrs.cliente_nombre}</p>
+            {/* Una empresa se reconoce por la empresa; una persona natural,
+                por su nombre, sin repetirlo debajo. Ver `nombrePrincipal`. */}
+            <h1 className="text-xl font-bold mb-1">{titulo}</h1>
+            {subtitulo && (
+              <p className="text-white/70 text-sm mb-2">Contacto: {subtitulo}</p>
             )}
             <div className="flex gap-2 flex-wrap">
               <Badge map={TIPOS} value={pqrs.tipo} />
@@ -978,7 +992,12 @@ export default function PQRSDetail() {
 
           {/* Datos del cliente */}
           <div className="bg-white rounded-xl border border-borde p-5">
-            <h3 className="font-semibold text-acento-fuerte mb-4 text-sm">Datos del cliente</h3>
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <h3 className="font-semibold text-acento-fuerte text-sm">Datos del cliente</h3>
+              {puedeEditarDatos && (
+                <BotonEditar onClick={() => setEditandoDatos(true)} etiqueta="Editar los datos del cliente" />
+              )}
+            </div>
             <div className="space-y-3">
               {[
                 { label: 'Empresa',        value: pqrs.empresa          },
@@ -999,7 +1018,12 @@ export default function PQRSDetail() {
 
           {/* Datos del producto */}
           <div className="bg-white rounded-xl border border-borde p-5">
-            <h3 className="font-semibold text-acento-fuerte mb-4 text-sm">Producto y factura</h3>
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <h3 className="font-semibold text-acento-fuerte text-sm">Producto y factura</h3>
+              {puedeEditarDatos && (
+                <BotonEditar onClick={() => setEditandoDatos(true)} etiqueta="Editar los datos de la factura" />
+              )}
+            </div>
 
             {/* El cliente no encontró su producto y lo escribió. Se corrige
                 aquí porque después de cerrar ya no se puede, y un nombre
@@ -1032,58 +1056,9 @@ export default function PQRSDetail() {
             </div>
           </div>
 
-          {/* Adjuntos */}
-          {(pqrs.adjunto_producto || pqrs.adjunto_factura || pqrs.adjunto_video) && (
-            <div className="bg-white rounded-xl border border-borde p-5">
-              <h3 className="font-semibold text-acento-fuerte mb-4 text-sm">Evidencias adjuntas</h3>
-              <div className="space-y-3">
-                {pqrs.adjunto_producto && (
-                  <div>
-                    <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide mb-2">
-                      Foto del producto
-                    </div>
-                    <a href={`${pqrs.adjunto_producto}`} target="_blank" rel="noreferrer">
-                      <img
-                        src={`${pqrs.adjunto_producto}`}
-                        alt="Producto"
-                        className="w-full rounded-lg border border-borde object-cover max-h-40 hover:opacity-90 transition cursor-pointer"
-                        onError={(e) => { e.target.style.display='none' }}
-                      />
-                    </a>
-                  </div>
-                )}
-                {pqrs.adjunto_factura && (
-                  <div>
-                    <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide mb-2">
-                      Factura
-                    </div>
-                    
-                      <a
-                      href={`${pqrs.adjunto_factura}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-2 p-3 bg-fondo rounded-lg hover:bg-borde transition"
-                    >
-                      <IconoRecibo tam={20} className="text-texto-2" />
-                      <span className="text-sm font-medium text-acento underline">Ver factura adjunta</span>
-                    </a>
-                  </div>
-                )}
-                {pqrs.adjunto_video && (
-                  <div>
-                    <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide mb-2">
-                      Video de evidencia
-                    </div>
-                    <video
-                      src={`${pqrs.adjunto_video}`}
-                      controls
-                      className="w-full rounded-lg border border-borde max-h-52"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Adjuntos: se ven, se cambian y se quitan. Quien puede editar ve
+              también los espacios vacíos, para poder poner lo que falta. */}
+          <PanelAdjuntos pqrs={pqrs} puedeEditar={puedeEditarDatos} onCambio={refrescarDetalle} />
 
           {/* Reclasificar el tipo — solo Servicio al cliente y antes de cerrar */}
           {esServicioCliente && pqrs.estado !== 'cerrado' && (
@@ -1195,6 +1170,14 @@ export default function PQRSDetail() {
           </div>
         </div>
       </div>
+
+      {editandoDatos && (
+        <ModalEditarDatos
+          pqrs={pqrs}
+          onCerrar={() => setEditandoDatos(false)}
+          onGuardado={refrescarDetalle}
+        />
+      )}
     </div>
   )
 }

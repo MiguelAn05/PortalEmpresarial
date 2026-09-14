@@ -11,6 +11,7 @@ import {
   IconoRecibo, IconoVideo,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
+import { LIMITES_RADICACION } from '../pqrs/constants.js'
 
 // ── Constantes ─────────────────────────────────────────────────────
 // Cada tipo se distingue por su ICONO, no por un color de fondo distinto.
@@ -756,34 +757,34 @@ export default function FormularioPQRS() {
 
               <div>
                 <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Empresa / Persona <span className="text-negativo">*</span></label>
-                <input name="empresa" value={form.empresa} onChange={handleChange} placeholder="Nombre de la empresa" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
+                <input name="empresa" maxLength={LIMITES_RADICACION.empresa} value={form.empresa} onChange={handleChange} placeholder="Nombre de la empresa" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">NIT / Cédula <span className="text-negativo">*</span></label>
-                <input name="nit_cedula" value={form.nit_cedula} onChange={handleChange} placeholder="Ej: 900123456-1" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
+                <input name="nit_cedula" maxLength={LIMITES_RADICACION.nit_cedula} value={form.nit_cedula} onChange={handleChange} placeholder="Ej: 900123456-1" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Nombre del contacto <span className="text-negativo">*</span></label>
-                <input name="cliente_nombre" value={form.cliente_nombre} onChange={handleChange} placeholder="Nombre completo" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
+                <input name="cliente_nombre" maxLength={LIMITES_RADICACION.cliente_nombre} value={form.cliente_nombre} onChange={handleChange} placeholder="Nombre completo" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Teléfono <span className="text-negativo">*</span></label>
-                  <input name="cliente_telefono" value={form.cliente_telefono} onChange={handleChange} placeholder="3001234567" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
+                  <input name="cliente_telefono" maxLength={LIMITES_RADICACION.cliente_telefono} value={form.cliente_telefono} onChange={handleChange} placeholder="3001234567" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Correo</label>
-                  <input name="cliente_email" type="email" value={form.cliente_email} onChange={handleChange} placeholder="correo@empresa.com" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
+                  <input name="cliente_email" maxLength={LIMITES_RADICACION.cliente_email} type="email" value={form.cliente_email} onChange={handleChange} placeholder="correo@empresa.com" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Ciudad <span className="text-negativo">*</span></label>
-                  <input name="ciudad" value={form.ciudad} onChange={handleChange} placeholder="Ej: Medellín" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
+                  <input name="ciudad" maxLength={LIMITES_RADICACION.ciudad} value={form.ciudad} onChange={handleChange} placeholder="Ej: Medellín" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Departamento <span className="text-negativo">*</span></label>
@@ -826,7 +827,7 @@ export default function FormularioPQRS() {
                     </select>
                     <input
                       type="text"
-                      name="cantidad_presentacion"
+                      name="cantidad_presentacion" maxLength={LIMITES_RADICACION.cantidad_presentacion}
                       value={form.cantidad_presentacion}
                       onChange={handleChange}
                       disabled={!form.presentacion}
@@ -854,22 +855,22 @@ export default function FormularioPQRS() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Lote <span className="text-negativo">*</span></label>
-                  <input name="lote" value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
+                  <input name="lote" maxLength={LIMITES_RADICACION.lote} value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">N° Factura <span className="text-negativo">*</span></label>
-                  <input name="factura_numero" value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
+                  <input name="factura_numero" maxLength={LIMITES_RADICACION.factura_numero} value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Cant. en factura <span className="text-negativo">*</span></label>
-                  <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
+                  <input name="cantidad_factura" maxLength={LIMITES_RADICACION.cantidad_factura} value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Cant. en reclamo</label>
-                  <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
+                  <input name="cantidad_reclamo" maxLength={LIMITES_RADICACION.cantidad_reclamo} value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento transition" />
                 </div>
               </div>
 

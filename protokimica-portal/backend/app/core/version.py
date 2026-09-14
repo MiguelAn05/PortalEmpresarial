@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.26.1"
-FECHA = "2026-09-12"
+VERSION = "0.27.0"
+FECHA = "2026-09-14"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,28 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.27.0",
+        "fecha": "2026-09-14",
+        "titulo": "Corregir una PQRS y ver solo las de tu punto de venta",
+        "cambios": [
+            ("nuevo", "Los datos del cliente y de la factura ya se pueden "
+                      "corregir desde el detalle con el botón «Editar»: un "
+                      "correo mal escrito ya no deja al cliente sin la "
+                      "solución ni la encuesta. Cada corrección queda en el "
+                      "historial con el dato anterior."),
+            ("nuevo", "La foto del producto, la factura y el video se pueden "
+                      "cambiar por otro o quitar si se adjuntaron por error. "
+                      "También se puede adjuntar lo que el cliente olvidó."),
+            ("nuevo", "Cada punto de venta ve solo las PQRS de su sede. En "
+                      "Administración › Usuarios se elige el punto de cada "
+                      "persona; quien coordina todas las sedes las ve todas."),
+            ("mejora", "En la lista de PQRS aparece primero el nombre de la "
+                       "empresa, que es como se reconoce al cliente, y el "
+                       "contacto debajo. Una persona natural sale con su "
+                       "nombre, como antes."),
+        ],
+    },
     {
         "version": "0.26.1",
         "fecha": "2026-09-12",

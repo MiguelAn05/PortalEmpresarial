@@ -8,6 +8,7 @@ se hace desde /usuarios (requiere sesión de administrador).
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core import canales
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import hash_password, verify_password, create_access_token
@@ -15,12 +16,37 @@ from app.core.deps import get_current_user, get_current_tenant_id, require_role,
 from app.core.rate_limit import limitar_login
 from app.models.user import User
 from app.models.tenant import Tenant
+from app.modules.pqrs.permisos import AREA_PUNTOS_DE_VENTA
 from app.modules.auth.schemas import (
     RegisterRequest, LoginRequest, TokenResponse, UserOut,
     UsuarioCreate, UsuarioUpdate, UsuarioOut, CambiarPasswordRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
+
+def resolver_punto_venta(prefijo: str | None, area: str | None) -> str | None:
+    """
+    El punto de venta que se le guarda a alguien, ya validado.
+
+    Solo tiene sentido en el área «Puntos de Venta»: en cualquier otra se
+    descarta, para que no quede un punto olvidado que vuelva a acotarle las
+    PQRS el día que alguien lo pase de vuelta al área. Y tiene que ser una
+    SEDE: «VI» tiene prefijo pero no es un mostrador donde trabaje alguien.
+    """
+    prefijo = (prefijo or "").strip().upper() or None
+    if prefijo is None or area != AREA_PUNTOS_DE_VENTA:
+        return None
+    canal = canales.canal_por_codigo(prefijo)
+    if canal not in canales.puntos_de_venta():
+        validos = ", ".join(canales.prefijo_de(c) for c in canales.puntos_de_venta())
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"«{prefijo}» no es un punto de venta. Elige uno de la lista "
+                f"({validos}), o déjalo vacío si la persona coordina todos."
+            ),
+        )
+    return prefijo
 
 
 def validar_dominio_email(email: str) -> None:
@@ -175,6 +201,7 @@ def crear_usuario(
         password_hash=hash_password(payload.password),
         rol=payload.rol,
         area=payload.area,
+        punto_venta=resolver_punto_venta(payload.punto_venta, payload.area),
     )
     db.add(user)
     db.commit()
@@ -210,6 +237,14 @@ def actualizar_usuario(
 
     if payload.area is not None:
         usuario.area = payload.area or None
+
+    # Después del área a propósito: si en el mismo guardado sale de «Puntos
+    # de Venta», el punto se le quita; si solo cambió el área, el punto que
+    # tenía se revalida contra la nueva.
+    if "punto_venta" in payload.model_fields_set:
+        usuario.punto_venta = resolver_punto_venta(payload.punto_venta, usuario.area)
+    elif usuario.area != AREA_PUNTOS_DE_VENTA:
+        usuario.punto_venta = None
 
     if payload.password is not None:
         if len(payload.password) < 6:

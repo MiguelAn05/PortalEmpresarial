@@ -77,6 +77,18 @@ def prefijo_de(canal: str | None) -> str | None:
     return PREFIJOS_POR_CANAL.get((canal or "").strip())
 
 
+def puntos_de_venta() -> list[str]:
+    """
+    Los canales que son un punto de venta físico.
+
+    «Venta institucional» tiene prefijo pero no es una sede: nadie trabaja
+    «en» ella detrás de un mostrador, así que no se le puede asignar a un
+    usuario como su punto de venta. Gemelo de `puntosDeVenta()` en
+    `canales.js`.
+    """
+    return [c for c in CANALES if c.startswith("Punto de venta")]
+
+
 def canal_por_codigo(codigo: str | None) -> str | None:
     """
     El canal al que apunta un código de QR (`PVG` → «Punto de venta Guayabal»).

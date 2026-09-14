@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class PQRSCreate(BaseModel):
@@ -142,6 +142,10 @@ class AlcancePQRS(BaseModel):
     # Corregir lo que el cliente escribió mal al radicar: el tipo y el
     # producto. Es la misma regla y el mismo dueño para los dos.
     puede_reclasificar: bool
+    # Corregir los datos del cliente, de la factura y los adjuntos. Es de
+    # quien gestiona el caso —quien llama al cliente es quien descubre que el
+    # correo estaba mal—, y no con la PQRS cerrada. Ver `pqrs/edicion.py`.
+    puede_editar_datos: bool = False
 
 
 class PQRSDetailOut(PQRSOut):
@@ -154,6 +158,48 @@ class PQRSDetailOut(PQRSOut):
     # una función (`cierre_automatico.plazo_confirmacion`), no de una
     # columna.
     plazo_confirmacion: datetime | None = None
+
+
+class PQRSEditarDatos(BaseModel):
+    """
+    Corrección de los datos de una PQRS radicada. Todo es opcional: solo se
+    toca lo que llega (`exclude_unset`), y un campo vacío es «bórralo».
+
+    Los `max_length` son los de las columnas de `pqrs_solicitudes`, y
+    `frontend/src/modules/pqrs/constants.js` los repite en el `maxLength` de
+    cada input: un límite sin su tope en pantalla es un 422 esperando pasar.
+    """
+    empresa: str | None = Field(None, max_length=150)
+    nit_cedula: str | None = Field(None, max_length=30)
+    cliente_nombre: str | None = Field(None, max_length=150)
+    cliente_email: str | None = Field(None, max_length=180)
+    cliente_telefono: str | None = Field(None, max_length=40)
+    ciudad: str | None = Field(None, max_length=100)
+    departamento: str | None = Field(None, max_length=100)
+    presentacion: str | None = Field(None, max_length=30)
+    cantidad_presentacion: str | None = Field(None, max_length=20)
+    lote: str | None = Field(None, max_length=50)
+    factura_numero: str | None = Field(None, max_length=50)
+    cantidad_factura: str | None = Field(None, max_length=20)
+    cantidad_reclamo: str | None = Field(None, max_length=20)
+
+
+class PuntoVentaOut(BaseModel):
+    canal: str
+    prefijo: str
+
+
+class VisibilidadPQRS(BaseModel):
+    """
+    Qué parte de las PQRS ve quien está mirando. La pantalla lo usa para
+    decir «estás viendo las de Guayabal» en vez de dejar que alguien crea que
+    no hay más PQRS en la empresa, y para no ofrecer filtros por puntos que
+    no ve.
+    """
+    # False = ve todas las PQRS de la empresa.
+    restringida: bool
+    # Los puntos de venta que ve. Uno solo = una sede; varios = coordinador.
+    puntos: list[PuntoVentaOut] = []
 
 
 class EncuestaCreate(BaseModel):

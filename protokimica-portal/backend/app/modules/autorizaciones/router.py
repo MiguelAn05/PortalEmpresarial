@@ -34,7 +34,7 @@ from app.models.autorizacion import TipoAutorizacion, AutorizacionPQRS
 from app.modules.autorizaciones.schemas import (
     TipoAutorizacionCreate, TipoAutorizacionOut, AutorizacionOut,
 )
-from app.modules.pqrs.permisos import AREA_SERVICIO_CLIENTE
+from app.modules.pqrs.permisos import AREA_SERVICIO_CLIENTE, obtener_visible
 from app.modules.pqrs.service import guardar_archivo
 from app.modules.pqrs.notificaciones import (
     avisos_autorizacion_pendiente, avisos_autorizacion_respondida, enviar_avisos,
@@ -108,6 +108,10 @@ def listar_autorizaciones_pqrs(
     cuenta mirando el ROL, y así escondía los botones a los agentes del área
     autorizadora — que son justamente quienes hacen ese trabajo.
     """
+    # Si la PQRS no es visible para quien pregunta, sus autorizaciones
+    # tampoco: responden 404, igual que la PQRS.
+    obtener_visible(db, tenant_id, pqrs_id, current_user)
+
     autorizaciones = db.query(AutorizacionPQRS).filter(
         AutorizacionPQRS.pqrs_id == pqrs_id
     ).all()
@@ -150,12 +154,7 @@ async def solicitar_autorizacion(
     if current_user.rol not in ("admin", "lider", "agente"):
         raise HTTPException(status_code=403, detail="Sin permisos.")
 
-    pqrs = db.query(PQRSSolicitud).filter(
-        PQRSSolicitud.id == pqrs_id,
-        PQRSSolicitud.tenant_id == tenant_id,
-    ).first()
-    if not pqrs:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+    pqrs = obtener_visible(db, tenant_id, pqrs_id, current_user)
     if pqrs.estado == "cerrado":
         raise HTTPException(status_code=400, detail="No se puede solicitar autorización en una PQRS cerrada.")
 
@@ -272,12 +271,7 @@ async def responder_autorizacion(
             ),
         )
 
-    pqrs = db.query(PQRSSolicitud).filter(
-        PQRSSolicitud.id == pqrs_id,
-        PQRSSolicitud.tenant_id == tenant_id,
-    ).first()
-    if not pqrs:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+    pqrs = obtener_visible(db, tenant_id, pqrs_id, current_user)
 
     ruta_adjunto = None
     if adjunto is not None and adjunto.filename:

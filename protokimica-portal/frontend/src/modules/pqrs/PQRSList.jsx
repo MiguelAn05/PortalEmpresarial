@@ -6,9 +6,12 @@ import { AREAS } from '../../core/areas.js'
 import { CANALES, canalesConPrefijo } from '../../core/canales.js'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
 import {
-  IconoBuscar, IconoCerrar, IconoFiltro, IconoPQRS,
+  IconoBuscar, IconoCerrar, IconoEmpresa, IconoFiltro, IconoPQRS,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
+import {
+  DEPARTAMENTOS, LIMITES_RADICACION, PRESENTACIONES, nombrePrincipal,
+} from './constants.js'
 
 // Un estado se llama y se pinta igual en la lista, en el filtro y en el
 // detalle. El color sube con la gravedad; no es un color por categoría.
@@ -72,22 +75,16 @@ function SLALabel({ fechaLimite }) {
 const CANALES_ATENCION = CANALES
 const CANALES_ATENCION_FELICITACION = CANALES
 
-const DEPARTAMENTOS = [
-  'Amazonas','Antioquia','Arauca','Atlántico','Bolívar','Boyacá','Caldas',
-  'Caquetá','Casanare','Cauca','Cesar','Chocó','Córdoba','Cundinamarca',
-  'Guainía','Guaviare','Huila','La Guajira','Magdalena','Meta','Nariño',
-  'Norte de Santander','Putumayo','Quindío','Risaralda','San Andrés',
-  'Santander','Sucre','Tolima','Valle del Cauca','Vaupés','Vichada',
-]
-
 const AREAS_PQRS = AREAS
-const PRESENTACIONES = ['Unidad', 'Kilo', 'Gramo', 'Litro', 'Mililitro']
 
 // ── Modal para crear PQRS ──────────────────────────────────────────
 // Mismos campos que el formulario público (/formulario), para que una
 // PQRS registrada por un agente interno guarde exactamente la misma
 // información que una radicada por el cliente.
-function ModalCrear({ onClose, onCreated }) {
+// `canalInicial`: una sede registra casi siempre lo que pasó en su mostrador,
+// así que arranca marcado. Si no, radicaría sin canal, el caso saldría
+// `PK-…` y desaparecería de su propia lista al guardarlo.
+function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
   const FORM_VACIO = {
     tipo: 'queja',
     empresa: '',
@@ -101,7 +98,7 @@ function ModalCrear({ onClose, onCreated }) {
     producto_nombre: '',
     presentacion: '',
     cantidad_presentacion: '',
-    canal_atencion: '',
+    canal_atencion: canalInicial,
     lote: '',
     factura_numero: '',
     cantidad_factura: '',
@@ -181,31 +178,31 @@ function ModalCrear({ onClose, onCreated }) {
             <div className="grid grid-cols-2 gap-4 mb-3">
               <div>
                 <label className={labelCls}>Empresa</label>
-                <input name="empresa" value={form.empresa} onChange={handleChange} placeholder="Ej: Industrias del Valle S.A.S" className={inputCls} />
+                <input name="empresa" maxLength={LIMITES_RADICACION.empresa} value={form.empresa} onChange={handleChange} placeholder="Ej: Industrias del Valle S.A.S" className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>NIT / Cédula</label>
-                <input name="nit_cedula" value={form.nit_cedula} onChange={handleChange} placeholder="Ej: 900123456-7" className={inputCls} />
+                <input name="nit_cedula" maxLength={LIMITES_RADICACION.nit_cedula} value={form.nit_cedula} onChange={handleChange} placeholder="Ej: 900123456-7" className={inputCls} />
               </div>
             </div>
             <div className="mb-3">
               <label className={labelCls}>Nombre del contacto *</label>
-              <input name="cliente_nombre" value={form.cliente_nombre} onChange={handleChange} placeholder="Nombre de quien contacta" required className={inputCls} />
+              <input name="cliente_nombre" maxLength={LIMITES_RADICACION.cliente_nombre} value={form.cliente_nombre} onChange={handleChange} placeholder="Nombre de quien contacta" required className={inputCls} />
             </div>
             <div className="grid grid-cols-2 gap-4 mb-3">
               <div>
                 <label className={labelCls}>Correo</label>
-                <input name="cliente_email" type="email" value={form.cliente_email} onChange={handleChange} placeholder="cliente@empresa.com" className={inputCls} />
+                <input name="cliente_email" maxLength={LIMITES_RADICACION.cliente_email} type="email" value={form.cliente_email} onChange={handleChange} placeholder="cliente@empresa.com" className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>Teléfono</label>
-                <input name="cliente_telefono" value={form.cliente_telefono} onChange={handleChange} placeholder="3001234567" className={inputCls} />
+                <input name="cliente_telefono" maxLength={LIMITES_RADICACION.cliente_telefono} value={form.cliente_telefono} onChange={handleChange} placeholder="3001234567" className={inputCls} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Ciudad</label>
-                <input name="ciudad" value={form.ciudad} onChange={handleChange} placeholder="Ej: Medellín" className={inputCls} />
+                <input name="ciudad" maxLength={LIMITES_RADICACION.ciudad} value={form.ciudad} onChange={handleChange} placeholder="Ej: Medellín" className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>Departamento</label>
@@ -233,11 +230,11 @@ function ModalCrear({ onClose, onCreated }) {
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div>
                   <label className={labelCls}>Código de producto</label>
-                  <input name="producto_codigo" value={form.producto_codigo} onChange={handleChange} placeholder="Ej: PK-001" className={inputCls} />
+                  <input name="producto_codigo" maxLength={LIMITES_RADICACION.producto_codigo} value={form.producto_codigo} onChange={handleChange} placeholder="Ej: PK-001" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Nombre del producto</label>
-                  <input name="producto_nombre" value={form.producto_nombre} onChange={handleChange} placeholder="Ej: Hipoclorito de Sodio 13%" className={inputCls} />
+                  <input name="producto_nombre" maxLength={LIMITES_RADICACION.producto_nombre} value={form.producto_nombre} onChange={handleChange} placeholder="Ej: Hipoclorito de Sodio 13%" className={inputCls} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 mb-3">
@@ -250,7 +247,7 @@ function ModalCrear({ onClose, onCreated }) {
                     </select>
                     <input
                       type="text"
-                      name="cantidad_presentacion"
+                      name="cantidad_presentacion" maxLength={LIMITES_RADICACION.cantidad_presentacion}
                       value={form.cantidad_presentacion}
                       onChange={handleChange}
                       disabled={!form.presentacion}
@@ -261,31 +258,31 @@ function ModalCrear({ onClose, onCreated }) {
                 </div>
                 <div>
                   <label className={labelCls}>Lote</label>
-                  <input name="lote" value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className={inputCls} />
+                  <input name="lote" maxLength={LIMITES_RADICACION.lote} value={form.lote} onChange={handleChange} placeholder="Ej: L240815" className={inputCls} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div>
                   <label className={labelCls}>N° Factura</label>
-                  <input name="factura_numero" value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className={inputCls} />
+                  <input name="factura_numero" maxLength={LIMITES_RADICACION.factura_numero} value={form.factura_numero} onChange={handleChange} placeholder="Ej: FV-2026-1234" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Cant. en factura</label>
-                  <input name="cantidad_factura" value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className={inputCls} />
+                  <input name="cantidad_factura" maxLength={LIMITES_RADICACION.cantidad_factura} value={form.cantidad_factura} onChange={handleChange} placeholder="Ej: 10" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Cant. en reclamo</label>
-                  <input name="cantidad_reclamo" value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className={inputCls} />
+                  <input name="cantidad_reclamo" maxLength={LIMITES_RADICACION.cantidad_reclamo} value={form.cantidad_reclamo} onChange={handleChange} placeholder="Ej: 3" className={inputCls} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelCls}>Foto del producto</label>
-                  <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoProducto(e.target.files[0] || null)} className="text-xs text-texto-2" />
+                  <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={(e) => setAdjuntoProducto(e.target.files[0] || null)} className="text-xs text-texto-2" />
                 </div>
                 <div>
                   <label className={labelCls}>Foto de la factura</label>
-                  <input type="file" accept="image/*,.pdf" onChange={(e) => setAdjuntoFactura(e.target.files[0] || null)} className="text-xs text-texto-2" />
+                  <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={(e) => setAdjuntoFactura(e.target.files[0] || null)} className="text-xs text-texto-2" />
                 </div>
               </div>
             </div>
@@ -596,6 +593,17 @@ export default function PQRSList() {
     },
   })
 
+  // Qué parte de las PQRS ve esta persona. Lo decide el servidor; aquí solo
+  // se dice en voz alta y se ajusta el filtro a lo que de verdad puede ver.
+  const { data: visibilidad } = useQuery({
+    queryKey: ['pqrs-visibilidad'],
+    queryFn: async () => { const { data } = await api.get('/pqrs/visibilidad'); return data },
+  })
+  const puntosVisibles = visibilidad?.restringida
+    ? visibilidad.puntos.map(({ canal, prefijo }) => ({ prefijo, label: canal }))
+    : PUNTOS_VENTA
+  const unaSolaSede = visibilidad?.restringida && visibilidad.puntos.length === 1
+
   const refetch = () => queryClient.invalidateQueries({ queryKey: ['pqrs'] })
 
   // Búsqueda + filtros adicionales, todo en client-side sobre lo ya traído
@@ -662,6 +670,22 @@ export default function PQRSList() {
           + Registrar PQRS
         </button>
       </div>
+
+      {/* Una lista acotada que no avisa que está acotada se lee como «en la
+          empresa solo hay estas». Por eso se dice qué se está viendo. */}
+      {visibilidad?.restringida && (
+        <div className="flex items-start gap-2 bg-info-bg border border-info/25 rounded-xl px-4 py-3 mb-5">
+          <IconoEmpresa tam={16} className="text-info mt-0.5" />
+          <p className="text-sm text-texto">
+            {unaSolaSede ? (
+              <>Estás viendo las PQRS de <strong>{visibilidad.puntos[0].canal}</strong></>
+            ) : (
+              <>Estás viendo las PQRS de <strong>los puntos de venta</strong></>
+            )}
+            <span className="text-texto-2"> y las que te asignen. Las del resto de la empresa las atiende Servicio al Cliente.</span>
+          </p>
+        </div>
+      )}
 
       {/* Tarjetas de resumen — las mismas de Master Planner e Inicio. */}
       <div className="mb-6">
@@ -760,19 +784,23 @@ export default function PQRSList() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Punto de venta</label>
-                  <select
-                    value={filtroPuntoVenta}
-                    onChange={(e) => setFiltroPuntoVenta(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
-                  >
-                    <option value="">Todos</option>
-                    {PUNTOS_VENTA.map(({ prefijo, label }) => (
-                      <option key={prefijo} value={prefijo}>{label}</option>
-                    ))}
-                  </select>
-                </div>
+                {/* Una sede solo ve la suya: un filtro de una sola opción
+                    solo genera la pregunta de dónde están las demás. */}
+                {!unaSolaSede && (
+                  <div>
+                    <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Punto de venta</label>
+                    <select
+                      value={filtroPuntoVenta}
+                      onChange={(e) => setFiltroPuntoVenta(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
+                    >
+                      <option value="">Todos</option>
+                      {puntosVisibles.map(({ prefijo, label }) => (
+                        <option key={prefijo} value={prefijo}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Área causante</label>
@@ -857,11 +885,20 @@ export default function PQRSList() {
                     {pqrs.codigo_seguimiento || `#${pqrs.id}`}
                   </td>
                   <td className="px-4 py-3"><Badge map={TIPOS} value={pqrs.tipo} /></td>
+                  {/* La empresa arriba —así se reconoce el cliente de un
+                      vistazo— y el contacto debajo. Una persona natural sale
+                      con su nombre y su correo. Ver `nombrePrincipal`. */}
                   <td className="px-4 py-3">
-                    <div className="text-sm font-semibold text-texto">{pqrs.cliente_nombre}</div>
-                    {pqrs.cliente_email && (
-                      <div className="text-xs text-texto-2">{pqrs.cliente_email}</div>
-                    )}
+                    {(() => {
+                      const { titulo, subtitulo } = nombrePrincipal(pqrs)
+                      const segunda = subtitulo || pqrs.cliente_email
+                      return (
+                        <>
+                          <div className="text-sm font-semibold text-texto">{titulo}</div>
+                          {segunda && <div className="text-xs text-texto-2">{segunda}</div>}
+                        </>
+                      )
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-sm text-texto-2">{pqrs.area_responsable || '—'}</td>
                   <td className="px-4 py-3">
@@ -888,6 +925,7 @@ export default function PQRSList() {
         <ModalCrear
           onClose={() => setModalCrear(false)}
           onCreated={refetch}
+          canalInicial={unaSolaSede ? visibilidad.puntos[0].canal : ''}
         />
       )}
       {seleccionada && (

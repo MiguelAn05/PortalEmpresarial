@@ -23,6 +23,15 @@ class User(Base):
     rol = Column(String(40), nullable=False, default="agente")
     area = Column(String(100), nullable=True)  # ej: Comercial, Logística, HSEQ
 
+    # En qué punto de venta trabaja, por su PREFIJO (`PVG`, `PVC`…). Solo
+    # significa algo si `area == "Puntos de Venta"`: acota las PQRS que ve a
+    # las de su sede (ver `modules/pqrs/permisos.py`). Vacío en alguien del
+    # área = coordina todos los puntos y los ve todos.
+    #
+    # Se guarda el prefijo y no el nombre del canal porque el prefijo es lo
+    # que no cambia: está impreso en el QR pegado en el mostrador.
+    punto_venta = Column(String(10), nullable=True)
+
     activo = Column(Boolean, default=True, nullable=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 

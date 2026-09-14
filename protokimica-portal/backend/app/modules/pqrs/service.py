@@ -82,6 +82,67 @@ async def guardar_archivo(
     return f"/uploads/{subfolder}/{nombre_unico}"
 
 
+# Cómo se nombra cada campo en el mensaje de error: quien lo lee es quien
+# llenó el formulario, no quien conoce la tabla.
+NOMBRES_CAMPOS = {
+    "tipo": "Tipo",
+    "empresa": "Empresa / persona",
+    "nit_cedula": "NIT / cédula",
+    "cliente_nombre": "Nombre del contacto",
+    "cliente_email": "Correo",
+    "cliente_telefono": "Teléfono",
+    "ciudad": "Ciudad",
+    "departamento": "Departamento",
+    "producto_codigo": "Código de producto",
+    "producto_nombre": "Nombre del producto",
+    "presentacion": "Presentación",
+    "cantidad_presentacion": "Cantidad de la presentación",
+    "canal_atencion": "Canal de atención",
+    "lote": "Lote",
+    "factura_numero": "N.° de factura",
+    "cantidad_factura": "Cantidad en factura",
+    "cantidad_reclamo": "Cantidad en reclamo",
+    "area_responsable": "Área responsable",
+}
+
+
+def validar_largos(campos: dict) -> None:
+    """
+    Rechaza con un mensaje claro lo que no cabe en su columna.
+
+    Sin esto, un texto más largo que la columna llegaba hasta el `commit` y
+    Postgres respondía `value too long for type character varying(20)`: un
+    500 que la pantalla mostraba como «Error al crear la PQRS», sin decir
+    qué campo. Escribir «5 galones de 20 litros» en la cantidad bastaba para
+    no poder radicar. Las pruebas no lo veían porque SQLite no aplica el
+    largo de un VARCHAR.
+
+    El tope se lee de la COLUMNA del modelo, no de una lista aparte: así no
+    hay un segundo número que se quede atrás el día que la columna crezca.
+    Va antes de guardar los adjuntos, o cada rechazo dejaría archivos
+    huérfanos en /uploads.
+    """
+    # Import local: el modelo importa de `app.core`, y este módulo lo usan
+    # los routers; así no se crea un ciclo al arrancar.
+    from app.models.pqrs import PQRSSolicitud
+
+    columnas = PQRSSolicitud.__table__.columns
+    for campo, valor in campos.items():
+        if not isinstance(valor, str) or campo not in columnas:
+            continue
+        tope = getattr(columnas[campo].type, "length", None)
+        if tope and len(valor) > tope:
+            nombre = NOMBRES_CAMPOS.get(campo, campo)
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"«{nombre}» admite máximo {tope} caracteres y tiene "
+                    f"{len(valor)}. Acórtalo; si necesitas explicar más, "
+                    "escríbelo en la descripción."
+                ),
+            )
+
+
 def calcular_fecha_limite_sla(tipo: str, desde: datetime | None = None) -> datetime:
     """
     Fecha limite del SLA, en DIAS HABILES.

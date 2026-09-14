@@ -414,6 +414,24 @@ export const IconoClip = (p) => (
   </Icono>
 )
 
+// Corregir un dato ya guardado.
+export const IconoEditar = (p) => (
+  <Icono {...p}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+  </Icono>
+)
+
+// Quitar algo. Es una papelera y no una X porque la X ya significa «cerrar».
+export const IconoPapelera = (p) => (
+  <Icono {...p}>
+    <path d="M3 6h18" />
+    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6M14 11v6" />
+  </Icono>
+)
+
 export const IconoComentario = (p) => (
   <Icono {...p}>
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />

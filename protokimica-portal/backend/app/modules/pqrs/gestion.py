@@ -29,7 +29,9 @@ from app.models.pqrs import (
     PQRSAdjuntoSolucion, PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta,
 )
 from app.models.user import User
-from app.modules.pqrs.permisos import es_servicio_al_cliente, puede_cambiar_area
+from app.modules.pqrs.permisos import (
+    es_servicio_al_cliente, obtener_visible, puede_cambiar_area,
+)
 from app.modules.pqrs.notificaciones import (
     avisos_reasignacion, avisos_cierre, avisos_resuelta,
 )
@@ -185,13 +187,7 @@ def aplicar_gestion(
             ),
         )
 
-    solicitud = (
-        db.query(PQRSSolicitud)
-        .filter(PQRSSolicitud.id == pqrs_id, PQRSSolicitud.tenant_id == tenant_id)
-        .first()
-    )
-    if not solicitud:
-        raise HTTPException(status_code=404, detail="PQRS no encontrada.")
+    solicitud = obtener_visible(db, tenant_id, pqrs_id, usuario)
 
     _validar(db, solicitud, usuario, area, estado, solucion)
 
