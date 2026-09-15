@@ -606,6 +606,18 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   `LIMITES_RADICACION` de `modules/pqrs/constants.js`, que una prueba ata a
   `models/pqrs.py`. Todo endpoint que guarde texto libre en un `String(n)`
   necesita las dos cosas.
+- **Un arreglo solo en el servidor no arregla la pantalla.** La 0.19.4
+  anunció que filtrar proyectos por «cerrado»/«cancelado» ya funcionaba: el
+  endpoint ignora el archivo cuando recibe un estado terminal. Pero
+  `ProyectosView.jsx` nunca le mandaba el estado — pedía siempre
+  `archivados=false` y filtraba en el navegador —, así que la lista siguió
+  vacía y la prueba del backend pasaba igual. Ahora la consulta se arma con
+  `parametrosListaProyectos()` de `masterPlanner/constants.js`, y
+  `tests/filtroProyectos.test.mjs` verifica que la vista la use y que los
+  estados terminales coincidan con el modelo. En Mejora el mismo arreglo sí
+  estaba en la pantalla (`esEstadoTerminal()` en `Mejora.jsx`). **Cuando un
+  arreglo depende de un parámetro, hay que comprobar que la pantalla lo
+  manda**, no solo que el endpoint lo acepta.
 - **Dos migraciones el mismo día = Alembic con dos cabezas y el backend sin
   arrancar.** Pasa cuando dos personas crean su migración colgando del mismo
   padre; el síntoma es `Multiple head revisions are present` en bucle. Si tu

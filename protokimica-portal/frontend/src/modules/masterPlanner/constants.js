@@ -20,6 +20,28 @@ export const ESTADOS_PROYECTO = {
   cancelado:    { label: 'Cancelado',    color: 'bg-negativo-bg text-negativo' },
 }
 
+/**
+ * Los estados con los que un proyecto se archiva solo. ATADO a
+ * `ESTADOS_TERMINALES` de `backend/app/models/master_planner.py`.
+ */
+export const ESTADOS_TERMINALES = ['cerrado', 'cancelado']
+
+/**
+ * Qué se le pide al servidor para listar proyectos.
+ *
+ * Cerrar o cancelar un proyecto lo ARCHIVA, y la lista pide por defecto los
+ * no archivados. Si el estado se filtrara solo aquí, en el navegador, elegir
+ * «Cerrado» buscaría cerrados entre los no archivados y la lista saldría
+ * siempre vacía — que es lo que pasaba, aunque el servidor ya sabía resolverlo:
+ * cuando le llega un estado terminal, ignora el archivo. Por eso ese estado
+ * VIAJA en la consulta; no basta con filtrarlo después.
+ */
+export function parametrosListaProyectos({ estado, verArchivados }) {
+  return ESTADOS_TERMINALES.includes(estado)
+    ? { archivados: verArchivados, estado }
+    : { archivados: verArchivados }
+}
+
 export const PRIORIDADES = {
   baja:    { label: 'Baja',    color: 'bg-superficie-2 text-texto-2' },
   media:   { label: 'Media',   color: 'bg-info-bg text-info'         },

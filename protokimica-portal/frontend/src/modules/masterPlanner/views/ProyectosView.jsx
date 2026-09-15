@@ -2,7 +2,9 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import ProyectoCard from "../components/ProyectoCard"
 import { listarProyectos, archivarProyecto, eliminarProyecto } from "../api"
-import { ESTADOS_PROYECTO, AREAS, puedeEditar, perteneceAlArea } from "../constants"
+import {
+  ESTADOS_PROYECTO, AREAS, puedeEditar, perteneceAlArea, parametrosListaProyectos,
+} from "../constants"
 import { useAuth } from "../../../core/AuthContext"
 import { mensajeDeError } from '../../../core/errores.js'
 
@@ -16,9 +18,12 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
   const [verArchivados, setVerArchivados] = useState(false)
   const [error, setError] = useState(null)
 
+  // Un estado terminal viaja al servidor: esos proyectos están archivados y
+  // filtrarlos solo aquí daba siempre vacío. Ver `parametrosListaProyectos`.
+  const parametros = parametrosListaProyectos({ estado: filtros.estado, verArchivados })
   const { data: proyectos = [], isLoading } = useQuery({
-    queryKey: ["mp-proyectos", { archivados: verArchivados }],
-    queryFn: () => listarProyectos({ archivados: verArchivados }),
+    queryKey: ["mp-proyectos", parametros],
+    queryFn: () => listarProyectos(parametros),
   })
 
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ["mp-proyectos"] })
@@ -108,11 +113,13 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
       ) : visibles.length === 0 ? (
         <div className="bg-white rounded-2xl border border-dashed border-borde p-16 text-center">
           <p className="text-texto-2 mb-4">
-            {proyectos.length === 0
-              ? (verArchivados ? "No hay proyectos archivados." : "Todavía no hay proyectos creados.")
-              : "Ningún proyecto coincide con los filtros."}
+            {filtros.estado
+              ? `No hay proyectos en estado «${ESTADOS_PROYECTO[filtros.estado]?.label ?? filtros.estado}» con estos filtros.`
+              : proyectos.length === 0
+                ? (verArchivados ? "No hay proyectos archivados." : "Todavía no hay proyectos creados.")
+                : "Ningún proyecto coincide con los filtros."}
           </p>
-          {proyectos.length === 0 && !verArchivados && editable && (
+          {proyectos.length === 0 && !verArchivados && !filtros.estado && editable && (
             <button
               onClick={onNuevoProyecto}
               className="bg-ambar hover:bg-ambar-claro text-acento-fuerte font-semibold px-6 py-3 rounded-xl shadow-sm transition"
