@@ -249,6 +249,33 @@ def mp_proyectos_cerrados(db, tenant_id, anio, mes) -> Resultado:
     return Resultado(valor=cerrados, detalle=f"{cerrados} proyectos cerrados en el periodo")
 
 
+# ── Mejora ────────────────────────────────────────────────────
+
+# La clave con la que se reconoce el indicador en todo el portal: la usa el
+# botón que lo crea en cada área y el detector de «indicadores en rojo sin
+# OMP», que lo excluye para no pedir una OMP sobre la gestión de las OMP.
+CLAVE_GESTION_OMP = "mejora_gestion_omp"
+
+
+def mejora_gestion_omp(db, tenant_id, anio, mes, area) -> Resultado:
+    """
+    % de OMP del área que estuvieron al día en el mes. La regla completa, y
+    por qué se mide cada OMP viva y no solo las acciones del mes, está en
+    `modules/mejora/gestion.py`.
+    """
+    # Import local: `mejora` importa los modelos de indicadores, y cargarlo
+    # aquí arriba haría que los dos módulos se necesitaran al arrancar.
+    from app.modules.mejora import gestion
+
+    al_dia, total, detalle = gestion.resumir(gestion.evaluar_mes(db, tenant_id, area, anio, mes))
+    if not total:
+        return Resultado(valor=None, numerador=0, denominador=0, detalle=detalle)
+    return Resultado(
+        valor=round(al_dia / total * 100, 2),
+        numerador=al_dia, denominador=total, detalle=detalle,
+    )
+
+
 # ── Catálogo ──────────────────────────────────────────────────
 # Lo que se ofrece en el desplegable al crear un indicador automático.
 # `unidad` y `direccion` son los valores por defecto sugeridos; quien crea el
@@ -331,6 +358,18 @@ CATALOGO = {
         "descripcion": "Proyectos que se dieron por terminados en el periodo.",
         "formula": "Conteo de proyectos con fecha de cierre real dentro del mes",
         "unidad": "cantidad", "direccion": "arriba", "fn": mp_proyectos_cerrados,
+    },
+    CLAVE_GESTION_OMP: {
+        "nombre": "Gestión de OMP",
+        "modulo": "Mejora",
+        "descripcion": (
+            "Qué tanto lleva el área al día sus oportunidades de mejora: plan "
+            "cumplido en su fecha original, avances cada mes y sin pasarse del plazo."
+        ),
+        "formula": "(OMP del área al día en el mes ÷ OMP del área abiertas en el mes) × 100",
+        "unidad": "porcentaje", "direccion": "arriba", "fn": mejora_gestion_omp,
+        # Se calcula con las OMP del área del indicador, no de toda la empresa.
+        "por_area": True,
     },
 }
 
@@ -435,7 +474,13 @@ def _partir_clave_encuesta(clave: str) -> tuple[str, str] | None:
     return partes[1], partes[2]
 
 
-def calcular(clave: str, db: Session, tenant_id: int, anio: int, mes: int) -> Resultado:
+def es_por_area(clave: str | None) -> bool:
+    """¿La fuente se calcula con los datos del área del indicador?"""
+    return bool(CATALOGO.get(clave or "", {}).get("por_area"))
+
+
+def calcular(clave: str, db: Session, tenant_id: int, anio: int, mes: int,
+             area: str | None = None) -> Resultado:
     encuesta = _partir_clave_encuesta(clave)
     if encuesta:
         slug, metrica = encuesta
@@ -450,6 +495,12 @@ def calcular(clave: str, db: Session, tenant_id: int, anio: int, mes: int) -> Re
     fuente = CATALOGO.get(clave)
     if not fuente:
         raise ValueError(f"No existe la fuente automática '{clave}'.")
+    if fuente.get("por_area"):
+        if not area:
+            raise ValueError(
+                f"«{fuente['nombre']}» se calcula por área: asígnale un área al indicador."
+            )
+        return fuente["fn"](db, tenant_id, anio, mes, area)
     return fuente["fn"](db, tenant_id, anio, mes)
 
 

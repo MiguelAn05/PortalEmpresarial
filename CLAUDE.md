@@ -340,6 +340,34 @@ se abrió por error.
 **un indicador en rojo sin OMP abierta es un problema que nadie está
 trabajando.**
 
+**«Gestión de OMP»: el indicador que mide al propio módulo.** Uno por área,
+automático (fuente `mejora_gestion_omp`), creado con el botón «Gestión de OMP
+en las áreas» de Indicadores (`POST /indicadores/gestion-omp/crear-en-areas`,
+solo quien ve toda la empresa; no duplica). Una OMP es texto y el texto no se
+califica: **se miden los hechos que deja la gestión.** La regla vive en
+`modules/mejora/gestion.py`:
+
+- **Se evalúa cada OMP viva, todos los meses que está abierta** — no las
+  acciones que vencen en el mes. Medir solo eso dejaba ciega a una OMP de un
+  año con una acción al final. «Viva» sale del historial de estados
+  (`omp_historial`, campo «Estado»), así los meses en que estuvo descartada
+  no se le cobran.
+- Está **al día** si: (1) no tiene acciones vencidas ni cumplidas tarde ese
+  mes, **contra `fecha_limite_original`** (aplazar se permite pero no mejora
+  el indicador; la original se fija la primera vez que la acción tiene fecha y
+  no se vuelve a tocar); (2) tuvo **algún avance** en el mes —seguimiento,
+  cambio de etapa, acción cumplida o creada—, salvo si se registró a menos de
+  15 días del corte o el mes aún no termina; (3) no pasó su fecha estimada de
+  solución estando abierta.
+- Valor = al día ÷ vivas × 100, guardando los dos números. Sin OMP vivas es
+  «sin dato». El análisis del mes **nombra las atrasadas y el motivo**: es lo
+  que permite auditar el número.
+- Queda **fuera de `indicadores_en_rojo_sin_omp()`**: pedir una OMP sobre la
+  gestión de las OMP sería un círculo.
+- Las fuentes automáticas pueden ser **por área** (`"por_area": True` en el
+  `CATALOGO` de `indicadores/fuentes.py`): reciben el área del indicador, y
+  crear o editar uno sin área responde 400.
+
 **Visibilidad por participación (Master Planner; PQRS tiene la suya por
 punto de venta, ver arriba):** ves un proyecto si
 **lo lideras** o si **tienes una tarea asignada** dentro. Nada más. Ser del

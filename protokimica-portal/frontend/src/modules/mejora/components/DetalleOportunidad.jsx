@@ -13,7 +13,7 @@ import {
 import {
   CAMPOS_6M, CICLO, ESTADOS, ESTADOS_ACCION, MAX_ACCION, MAX_SEGUIMIENTO,
   MAX_TEXTO_LARGO, estaCerrada, loQueFaltaPara, resumen6M, siguienteEstado,
-  textoDeAvance,
+  textoDeAvance, textoFechaAccion,
 } from '../constants.js'
 import { mensajeDeError } from '../../../core/errores.js'
 
@@ -764,6 +764,7 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
                               contraste mínimo sobre blanco. */}
                           {estadoAccion.label}
                           {a.responsable_nombre && ` · ${a.responsable_nombre}`}
+                          {textoFechaAccion(a) && ` · ${textoFechaAccion(a)}`}
                         </span>
                       </span>
                       {editable && (

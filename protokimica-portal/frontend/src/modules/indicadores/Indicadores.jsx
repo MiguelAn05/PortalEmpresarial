@@ -5,6 +5,7 @@ import ComoVamos from "./components/ComoVamos"
 import IndicadorDetalle from "./components/IndicadorDetalle"
 import { useAbrirDesdeUrl } from "../../core/abrirDesdeUrl.js"
 import FormIndicador from "./components/FormIndicador"
+import GestionOmpEnAreas from "./components/GestionOmpEnAreas"
 import { BarrasPorArea, ChipSemaforo } from "./components/Graficas"
 import { obtenerTablero, recalcularPeriodo } from "./api"
 import { listarUsuariosAsignables } from "../masterPlanner/api"
@@ -77,6 +78,7 @@ export default function Indicadores() {
           )}
           {editable && (
             <>
+              <GestionOmpEnAreas />
               <button
                 onClick={() => mutRecalcular.mutate()}
                 disabled={mutRecalcular.isPending}

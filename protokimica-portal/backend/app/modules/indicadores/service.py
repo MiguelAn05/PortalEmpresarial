@@ -295,7 +295,8 @@ def calcular_automatico(db: Session, indicador: Indicador, tenant_id: int,
     Recalcula y guarda el valor de un indicador automático. Es idempotente:
     volver a calcular el mismo mes actualiza el registro, no crea otro.
     """
-    resultado = fuentes.calcular(indicador.fuente_automatica, db, tenant_id, anio, mes)
+    resultado = fuentes.calcular(indicador.fuente_automatica, db, tenant_id, anio, mes,
+                                 area=indicador.area)
 
     medicion = (
         db.query(Medicion)

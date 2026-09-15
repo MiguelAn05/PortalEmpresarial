@@ -18,7 +18,7 @@ def test_indicadores(entorno, v):
     # ── Catalogo y rutas ──
     r = portal.get("/indicadores/catalogo")
     v.check("el catalogo responde 200", r.status_code == 200, r.text[:100])
-    v.check("trae las 11 fuentes", len(r.json()) == 11, len(r.json()))
+    v.check("trae las 12 fuentes", len(r.json()) == 12, len(r.json()))
     v.check("/catalogo no lo captura /{id}", r.status_code != 422)
     v.check("/tablero tampoco", portal.get("/indicadores/tablero").status_code == 200)
 

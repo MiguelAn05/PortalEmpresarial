@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.28.1"
+VERSION = "0.29.0"
 FECHA = "2026-09-15"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,23 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.29.0",
+        "fecha": "2026-09-15",
+        "titulo": "Gestión de OMP se mide sola en cada área",
+        "cambios": [
+            ("nuevo", "Nuevo indicador automático «Gestión de OMP»: cada mes "
+                      "dice qué parte de las OMP del área estuvo al día — sin "
+                      "acciones vencidas, con algún avance en el mes y sin "
+                      "pasarse de la fecha estimada. Su análisis nombra las "
+                      "que quedaron atrasadas y por qué."),
+            ("nuevo", "Desde Indicadores, un botón lo crea en todas las áreas "
+                      "que todavía no lo tienen."),
+            ("mejora", "Las acciones del plan de una OMP muestran su fecha, y "
+                       "si se aplazó, cuál era la fecha comprometida: contra "
+                       "esa se mide si se cumplió a tiempo."),
+        ],
+    },
     {
         "version": "0.28.1",
         "fecha": "2026-09-15",

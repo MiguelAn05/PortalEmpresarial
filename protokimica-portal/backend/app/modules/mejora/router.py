@@ -647,6 +647,9 @@ def agregar_accion(
         datos["orden"] = max((a.orden for a in oportunidad.acciones), default=0) + 1
 
     accion = AccionMejora(omp_id=oportunidad.id, **datos)
+    # La fecha con la que nace es la comprometida. Aplazarla después no la
+    # cambia: ver `AccionMejora.fecha_limite_original`.
+    accion.fecha_limite_original = accion.fecha_limite
     db.add(accion)
     db.commit()
     db.refresh(accion)
@@ -692,6 +695,10 @@ def actualizar_accion(
 
     for campo, valor in datos.items():
         setattr(accion, campo, valor)
+    # Una acción que nació sin fecha toma como original la primera que se le
+    # pone. Las siguientes son aplazamientos y no la mueven.
+    if accion.fecha_limite_original is None and accion.fecha_limite is not None:
+        accion.fecha_limite_original = accion.fecha_limite
 
     db.commit()
     db.refresh(accion)

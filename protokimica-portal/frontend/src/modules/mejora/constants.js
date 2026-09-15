@@ -242,6 +242,27 @@ export function resumen6M(omp) {
  *
  * Si alguno se amplía en `modules/mejora/schemas.py`, hay que subirlo aquí.
  */
+const fechaCorta = (iso) => new Date(iso).toLocaleDateString('es-CO', {
+  day: 'numeric', month: 'short', timeZone: 'UTC',
+})
+
+/**
+ * La fecha de una acción del plan, dicha como se lee.
+ *
+ * Si se aplazó se dice contra cuál se mide: el indicador «Gestión de OMP»
+ * cuenta la fecha ORIGINAL, y quien ve «vence 30 sep» sin más no entiende
+ * por qué su área quedó atrasada en agosto. `aplazada` la resuelve el
+ * servidor.
+ */
+export function textoFechaAccion(accion) {
+  if (!accion?.fecha_limite) return null
+  const vigente = `para el ${fechaCorta(accion.fecha_limite)}`
+  if (accion.aplazada && accion.fecha_limite_original) {
+    return `${vigente} · aplazada, comprometida para el ${fechaCorta(accion.fecha_limite_original)}`
+  }
+  return vigente
+}
+
 export const MAX_ACCION = 300
 export const MAX_TITULO = 200
 export const MAX_TEXTO_LARGO = 4000

@@ -420,6 +420,12 @@ class AccionMejora(Base):
     responsable_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     fecha_limite = Column(DateTime(timezone=True), nullable=True)
 
+    # La PRIMERA fecha que se comprometió. Aplazar está permitido y se ve en
+    # `fecha_limite`, pero el indicador «Gestión de OMP» mide contra esta: si
+    # midiera contra la vigente, bastaría con correr la fecha para cumplir.
+    # Se fija la primera vez que la acción tiene fecha y no se vuelve a tocar.
+    fecha_limite_original = Column(DateTime(timezone=True), nullable=True)
+
     # Tres estados y no un booleano: «en curso» es la respuesta honesta a
     # «¿ya?» durante la mayor parte de la vida de una tarea, y sin ella la
     # gente marca cumplido antes de tiempo para que el avance se mueva.
@@ -437,6 +443,13 @@ class AccionMejora(Base):
     @property
     def responsable_nombre(self):
         return self.responsable.nombre if self.responsable else None
+
+    @property
+    def aplazada(self) -> bool:
+        """La fecha vigente quedó después de la que se comprometió primero."""
+        if not self.fecha_limite or not self.fecha_limite_original:
+            return False
+        return self.fecha_limite.date() > self.fecha_limite_original.date()
 
     @property
     def completada(self) -> bool:

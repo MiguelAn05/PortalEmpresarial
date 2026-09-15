@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.areas import AREAS
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
 from app.core.modulos import requiere_modulo, ve_todos_los_indicadores
@@ -46,6 +47,18 @@ def _get_indicador_o_404(
     ):
         raise HTTPException(status_code=404, detail="Indicador no encontrado.")
     return indicador
+
+
+def _exigir_area_si_es_por_area(fuente: str | None, area: str | None) -> None:
+    """Una fuente por área sin área no tiene con qué calcular: se dice al guardar, no meses después."""
+    if fuentes.es_por_area(fuente) and not area:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Este indicador se calcula con los datos de un área: elige el área "
+                "antes de guardarlo."
+            ),
+        )
 
 
 def _validar_periodo(anio: int, mes: int) -> None:
@@ -102,6 +115,84 @@ def probar_formula(
                                 resultado=formulas.evaluar(payload.formula, valores))
     except formulas.DivisionPorCero:
         return FormulaResultado(valida=True, legible=legible, divide_por_cero=True)
+
+
+# ── Gestión de OMP en cada área ─────────────────────────────────
+#
+# El indicador «Gestión de OMP» es uno por área, todos iguales salvo el área.
+# Crearlos uno por uno con 21 áreas es la forma de que siempre falte alguno,
+# así que hay un botón que crea los que falten. Van antes que `/{indicador_id}`.
+
+NOMBRE_GESTION_OMP = "Gestión de OMP"
+# Meta sugerida al crearlos; cada área la ajusta después en su ficha.
+META_GESTION_OMP = {"meta": 80, "umbral_verde": 80, "umbral_amarillo": 60}
+
+
+def _areas_con_gestion_omp(db: Session, tenant_id: int) -> set[str]:
+    """Las áreas que ya lo tienen, activo o no: uno desactivado también cuenta."""
+    return {
+        area for (area,) in db.query(Indicador.area).filter(
+            Indicador.tenant_id == tenant_id,
+            Indicador.fuente_automatica == fuentes.CLAVE_GESTION_OMP,
+        ).all() if area
+    }
+
+
+def _exigir_ver_toda_la_empresa(usuario: User) -> None:
+    if not ve_todos_los_indicadores(usuario):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Crear el indicador en todas las áreas es de un administrador. "
+                "Para tu área, créalo como cualquier indicador automático."
+            ),
+        )
+
+
+@router.get("/gestion-omp")
+def estado_gestion_omp(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(requiere_modulo("indicadores")),
+):
+    """En qué áreas falta el indicador, para decirlo antes de crearlo."""
+    _exigir_ver_toda_la_empresa(current_user)
+    existentes = _areas_con_gestion_omp(db, tenant_id)
+    return {
+        "faltantes": [a for a in AREAS if a not in existentes],
+        "existentes": sorted(existentes),
+    }
+
+
+@router.post("/gestion-omp/crear-en-areas")
+def crear_gestion_omp_en_areas(
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(solo_lectura_no),
+    current_user: User = Depends(requiere_modulo("indicadores")),
+):
+    """
+    Crea «Gestión de OMP» en las áreas que no lo tienen. Pulsarlo dos veces
+    no duplica: las que ya lo tienen se saltan, incluso si está desactivado
+    — reactivarlo es decisión de esa área, no de este botón.
+    """
+    _exigir_ver_toda_la_empresa(current_user)
+    existentes = _areas_con_gestion_omp(db, tenant_id)
+    cfg = fuentes.CATALOGO[fuentes.CLAVE_GESTION_OMP]
+    creados = []
+    for area in AREAS:
+        if area in existentes:
+            continue
+        db.add(Indicador(
+            tenant_id=tenant_id, nombre=NOMBRE_GESTION_OMP, area=area,
+            descripcion=cfg["descripcion"], formula_texto=cfg["formula"],
+            unidad=cfg["unidad"], direccion=cfg["direccion"],
+            tipo_captura="automatico", fuente_automatica=fuentes.CLAVE_GESTION_OMP,
+            **META_GESTION_OMP,
+        ))
+        creados.append(area)
+    db.commit()
+    return {"creados": creados, "ya_tenian": sorted(existentes)}
 
 
 @router.get("/tablero")
@@ -253,6 +344,7 @@ def crear_indicador(
                 status_code=400,
                 detail=f"La fuente '{payload.fuente_automatica}' no existe en el catálogo.",
             )
+        _exigir_area_si_es_por_area(payload.fuente_automatica, payload.area)
 
     datos = payload.model_dump(exclude={"variables", "formula"})
     indicador = Indicador(tenant_id=tenant_id, **datos)
@@ -305,6 +397,8 @@ def actualizar_indicador(
             status_code=400,
             detail="Un indicador automático necesita una fuente válida del catálogo.",
         )
+    if captura == "automatico":
+        _exigir_area_si_es_por_area(fuente, cambios.get("area", indicador.area))
 
     formula = cambios.pop("formula", None)
     variables = cambios.pop("variables", None)

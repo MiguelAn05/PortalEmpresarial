@@ -563,6 +563,21 @@ def indicadores_en_rojo_sin_omp(db: Session, tenant_id: int,
     if not ids_en_rojo:
         return []
 
+    # «Gestión de OMP» en rojo no pide una OMP: sería abrir una oportunidad
+    # de mejora sobre la gestión de las oportunidades de mejora, que se
+    # atrasaría a su vez. Ese rojo se atiende poniendo al día las atrasadas,
+    # que su propio análisis nombra una por una.
+    from app.modules.indicadores.fuentes import CLAVE_GESTION_OMP
+    de_gestion = {
+        i for (i,) in db.query(Indicador.id).filter(
+            Indicador.id.in_(ids_en_rojo),
+            Indicador.fuente_automatica == CLAVE_GESTION_OMP,
+        ).all()
+    }
+    ids_en_rojo = [i for i in ids_en_rojo if i not in de_gestion]
+    if not ids_en_rojo:
+        return []
+
     con_omp = (
         db.query(Oportunidad.indicador_id)
         .filter(Oportunidad.tenant_id == tenant_id,

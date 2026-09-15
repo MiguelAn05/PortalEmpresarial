@@ -103,6 +103,9 @@ class AccionOut(BaseModel):
     responsable_id: int | None
     responsable_nombre: str | None
     fecha_limite: datetime | None
+    # La primera fecha comprometida: contra esta mide «Gestión de OMP».
+    fecha_limite_original: datetime | None = None
+    aplazada: bool = False
     estado: str
     completada: bool
     fecha_completada: datetime | None

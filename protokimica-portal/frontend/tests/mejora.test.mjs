@@ -4,6 +4,7 @@
 import {
   CICLO, ESTADOS, ESTADOS_ACCION, CAMPOS_6M, TRATAMIENTOS, estaCerrada,
   siguienteEstado, loQueFaltaPara, textoDeAvance, estadoDelPlazo, resumen6M,
+  textoFechaAccion,
 } from '../src/modules/mejora/constants.js'
 
 let fallos = []
@@ -125,6 +126,16 @@ check('cerrada esta cerrada', estaCerrada({ estado: 'cerrada' }) === true)
 check('descartada tambien', estaCerrada({ estado: 'descartada' }) === true)
 check('en ejecucion no', estaCerrada({ estado: 'ejecucion' }) === false)
 check('sin datos no revienta', estaCerrada(null) === false)
+
+console.log('\n== Fecha de las acciones ==')
+check('sin fecha, nada', textoFechaAccion({ fecha_limite: null }) === null)
+check('con fecha, la dice',
+  /^para el 10 (de )?ago/.test(textoFechaAccion({ fecha_limite: '2026-08-10T00:00:00Z' })),
+  textoFechaAccion({ fecha_limite: '2026-08-10T00:00:00Z' }))
+const aplazada = textoFechaAccion({
+  fecha_limite: '2026-09-30T00:00:00Z', fecha_limite_original: '2026-08-10T00:00:00Z', aplazada: true,
+})
+check('aplazada dice contra cuál se mide', /aplazada, comprometida para el 10 (de )?ago/.test(aplazada), aplazada)
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

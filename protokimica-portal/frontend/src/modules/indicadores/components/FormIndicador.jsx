@@ -110,7 +110,11 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
     onError: (e) => setError(mensajeDeError(e, "No se pudo guardar el indicador.")),
   })
 
-  const completo = form.nombre && (!esAutomatico || form.fuente_automatica)
+  // Una fuente que se calcula con los datos de un área no sirve sin área. Lo
+  // dice el catálogo del servidor (`por_area`), no una lista aquí.
+  const fuenteElegida = catalogo.find(c => c.clave === form.fuente_automatica)
+  const faltaArea = esAutomatico && fuenteElegida?.por_area && !form.area
+  const completo = form.nombre && (!esAutomatico || form.fuente_automatica) && !faltaArea
     && (!esFormula || (form.formula.trim() && form.variables.length > 0
       && form.variables.every(v => v.etiqueta.trim())))
   const comparador = form.direccion === "arriba" ? "≥" : "≤"
@@ -158,7 +162,7 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
                   onChange={(e) => elegirFuente(e.target.value)}
                   className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
                   <option value="">Elige una fuente...</option>
-                  {['PQRS', 'Master Planner'].map(modulo => (
+                  {['PQRS', 'Master Planner', 'Mejora'].map(modulo => (
                     <optgroup key={modulo} label={modulo}>
                       {catalogo.filter(c => c.modulo === modulo).map(c => (
                         <option key={c.clave} value={c.clave}>{c.nombre}</option>
@@ -209,6 +213,12 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
                   unidad={form.unidad}
                   onCambiar={({ formula, variables }) => setForm({ ...form, formula, variables })}
                 />
+              )}
+
+              {faltaArea && (
+                <p className="text-xs text-alerta bg-alerta-bg border border-ambar/30 rounded-lg px-3 py-2">
+                  «{fuenteElegida.nombre}» se calcula con los datos de un área: elige el área abajo.
+                </p>
               )}
 
               <div className="grid grid-cols-3 gap-3">

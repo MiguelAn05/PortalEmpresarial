@@ -61,3 +61,12 @@ export const listarHistorial = (id) =>
  */
 export const probarFormula = (formula, variables, valores = {}) =>
   api.post('/indicadores/formula/probar', { formula, variables, valores }).then(r => r.data)
+
+// ── Gestión de OMP en cada área ───────────────────────────────
+/** En qué áreas falta «Gestión de OMP». Responde 403 a quien no puede crearlo. */
+export const obtenerGestionOmp = () =>
+  api.get('/indicadores/gestion-omp').then(r => r.data)
+
+/** Crea «Gestión de OMP» en las áreas que no lo tienen. No duplica. */
+export const crearGestionOmpEnAreas = () =>
+  api.post('/indicadores/gestion-omp/crear-en-areas').then(r => r.data)

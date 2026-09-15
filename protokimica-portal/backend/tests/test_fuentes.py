@@ -113,7 +113,9 @@ def test_fuentes_automaticas(entorno, v):
 
     for clave in fuentes.CATALOGO:
         try:
-            res = fuentes.calcular(clave, db, tenant_id, ANIO, MES)
+            # Las fuentes por área necesitan un área; las demás la ignoran.
+            area = "Calidad" if fuentes.es_por_area(clave) else None
+            res = fuentes.calcular(clave, db, tenant_id, ANIO, MES, area=area)
             ok = isinstance(res, fuentes.Resultado)
         except Exception as e:
             ok = False
