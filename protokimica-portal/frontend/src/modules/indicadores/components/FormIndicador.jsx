@@ -7,13 +7,13 @@ import { AREAS } from "../../../core/areas.js"
 import { tieneDatos } from "../../../core/components/tieneDatos"
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../../core/errores.js'
-
-
+import ConstructorFormula from './ConstructorFormula'
 
 const VACIO = {
   nombre: "", descripcion: "", formula_texto: "",
   unidad: "porcentaje", tipo_captura: "razon", fuente_automatica: "",
   etiqueta_numerador: "", etiqueta_denominador: "",
+  formula: "", variables: [],
   area: "", responsable_id: "",
   meta: "", direccion: "arriba", umbral_verde: "", umbral_amarillo: "",
   requiere_evidencia: false,
@@ -21,9 +21,12 @@ const VACIO = {
 
 function aFormulario(ind) {
   if (!ind) return VACIO
-  return Object.fromEntries(
+  const form = Object.fromEntries(
     Object.entries(VACIO).map(([k, def]) => [k, ind[k] ?? def]),
   )
+  // Solo letra y etiqueta: lo demás que traiga la ficha no se reenvía.
+  form.variables = (ind.variables ?? []).map(({ letra, etiqueta }) => ({ letra, etiqueta }))
+  return form
 }
 
 /**
@@ -42,12 +45,29 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
     queryFn: obtenerCatalogo,
   })
 
+  // `tieneDatos` compara las listas por largo; renombrar una variable no
+  // cambia el largo y se perdería al cerrar, así que se comparan aparte.
   const hayCambios = tieneDatos(form, aFormulario(indicador))
+    || JSON.stringify(form.variables) !== JSON.stringify(aFormulario(indicador).variables)
   const { intentarCerrar, dialogoDescarte } = useCierreSeguro({ hayCambios, onCerrar: onCerrar })
 
   const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
   const esAutomatico = form.tipo_captura === "automatico"
   const esRazon = form.tipo_captura === "razon"
+  const esFormula = form.tipo_captura === "formula"
+
+  // Un indicador de fórmula que empieza vacío arranca con dos variables: casi
+  // todas las fórmulas reales tienen al menos dos, y una pantalla en blanco no
+  // dice por dónde empezar.
+  const elegirCaptura = (e) => {
+    const tipo = e.target.value
+    const arrancar = tipo === "formula" && form.variables.length === 0
+    setForm({
+      ...form,
+      tipo_captura: tipo,
+      ...(arrancar ? { variables: [{ letra: "A", etiqueta: "" }, { letra: "B", etiqueta: "" }] } : {}),
+    })
+  }
 
   /** Elegir una fuente del catálogo rellena nombre, fórmula y unidad sugeridos. */
   const elegirFuente = (clave) => {
@@ -75,6 +95,10 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
         umbral_amarillo: numero(form.umbral_amarillo),
         area: form.area || null,
         fuente_automatica: esAutomatico ? form.fuente_automatica : null,
+        formula: esFormula ? form.formula : null,
+        variables: esFormula
+          ? form.variables.map(v => ({ letra: v.letra, etiqueta: v.etiqueta.trim() }))
+          : [],
       }
       return indicador ? actualizarIndicador(indicador.id, payload) : crearIndicador(payload)
     },
@@ -87,6 +111,8 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
   })
 
   const completo = form.nombre && (!esAutomatico || form.fuente_automatica)
+    && (!esFormula || (form.formula.trim() && form.variables.length > 0
+      && form.variables.every(v => v.etiqueta.trim())))
   const comparador = form.direccion === "arriba" ? "≥" : "≤"
 
   return (
@@ -113,7 +139,7 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
                   }`}>
                   <input type="radio" name="tipo_captura" value={valor}
                     checked={form.tipo_captura === valor}
-                    onChange={set('tipo_captura')}
+                    onChange={elegirCaptura}
                     className="mt-0.5 accent-acento" />
                   <div>
                     <p className="text-sm font-semibold text-acento-fuerte">{cfg.label}</p>
@@ -161,15 +187,29 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
                   placeholder="Qué tanto respondemos dentro del plazo comprometido"
                   className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Fórmula</label>
-                <textarea value={form.formula_texto} onChange={set('formula_texto')} rows={2}
-                  disabled={esAutomatico}
-                  placeholder="(PQRS cerradas a tiempo ÷ PQRS cerradas) × 100"
-                  className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none disabled:bg-superficie-2 disabled:text-texto-2" />
-              </div>
+              {/* En un indicador de fórmula, la fórmula es la que se arma
+                  abajo y se dice en palabras sola: un texto aparte terminaría
+                  describiendo una cuenta distinta de la que se calcula. */}
+              {!esFormula && (
+                <div>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Fórmula</label>
+                  <textarea value={form.formula_texto} onChange={set('formula_texto')} rows={2}
+                    disabled={esAutomatico}
+                    placeholder="(PQRS cerradas a tiempo ÷ PQRS cerradas) × 100"
+                    className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none disabled:bg-superficie-2 disabled:text-texto-2" />
+                </div>
+              )}
 
               {esRazon && <CamposDeLaDivision form={form} set={set} />}
+
+              {esFormula && (
+                <ConstructorFormula
+                  formula={form.formula}
+                  variables={form.variables}
+                  unidad={form.unidad}
+                  onCambiar={({ formula, variables }) => setForm({ ...form, formula, variables })}
+                />
+              )}
 
               <div className="grid grid-cols-3 gap-3">
                 <div>

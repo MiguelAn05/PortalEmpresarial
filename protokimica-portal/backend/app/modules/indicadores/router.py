@@ -5,6 +5,7 @@ Reutiliza `guardar_archivo` de PQRS para la evidencia y las dependencias de
 permisos del core: `gerencia` consulta todo el tablero pero no registra ni
 configura nada, igual que en el resto del portal.
 """
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -13,12 +14,16 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
 from app.core.modulos import requiere_modulo, ve_todos_los_indicadores
-from app.models.indicadores import Indicador, Medicion, HistorialMedicion
+from app.models.indicadores import (
+    Indicador, Medicion, HistorialMedicion, ValorVariable, VariableIndicador,
+)
 from app.models.user import User
+from app.modules.indicadores import formula as formulas
 from app.modules.indicadores import fuentes, service
 from app.modules.indicadores.como_vamos import construir_como_vamos
 from app.modules.indicadores.schemas import (
-    IndicadorCreate, IndicadorUpdate, IndicadorOut, MedicionOut, HistorialOut,
+    FormulaPrueba, FormulaResultado, IndicadorCreate, IndicadorUpdate, IndicadorOut,
+    MedicionOut, HistorialOut,
 )
 from app.modules.pqrs.service import guardar_archivo
 
@@ -66,6 +71,37 @@ def catalogo_automatico(
     de antemano porque se crean desde la interfaz, así que se leen de la base.
     """
     return fuentes.catalogo_publico(db, tenant_id)
+
+
+@router.post("/formula/probar", response_model=FormulaResultado)
+def probar_formula(
+    payload: FormulaPrueba,
+    _: User = Depends(requiere_modulo("indicadores")),
+):
+    """
+    Valida una fórmula a medio armar, la dice en palabras y, si vienen
+    valores, la calcula.
+
+    La pantalla la usa mientras se arma el indicador y mientras se digita un
+    mes, para que el resultado que se ve sea el que calcula el servidor. No
+    guarda nada. Va antes que `/{indicador_id}`.
+    """
+    letras = [v.letra.upper() for v in payload.variables]
+    etiquetas = {v.letra.upper(): v.etiqueta for v in payload.variables}
+    try:
+        formulas.validar(payload.formula, letras)
+        legible = formulas.legible(payload.formula, etiquetas)
+    except formulas.ErrorFormula as e:
+        return FormulaResultado(valida=False, error=str(e))
+
+    valores = {k.upper(): v for k, v in payload.valores.items() if v is not None}
+    if not set(letras) <= set(valores):
+        return FormulaResultado(valida=True, legible=legible)
+    try:
+        return FormulaResultado(valida=True, legible=legible,
+                                resultado=formulas.evaluar(payload.formula, valores))
+    except formulas.DivisionPorCero:
+        return FormulaResultado(valida=True, legible=legible, divide_por_cero=True)
 
 
 @router.get("/tablero")
@@ -218,7 +254,14 @@ def crear_indicador(
                 detail=f"La fuente '{payload.fuente_automatica}' no existe en el catálogo.",
             )
 
-    indicador = Indicador(tenant_id=tenant_id, **payload.model_dump())
+    datos = payload.model_dump(exclude={"variables", "formula"})
+    indicador = Indicador(tenant_id=tenant_id, **datos)
+    if payload.tipo_captura == "formula":
+        formula, variables = service.preparar_formula(
+            payload.formula, [v.model_dump() for v in payload.variables],
+        )
+        indicador.formula = formula
+        indicador.variables = [VariableIndicador(**v) for v in variables]
     db.add(indicador)
     db.commit()
     db.refresh(indicador)
@@ -263,8 +306,35 @@ def actualizar_indicador(
             detail="Un indicador automático necesita una fuente válida del catálogo.",
         )
 
+    formula = cambios.pop("formula", None)
+    variables = cambios.pop("variables", None)
+    tenia_formula = indicador.tipo_captura == "formula"
+    va_con_formula = captura == "formula"
+
+    # Pasar a fórmula o dejar de serlo con meses ya registrados dejaría esos
+    # meses con números que la nueva forma de captura no sabe leer.
+    if tenia_formula != va_con_formula and indicador.mediciones:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Este indicador ya tiene {len(indicador.mediciones)} mes(es) registrados, "
+                "así que no se puede cambiar entre fórmula y otra forma de captura. "
+                "Crea un indicador nuevo con la forma correcta y desactiva este."
+            ),
+        )
+
     for campo, valor in cambios.items():
         setattr(indicador, campo, valor)
+
+    if va_con_formula:
+        service.aplicar_formula(
+            db, indicador, formula,
+            [v for v in variables] if variables is not None else None,
+            current_user.id,
+        )
+    elif tenia_formula:
+        indicador.formula = None
+        indicador.variables = []
     db.commit()
     db.refresh(indicador)
     return indicador
@@ -312,6 +382,10 @@ def eliminar_indicador(
         db.query(HistorialMedicion).filter(
             HistorialMedicion.indicador_id == indicador_id
         ).delete(synchronize_session=False)
+        ids_mediciones = db.query(Medicion.id).filter(Medicion.indicador_id == indicador_id)
+        db.query(ValorVariable).filter(
+            ValorVariable.medicion_id.in_(ids_mediciones)
+        ).delete(synchronize_session=False)
         db.query(Medicion).filter(
             Medicion.indicador_id == indicador_id
         ).delete(synchronize_session=False)
@@ -331,6 +405,8 @@ async def registrar_medicion(
     valor: float | None = Form(None),
     numerador: float | None = Form(None),
     denominador: float | None = Form(None),
+    # Indicadores de fórmula: {"A": 45, "B": 50}, en JSON.
+    variables: str | None = Form(None),
     analisis: str = Form(...),
     motivo: str | None = Form(None),
     evidencia: UploadFile | None = File(None),
@@ -359,7 +435,20 @@ async def registrar_medicion(
             detail="Este indicador se calcula solo. Usa 'Recalcular' en vez de registrarlo a mano.",
         )
 
-    if indicador.tipo_captura == "razon":
+    valores_variables = None
+    if indicador.tipo_captura == "formula":
+        try:
+            recibidos = json.loads(variables) if variables else {}
+        except ValueError:
+            recibidos = None
+        if not isinstance(recibidos, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="No se entendieron los valores de las variables. Recarga la página e inténtalo de nuevo.",
+            )
+        valor, valores_variables = service.valor_por_formula(indicador, recibidos)
+        numerador = denominador = None
+    elif indicador.tipo_captura == "razon":
         if numerador is None or denominador is None:
             raise HTTPException(
                 status_code=400,
@@ -407,6 +496,8 @@ async def registrar_medicion(
     medicion.valor = valor
     medicion.numerador = numerador
     medicion.denominador = denominador
+    if valores_variables is not None:
+        service.guardar_variables(medicion, valores_variables)
     medicion.analisis = analisis
     medicion.registrado_por = current_user.id
     medicion.registrado_en = datetime.now(timezone.utc)

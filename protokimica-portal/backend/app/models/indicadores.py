@@ -22,7 +22,9 @@ from app.core.database import Base
 #   automatico → lo calcula el sistema desde PQRS o Master Planner
 #   valor      → alguien digita un número
 #   razon      → alguien digita numerador y denominador
-TIPOS_CAPTURA = {"automatico", "valor", "razon"}
+#   formula    → alguien digita las variables y el portal aplica la fórmula
+#                del indicador (`80 * A / B`). Ver `modules/indicadores/formula.py`.
+TIPOS_CAPTURA = {"automatico", "valor", "razon", "formula"}
 
 # Qué significa el número, y de paso cómo se formatea y se acumula.
 UNIDADES = {"porcentaje", "moneda", "dias", "cantidad", "razon"}
@@ -52,6 +54,11 @@ class Indicador(Base):
     etiqueta_numerador = Column(String(120), nullable=True)
     etiqueta_denominador = Column(String(120), nullable=True)
 
+    # Solo para tipo_captura='formula': la expresión con las letras de sus
+    # variables, en la forma canónica (`80 * A / B`). `formula_texto` sigue
+    # siendo la descripción libre que escribe Calidad; esta es la que calcula.
+    formula = Column(Text, nullable=True)
+
     area = Column(String(100), nullable=True)
     responsable_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
@@ -73,6 +80,26 @@ class Indicador(Base):
         "Medicion", back_populates="indicador",
         cascade="all, delete-orphan", order_by="Medicion.anio, Medicion.mes",
     )
+    variables = relationship(
+        "VariableIndicador", back_populates="indicador",
+        cascade="all, delete-orphan", order_by="VariableIndicador.letra",
+    )
+
+    @property
+    def etiquetas_variables(self) -> dict[str, str]:
+        return {v.letra: v.etiqueta for v in self.variables}
+
+    @property
+    def formula_legible(self) -> str | None:
+        """`80 × Quejas atendidas ÷ Total de quejas`: la fórmula en palabras."""
+        if self.tipo_captura != "formula" or not self.formula:
+            return None
+        # Import local: el modelo no debe depender de los módulos al cargarse.
+        from app.modules.indicadores.formula import ErrorFormula, legible
+        try:
+            return legible(self.formula, self.etiquetas_variables)
+        except ErrorFormula:
+            return self.formula
 
     @property
     def responsable_nombre(self):
@@ -93,12 +120,44 @@ class Indicador(Base):
         - promedio: para valores que no son ni razón ni acumulables (días
                     promedio, calificaciones). Es una aproximación y así se
                     advierte en la interfaz.
+        - formula:  suma cada variable de todos los meses y aplica la fórmula
+                    una vez. Es la regla de la razón generalizada: 80×A÷B del
+                    trimestre no es el promedio de los tres meses.
         """
+        if self.tipo_captura == "formula":
+            return "formula"
         if self.tipo_captura == "razon" or self.unidad == "porcentaje":
             return "razon"
         if self.unidad in ("moneda", "cantidad"):
             return "suma"
         return "promedio"
+
+
+class VariableIndicador(Base):
+    """
+    Un número que se digita cada mes en un indicador de fórmula: «A = Quejas
+    atendidas a tiempo». La letra es la que aparece en la fórmula; la
+    etiqueta, lo que ve quien registra.
+
+    La letra no se reasigna al quitar otra variable: si `B` desaparece, `C`
+    sigue siendo `C`. Correr las letras cambiaría en silencio el significado
+    de una fórmula ya guardada.
+    """
+    __tablename__ = "ind_variables"
+
+    id = Column(Integer, primary_key=True, index=True)
+    indicador_id = Column(
+        Integer, ForeignKey("ind_indicadores.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    letra = Column(String(1), nullable=False)
+    etiqueta = Column(String(120), nullable=False)
+
+    indicador = relationship("Indicador", back_populates="variables")
+
+    __table_args__ = (
+        UniqueConstraint("indicador_id", "letra", name="uq_variable_letra"),
+    )
 
 
 class Medicion(Base):
@@ -137,6 +196,9 @@ class Medicion(Base):
     validado_en = Column(DateTime(timezone=True), nullable=True)
 
     indicador = relationship("Indicador", back_populates="mediciones")
+    valores_variables = relationship(
+        "ValorVariable", back_populates="medicion", cascade="all, delete-orphan",
+    )
     registrador = relationship("User", foreign_keys=[registrado_por])
     validador = relationship("User", foreign_keys=[validado_por])
 
@@ -155,6 +217,37 @@ class Medicion(Base):
     @property
     def periodo(self) -> str:
         return f"{self.anio}-{self.mes:02d}"
+
+    @property
+    def variables(self) -> dict[str, float]:
+        """Los números de base del mes en un indicador de fórmula: {"A": 45, "B": 50}."""
+        return {v.letra: float(v.valor) for v in self.valores_variables}
+
+
+class ValorVariable(Base):
+    """
+    Lo que se digitó de una variable en un mes.
+
+    Se guardan las variables y no solo el resultado por la misma razón que la
+    razón guarda numerador y denominador: sin los números de base, el
+    acumulado del trimestre tendría que promediar resultados, y eso da otro
+    número.
+    """
+    __tablename__ = "ind_valores_variable"
+
+    id = Column(Integer, primary_key=True, index=True)
+    medicion_id = Column(
+        Integer, ForeignKey("ind_mediciones.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    letra = Column(String(1), nullable=False)
+    valor = Column(Numeric(16, 4), nullable=False)
+
+    medicion = relationship("Medicion", back_populates="valores_variables")
+
+    __table_args__ = (
+        UniqueConstraint("medicion_id", "letra", name="uq_valor_variable_letra"),
+    )
 
 
 class HistorialMedicion(Base):

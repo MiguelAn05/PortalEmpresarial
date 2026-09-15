@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.27.0"
+VERSION = "0.28.0"
 FECHA = "2026-09-14"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,21 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.28.0",
+        "fecha": "2026-09-14",
+        "titulo": "Indicadores con fórmula propia",
+        "cambios": [
+            ("nuevo", "Los indicadores pueden tener una fórmula personalizada, "
+                      "como 80 × A ÷ B o (A − B) ÷ A × 100. Se arma con "
+                      "botones, se lee en palabras y se prueba con valores de "
+                      "ejemplo antes de guardar."),
+            ("nuevo", "Cada mes se digitan las variables y el portal calcula "
+                      "el resultado. El acumulado del trimestre y del año "
+                      "suma las variables en vez de promediar resultados, "
+                      "así que da el número correcto."),
+        ],
+    },
     {
         "version": "0.27.0",
         "fecha": "2026-09-14",

@@ -1,8 +1,19 @@
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.indicadores import TIPOS_CAPTURA, UNIDADES, DIRECCIONES
+
+
+class VariableIn(BaseModel):
+    """Una variable de un indicador de fórmula: `A` = «Quejas atendidas a tiempo»."""
+    letra: str = Field(..., min_length=1, max_length=1)
+    etiqueta: str = Field(..., max_length=120)
+
+
+class VariableOut(VariableIn):
+    class Config:
+        from_attributes = True
 
 
 class IndicadorBase(BaseModel):
@@ -14,6 +25,9 @@ class IndicadorBase(BaseModel):
     fuente_automatica: str | None = None
     etiqueta_numerador: str | None = None
     etiqueta_denominador: str | None = None
+    # Solo para tipo_captura="formula". Ver `indicadores/formula.py`.
+    formula: str | None = Field(None, max_length=300)
+    variables: list[VariableIn] = []
     area: str | None = None
     responsable_id: int | None = None
     meta: float | None = None
@@ -59,6 +73,8 @@ class IndicadorUpdate(BaseModel):
     fuente_automatica: str | None = None
     etiqueta_numerador: str | None = None
     etiqueta_denominador: str | None = None
+    formula: str | None = Field(None, max_length=300)
+    variables: list[VariableIn] | None = None
     area: str | None = None
     responsable_id: int | None = None
     meta: float | None = None
@@ -93,6 +109,8 @@ class IndicadorUpdate(BaseModel):
 
 class IndicadorOut(IndicadorBase):
     id: int
+    variables: list[VariableOut] = []
+    formula_legible: str | None = None
     activo: bool
     responsable_nombre: str | None = None
     es_automatico: bool
@@ -111,6 +129,8 @@ class MedicionOut(BaseModel):
     valor: float | None
     numerador: float | None
     denominador: float | None
+    # Lo que se digitó de cada variable en un indicador de fórmula.
+    variables: dict[str, float] = {}
     analisis: str | None
     evidencia: str | None
     registrado_por: int | None
@@ -135,3 +155,25 @@ class HistorialOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class FormulaPrueba(BaseModel):
+    """
+    Una fórmula a medio armar, para validarla y probarla antes de guardar.
+
+    La pantalla la manda mientras se arma el indicador y mientras se digita
+    un mes: así el resultado que se ve es el que calcula el servidor, y no una
+    segunda implementación en el navegador que tarde o temprano diga otra cosa.
+    """
+    formula: str = Field("", max_length=300)
+    variables: list[VariableIn] = []
+    valores: dict[str, float | None] = {}
+
+
+class FormulaResultado(BaseModel):
+    valida: bool
+    error: str | None = None
+    legible: str | None = None
+    # None si faltan valores o si con ellos se divide por cero.
+    resultado: float | None = None
+    divide_por_cero: bool = False

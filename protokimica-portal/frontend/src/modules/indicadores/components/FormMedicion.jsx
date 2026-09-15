@@ -6,6 +6,7 @@ import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { tieneDatos } from "../../../core/components/tieneDatos"
 import { IconoClip } from '../../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../../core/errores.js'
+import { usePruebaFormula } from '../usePruebaFormula'
 
 /**
  * Registro del valor de un mes. En los indicadores de razón se piden los dos
@@ -25,6 +26,23 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
   const [error, setError] = useState(null)
 
   const esRazon = indicador.tipo_captura === "razon"
+  const esFormula = indicador.tipo_captura === "formula"
+  const variablesIndicador = indicador.variables ?? []
+
+  // Lo digitado de cada variable. Al corregir arranca con lo que ya estaba.
+  const [valores, setValores] = useState(() => Object.fromEntries(
+    variablesIndicador.map(v => [v.letra, indicador.valores_variables?.[v.letra] ?? '']),
+  ))
+  const numerosFormula = Object.fromEntries(
+    Object.entries(valores).map(([l, txt]) => [l, txt === '' ? null : Number(String(txt).replace(',', '.'))]),
+  )
+  const variablesCompletas = variablesIndicador.length > 0
+    && Object.values(numerosFormula).every(n => n !== null && !Number.isNaN(n))
+  // El resultado lo calcula el servidor con la fórmula guardada: lo que se ve
+  // antes de guardar es exactamente lo que va a quedar.
+  const { prueba, actualizando } = usePruebaFormula(
+    esFormula ? indicador.formula : '', variablesIndicador, numerosFormula,
+  )
 
   const inicial = {
     valor: indicador.valor ?? "",
@@ -34,6 +52,7 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
     motivo: "",
   }
   const hayCambios = tieneDatos(form, inicial) || evidencia !== null
+    || variablesIndicador.some(v => String(valores[v.letra] ?? '') !== String(indicador.valores_variables?.[v.letra] ?? ''))
   const { intentarCerrar, dialogoDescarte } = useCierreSeguro({ hayCambios, onCerrar })
 
   const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
@@ -61,7 +80,9 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
       const fd = new FormData()
       fd.append("anio", anio)
       fd.append("mes", mes)
-      if (esRazon) {
+      if (esFormula) {
+        fd.append("variables", JSON.stringify(numerosFormula))
+      } else if (esRazon) {
         fd.append("numerador", form.numerador)
         fd.append("denominador", form.denominador)
       } else {
@@ -76,9 +97,11 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
     onError: (e) => setError(mensajeDeError(e, "No se pudo guardar el valor.")),
   })
 
-  const completo = (esRazon
-    ? form.numerador !== "" && form.denominador !== "" && Number(form.denominador) !== 0
-    : form.valor !== "") && form.analisis.trim() !== ""
+  const completo = (esFormula
+    ? variablesCompletas && !prueba?.divide_por_cero
+    : esRazon
+      ? form.numerador !== "" && form.denominador !== "" && Number(form.denominador) !== 0
+      : form.valor !== "") && form.analisis.trim() !== ""
 
   return (
     <div className="fixed inset-0 bg-acento-fuerte/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]" onClick={intentarCerrar}>
@@ -95,7 +118,54 @@ export default function FormMedicion({ indicador, anio, mes, onCerrar, onGuardad
             <p className="bg-negativo-bg border border-negativo/25 text-negativo text-sm rounded-lg px-3 py-2">{error}</p>
           )}
 
-          {esRazon ? (
+          {esFormula ? (
+            <>
+              {indicador.formula_legible && (
+                <p className="text-xs text-texto-2 bg-superficie-2 rounded-lg px-3 py-2">
+                  <span className="font-semibold">Resultado =</span> {indicador.formula_legible}
+                </p>
+              )}
+              <div className="space-y-2">
+                {variablesIndicador.map((v, i) => (
+                  <label key={v.letra} className="block">
+                    <span className="block text-xs font-semibold text-texto-2 mb-1">
+                      <span className="cifra text-acento">{v.letra}</span> · {v.etiqueta}
+                    </span>
+                    <input
+                      type="number" step="any" value={valores[v.letra] ?? ''}
+                      onChange={(e) => setValores({ ...valores, [v.letra]: e.target.value })}
+                      autoFocus={i === 0}
+                      className="cifra w-full rounded-lg border border-borde px-3 py-2 text-sm"
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div className="bg-superficie-2 rounded-lg px-4 py-3 text-center">
+                <p className="text-[11px] font-semibold text-texto-2 uppercase tracking-wide">Quedará registrado</p>
+                <p className="cifra text-2xl font-bold text-acento-fuerte mt-0.5">
+                  {variablesCompletas && prueba?.resultado !== null && prueba?.resultado !== undefined && !prueba?.divide_por_cero
+                    ? formatValor(Math.round(prueba.resultado * 100) / 100, indicador.unidad)
+                    : '—'}
+                </p>
+                {actualizando && variablesCompletas && <p className="text-[11px] text-texto-3">calculando…</p>}
+              </div>
+
+              {/* Dividir por cero no es un cero: es un mes sin casos. Se dice
+                  antes de guardar, con la salida correcta. */}
+              {variablesCompletas && prueba?.divide_por_cero && (
+                <p role="alert" className="text-xs text-alerta bg-alerta-bg border border-ambar/30 rounded-lg px-3 py-2">
+                  Con esos valores la fórmula divide por cero. Si en el periodo no hubo
+                  casos, deja el mes sin registrar: un cero bajaría el semáforo por algo que no pasó.
+                </p>
+              )}
+
+              <p className="text-[11px] text-texto-3">
+                Se guardan las variables, no solo el resultado: es lo que permite que
+                el acumulado del trimestre y del año salga correcto.
+              </p>
+            </>
+          ) : esRazon ? (
             <>
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-end">
                 <div>

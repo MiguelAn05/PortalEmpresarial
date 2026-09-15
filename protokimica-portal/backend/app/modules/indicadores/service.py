@@ -7,9 +7,13 @@ gerencia. Si cada consumidor lo recalcula, tarde o temprano dejan de coincidir.
 """
 from datetime import date
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.indicadores import Indicador, Medicion
+from app.models.indicadores import (
+    HistorialMedicion, Indicador, Medicion, ValorVariable, VariableIndicador,
+)
+from app.modules.indicadores import formula as formulas
 from app.modules.indicadores import fuentes
 
 MESES = [
@@ -70,11 +74,14 @@ def acumular(indicador: Indicador, mediciones: list[Medicion]) -> dict:
     número distinto y equivocado — 2/2 (100%) y 50/100 (50%) acumulan 51%, no
     75%.
     """
+    modo = indicador.modo_acumulado
+
+    if modo == "formula":
+        return _acumular_formula(indicador, mediciones)
+
     utiles = [m for m in mediciones if m.valor is not None or m.denominador]
     if not utiles:
         return {"valor": None, "numerador": None, "denominador": None, "meses": 0}
-
-    modo = indicador.modo_acumulado
 
     if modo == "razon":
         num = sum(_f(m.numerador) or 0 for m in utiles)
@@ -100,6 +107,186 @@ def acumular(indicador: Indicador, mediciones: list[Medicion]) -> dict:
 
     return {"valor": round(sum(valores) / len(valores), 2), "numerador": None,
             "denominador": None, "meses": len(valores), "aproximado": True}
+
+
+def _acumular_formula(indicador: Indicador, mediciones: list[Medicion]) -> dict:
+    """
+    Suma cada variable en todos los meses y aplica la fórmula UNA vez.
+
+    Con `80 × A ÷ B`, enero 9 de 10 y febrero 1 de 90 dan 8 de 100 → 8,
+    no el promedio de 72 y 0,89. Un mes al que le falte alguna variable no
+    entra: no se puede sumar lo que no se registró.
+    """
+    letras = [v.letra for v in indicador.variables]
+    completos = [m for m in mediciones if letras and set(letras) <= set(m.variables)]
+    vacio = {"valor": None, "numerador": None, "denominador": None, "meses": 0, "variables": {}}
+    if not completos or not indicador.formula:
+        return vacio
+
+    sumas = {letra: sum(m.variables[letra] for m in completos) for letra in letras}
+    try:
+        valor = round(formulas.evaluar(indicador.formula, sumas), 2)
+    except (formulas.DivisionPorCero, formulas.ErrorFormula):
+        valor = None
+    return {"valor": valor, "numerador": None, "denominador": None,
+            "meses": len(completos), "variables": sumas}
+
+
+def _error_formula(e: Exception) -> HTTPException:
+    return HTTPException(status_code=400, detail=str(e))
+
+
+def preparar_formula(formula: str | None, variables: list[dict]) -> tuple[str, list[dict]]:
+    """
+    Valida la configuración de un indicador de fórmula y la deja lista para
+    guardar: fórmula en su forma canónica y variables limpias.
+    """
+    if not variables:
+        raise HTTPException(
+            status_code=400,
+            detail="Agrega al menos una variable: son los números que se digitan cada mes.",
+        )
+    if len(variables) > formulas.MAX_VARIABLES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Un indicador admite hasta {formulas.MAX_VARIABLES} variables.",
+        )
+
+    limpias, letras = [], set()
+    for v in variables:
+        letra = (v.get("letra") or "").strip().upper()
+        etiqueta = (v.get("etiqueta") or "").strip()
+        if len(letra) != 1 or letra not in formulas.LETRAS:
+            raise HTTPException(status_code=400, detail=f"«{letra}» no es una letra válida para una variable (A–Z).")
+        if letra in letras:
+            raise HTTPException(status_code=400, detail=f"La letra {letra} está repetida en las variables.")
+        if not etiqueta:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La variable {letra} no tiene nombre. Escribe qué se cuenta ahí, por ejemplo «Quejas atendidas».",
+            )
+        letras.add(letra)
+        limpias.append({"letra": letra, "etiqueta": etiqueta})
+
+    try:
+        formulas.validar(formula or "", sorted(letras))
+        normalizada = formulas.normalizar(formula)
+    except formulas.ErrorFormula as e:
+        raise _error_formula(e)
+    return normalizada, sorted(limpias, key=lambda v: v["letra"])
+
+
+def aplicar_formula(db: Session, indicador: Indicador, formula: str | None,
+                    variables: list[dict] | None, usuario_id: int | None) -> None:
+    """
+    Guarda la fórmula y las variables de un indicador, cuidando lo ya medido.
+
+    Con mediciones registradas:
+    - **no se agregan ni quitan variables**: los meses ya guardados no tienen
+      ese dato y el acumulado quedaría calculado con meses incompletos;
+    - **sí se renombran**, que no cambia ningún número;
+    - **sí se cambia la fórmula**, y entonces se recalcula cada mes con sus
+      variables guardadas. El cambio de cada valor queda en el historial,
+      porque un número que ya se reportó no puede moverse sin rastro.
+    """
+    actuales = [{"letra": v.letra, "etiqueta": v.etiqueta} for v in indicador.variables]
+    normalizada, limpias = preparar_formula(
+        formula if formula is not None else indicador.formula,
+        variables if variables is not None else actuales,
+    )
+
+    mediciones = indicador.mediciones
+    if mediciones and {v["letra"] for v in limpias} != {v["letra"] for v in actuales}:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Este indicador ya tiene {len(mediciones)} mes(es) registrados con sus "
+                "variables, así que no se pueden agregar ni quitar variables: esos meses "
+                "no tendrían el dato. Puedes cambiarles el nombre o cambiar la fórmula; "
+                "si de verdad se mide distinto, crea un indicador nuevo y desactiva este."
+            ),
+        )
+
+    legible_anterior = indicador.formula_legible
+    formula_anterior = indicador.formula
+
+    etiquetas = {v["letra"]: v["etiqueta"] for v in limpias}
+    existentes = {v.letra: v for v in indicador.variables}
+    for letra, variable in list(existentes.items()):
+        if letra not in etiquetas:
+            indicador.variables.remove(variable)
+    for letra, etiqueta in etiquetas.items():
+        if letra in existentes:
+            existentes[letra].etiqueta = etiqueta
+        else:
+            indicador.variables.append(VariableIndicador(letra=letra, etiqueta=etiqueta))
+    indicador.formula = normalizada
+
+    if mediciones and formula_anterior and formula_anterior != normalizada:
+        motivo = (
+            f"Cambió la fórmula: {legible_anterior} → "
+            f"{formulas.legible(normalizada, etiquetas)}"
+        )
+        for m in mediciones:
+            if not m.variables:
+                continue
+            anterior = float(m.valor) if m.valor is not None else None
+            try:
+                nuevo = formulas.evaluar(normalizada, m.variables)
+            except (formulas.DivisionPorCero, formulas.ErrorFormula):
+                nuevo = None
+            if nuevo != anterior:
+                m.valor = nuevo
+                db.add(HistorialMedicion(
+                    indicador_id=indicador.id, anio=m.anio, mes=m.mes,
+                    valor_anterior=anterior, valor_nuevo=nuevo,
+                    motivo=motivo, usuario_id=usuario_id,
+                ))
+
+
+def valor_por_formula(indicador: Indicador, valores: dict) -> tuple[float, dict[str, float]]:
+    """
+    El valor de un mes a partir de lo que se digitó en cada variable.
+
+    Dividir por cero se rechaza con el mismo criterio que el denominador en
+    cero de la razón: si en el periodo no hubo casos, el mes se deja sin
+    registrar — un cero bajaría el semáforo por algo que no pasó.
+    """
+    etiquetas = indicador.etiquetas_variables
+    limpios = {}
+    for letra, etiqueta in etiquetas.items():
+        crudo = valores.get(letra)
+        if crudo is None or crudo == "":
+            raise HTTPException(status_code=400, detail=f"Falta el valor de «{etiqueta}».")
+        try:
+            limpios[letra] = float(str(crudo).replace(",", "."))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"«{etiqueta}» debe ser un número.")
+    try:
+        return formulas.evaluar(indicador.formula, limpios), limpios
+    except formulas.DivisionPorCero:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Con esos valores la fórmula divide por cero. Si en el periodo no "
+                "hubo casos, deja el mes sin registrar."
+            ),
+        )
+    except formulas.ErrorFormula as e:
+        raise _error_formula(e)
+
+
+def guardar_variables(medicion: Medicion, valores: dict[str, float]) -> None:
+    """Reemplaza lo digitado de cada variable en el mes."""
+    existentes = {v.letra: v for v in medicion.valores_variables}
+    for letra, valor in valores.items():
+        if letra in existentes:
+            existentes[letra].valor = valor
+        else:
+            medicion.valores_variables.append(ValorVariable(letra=letra, valor=valor))
+    for letra, fila in existentes.items():
+        if letra not in valores:
+            medicion.valores_variables.remove(fila)
 
 
 def calcular_automatico(db: Session, indicador: Indicador, tenant_id: int,
@@ -144,6 +331,7 @@ def serie_del_anio(indicador: Indicador, anio: int) -> list[dict]:
             "valor": valor,
             "numerador": _f(m.numerador) if m else None,
             "denominador": _f(m.denominador) if m else None,
+            "variables": m.variables if m else {},
             "semaforo": semaforo(indicador, valor),
             "analisis": m.analisis if m else None,
             "tiene_evidencia": bool(m.evidencia) if m else False,
@@ -198,6 +386,9 @@ def resumen_indicador(indicador: Indicador, anio: int, mes: int) -> dict:
         # edición pueda abrirse desde el detalle sin perder esos campos.
         "etiqueta_numerador": indicador.etiqueta_numerador,
         "etiqueta_denominador": indicador.etiqueta_denominador,
+        "formula": indicador.formula,
+        "formula_legible": indicador.formula_legible,
+        "variables": [{"letra": v.letra, "etiqueta": v.etiqueta} for v in indicador.variables],
         "area": indicador.area,
         "responsable_id": indicador.responsable_id,
         "responsable_nombre": indicador.responsable_nombre,
@@ -214,6 +405,7 @@ def resumen_indicador(indicador: Indicador, anio: int, mes: int) -> dict:
         "semaforo": semaforo(indicador, valor_actual),
         "numerador": _f(actual.numerador) if actual else None,
         "denominador": _f(actual.denominador) if actual else None,
+        "valores_variables": actual.variables if actual else {},
         "analisis": actual.analisis if actual else None,
         "tiene_evidencia": bool(actual.evidencia) if actual else False,
         "evidencia": actual.evidencia if actual else None,

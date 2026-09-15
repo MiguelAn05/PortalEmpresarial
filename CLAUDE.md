@@ -521,6 +521,21 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
 - **Fechas con y sin zona horaria.** Postgres las devuelve con zona y SQLite
   sin ella; restarlas revienta. Usar el helper `_aware()` que hay en
   `resumen.py` y en `fuentes.py`.
+- **Indicadores de fórmula (`tipo_captura="formula"`).** Para cuentas que no
+  caben en valor ni en razón: `80 * A / B`, `(A - B) / A * 100`. La fórmula
+  se guarda como texto en una gramática cerrada (números, letras A–Z, `+ - *
+  /`, paréntesis) y la evalúa `modules/indicadores/formula.py` con un
+  analizador propio — **nunca `eval`**. Cada letra es una fila de
+  `ind_variables` con su etiqueta, y lo digitado cada mes va en
+  `ind_valores_variable`. Reglas: la fórmula usa exactamente las variables
+  declaradas; dividir por cero rechaza el registro (el mes queda sin dato,
+  igual que el denominador en cero); **el acumulado suma cada variable y
+  aplica la fórmula una vez**; con meses registrados no se agregan ni quitan
+  variables (409), pero sí se renombran y se cambia la fórmula, que recalcula
+  cada mes y deja el cambio en `ind_historial`. La fórmula NO multiplica por
+  100 sola: si es porcentaje, el `× 100` va dentro. La pantalla arma piezas
+  (`indicadores/formula.js`) pero no valida ni calcula: pregunta a
+  `POST /indicadores/formula/probar`, con espera de 350 ms entre teclas.
 - **Los porcentajes no se promedian.** El acumulado de un porcentaje suma
   numeradores y denominadores y divide al final. Por eso los indicadores de
   proporción guardan los dos números, no el resultado.

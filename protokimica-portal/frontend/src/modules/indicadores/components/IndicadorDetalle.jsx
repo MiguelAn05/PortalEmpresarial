@@ -76,6 +76,14 @@ export default function IndicadorDetalle({ indicadorId, anio, mes, editable, onE
                       {ficha.numerador} de {ficha.denominador}
                     </p>
                   )}
+                  {/* Los números de base del mes: un 72 solo no dice de dónde salió. */}
+                  {ficha.tipo_captura === 'formula' && Object.keys(ficha.valores_variables ?? {}).length > 0 && (
+                    <p className="cifra text-xs text-texto-2 mt-1.5">
+                      {(ficha.variables ?? [])
+                        .map(v => `${v.etiqueta}: ${ficha.valores_variables[v.letra]}`)
+                        .join(' · ')}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
@@ -132,7 +140,8 @@ export default function IndicadorDetalle({ indicadorId, anio, mes, editable, onE
                   <Campo titulo="Cómo se divide"
                     valor={`(${ficha.etiqueta_numerador || 'lo logrado'} ÷ ${ficha.etiqueta_denominador || 'el total'})`} />
                 )}
-                <Campo titulo="Fórmula" valor={ficha.formula_texto} />
+                <Campo titulo="Fórmula"
+                  valor={ficha.tipo_captura === 'formula' ? ficha.formula_legible : ficha.formula_texto} />
                 <Campo titulo="Cómo se captura" valor={TIPOS_CAPTURA[ficha.tipo_captura]?.label} />
                 <Campo titulo="Meta"
                   valor={ficha.meta !== null
@@ -240,7 +249,9 @@ function Acumulado({ titulo, acc, unidad, modo }) {
         {acc.meses} mes{acc.meses === 1 ? '' : 'es'}
         {modo === 'razon' && acc.denominador
           ? ` · ${acc.numerador} de ${acc.denominador}`
-          : acc.aproximado ? ' · promedio' : ''}
+          : modo === 'formula' && acc.meses > 0
+            ? ' · variables sumadas'
+            : acc.aproximado ? ' · promedio' : ''}
       </p>
     </div>
   )

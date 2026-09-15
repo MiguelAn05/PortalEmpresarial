@@ -31,6 +31,10 @@ export const TIPOS_CAPTURA = {
     label: 'Numerador y denominador',
     ayuda: 'Se calcula de un modulo. No tienes que digitarlo.',
   },
+  formula: {
+    label: 'Fórmula personalizada',
+    ayuda: 'Para cuentas como 80 × A ÷ B o (A − B) ÷ A × 100. Cada mes se digitan las variables y el portal calcula.',
+  },
   valor: {
     label: 'Un solo valor',
     ayuda: 'Se digita el resultado directamente. Úsalo cuando no sea una proporción.',

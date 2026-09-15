@@ -52,3 +52,12 @@ export const recalcularPeriodo = (anio, mes) =>
 
 export const listarHistorial = (id) =>
   api.get(`/indicadores/${id}/historial`).then(r => r.data)
+
+// ── Fórmulas ──────────────────────────────────────────────────
+/**
+ * Valida una fórmula a medio armar, la dice en palabras y, si vienen valores,
+ * la calcula. No guarda nada: es para que lo que se ve al armar el indicador
+ * o al digitar un mes sea exactamente lo que calcula el servidor.
+ */
+export const probarFormula = (formula, variables, valores = {}) =>
+  api.post('/indicadores/formula/probar', { formula, variables, valores }).then(r => r.data)
