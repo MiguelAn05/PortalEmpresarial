@@ -13,19 +13,21 @@ próximo webhook con un salto de línea al final.
 """
 from sqlalchemy.orm import Session
 
-from app.core.capacidades import correos_de
+from app.core import canales
+from app.core.capacidades import correos_de, usuarios_con
 from app.core.config import settings
 from app.models.user import User
 from app.modules.pqrs.notificaciones import Aviso, _protegido
-from app.modules.notas_credito.permisos import CAP_AUTORIZAR
+from app.modules.notas_credito.permisos import CAP_AUTORIZAR, CAP_REGISTRAR
 
 # El nombre del evento ES el path del webhook en n8n. Una prueba compara esta
 # lista contra los flujos de `backend/n8n/`: un path mal escrito no falla, n8n
 # contesta 404 y el correo simplemente no llega.
 EVENTO_SOLICITADA = "nc-solicitada"
 EVENTO_RESPONDIDA = "nc-respondida"
+EVENTO_POR_EMITIR = "nc-por-emitir"
 
-EVENTOS = frozenset({EVENTO_SOLICITADA, EVENTO_RESPONDIDA})
+EVENTOS = frozenset({EVENTO_SOLICITADA, EVENTO_RESPONDIDA, EVENTO_POR_EMITIR})
 
 
 def _base(solicitud) -> dict:
@@ -85,6 +87,41 @@ def _aviso_respondida(db: Session, tenant_id: int, solicitud, decision: str,
     })]
 
 
+def _aviso_por_emitir(db: Session, tenant_id: int, solicitud, aprobada_por: str) -> list[Aviso]:
+    """
+    Aprobada y sin emitir: le avisa AL PUNTO DE VENTA de la solicitud.
+
+    Quien la emite y escribe su número es el punto de venta al que pertenece
+    la factura, así que el aviso va a la gente de ESE punto que tenga la
+    capacidad de registrar —no a todo el que pueda hacerlo: una nota crédito
+    de Guayabal no es trabajo de Belén—. Se reconoce por el prefijo del
+    canal, igual que las PQRS de cada sede.
+
+    A quien la pidió no se le manda por aquí: ya recibe el aviso de la
+    decisión y serían dos correos para una sola cosa.
+
+    **Si en ese punto no hay nadie que pueda emitirla, no se descarta**: se
+    manda a todos los que tienen el permiso. Una nota crédito aprobada que
+    nadie emite deja al cliente esperando, y el silencio es el peor final.
+    """
+    prefijo = canales.prefijo_de(solicitud.punto_venta)
+    con_permiso = usuarios_con(db, tenant_id, CAP_REGISTRAR)
+    del_punto = [u for u in con_permiso if prefijo and u.punto_venta == prefijo]
+
+    destinatarios = sorted({
+        u.email for u in (del_punto or con_permiso)
+        if u.email and u.id != solicitud.solicitado_por
+    })
+    if not destinatarios:
+        return []
+    return [(EVENTO_POR_EMITIR, {
+        **_base(solicitud),
+        "aprobada_por": aprobada_por,
+        "es_del_punto": bool(del_punto),
+        "destinatarios": destinatarios,
+    })]
+
+
 def avisos_solicitada(db: Session, tenant_id: int, solicitud, solicitante: str) -> list[Aviso]:
     return _protegido(_aviso_solicitada, db, tenant_id, solicitud, solicitante)
 
@@ -92,3 +129,7 @@ def avisos_solicitada(db: Session, tenant_id: int, solicitud, solicitante: str) 
 def avisos_respondida(db: Session, tenant_id: int, solicitud, decision: str,
                       respondida_por: str) -> list[Aviso]:
     return _protegido(_aviso_respondida, db, tenant_id, solicitud, decision, respondida_por)
+
+
+def avisos_por_emitir(db: Session, tenant_id: int, solicitud, aprobada_por: str) -> list[Aviso]:
+    return _protegido(_aviso_por_emitir, db, tenant_id, solicitud, aprobada_por)

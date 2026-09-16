@@ -76,6 +76,28 @@ def tiene(db: Session, usuario: User, capacidad: str) -> bool:
     ).first() is not None
 
 
+def usuarios_con(db: Session, tenant_id: int, capacidad: str) -> list[User]:
+    """
+    Los usuarios ACTIVOS que tienen esta capacidad hoy, por área o a título
+    personal.
+
+    Devuelve usuarios y no solo correos porque a veces hay que filtrarlos por
+    algo más: el aviso de «nota crédito por emitir» va al punto de venta de
+    la solicitud, no a todo el que pueda registrarla.
+    """
+    _validar(capacidad)
+    otorgamientos = quienes_tienen(db, tenant_id, capacidad)
+    areas = {o.area for o in otorgamientos if o.area}
+    usuarios_directos = {o.usuario_id for o in otorgamientos if o.usuario_id}
+    if not areas and not usuarios_directos:
+        return []
+
+    usuarios = db.query(User).filter(
+        User.tenant_id == tenant_id, User.activo.is_(True),
+    ).all()
+    return [u for u in usuarios if u.area in areas or u.id in usuarios_directos]
+
+
 def correos_de(db: Session, tenant_id: int, capacidad: str) -> list[str]:
     """
     Los correos de todos los que tienen esta capacidad hoy — por área o a
@@ -90,20 +112,7 @@ def correos_de(db: Session, tenant_id: int, capacidad: str) -> list[str]:
     PQRS, no de capacidades, y `core/` no puede depender de un módulo — sería
     la dependencia al revés.
     """
-    _validar(capacidad)
-    otorgamientos = quienes_tienen(db, tenant_id, capacidad)
-    areas = {o.area for o in otorgamientos if o.area}
-    usuarios_directos = {o.usuario_id for o in otorgamientos if o.usuario_id}
-    if not areas and not usuarios_directos:
-        return []
-
-    usuarios = db.query(User).filter(
-        User.tenant_id == tenant_id, User.activo.is_(True),
-    ).all()
-    return sorted({
-        u.email for u in usuarios
-        if u.email and (u.area in areas or u.id in usuarios_directos)
-    })
+    return sorted({u.email for u in usuarios_con(db, tenant_id, capacidad) if u.email})
 
 
 def quienes_tienen(db: Session, tenant_id: int, capacidad: str) -> list[CapacidadOtorgada]:

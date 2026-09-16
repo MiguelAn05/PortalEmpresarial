@@ -5,7 +5,7 @@ cierra, se asigna a un área) le pega a un webhook de n8n y sigue con lo suyo.
 n8n es el que arma y envía el correo. Por eso, si n8n no está configurado o el
 flujo no existe, el portal funciona igual pero nadie recibe nada.
 
-Aquí están los cuatro flujos listos para importar.
+Aquí están los flujos listos para importar.
 
 | Archivo | Cuándo se dispara | A quién le llega |
 |---|---|---|
@@ -13,6 +13,11 @@ Aquí están los cuatro flujos listos para importar.
 | `pqrs-nueva-servicio-cliente.json` | Cualquier PQRS nueva | A Servicio al Cliente |
 | `pqrs-notificacion-area.json` | Se asigna o reasigna un área | A los usuarios de esa área |
 | `pqrs-cerrada.json` | Se cierra la PQRS | Al cliente, con la encuesta |
+| `pqrs-resuelta-cliente.json` | La PQRS pasa a «resuelto» | Al cliente, para que confirme |
+| `pqrs-autorizacion.json` | Se pide o se responde una autorización | Al área que firma y de vuelta |
+| `nc-solicitada.json` | Un punto de venta pide una nota crédito | A quien pueda autorizarla |
+| `nc-respondida.json` | Se aprueba o se rechaza | A quien la pidió |
+| `nc-por-emitir.json` | Queda aprobada: **falta emitirla** | Al punto de venta de la factura, que la emite y registra su número |
 
 El nombre del archivo es el **path del webhook**, y tiene que coincidir con el
 evento que dispara el portal. `tests/test_flujos_n8n.py` lo verifica: si

@@ -741,6 +741,18 @@ de n8n se rompe en silencio.
 Lo que no tiene responsable **sale aparte, nunca se descarta**: una PQRS sin
 asignar con el plazo corriendo es el caso más peligroso de todos.
 
+- **Notas crédito: aprobada es «falta emitirla».** Al aprobar sale un aviso
+  más (`nc-por-emitir`) **al punto de venta de la factura**, que es quien la
+  emite y escribe su número —los puntos tienen la capacidad
+  `notas_credito.registrar`—. Se reconocen por el prefijo del canal
+  (`canales.prefijo_de` contra `users.punto_venta`), igual que las PQRS de
+  cada sede: una nota crédito de Guayabal no es trabajo de Belén. A quien la
+  pidió no se le manda por ahí, que ya recibe `nc-respondida` y serían dos
+  correos por lo mismo. **Si en ese punto no hay nadie que pueda emitirla, no
+  se descarta**: va a todos los que tienen la capacidad, y el correo lo
+  advierte. `core/capacidades.usuarios_con()` es lo que permite filtrar por
+  algo más que el correo.
+
 ## Pendientes conocidos
 
 - **Catálogo de productos: falta el lado del ERP.** El portal ya está

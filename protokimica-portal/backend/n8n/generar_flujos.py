@@ -295,6 +295,41 @@ FLUJOS = [
     ),
     flujo(
         remitente=REMITENTE_INTERNO,
+        nombre="Nota crédito · aprobada, falta emitirla",
+        path="nc-por-emitir",
+        # Al PUNTO DE VENTA de la factura: es quien la emite y escribe su
+        # número. Si en ese punto no hay nadie con el permiso, el portal la
+        # manda a todos los que lo tienen — una aprobada que nadie emite deja
+        # al cliente esperando.
+        para=f"={{{{ {B}.destinatarios.join(', ') }}}}",
+        asunto=f"=Falta emitir la nota crédito {{{{ {B}.codigo }}}} · {{{{ {B}.punto_venta }}}}",
+        html="=" + plantilla(
+            titulo="Aprobada: falta emitirla",
+            cuerpo=(
+                "La autorizaron y todavía no se ha emitido. Emítela y escribe su "
+                "número en el portal para cerrarla."
+                + dato("Solicitud", f"{{{{ {B}.codigo }}}}")
+                + dato("Punto de venta", f"{{{{ {B}.punto_venta }}}}")
+                + dato("Factura", f"{{{{ {B}.factura_afectada }}}}")
+                + f"{{{{ {B}.factura_reemplaza "
+                  f"? '{dato('La reemplaza', '@@V@@')}'.replace('@@V@@', {B}.factura_reemplaza) "
+                  f": '' }}}}"
+                + f"{{{{ {B}.valor "
+                  f"? '{dato('Valor', '@@V@@')}'.replace('@@V@@', {B}.valor) "
+                  f": '' }}}}"
+                + dato("La aprobó", f"{{{{ {B}.aprobada_por }}}}")
+                + f"{{{{ {B}.es_del_punto "
+                  f"? '' "
+                  f": '<p style=\"margin:14px 0 0 0;padding:12px;background:#FFF6E5;"
+                  f"border-radius:8px\">En ese punto de venta no hay nadie con permiso "
+                  f"para registrarla, así que este aviso va a todos los que pueden "
+                  f"hacerlo.</p>' }}}}"
+            ),
+            boton=("Registrar el número", f"{{{{ {B}.link_portal }}}}"),
+        ),
+    ),
+    flujo(
+        remitente=REMITENTE_INTERNO,
         nombre="Nota crédito · respondida a quien la pidió",
         path="nc-respondida",
         # A la PERSONA que la pidió, no al área: es quien está esperando para

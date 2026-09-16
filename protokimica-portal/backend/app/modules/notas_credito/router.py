@@ -35,7 +35,7 @@ from app.modules.notas_credito.schemas import (
     MAX_FACTURA, MAX_NUMERO_NC, MAX_OBSERVACIONES,
 )
 from app.modules.notas_credito.notificaciones import (
-    avisos_respondida, avisos_solicitada,
+    avisos_por_emitir, avisos_respondida, avisos_solicitada,
 )
 from app.modules.pqrs.notificaciones import enviar_avisos
 from app.modules.pqrs.service import guardar_archivo
@@ -306,6 +306,13 @@ def responder_solicitud(
     background.add_task(enviar_avisos, avisos_respondida(
         db, tenant_id, solicitud, payload.decision, current_user.nombre,
     ))
+    # Aprobada es «falta emitirla»: el punto de venta de la factura es quien
+    # la emite y registra su número, así que se entera aquí y no cuando
+    # alguien se acuerde de revisar el tablero.
+    if payload.decision == ESTADO_APROBADA:
+        background.add_task(enviar_avisos, avisos_por_emitir(
+            db, tenant_id, solicitud, current_user.nombre,
+        ))
 
     return solicitud
 

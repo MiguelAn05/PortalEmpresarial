@@ -1,0 +1,57 @@
+{
+  "name": "Nota crédito · aprobada, falta emitirla",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nc-por-emitir",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-nc-por-emitir",
+      "name": "Entra la notificación",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "nc-por-emitir"
+    },
+    {
+      "parameters": {
+        "fromEmail": "recepcion@protokimica.com",
+        "toEmail": "={{ $json.body.destinatarios.join(', ') }}",
+        "subject": "=Falta emitir la nota crédito {{ $json.body.codigo }} · {{ $json.body.punto_venta }}",
+        "emailFormat": "html",
+        "html": "=<!doctype html>\n<html><body style=\"margin:0;padding:24px;background:#F3F6FB;\n  font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#121A2B\">\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"\n  style=\"max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E2E8F2;\n  border-radius:12px;overflow:hidden\">\n  <tr><td style=\"padding:20px 24px;border-bottom:1px solid #E2E8F2\">\n    <span style=\"font-size:15px;font-weight:600;color:#0D2B5E\">Protokimica</span>\n    <span style=\"font-size:13px;color:#55607A\"> · Portal de gestión</span>\n  </td></tr>\n  <tr><td style=\"padding:24px 24px 8px 24px\">\n    <h1 style=\"margin:0 0 12px 0;font-size:19px;font-weight:600\">Aprobada: falta emitirla</h1>\n    <div style=\"font-size:14px;line-height:1.55;color:#55607A\">La autorizaron y todavía no se ha emitido. Emítela y escribe su número en el portal para cerrarla.<p style=\"margin:4px 0\"><span style=\"color:#8A93A9\">Solicitud:</span> <strong style=\"color:#121A2B\">{{ $json.body.codigo }}</strong></p><p style=\"margin:4px 0\"><span style=\"color:#8A93A9\">Punto de venta:</span> <strong style=\"color:#121A2B\">{{ $json.body.punto_venta }}</strong></p><p style=\"margin:4px 0\"><span style=\"color:#8A93A9\">Factura:</span> <strong style=\"color:#121A2B\">{{ $json.body.factura_afectada }}</strong></p>{{ $json.body.factura_reemplaza ? '<p style=\"margin:4px 0\"><span style=\"color:#8A93A9\">La reemplaza:</span> <strong style=\"color:#121A2B\">@@V@@</strong></p>'.replace('@@V@@', $json.body.factura_reemplaza) : '' }}{{ $json.body.valor ? '<p style=\"margin:4px 0\"><span style=\"color:#8A93A9\">Valor:</span> <strong style=\"color:#121A2B\">@@V@@</strong></p>'.replace('@@V@@', $json.body.valor) : '' }}<p style=\"margin:4px 0\"><span style=\"color:#8A93A9\">La aprobó:</span> <strong style=\"color:#121A2B\">{{ $json.body.aprobada_por }}</strong></p>{{ $json.body.es_del_punto ? '' : '<p style=\"margin:14px 0 0 0;padding:12px;background:#FFF6E5;border-radius:8px\">En ese punto de venta no hay nadie con permiso para registrarla, así que este aviso va a todos los que pueden hacerlo.</p>' }}</div>\n  </td></tr>\n        <tr><td style=\"padding:8px 24px 24px 24px\">\n          <a href=\"{{ $json.body.link_portal }}\" style=\"display:inline-block;background:#0D2B5E;color:#ffffff;\n             text-decoration:none;padding:12px 22px;border-radius:8px;\n             font-weight:600;font-size:14px\">Registrar el número</a>\n        </td></tr>\n  <tr><td style=\"padding:16px 24px;border-top:1px solid #E2E8F2;\n    font-size:12px;color:#8A93A9\">\n    Este mensaje es automático, no hace falta responderlo.\n  </td></tr>\n</table></body></html>",
+        "options": {}
+      },
+      "id": "correo-nc-por-emitir",
+      "name": "Enviar correo",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        260,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Entra la notificación": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
