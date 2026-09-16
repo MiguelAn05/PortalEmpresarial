@@ -40,6 +40,9 @@ AREAS = [
     "Tesorería",
     "Puntos de Venta",
     "Ambiental",
+    "Dirección Técnica",
+    "Investigación y Desarrollo (IDI)",
+    "Salvak",
 ]
 
 # Nombres viejos que quedaron en datos ya guardados y a qué área corresponden

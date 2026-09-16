@@ -8,6 +8,7 @@ las oportunidades de Calidad, igual que no ve sus indicadores.
 from fastapi import HTTPException
 
 from app.core.areas import AREAS
+from app.core.supervision import areas_visibles, supervisa
 from app.models.user import User
 
 # Quién valida un cierre. En el formato del SGC los cierres reales dicen «se
@@ -51,8 +52,11 @@ def aplicar_filtro_area(query, usuario: User, modelo):
     """
     if ve_todas(usuario):
         return query
+    # Sus áreas: la suya y las que supervisa (ver core/supervision.py). Un
+    # director ve la mejora de las áreas por las que responde; el equipo de
+    # esas áreas sigue viendo solo la suya.
     return query.filter(
-        (modelo.area == usuario.area) | (modelo.area.is_(None))
+        modelo.area.in_(areas_visibles(usuario)) | (modelo.area.is_(None))
     )
 
 
@@ -95,7 +99,7 @@ def exigir_acceso(oportunidad, usuario: User):
     if oportunidad is None:
         raise HTTPException(status_code=404, detail="Oportunidad de mejora no encontrada.")
 
-    if ve_todas(usuario) or oportunidad.area is None or oportunidad.area == usuario.area:
+    if ve_todas(usuario) or oportunidad.area is None or supervisa(usuario, oportunidad.area):
         return oportunidad
 
     raise HTTPException(status_code=404, detail="Oportunidad de mejora no encontrada.")

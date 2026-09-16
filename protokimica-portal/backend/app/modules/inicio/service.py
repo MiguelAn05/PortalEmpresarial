@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.core.modulos import modulos_de, ve_todos_los_indicadores
+from app.core import supervision
 from app.models.indicadores import Indicador
 from app.models.master_planner import ItemPresupuesto, PagoItem, Proyecto, Tarea
 from app.models.pqrs import PQRSSolicitud
@@ -153,7 +154,7 @@ def _indicadores_por_registrar(db: Session, usuario: User) -> list[dict]:
         Indicador.tipo_captura != "automatico",
     )
     if not ve_todos_los_indicadores(usuario):
-        query = query.filter(Indicador.area == usuario.area)
+        query = query.filter(supervision.condicion_area(Indicador.area, usuario))
 
     pendientes = []
     for ind in query.all():
@@ -314,8 +315,8 @@ def _resumen_empresa(db: Session, usuario: User) -> dict | None:
 
     if "indicadores" in modulos_de(usuario):
         anio, mes = ind_service.periodo_por_defecto()
-        area = None if ve_todos_los_indicadores(usuario) else usuario.area
-        tablero = ind_service.construir_tablero(db, usuario.tenant_id, anio, mes, area)
+        areas = None if ve_todos_los_indicadores(usuario) else supervision.areas_visibles(usuario)
+        tablero = ind_service.construir_tablero(db, usuario.tenant_id, anio, mes, areas=areas)
         resumen["indicadores_en_rojo"] = tablero["resumen"]["rojo"]
         resumen["periodo_indicadores"] = f"{tablero['mes_nombre']} {anio}"
         # Cuántos tienen dato: «2 en rojo» pesa distinto sobre 3 que sobre 40.
@@ -332,7 +333,7 @@ def _resumen_empresa(db: Session, usuario: User) -> dict | None:
         # el módulo de Indicadores.
         anio_ant, mes_ant = (anio - 1, 12) if mes == 1 else (anio, mes - 1)
         tablero_ant = ind_service.construir_tablero(
-            db, usuario.tenant_id, anio_ant, mes_ant, area)
+            db, usuario.tenant_id, anio_ant, mes_ant, areas=areas)
         resumen["indicadores_rojo_anterior"] = tablero_ant["resumen"]["rojo"]
         resumen["periodo_anterior"] = MESES_CORTOS[mes_ant - 1].lower()
 
@@ -351,14 +352,14 @@ def _mi_area(db: Session, usuario: User) -> dict | None:
         db.query(Proyecto)
         .filter(Proyecto.tenant_id == usuario.tenant_id,
                 Proyecto.archivado.is_(False),
-                Proyecto.area == usuario.area)
+                Proyecto.area.in_(supervision.areas_visibles(usuario)))
         .all()
     )
 
     ahora = _ahora()
     equipo = db.query(User).filter(
         User.tenant_id == usuario.tenant_id,
-        User.area == usuario.area,
+        User.area.in_(supervision.areas_visibles(usuario)),
         User.activo.is_(True),
     ).all()
     ids_equipo = [u.id for u in equipo]

@@ -32,6 +32,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.areas import AREAS as AREAS_EMPRESA
+from app.core import supervision
 from app.core.deps import ROLES_VISION_TOTAL, get_current_user
 from app.models.master_planner import Proyecto, ProyectoArea, Tarea
 from app.models.user import User
@@ -69,7 +70,7 @@ def _equipo_de(usuario: User):
     """
     return select(User.id).where(
         User.tenant_id == usuario.tenant_id,
-        User.area == usuario.area,
+        User.area.in_(supervision.areas_visibles(usuario)),
         User.rol != "admin",
     )
 
@@ -115,7 +116,8 @@ def condicion_proyectos_visibles(usuario: User):
         # le escondía al líder de Mercadeo un proyecto de TICS en el que su
         # equipo trabaja — es el mismo defecto que ya había mordido en el
         # filtro por área, que aquí no se había corregido.
-        caminos.append(condicion_area(usuario.area))
+        for area in supervision.areas_visibles(usuario):
+            caminos.append(condicion_area(area))
         caminos.append(Proyecto.lider_id.in_(equipo))
         caminos.append(
             Proyecto.id.in_(
@@ -146,7 +148,7 @@ def puede_ver_proyecto(db: Session, proyecto: Proyecto, usuario: User) -> bool:
     es_jefe_del_area = usuario.rol == "lider" and usuario.area
     # Responsable o participante: la misma regla que la lista, o el proyecto
     # se vería en el listado y respondería 404 al abrirlo.
-    if es_jefe_del_area and usuario.area in proyecto.areas_involucradas:
+    if es_jefe_del_area and set(proyecto.areas_involucradas) & set(supervision.areas_visibles(usuario)):
         return True
 
     tiene_tarea = db.query(
@@ -165,7 +167,7 @@ def puede_ver_proyecto(db: Session, proyecto: Proyecto, usuario: User) -> bool:
             lider_es_suyo = db.query(
                 select(User.id)
                 .where(User.id == proyecto.lider_id,
-                       User.area == usuario.area,
+                       User.area.in_(supervision.areas_visibles(usuario)),
                        User.rol != "admin")
                 .exists()
             ).scalar()

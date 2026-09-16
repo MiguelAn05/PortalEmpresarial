@@ -15,6 +15,7 @@ from app.core.areas import AREAS
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
 from app.core.modulos import requiere_modulo, ve_todos_los_indicadores
+from app.core import supervision
 from app.models.indicadores import (
     Indicador, Medicion, HistorialMedicion, ValorVariable, VariableIndicador,
 )
@@ -43,7 +44,7 @@ def _get_indicador_o_404(
     if (
         usuario is not None
         and not ve_todos_los_indicadores(usuario)
-        and indicador.area != usuario.area
+        and not supervision.supervisa(usuario, indicador.area)
     ):
         raise HTTPException(status_code=404, detail="Indicador no encontrado.")
     return indicador
@@ -213,13 +214,17 @@ def tablero(
         anio_def, mes_def = service.periodo_por_defecto()
         anio, mes = anio or anio_def, mes or mes_def
     _validar_periodo(anio, mes)
-
-    # Un líder solo ve los indicadores de su área: son los que responde. El
-    # filtro se impone aquí y no se puede saltar mandando otro `area`.
+    # Cada quien ve sus áreas: la suya y las que supervisa. El filtro se
+    # impone aquí y no se puede saltar mandando otro `area` — si piden una
+    # que no les toca, se ignora en vez de responder un error: casi siempre
+    # es un enlace guardado, no un intento de colarse.
+    visibles = None
     if not ve_todos_los_indicadores(current_user):
-        area = current_user.area
+        visibles = supervision.areas_visibles(current_user)
+        if area and area not in visibles:
+            area = None
 
-    return service.construir_tablero(db, tenant_id, anio, mes, area)
+    return service.construir_tablero(db, tenant_id, anio, mes, area, areas=visibles)
 
 
 @router.get("/pendientes-de-registro")
@@ -317,7 +322,7 @@ def listar_indicadores(
 ):
     query = db.query(Indicador).filter(Indicador.tenant_id == tenant_id)
     if not ve_todos_los_indicadores(current_user):
-        query = query.filter(Indicador.area == current_user.area)
+        query = query.filter(supervision.condicion_area(Indicador.area, current_user))
     if not incluir_inactivos:
         query = query.filter(Indicador.activo.is_(True))
     return query.order_by(Indicador.orden, Indicador.nombre).all()

@@ -9,6 +9,7 @@ termina mostrándole a alguien números que no le corresponden.
 El frontend no decide nada: pregunta al backend si puede cambiar de alcance
 y pinta el interruptor solo si la respuesta es que sí.
 """
+from app.core.supervision import areas_visibles
 from app.models.user import User
 
 # Ven TODAS las áreas. `gerencia` está aquí porque su trabajo es mirar la
@@ -47,3 +48,16 @@ def area_a_filtrar(usuario: User, alcance: str) -> str | None:
     empresa). Se pasa tal cual a `construir_tablero`.
     """
     return None if alcance == EMPRESA else usuario.area
+
+
+def areas_a_filtrar(usuario: User, alcance: str) -> list[str] | None:
+    """
+    Las áreas que limitan el tablero, o None para toda la empresa.
+
+    Es la suya más las que supervisa: un director mira su dirección y las
+    áreas por las que responde en una sola portada, que es como se pide la
+    reunión. Ver `core/supervision.py`.
+    """
+    if alcance == EMPRESA:
+        return None
+    return areas_visibles(usuario)

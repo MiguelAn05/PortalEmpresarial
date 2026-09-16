@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.models.user import User
 from app.modules.indicadores.permisos import (
-    area_a_filtrar, puede_ver_la_empresa, resolver_alcance,
+    areas_a_filtrar, puede_ver_la_empresa, resolver_alcance,
 )
 from app.modules.indicadores.service import MESES, construir_tablero
 
@@ -111,7 +111,7 @@ def construir_como_vamos(db: Session, tenant_id: int, anio: int, mes: int,
     """La portada completa, lista para pintar sin que el frontend calcule nada."""
     alcance = resolver_alcance(usuario, alcance_pedido)
     tablero = construir_tablero(
-        db, tenant_id, anio, mes, area=area_a_filtrar(usuario, alcance),
+        db, tenant_id, anio, mes, areas=areas_a_filtrar(usuario, alcance),
     )
     fichas = tablero["indicadores"]
 

@@ -14,7 +14,8 @@ from app.core.config import settings
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.deps import get_current_user, get_current_tenant_id, require_role, ROLES_VALIDOS
 from app.core.rate_limit import limitar_login
-from app.models.user import User
+from app.core.areas import AREAS
+from app.models.user import AreaSupervisada, User
 from app.models.tenant import Tenant
 from app.modules.pqrs.permisos import AREA_PUNTOS_DE_VENTA
 from app.modules.auth.schemas import (
@@ -23,6 +24,44 @@ from app.modules.auth.schemas import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
+
+
+def resolver_areas_supervisadas(areas: list[str] | None, area_propia: str | None) -> list[str]:
+    """
+    Las áreas que se le guardan a alguien como supervisadas, ya validadas.
+
+    Se quita la propia: supervisarla no agrega nada —ya la ve— y dejarla
+    guardada haría que cambiar de área se llevara consigo una supervisión que
+    nadie pidió.
+    """
+    limpias = []
+    for area in areas or []:
+        area = (area or "").strip()
+        if not area:
+            continue
+        if area not in AREAS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"«{area}» no es un área del portal. Elige una de la lista "
+                    "para que la supervisión se pueda aplicar."
+                ),
+            )
+        if area != area_propia and area not in limpias:
+            limpias.append(area)
+    return limpias
+
+
+def aplicar_areas_supervisadas(usuario: User, areas: list[str]) -> None:
+    """Deja exactamente esas: lo que no viene se quita, lo que falta se agrega."""
+    actuales = {a.area: a for a in usuario.areas_supervisadas}
+    for area, fila in actuales.items():
+        if area not in areas:
+            usuario.areas_supervisadas.remove(fila)
+    for area in areas:
+        if area not in actuales:
+            usuario.areas_supervisadas.append(AreaSupervisada(area=area))
+
 
 def resolver_punto_venta(prefijo: str | None, area: str | None) -> str | None:
     """
@@ -203,6 +242,9 @@ def crear_usuario(
         area=payload.area,
         punto_venta=resolver_punto_venta(payload.punto_venta, payload.area),
     )
+    aplicar_areas_supervisadas(
+        user, resolver_areas_supervisadas(payload.areas_supervisadas, payload.area),
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -241,6 +283,19 @@ def actualizar_usuario(
     # Después del área a propósito: si en el mismo guardado sale de «Puntos
     # de Venta», el punto se le quita; si solo cambió el área, el punto que
     # tenía se revalida contra la nueva.
+    if payload.areas_supervisadas is not None:
+        aplicar_areas_supervisadas(
+            usuario,
+            resolver_areas_supervisadas(payload.areas_supervisadas, usuario.area),
+        )
+    elif "area" in payload.model_fields_set:
+        # Cambió de área: si supervisaba la que ahora es la suya, esa fila
+        # sobra — la ve por ser suya, no por supervisarla.
+        aplicar_areas_supervisadas(
+            usuario,
+            resolver_areas_supervisadas(usuario.areas_que_supervisa, usuario.area),
+        )
+
     if "punto_venta" in payload.model_fields_set:
         usuario.punto_venta = resolver_punto_venta(payload.punto_venta, usuario.area)
     elif usuario.area != AREA_PUNTOS_DE_VENTA:

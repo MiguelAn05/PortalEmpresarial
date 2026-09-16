@@ -368,6 +368,31 @@ califica: **se miden los hechos que deja la gestión.** La regla vive en
   `CATALOGO` de `indicadores/fuentes.py`): reciben el área del indicador, y
   crear o editar uno sin área responde 400.
 
+
+**Áreas supervisadas: el jefe ve hacia abajo, el equipo no hacia arriba.**
+El portal filtra por área EXACTA, así que una dirección que responde por
+varias áreas —Dirección Técnica sobre IDI y Salvak— no vería nada de su
+gente. Cada usuario puede tener **áreas que supervisa además de la suya**
+(`usuario_areas_supervisadas`), y se configuran en Admin › Usuarios con el
+botón «Supervisa», sin desplegar. La regla vive en `core/supervision.py`
+(`areas_visibles()`, `supervisa()`, `condicion_area()`) y la usan Indicadores,
+Mejora, Master Planner e Inicio — **es la única fuente**: si cada módulo
+armara su lista, el día que se agregue otra jefatura el que se olvide es el
+que le esconde a alguien lo suyo.
+
+- **Una sola vía a propósito:** quien está en IDI sigue viendo solo IDI, así
+  que la gestión de la dirección no se le muestra. Lo ajeno responde 404,
+  como siempre.
+- **La propia no se guarda como supervisada** (ya la ve), y cambiar de área
+  limpia la que quedó redundante.
+- **PQRS no cambia:** ahí todos siguen viendo todas, salvo los puntos de
+  venta. Si algún día se acota, la supervisión ya está lista para usarse.
+- En el tablero de Indicadores, `area` es el filtro que eligió la persona y
+  `areas` el LÍMITE que impone el router: un director puede mirar solo IDI
+  sin dejar de tener Salvak en su alcance, y el selector solo ofrece sus áreas.
+- `User.areas_supervisadas` se carga con `lazy="selectin"`: perezosa reventaba
+  con `DetachedInstanceError` cuando la sesión que trajo al usuario ya se
+  cerró, que es justo lo que hace la dependencia de sesión en cada petición.
 **Visibilidad por participación (Master Planner; PQRS tiene la suya por
 punto de venta, ver arriba):** ves un proyecto si
 **lo lideras** o si **tienes una tarea asignada** dentro. Nada más. Ser del

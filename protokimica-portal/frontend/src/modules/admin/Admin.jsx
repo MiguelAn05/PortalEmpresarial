@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import CodigosQR from './CodigosQR.jsx'
+import SupervisionAreas from './SupervisionAreas.jsx'
 import Capacidades from './Capacidades.jsx'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/AuthContext.jsx'
@@ -403,6 +404,14 @@ function GestionUsuarios() {
                 <option value="">Sin área</option>
                 {areasParaSelect(u.area).map(a => <option key={a} value={a}>{a}</option>)}
               </select>
+
+              <SupervisionAreas
+                usuario={u}
+                guardando={mutActualizar.isPending}
+                onGuardar={(areas) => mutActualizar.mutate({
+                  id: u.id, cambios: { areas_supervisadas: areas },
+                })}
+              />
 
               {u.area === AREA_PUNTOS_DE_VENTA && (
                 <SelectPuntoVenta

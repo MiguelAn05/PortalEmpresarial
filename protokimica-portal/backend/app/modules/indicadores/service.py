@@ -431,11 +431,21 @@ def resumen_indicador(indicador: Indicador, anio: int, mes: int) -> dict:
 
 
 def construir_tablero(db: Session, tenant_id: int, anio: int, mes: int,
-                      area: str | None = None) -> dict:
-    """El tablero completo de un periodo, listo para pintar."""
+                      area: str | None = None,
+                      areas: list[str] | None = None) -> dict:
+    """
+    El tablero completo de un periodo, listo para pintar.
+
+    `area` es el filtro que eligió la persona; `areas` es el LÍMITE de lo que
+    le corresponde ver —su área más las que supervisa— y lo impone el router.
+    Son dos cosas distintas: un director puede mirar solo IDI (`area`) sin
+    dejar de tener Salvak dentro de su alcance.
+    """
     query = db.query(Indicador).filter(
         Indicador.tenant_id == tenant_id, Indicador.activo.is_(True),
     )
+    if areas is not None:
+        query = query.filter(Indicador.area.in_(areas))
     if area:
         query = query.filter(Indicador.area == area)
     indicadores = query.order_by(Indicador.orden, Indicador.nombre).all()
@@ -485,10 +495,12 @@ def construir_tablero(db: Session, tenant_id: int, anio: int, mes: int,
         "indicadores": fichas,
         "por_area": sorted(por_area.values(), key=lambda a: -a["total"]),
         "pendientes": pendientes,
+        # Solo las áreas que esta persona puede ver: ofrecer en el filtro un
+        # área ajena mostraría un tablero vacío y la duda de por qué.
         "areas_disponibles": sorted({
             i.area for i in db.query(Indicador).filter(
                 Indicador.tenant_id == tenant_id, Indicador.activo.is_(True),
-            ).all() if i.area
+            ).all() if i.area and (areas is None or i.area in areas)
         }),
     }
 
