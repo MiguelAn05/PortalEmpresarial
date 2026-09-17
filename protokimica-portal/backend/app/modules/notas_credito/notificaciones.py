@@ -16,18 +16,35 @@ from sqlalchemy.orm import Session
 from app.core import canales
 from app.core.capacidades import correos_de, usuarios_con
 from app.core.config import settings
+from app.models.nota_credito import ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL
 from app.models.user import User
 from app.modules.pqrs.notificaciones import Aviso, _protegido
-from app.modules.notas_credito.permisos import CAP_AUTORIZAR, CAP_REGISTRAR
+from app.modules.notas_credito import flujo
+from app.modules.notas_credito.permisos import (
+    CAP_REGISTRAR, CAP_VERIFICAR_DIAN,
+)
 
 # El nombre del evento ES el path del webhook en n8n. Una prueba compara esta
 # lista contra los flujos de `backend/n8n/`: un path mal escrito no falla, n8n
 # contesta 404 y el correo simplemente no llega.
-EVENTO_SOLICITADA = "nc-solicitada"
 EVENTO_RESPONDIDA = "nc-respondida"
 EVENTO_POR_EMITIR = "nc-por-emitir"
 
-EVENTOS = frozenset({EVENTO_SOLICITADA, EVENTO_RESPONDIDA, EVENTO_POR_EMITIR})
+# «Te toca a ti», en cualquier etapa de la cadena. Es UN solo evento y no uno
+# por etapa a propósito: el correo dice qué hacer leyendo `que_hacer` del
+# payload, así que agregar un paso mañana no obliga a construir, importar y
+# activar otro flujo en n8n — que es trabajo manual y es donde se olvida uno.
+EVENTO_EN_TURNO = "nc-en-turno"
+
+# Devuelta para corregir. Va aparte de `nc-respondida` porque no es una
+# decisión final: el correo tiene que pedir una acción («corrige y reenvía»),
+# no comunicar un resultado.
+EVENTO_DEVUELTA = "nc-devuelta"
+
+EVENTOS = frozenset({
+    EVENTO_RESPONDIDA, EVENTO_POR_EMITIR,
+    EVENTO_EN_TURNO, EVENTO_DEVUELTA,
+})
 
 
 def _base(solicitud) -> dict:
@@ -46,23 +63,6 @@ def _base(solicitud) -> dict:
         "tiene_adjunto": bool(solicitud.adjunto),
         "link_portal": f"{settings.FRONTEND_URL}/notas-credito",
     }
-
-
-def _aviso_solicitada(db: Session, tenant_id: int, solicitud, solicitante: str) -> list[Aviso]:
-    """
-    Le avisa a quien tenga la capacidad de autorizar que hay una nota crédito
-    esperando su firma — a Contabilidad por defecto, y a cualquier área o
-    persona que un administrador haya agregado desde Administración ›
-    Capacidades.
-    """
-    destinatarios = correos_de(db, tenant_id, CAP_AUTORIZAR)
-    if not destinatarios:
-        return []
-    return [(EVENTO_SOLICITADA, {
-        **_base(solicitud),
-        "solicitada_por": solicitante,
-        "destinatarios": destinatarios,
-    })]
 
 
 def _aviso_respondida(db: Session, tenant_id: int, solicitud, decision: str,
@@ -122,10 +122,6 @@ def _aviso_por_emitir(db: Session, tenant_id: int, solicitud, aprobada_por: str)
     })]
 
 
-def avisos_solicitada(db: Session, tenant_id: int, solicitud, solicitante: str) -> list[Aviso]:
-    return _protegido(_aviso_solicitada, db, tenant_id, solicitud, solicitante)
-
-
 def avisos_respondida(db: Session, tenant_id: int, solicitud, decision: str,
                       respondida_por: str) -> list[Aviso]:
     return _protegido(_aviso_respondida, db, tenant_id, solicitud, decision, respondida_por)
@@ -133,3 +129,81 @@ def avisos_respondida(db: Session, tenant_id: int, solicitud, decision: str,
 
 def avisos_por_emitir(db: Session, tenant_id: int, solicitud, aprobada_por: str) -> list[Aviso]:
     return _protegido(_aviso_por_emitir, db, tenant_id, solicitud, aprobada_por)
+
+
+def _aviso_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
+    """
+    Le avisa a quien le toca AHORA, sea la etapa que sea.
+
+    Los destinatarios salen de la capacidad que atiende el turno, así que
+    cambiar quién aprueba se hace desde Administración › Capacidades y no
+    tocando este archivo.
+
+    Dos reglas propias:
+
+    - **La bodega se acota a la suya**, con el mismo fallback de siempre: si
+      en esa bodega no hay nadie marcado, va a todos los que pueden
+      confirmar. Una solicitud parada porque su destinatario no existe es
+      peor que un correo de más.
+    - **Cuando llega a Comercial, Contabilidad va en copia.** No decide en
+      ese paso: es para que vaya mirando ante la DIAN si la factura tiene
+      saldo a favor, y no empiece a averiguarlo cuando le llegue el turno.
+    """
+    capacidad = flujo.capacidad_de(solicitud.estado)
+    if capacidad is None:
+        return []
+
+    candidatos = usuarios_con(db, tenant_id, capacidad)
+    if solicitud.estado == ESTADO_EN_BODEGA:
+        de_la_bodega = [u for u in candidatos if flujo.atiende_la_bodega(u, solicitud.bodega)]
+        candidatos = de_la_bodega or candidatos
+
+    destinatarios = sorted({u.email for u in candidatos if u.email})
+    if not destinatarios:
+        return []
+
+    en_copia = []
+    if solicitud.estado == ESTADO_EN_COMERCIAL:
+        en_copia = [c for c in correos_de(db, tenant_id, CAP_VERIFICAR_DIAN)
+                    if c not in destinatarios]
+
+    return [(EVENTO_EN_TURNO, {
+        **_base(solicitud),
+        "etapa": solicitud.estado,
+        "etapa_nombre": flujo.etiqueta(solicitud.estado),
+        "que_hacer": flujo.QUE_HACER.get(solicitud.estado, ""),
+        "bodega": solicitud.bodega or "",
+        "destinatarios": destinatarios,
+        "en_copia": en_copia,
+    })]
+
+
+def _aviso_devuelta(db: Session, tenant_id: int, solicitud, etapa: str,
+                    devuelta_por: str, comentario: str | None) -> list[Aviso]:
+    """
+    Le avisa a QUIEN LA PIDIÓ que se la devolvieron para corregir.
+
+    El comentario viaja completo hasta el tope de siempre: una devolución sin
+    decir qué corregir obliga a una llamada, que es justo el ir y venir que
+    este módulo vino a quitar.
+    """
+    solicitante = db.get(User, solicitud.solicitado_por)
+    if not solicitante or not solicitante.email or not solicitante.activo:
+        return []
+    return [(EVENTO_DEVUELTA, {
+        **_base(solicitud),
+        "devuelta_en": flujo.etiqueta(etapa),
+        "devuelta_por": devuelta_por,
+        "comentario": (comentario or "")[:280],
+        "destinatarios": [solicitante.email],
+    })]
+
+
+def avisos_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
+    return _protegido(_aviso_en_turno, db, tenant_id, solicitud)
+
+
+def avisos_devuelta(db: Session, tenant_id: int, solicitud, etapa: str,
+                    devuelta_por: str, comentario: str | None) -> list[Aviso]:
+    return _protegido(_aviso_devuelta, db, tenant_id, solicitud, etapa,
+                      devuelta_por, comentario)

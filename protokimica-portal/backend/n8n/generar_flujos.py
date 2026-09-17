@@ -91,7 +91,7 @@ def dato(etiqueta: str, valor: str) -> str:
 
 
 def flujo(nombre: str, path: str, para: str, asunto: str, html: str,
-          remitente: str) -> dict:
+          remitente: str, copia: str | None = None) -> dict:
     """
     Un flujo = webhook que escucha + correo que sale.
 
@@ -125,7 +125,12 @@ def flujo(nombre: str, path: str, para: str, asunto: str, html: str,
                     "subject": asunto,
                     "emailFormat": "html",
                     "html": html,
-                    "options": {},
+                    # La copia va en `ccEmail` y no como un destinatario más:
+                    # quien está en copia no tiene que hacer nada, y mezclarlo
+                    # con los que sí deciden borra esa diferencia justo donde
+                    # importa (Contabilidad mirando la DIAN mientras Comercial
+                    # aprueba).
+                    "options": {"ccEmail": copia} if copia else {},
                 },
                 "id": f"correo-{path}",
                 "name": "Enviar correo",
@@ -262,17 +267,26 @@ FLUJOS = [
         ),
     ),
     flujo(
-        # Entre el punto de venta y Contabilidad: puro interno.
+        # UN solo flujo para todas las etapas de la cadena: el correo dice qué
+        # hacer leyendo `que_hacer`, que lo redacta el portal. Uno por etapa
+        # obligaría a construir, importar y activar otro flujo a mano cada vez
+        # que se agregue un paso — y ahí es donde se olvida uno.
         remitente=REMITENTE_INTERNO,
-        nombre="Nota crédito · pedida a Contabilidad",
-        path="nc-solicitada",
+        nombre="Nota crédito · te toca a ti",
+        path="nc-en-turno",
         para=f"={{{{ {B}.destinatarios.join(', ') }}}}",
-        asunto=f"=Nota crédito por autorizar · {{{{ {B}.codigo }}}} · {{{{ {B}.punto_venta }}}}",
+        # Contabilidad va en copia cuando la solicitud está en Comercial: no
+        # decide ahí, va mirando si la factura tiene saldo ante la DIAN.
+        copia=f"={{{{ ({B}.en_copia || []).join(', ') }}}}",
+        asunto=f"=Nota crédito {{{{ {B}.codigo }}}} · {{{{ {B}.etapa_nombre }}}}",
         html="=" + plantilla(
-            titulo=f"{{{{ {B}.punto_venta }}}} pide una nota crédito",
+            titulo=f"{{{{ {B}.que_hacer }}}}",
             cuerpo=(
                 dato("Solicitud", f"{{{{ {B}.codigo }}}}")
-                + dato("La pidió", f"{{{{ {B}.solicitada_por }}}}")
+                + dato("Canal", f"{{{{ {B}.punto_venta }}}}")
+                + f"{{{{ {B}.bodega "
+                  f"? '{dato('Bodega', '@@V@@')}'.replace('@@V@@', {B}.bodega) "
+                  f": '' }}}}"
                 + dato("Factura", f"{{{{ {B}.factura_afectada }}}}")
                 + f"{{{{ {B}.factura_reemplaza "
                   f"? '{dato('La reemplaza', '@@V@@')}'.replace('@@V@@', {B}.factura_reemplaza) "
@@ -291,6 +305,30 @@ FLUJOS = [
                   f"soporte; se ve en el portal.</p>' : '' }}}}"
             ),
             boton=("Revisar en el portal", f"{{{{ {B}.link_portal }}}}"),
+        ),
+    ),
+    flujo(
+        remitente=REMITENTE_INTERNO,
+        nombre="Nota crédito · devuelta para corregir",
+        path="nc-devuelta",
+        # A quien la pidió. No es un rechazo: se le pide que corrija y la
+        # vuelva a mandar, así que el botón dice eso y no «ver el resultado».
+        para=f"={{{{ {B}.destinatarios.join(', ') }}}}",
+        asunto=f"=Te devolvieron la nota crédito {{{{ {B}.codigo }}}} para corregirla",
+        html="=" + plantilla(
+            titulo="Falta corregir algo antes de seguir",
+            cuerpo=(
+                dato("Solicitud", f"{{{{ {B}.codigo }}}}")
+                + dato("Se devolvió en", f"{{{{ {B}.devuelta_en }}}}")
+                + dato("La devolvió", f"{{{{ {B}.devuelta_por }}}}")
+                + dato("Factura", f"{{{{ {B}.factura_afectada }}}}")
+                + f'<p style="margin:14px 0 0 0;padding:12px;background:#FFF6E5;'
+                  f'border-radius:8px">{{{{ {B}.comentario }}}}</p>'
+                + '<p style="margin:10px 0 0 0;font-size:13px">Corrige lo que '
+                  'te piden y vuelve a mandarla desde el portal: sigue siendo '
+                  'la misma solicitud, no radiques otra.</p>'
+            ),
+            boton=("Corregir y reenviar", f"{{{{ {B}.link_portal }}}}"),
         ),
     ),
     flujo(

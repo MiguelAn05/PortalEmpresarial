@@ -544,6 +544,32 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   entrar uno; la puntuación tipográfica (`→ — · …`) no cuenta, es texto.
   Icono nuevo: se agrega a `Iconos.jsx` con el mismo trazo, nunca suelto en el
   componente.
+- **El inicio de sesión es panel dividido.** A la izquierda la marca (el
+  logo, qué es el portal y qué se hace adentro) y a la derecha el formulario;
+  debajo de `lg` el panel desaparece y el logo se sube encima. Mucha gente
+  llega por un enlace de un correo o por el QR de una sede, y una tarjeta
+  suelta en una pantalla vacía no dice a dónde llegó ni que es interno. El
+  degradado y la retícula del panel son utilidades de `index.css`
+  (`panel-marca`, `reticula`), no estilos dentro del componente: son color de
+  marca. **No hay «¿Olvidaste tu contraseña?»** porque el portal no tiene cómo
+  restablecerla; el pie manda a `CORREO_SOPORTE` de `marca.js`, que es quien
+  sí la cambia. Un enlace que no lleva a ninguna parte es peor que no tenerlo.
+- **«Mantener sesión iniciada» decide dónde vive el token.** Marcada,
+  `localStorage`; sin marcar, `sessionStorage` — y muere al cerrar el
+  navegador. Antes iba siempre a `localStorage`, así que en un computador
+  compartido —los de los puntos de venta lo son— el siguiente que lo prendiera
+  entraba con la cuenta del anterior. La regla vive en `core/sesion.js` y es
+  la **única** que toca esos almacenes: `AuthContext` y `api.js` pasan por
+  ella. Al guardar se limpia el otro almacén, o quien entró recordado y luego
+  entra sin marcar la casilla seguiría dentro después de cerrar la pestaña.
+  Todo va en try/catch: en modo privado tocar `localStorage` **lanza**, y eso
+  no puede dejar a nadie sin poder entrar.
+- **El 401 del login no es una sesión vencida.** Son el mismo código y no la
+  misma cosa: el interceptor de `api.js` mandaba a `/login` ante cualquier
+  401, así que una contraseña equivocada recargaba la página y se llevaba por
+  delante el mensaje de error — el formulario parpadeaba y volvía en blanco.
+  `esPeticionDeLogin()` lo exceptúa, y la redirección no se dispara si ya se
+  está en `/login`.
 - **Un archivo elegido se puede quitar antes de enviar.** En los formularios
   de radicación (público: `CampoAdjunto`; interno: `ArchivoElegido`) cada
   adjunto ofrece «Cambiar» y «Quitar», y el `<input>` se limpia al quitar: si
@@ -659,6 +685,14 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   `LIMITES_RADICACION` de `modules/pqrs/constants.js`, que una prueba ata a
   `models/pqrs.py`. Todo endpoint que guarde texto libre en un `String(n)`
   necesita las dos cosas.
+- **Una prueba que manda un parámetro que la pantalla no manda no prueba
+  nada.** Reenviar y cancelar una nota crédito reusaban el schema de
+  responder, donde `decision` es obligatoria y en esas dos no significa nada.
+  La prueba del backend pasaba —mandaba un `decision` inventado— y el botón
+  respondía 422 en el navegador. Es la otra cara de «un arreglo solo en el
+  servidor no arregla la pantalla»: si el endpoint acepta algo que la pantalla
+  nunca va a mandar, **pruébalo con lo que de verdad viaja** (aquí, cuerpo
+  vacío). Y un endpoint que no usa un campo no comparte schema con uno que sí.
 - **Un arreglo solo en el servidor no arregla la pantalla.** La 0.19.4
   anunció que filtrar proyectos por «cerrado»/«cancelado» ya funcionaba: el
   endpoint ignora el archivo cuando recibe un estado terminal. Pero
@@ -740,6 +774,68 @@ de n8n se rompe en silencio.
 
 Lo que no tiene responsable **sale aparte, nunca se descarta**: una PQRS sin
 asignar con el plazo corriendo es el caso más peligroso de todos.
+
+- **Notas crédito: hay DOS cadenas, y el canal decide cuál.** La cadena vive
+  en `modules/notas_credito/flujo.py` y es la **única fuente**; el router, los
+  correos y la pantalla preguntan ahí.
+
+  | Quién pide | Recorrido |
+  |---|---|
+  | Un punto de venta | Contabilidad autoriza → el punto emite. Igual que siempre |
+  | Ventas Institucionales | Comercial aprueba → Contabilidad verifica en la DIAN → se emite |
+  | Ventas Institucionales, motivo con producto | **La bodega confirma que llegó** y después lo anterior |
+
+  **El estado dice de quién es el turno** (`en_bodega`, `en_comercial`,
+  `en_contabilidad`…) y no hay un campo `etapa` aparte: dos columnas que
+  describen lo mismo terminan diciendo cosas distintas. Los cuatro estados
+  viejos significan lo mismo que antes, así que las solicitudes que ya
+  existían no se movieron de sitio.
+
+  **Un solo endpoint mueve toda la cadena** (`POST /{id}/responder` con
+  `aprobar` | `rechazar` | `devolver`). Con uno por etapa, aprobar «por
+  comercial» algo que está en la bodega sería cuestión de escribir la otra
+  URL; así el orden lo impone el servidor y no la memoria de la gente.
+
+  **Qué motivos traen producto lo define el MOTIVO**
+  (`nc_motivos.requiere_bodega`), no una pregunta del formulario: es una
+  propiedad del motivo —«devolución de mercancía» siempre trae producto— y
+  preguntándolo cada vez la respuesta dependería de quién radica. Lo
+  administra Contabilidad desde el portal, sin desplegar.
+
+  **La bodega no es el punto de venta, aunque Guayabal y La 65 se llamen
+  igual en los dos catálogos.** `core/bodegas.py` (gemelo en
+  `frontend/src/core/bodegas.js`, con prueba que los ata) y `users.bodega`:
+  quien tiene bodega marcada atiende la suya, quien no la tiene responde por
+  las dos — igual que el coordinador sin punto de venta ve los seis. Lo ajeno
+  responde **404**.
+
+  **Devolver no es rechazar.** Rechazar cierra el caso; devolver lo deja vivo
+  en manos de quien lo pidió, con el comentario de qué corregir (obligatorio:
+  una devolución muda obliga a una llamada). **Al reenviarla vuelve al
+  PRINCIPIO de su cadena**, porque quien ya había aprobado lo hizo sobre unos
+  datos que acaban de cambiar. Y `cancelada` —la retira quien la pidió— se
+  cuenta aparte de `rechazada`: una que el vendedor retira no es un caso que
+  la empresa negó.
+
+  **Las cuatro manos van en `nc_historial`, no en columnas.** Con la
+  devolución una solicitud puede pasar dos veces por la misma etapa, y eso no
+  cabe en tres columnas. `autorizado_por` quedó como la ÚLTIMA firma.
+
+  **Un solo evento de n8n para todas las etapas** (`nc-en-turno`): el correo
+  dice qué hacer leyendo `que_hacer` del payload. Uno por etapa obligaría a
+  construir, importar y activar otro flujo a mano cada vez que se agregue un
+  paso. Cuando la solicitud llega a Comercial, **Contabilidad va en copia**
+  (`en_copia` → `ccEmail`) para que vaya mirando la DIAN sin decidir todavía.
+  `nc-solicitada` se retiró: `nc-en-turno` lo cubre.
+
+  Las tres capacidades nuevas (`notas_credito.confirmar_producto`,
+  `.aprobar_comercial`, `.verificar_dian`) las siembra la migración a
+  Logística + Producción, Comercial y Contabilidad. **Se siembran en la
+  migración y no solo en `sembrar_capacidades_iniciales`** porque esa siembra
+  corre cuando alguien abre Administración › Capacidades: si nadie la abre, la
+  primera solicitud institucional se queda esperando a alguien que todavía no
+  tiene el permiso. Para acotar las bodegas a sus dos coordinadores se revoca
+  el área y se otorga por nombre, sin tocar código.
 
 - **Notas crédito: aprobada es «falta emitirla».** Al aprobar sale un aviso
   más (`nc-por-emitir`) **al punto de venta de la factura**, que es quien la

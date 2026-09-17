@@ -56,7 +56,7 @@ def _solicitud(entorno, punto=GUAYABAL, solicitante=None):
     return sid
 
 
-def _avisos(entorno, sid, decision="aprobada"):
+def _avisos(entorno, sid, decision="aprobar"):
     """Responde la solicitud y arma los avisos que saldrían al punto de venta."""
     r = entorno.post(f"/notas-credito/{sid}/responder", json={"decision": decision})
     assert r.status_code == 200, r.text[:300]
@@ -153,7 +153,7 @@ def test_rechazada_no_manda_a_emitir(entorno, v):
     entorno.como("admin")
     sid = _solicitud(entorno)
 
-    r = entorno.post(f"/notas-credito/{sid}/responder", json={"decision": "rechazada"})
+    r = entorno.post(f"/notas-credito/{sid}/responder", json={"decision": "rechazar"})
     v.check("se rechaza", r.status_code == 200, r.text[:200])
     db = entorno.Session()
     solicitud = db.get(SolicitudNotaCredito, sid)

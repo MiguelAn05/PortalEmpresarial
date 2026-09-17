@@ -1,23 +1,21 @@
 import { createContext, useContext, useState } from 'react'
+import { guardarSesion, limpiarSesion, usuarioGuardado } from './sesion.js'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    // Al cargar la app, intenta recuperar el usuario guardado
-    const saved = localStorage.getItem('user')
-    return saved ? JSON.parse(saved) : null
-  })
+  // Dónde está guardada la sesión lo decide `sesion.js`: el login ofrece
+  // «Mantener sesión iniciada», y sin eso el token iba siempre a
+  // localStorage aunque la persona hubiera pedido lo contrario.
+  const [user, setUser] = useState(() => usuarioGuardado())
 
-  const login = (userData, token) => {
-    localStorage.setItem('token', token)
-    localStorage.setItem('user', JSON.stringify(userData))
+  const login = (userData, token, recordar = true) => {
+    guardarSesion(token, userData, recordar)
     setUser(userData)
   }
 
   const logout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    limpiarSesion()
     setUser(null)
   }
 

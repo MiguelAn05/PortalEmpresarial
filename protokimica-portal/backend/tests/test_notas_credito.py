@@ -129,14 +129,14 @@ def test_solo_contabilidad_autoriza(entorno, v):
     sid = _radicar(portal).json()["id"]
 
     portal.como("tics")   # líder, pero de otra área
-    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobada"})
+    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
     v.check("un líder de otra área no puede", r.status_code in (403, 404), r.status_code)
 
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
     _dar_capacidades_nc(portal)
     portal.como("calidad")
     r = portal.post(f"/notas-credito/{sid}/responder",
-                    json={"decision": "aprobada", "comentario": "Va"})
+                    json={"decision": "aprobar", "comentario": "Va"})
     v.check("Contabilidad sí", r.status_code == 200, r.text[:250])
     v.check("queda aprobada", r.json()["estado"] == "aprobada", r.json())
     v.check("con quién firmó", r.json()["autorizador_nombre"] == "Cali", r.json())
@@ -151,7 +151,7 @@ def test_un_agente_de_contabilidad_tambien_autoriza(entorno, v):
     _con_area(portal, "logistica", AREA_CONTABILIDAD)   # rol agente
     _dar_capacidades_nc(portal)
     portal.como("logistica")
-    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobada"})
+    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
     v.check("el agente del área firma", r.status_code == 200, r.text[:250])
 
 
@@ -163,8 +163,8 @@ def test_no_se_responde_dos_veces(entorno, v):
     sid = _radicar(portal).json()["id"]
 
     portal.como("calidad")
-    portal.post(f"/notas-credito/{sid}/responder", json={"decision": "rechazada"})
-    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobada"})
+    portal.post(f"/notas-credito/{sid}/responder", json={"decision": "rechazar"})
+    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
     v.check("la segunda no pasa", r.status_code == 400, r.status_code)
 
 
@@ -178,7 +178,7 @@ def test_el_numero_de_la_nc_cierra_el_ciclo(entorno, v):
     sid = _radicar(portal).json()["id"]
 
     portal.como("calidad")
-    portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobada"})
+    portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
     r = portal.post(f"/notas-credito/{sid}/aplicar", json={"numero_nc": "NC-9911"})
     v.check("se registra", r.status_code == 200, r.text[:250])
     v.check("queda aplicada", r.json()["estado"] == "aplicada", r.json())
@@ -243,18 +243,18 @@ def test_el_alcance_dice_la_verdad(entorno, v):
     sid = _radicar(portal).json()["id"]
 
     alcance = portal.get(f"/notas-credito/{sid}").json()["alcance"]
-    v.check("quien la pidió no la autoriza", alcance["puede_autorizar"] is False, alcance)
+    v.check("quien la pidió no la autoriza", alcance["puede_responder"] is False, alcance)
 
     portal.como("calidad")
     alcance = portal.get(f"/notas-credito/{sid}").json()["alcance"]
-    v.check("Contabilidad sí", alcance["puede_autorizar"] is True, alcance)
+    v.check("Contabilidad sí", alcance["puede_responder"] is True, alcance)
     v.check("pero todavía no puede registrar el número",
             alcance["puede_aplicar"] is False, alcance)
 
-    portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobada"})
+    portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
     alcance = portal.get(f"/notas-credito/{sid}").json()["alcance"]
     v.check("aprobada: ya no se vuelve a firmar",
-            alcance["puede_autorizar"] is False, alcance)
+            alcance["puede_responder"] is False, alcance)
     v.check("y ahora sí se registra el número",
             alcance["puede_aplicar"] is True, alcance)
 
@@ -311,7 +311,7 @@ def test_a_contabilidad_le_llega_la_solicitud(entorno, v):
     Sin esto habríamos cambiado un correo que funciona por una pantalla que
     nadie mira.
     """
-    from app.modules.notas_credito.notificaciones import avisos_solicitada
+    from app.modules.notas_credito.notificaciones import avisos_en_turno
 
     portal = entorno
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
@@ -321,17 +321,17 @@ def test_a_contabilidad_le_llega_la_solicitud(entorno, v):
 
     db = portal.Session()
     solicitud = db.get(SolicitudNotaCredito, sid)
-    avisos = avisos_solicitada(db, portal.tenant_id, solicitud, "Logi")
+    avisos = avisos_en_turno(db, portal.tenant_id, solicitud)
     db.close()
 
     v.check("se arma un aviso", len(avisos) == 1, avisos)
     evento, payload = avisos[0]
-    v.check("por su propio evento", evento == "nc-solicitada", evento)
+    v.check("por el evento del turno", evento == "nc-en-turno", evento)
     v.check("va SOLO a Contabilidad",
             payload["destinatarios"] == ["calidad@p.com"], payload["destinatarios"])
     v.check("dice de qué factura es",
             payload["factura_afectada"] == "POS#141824", payload)
-    v.check("y quién la pidió", payload["solicitada_por"] == "Logi", payload)
+    v.check("y qué tiene que hacer quien lo recibe", bool(payload["que_hacer"]), payload)
 
 
 def test_la_respuesta_le_llega_a_quien_la_pidio_y_no_al_area(entorno, v):
@@ -360,7 +360,7 @@ def test_la_respuesta_le_llega_a_quien_la_pidio_y_no_al_area(entorno, v):
 
 def test_el_soporte_no_viaja_como_enlace(entorno, v):
     """`/uploads` no pide sesión: un enlace en un correo se reenvía solo."""
-    from app.modules.notas_credito.notificaciones import avisos_solicitada
+    from app.modules.notas_credito.notificaciones import avisos_en_turno
 
     portal = entorno
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
@@ -372,7 +372,7 @@ def test_el_soporte_no_viaja_como_enlace(entorno, v):
     solicitud = db.get(SolicitudNotaCredito, sid)
     solicitud.adjunto = "/uploads/notas-credito/loquesea.pdf"
     db.commit()
-    avisos = avisos_solicitada(db, portal.tenant_id, solicitud, "Logi")
+    avisos = avisos_en_turno(db, portal.tenant_id, solicitud)
     db.close()
 
     _, payload = avisos[0]
@@ -410,7 +410,7 @@ def test_una_segunda_area_autoriza_sin_quitarle_nada_a_contabilidad(entorno, v):
     db.close()
 
     portal.como("tics")
-    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobada"})
+    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
     v.check("Aseguramiento autoriza", r.status_code == 200, r.text[:250])
 
     # Y Contabilidad conserva su capacidad intacta: otorgar a una segunda
@@ -419,5 +419,5 @@ def test_una_segunda_area_autoriza_sin_quitarle_nada_a_contabilidad(entorno, v):
     sid2 = _radicar(portal).json()["id"]
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
     portal.como("calidad")
-    r = portal.post(f"/notas-credito/{sid2}/responder", json={"decision": "aprobada"})
+    r = portal.post(f"/notas-credito/{sid2}/responder", json={"decision": "aprobar"})
     v.check("Contabilidad sigue autorizando", r.status_code == 200, r.text[:250])

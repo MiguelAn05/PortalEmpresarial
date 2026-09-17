@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.31.0"
-FECHA = "2026-09-16"
+VERSION = "0.33.0"
+FECHA = "2026-09-17"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,57 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.33.0",
+        "fecha": "2026-09-17",
+        "titulo": "Las notas crédito de Ventas Institucionales pasan por su cadena",
+        "cambios": [
+            ("nuevo", "Cuando la nota crédito la pide Ventas Institucionales, "
+                      "ahora recorre su camino: primero la aprueba "
+                      "Coordinación Comercial y después Contabilidad verifica "
+                      "ante la DIAN si la factura tiene saldo a favor. Las de "
+                      "los puntos de venta siguen exactamente igual que antes."),
+            ("nuevo", "Si el motivo implica producto devuelto, antes que nadie "
+                      "confirma la bodega donde entró —Guayabal o La 65— que "
+                      "llegó y en qué estado. Cada bodega ve solo lo suyo."),
+            ("nuevo", "Además de aprobar y rechazar hay un botón de «devolver "
+                      "para corregir»: la solicitud vuelve a quien la pidió sin "
+                      "morirse, él la arregla y la vuelve a mandar. Es la misma "
+                      "solicitud, no hay que radicar otra."),
+            ("nuevo", "Cada solicitud muestra en qué paso va, qué se espera de "
+                      "quien la tiene y por qué manos ya pasó, con fecha y "
+                      "nombre. El filtro «Lo que me toca» deja ver de una vez "
+                      "lo que está esperando por uno."),
+            ("nuevo", "Quien la pidió puede retirarla mientras esté en trámite. "
+                      "Retirada y rechazada se cuentan aparte: no es lo mismo "
+                      "que uno se arrepienta a que la empresa la niegue."),
+            ("mejora", "En Administración › Capacidades están los tres permisos "
+                       "nuevos, y en Admin › Usuarios se elige qué bodega "
+                       "maneja cada quien."),
+        ],
+    },
+    {
+        "version": "0.32.0",
+        "fecha": "2026-09-17",
+        "titulo": "Pantalla de inicio de sesión nueva",
+        "cambios": [
+            ("mejora", "La pantalla para entrar al portal se rehízo: al lado "
+                       "izquierdo la marca y qué es esto, y al derecho el "
+                       "formulario. En celular el formulario ocupa toda la "
+                       "pantalla."),
+            ("nuevo", "El ojo al lado de la contraseña la muestra, para "
+                      "revisarla antes de entrar sin tener que escribirla en "
+                      "otra parte."),
+            ("nuevo", "La casilla «Mantener sesión iniciada» ahora decide de "
+                      "verdad: si se deja sin marcar, la sesión se cierra al "
+                      "cerrar el navegador. Importa en los computadores que "
+                      "se comparten, como los de los puntos de venta."),
+            ("correccion", "Escribir mal la contraseña mostraba la pantalla "
+                           "en blanco un momento y no decía nada. Ahora sale "
+                           "el mensaje de que el correo o la contraseña no "
+                           "coinciden."),
+        ],
+    },
     {
         "version": "0.31.0",
         "fecha": "2026-09-16",

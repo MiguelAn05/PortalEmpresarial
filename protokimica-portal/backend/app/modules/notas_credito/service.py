@@ -6,7 +6,9 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models.nota_credito import MotivoNotaCredito, SolicitudNotaCredito
+from app.models.nota_credito import (
+    HistorialNotaCredito, MotivoNotaCredito, SolicitudNotaCredito,
+)
 
 # Con qué motivos arranca la lista. Son un punto de partida sacado de los
 # correos que hoy se mandan, NO la lista definitiva: Contabilidad la ajusta
@@ -73,3 +75,41 @@ def generar_codigo(db: Session, tenant_id: int) -> str:
             mayor = max(mayor, int(sufijo))
 
     return f"{prefijo}{mayor + 1:04d}"
+
+
+def anotar(db: Session, solicitud, etapa: str, accion: str, usuario,
+           comentario: str | None = None) -> None:
+    """
+    Deja constancia de una mano en el historial de la solicitud.
+
+    No hace `commit`: se llama dentro de la misma transacción que cambia el
+    estado, para que no exista la posibilidad de que el estado avance y la
+    constancia no. Si se guardaran aparte, un error en el medio dejaría una
+    solicitud aprobada sin que se sepa quién la aprobó — que es exactamente
+    lo que este módulo vino a resolver.
+    """
+    db.add(HistorialNotaCredito(
+        tenant_id=solicitud.tenant_id,
+        solicitud_id=solicitud.id,
+        etapa=etapa,
+        accion=accion,
+        usuario_id=getattr(usuario, "id", None),
+        usuario_nombre=getattr(usuario, "nombre", None),
+        comentario=(comentario or "").strip() or None,
+    ))
+
+
+def requiere_bodega(db: Session, tenant_id: int, motivo_id: int | None) -> bool:
+    """
+    ¿El motivo de esta solicitud implica que vuelve producto?
+
+    Sin motivo la respuesta es NO: pedirle a una bodega que confirme un
+    producto que nadie declaró sería un paso que no mira nada.
+    """
+    if motivo_id is None:
+        return False
+    motivo = db.query(MotivoNotaCredito).filter(
+        MotivoNotaCredito.id == motivo_id,
+        MotivoNotaCredito.tenant_id == tenant_id,
+    ).first()
+    return bool(motivo and motivo.requiere_bodega)

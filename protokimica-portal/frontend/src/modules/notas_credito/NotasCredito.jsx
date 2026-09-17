@@ -14,26 +14,17 @@ import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
 import { CANALES } from '../../core/canales.js'
+import { BODEGAS } from '../../core/bodegas.js'
 import {
   IconoAlDia, IconoAlerta, IconoBuscar, IconoCerrar, IconoClip,
-  IconoRecibo, IconoRechazo,
+  IconoFlecha, IconoRecibo, IconoRechazo,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 import { useCierreSeguro } from '../../core/components/cierreSeguro.jsx'
-
-// Atados a los mismos números del schema del backend (notas_credito/schemas.py).
-// Si allá cambian, aquí también: el servidor manda, pero un input sin tope deja
-// escribirlo todo para recibir un error al final.
-const MAX_FACTURA = 60
-const MAX_OBSERVACIONES = 2000
-const MAX_NUMERO_NC = 60
-
-const ESTADOS = {
-  solicitada: { label: 'Esperando autorización', color: 'bg-alerta-bg text-alerta' },
-  aprobada:   { label: 'Aprobada, falta emitir', color: 'bg-info-bg text-info' },
-  rechazada:  { label: 'Rechazada',              color: 'bg-negativo-bg text-negativo' },
-  aplicada:   { label: 'Nota crédito emitida',   color: 'bg-positivo-bg text-positivo' },
-}
+import {
+  ESTADOS, MAX_FACTURA, MAX_NUMERO_NC, MAX_OBSERVACIONES,
+  describirPaso, estaAbierta, faltaEnSolicitud, pideBodega,
+} from './constants.js'
 
 function Badge({ estado }) {
   const item = ESTADOS[estado] || { label: estado, color: 'bg-superficie-2 text-texto-2' }
@@ -69,6 +60,7 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
     factura_reemplaza: '',
     valor: '',
     motivo_id: '',
+    bodega: '',
     observaciones: '',
   }
   const [form, setForm] = useState(VACIO)
@@ -95,11 +87,22 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
   })
 
   const cambiar = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
+    const siguiente = { ...form, [e.target.name]: e.target.value }
+    // Cambiar de canal o de motivo puede dejar sin sentido la bodega elegida
+    // antes; si se quedara, viajaría al servidor diciendo que entró mercancía
+    // donde no entró ninguna.
+    if (e.target.name === 'punto_venta' || e.target.name === 'motivo_id') {
+      siguiente.bodega = ''
+    }
+    setForm(siguiente)
     setError('')
   }
 
-  const listo = form.punto_venta && form.factura_afectada.trim() && form.observaciones.trim()
+  // El motivo decide si hay producto de por medio, y de ahí sale si hay que
+  // preguntar la bodega. La regla vive en `constants.js`, no aquí.
+  const motivo = motivos.find(m => String(m.id) === String(form.motivo_id))
+  const hayQuePreguntarBodega = pideBodega(form.punto_venta, motivo)
+  const falta = faltaEnSolicitud(form, motivo)
 
   const campo = "w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento"
   const etiqueta = "block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1"
@@ -164,6 +167,23 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
               <input id="nc-valor" name="valor" value={form.valor} onChange={cambiar}
                      type="number" min="0" step="0.01" placeholder="0" className={`${campo} cifra`} />
             </div>
+
+            {/* Aparece solo cuando el motivo implica producto devuelto. Un
+                campo que no aplica y se deja deshabilitado solo genera la
+                pregunta de por qué no funciona. */}
+            {hayQuePreguntarBodega && (
+              <div>
+                <label htmlFor="nc-bodega" className={etiqueta}>¿A qué bodega entró? *</label>
+                <select id="nc-bodega" name="bodega" value={form.bodega}
+                        onChange={cambiar} className={campo}>
+                  <option value="">Seleccionar...</option>
+                  {BODEGAS.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <p className="text-xs text-texto-3 mt-1">
+                  Allá confirman que llegó y en qué estado antes de que siga.
+                </p>
+              </div>
+            )}
           </div>
 
           <div>
@@ -188,12 +208,15 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
           {error && <p role="alert" className="text-sm text-negativo">{error}</p>}
         </div>
 
-        <div className="px-6 py-4 border-t border-borde flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-borde flex items-center justify-end gap-3">
+          {/* Qué falta, escrito: un botón apagado sin explicación es la forma
+              más rápida de que alguien crea que el portal está roto. */}
+          {falta && <span className="text-xs text-texto-3 mr-auto">{falta}</span>}
           <button onClick={intentarCerrar}
                   className="px-4 py-2 rounded-lg border border-borde text-sm font-semibold text-texto-2 hover:bg-fondo transition">
             Cancelar
           </button>
-          <button onClick={() => mutacion.mutate()} disabled={!listo || mutacion.isPending}
+          <button onClick={() => mutacion.mutate()} disabled={Boolean(falta) || mutacion.isPending}
                   className="px-4 py-2 rounded-lg bg-acento-fuerte hover:bg-acento text-white text-sm font-bold transition disabled:opacity-50">
             {mutacion.isPending ? 'Enviando...' : 'Enviar solicitud'}
           </button>
@@ -225,6 +248,19 @@ function Tarjeta({ solicitud, invalidar }) {
                                        { decision, comentario }),
     onSuccess: () => { invalidar(); setComentario(''); setError('') },
     onError: (err) => setError(mensajeDeError(err, 'No se pudo registrar la decisión.')),
+  })
+
+  // Corregir y volver a mandarla, o retirarla: las dos son de quien la pidió.
+  const reenviar = useMutation({
+    mutationFn: () => api.post(`/notas-credito/${solicitud.id}/reenviar`, { comentario }),
+    onSuccess: () => { invalidar(); setComentario(''); setError('') },
+    onError: (err) => setError(mensajeDeError(err, 'No se pudo reenviar la solicitud.')),
+  })
+
+  const cancelar = useMutation({
+    mutationFn: () => api.post(`/notas-credito/${solicitud.id}/cancelar`, { comentario }),
+    onSuccess: () => { invalidar(); setComentario(''); setError('') },
+    onError: (err) => setError(mensajeDeError(err, 'No se pudo retirar la solicitud.')),
   })
 
   const aplicar = useMutation({
@@ -275,6 +311,12 @@ function Tarjeta({ solicitud, invalidar }) {
                 <span className="font-medium cifra">{solicitud.factura_reemplaza}</span>
               </div>
             )}
+            {solicitud.bodega && (
+              <div>
+                <span className="text-xs text-texto-2 block">Bodega que recibe</span>
+                <span className="font-medium">{solicitud.bodega}</span>
+              </div>
+            )}
             {solicitud.numero_nc && (
               <div>
                 <span className="text-xs text-texto-2 block">Nota crédito emitida</span>
@@ -304,7 +346,42 @@ function Tarjeta({ solicitud, invalidar }) {
             </p>
           )}
 
-          {(alcance?.puede_autorizar || alcance?.puede_aplicar) && (
+          {/* En qué paso va y qué sigue. Lo redacta el servidor: si la
+              pantalla tradujera «en_contabilidad» por su cuenta, agregar un
+              paso obligaría a acordarse de traducirlo también aquí. */}
+          {detalle?.etapa_nombre && estaAbierta(solicitud.estado) && (
+            <div className="bg-superficie-2 rounded-lg px-3 py-2 text-sm">
+              <div className="font-semibold text-texto">{detalle.etapa_nombre}</div>
+              {detalle.que_hacer && (
+                <div className="text-xs text-texto-2 mt-0.5">{detalle.que_hacer}</div>
+              )}
+              {detalle.etapa_siguiente && (
+                <div className="text-xs text-texto-3 mt-0.5">
+                  Después: {detalle.etapa_siguiente}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* La cadena de manos por las que pasó: es lo que se audita. */}
+          {detalle?.historial?.length > 1 && (
+            <ol className="border-l-2 border-borde pl-3 space-y-2">
+              {detalle.historial.map((paso, i) => (
+                <li key={i} className="text-xs text-texto-2">
+                  <span className="text-texto">{describirPaso(paso)}</span>
+                  {' · '}{formatFecha(paso.creado_en)}
+                  {paso.comentario && (
+                    <div className="text-texto-2 mt-0.5 whitespace-pre-wrap">
+                      {paso.comentario}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {(alcance?.puede_responder || alcance?.puede_aplicar
+            || alcance?.puede_reenviar || alcance?.puede_cancelar) && (
             <div className="border-t border-borde pt-3 space-y-2">
               {alcance.puede_aplicar && (
                 <div>
@@ -325,17 +402,45 @@ function Tarjeta({ solicitud, invalidar }) {
 
               {error && <p role="alert" className="text-sm text-negativo">{error}</p>}
 
-              {alcance.puede_autorizar && (
-                <div className="flex gap-2">
-                  <button onClick={() => responder.mutate('aprobada')} disabled={responder.isPending}
-                          className="flex-1 inline-flex items-center justify-center gap-1.5 bg-positivo-vivo text-white font-bold py-2 rounded-lg text-sm transition disabled:opacity-50">
-                    <IconoAlDia tam={15} /> Aprobar
+              {alcance.puede_responder && (
+                <>
+                  <div className="flex gap-2">
+                    <button onClick={() => responder.mutate('aprobar')} disabled={responder.isPending}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-positivo-vivo text-white font-bold py-2 rounded-lg text-sm transition disabled:opacity-50">
+                      <IconoAlDia tam={15} />
+                      {detalle?.etapa_siguiente ? 'Aprobar y pasar' : 'Aprobar'}
+                    </button>
+                    <button onClick={() => responder.mutate('rechazar')} disabled={responder.isPending}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-negativo-vivo text-white font-bold py-2 rounded-lg text-sm transition disabled:opacity-50">
+                      <IconoRechazo tam={15} /> Rechazar
+                    </button>
+                  </div>
+                  {/* Devolver es la salida del medio: ni aprobar algo que
+                      está mal, ni matar un caso que solo necesita una
+                      corrección. Exige comentario — una devolución muda
+                      obliga a una llamada. */}
+                  <button onClick={() => responder.mutate('devolver')}
+                          disabled={responder.isPending || !comentario.trim()}
+                          title={comentario.trim() ? '' : 'Escribe primero qué hay que corregir'}
+                          className="w-full inline-flex items-center justify-center gap-1.5 border border-borde-fuerte text-texto font-semibold py-2 rounded-lg text-sm transition hover:bg-superficie-2 disabled:opacity-50">
+                    <IconoFlecha tam={15} className="rotate-180" />
+                    Devolver para corregir
                   </button>
-                  <button onClick={() => responder.mutate('rechazada')} disabled={responder.isPending}
-                          className="flex-1 inline-flex items-center justify-center gap-1.5 bg-negativo-vivo text-white font-bold py-2 rounded-lg text-sm transition disabled:opacity-50">
-                    <IconoRechazo tam={15} /> Rechazar
-                  </button>
-                </div>
+                </>
+              )}
+
+              {alcance.puede_reenviar && (
+                <button onClick={() => reenviar.mutate()} disabled={reenviar.isPending}
+                        className="w-full bg-acento-fuerte hover:bg-acento text-white font-bold py-2.5 rounded-lg text-sm transition disabled:opacity-50">
+                  {reenviar.isPending ? 'Enviando...' : 'Ya lo corregí: volver a mandarla'}
+                </button>
+              )}
+
+              {alcance.puede_cancelar && !alcance.puede_responder && (
+                <button onClick={() => cancelar.mutate()} disabled={cancelar.isPending}
+                        className="w-full border border-borde text-texto-2 font-semibold py-2 rounded-lg text-xs transition hover:bg-superficie-2 disabled:opacity-50">
+                  Retirar la solicitud
+                </button>
               )}
 
               {alcance.puede_aplicar && (
@@ -384,8 +489,15 @@ export default function NotasCredito() {
 
   // Cuántas esperan a alguien. Una cifra sin contexto obliga a preguntar
   // «¿eso es bueno?», así que va con su etiqueta.
-  const esperando = solicitudes.filter(s => s.estado === 'solicitada').length
+  //
+  // «En trámite» cuenta todos los turnos intermedios y no solo `solicitada`:
+  // con la cadena institucional, una que está en Comercial también está
+  // esperando, y contar solo el primer paso la haría invisible.
+  const enTramite = solicitudes.filter(
+    s => estaAbierta(s.estado) && s.estado !== 'aprobada' && s.estado !== 'devuelta',
+  ).length
   const porEmitir = solicitudes.filter(s => s.estado === 'aprobada').length
+  const devueltas = solicitudes.filter(s => s.estado === 'devuelta').length
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -414,16 +526,16 @@ export default function NotasCredito() {
         </button>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-3 mb-5">
+      <div className="grid sm:grid-cols-3 gap-3 mb-5">
         <div className="bg-white rounded-xl border border-borde p-4">
           <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide">
-            Esperando autorización
+            En trámite
           </div>
-          <div className={`text-2xl font-bold cifra mt-1 ${esperando ? 'text-alerta' : 'text-positivo'}`}>
-            {esperando}
+          <div className={`text-2xl font-bold cifra mt-1 ${enTramite ? 'text-alerta' : 'text-positivo'}`}>
+            {enTramite}
           </div>
           <div className="text-xs text-texto-2">
-            {esperando === 0 ? 'Ninguna pendiente' : 'A la espera de Contabilidad'}
+            {enTramite === 0 ? 'Ninguna pendiente' : 'Esperando a alguien de la cadena'}
           </div>
         </div>
         <div className="bg-white rounded-xl border border-borde p-4">
@@ -437,10 +549,25 @@ export default function NotasCredito() {
             {porEmitir === 0 ? 'Todo al día' : 'Falta registrar su número'}
           </div>
         </div>
+        <div className="bg-white rounded-xl border border-borde p-4">
+          <div className="text-xs text-texto-2 font-semibold uppercase tracking-wide">
+            Devueltas
+          </div>
+          <div className={`text-2xl font-bold cifra mt-1 ${devueltas ? 'text-negativo' : 'text-positivo'}`}>
+            {devueltas}
+          </div>
+          <div className="text-xs text-texto-2">
+            {devueltas === 0 ? 'Ninguna por corregir' : 'Esperan corrección de quien las pidió'}
+          </div>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        {[['', 'Todas'], ...Object.entries(ESTADOS).map(([k, e]) => [k, e.label])].map(([clave, texto]) => (
+        {/* «Lo que me toca» va de primero: es la pregunta con la que la gente
+            entra. El servidor resuelve cuáles son — depende de qué capacidad
+            tenga cada quien, y eso la pantalla no lo sabe. */}
+        {[['mi_turno', 'Lo que me toca'], ['', 'Todas'],
+          ...Object.entries(ESTADOS).map(([k, e]) => [k, e.label])].map(([clave, texto]) => (
           <button key={clave} onClick={() => setFiltro(clave)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                     filtro === clave

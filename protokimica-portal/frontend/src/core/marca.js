@@ -29,8 +29,16 @@
  */
 
 const MARCAS = {
-  protokimica: { nombre: 'Protokimica', logo: '/logo.png' },
-  metria: { nombre: 'Metria', logo: '/logoMetria.png' },
+  protokimica: {
+    nombre: 'Protokimica',
+    logo: '/logo.png',
+    soporte: 'soporte.tics@protokimica.com',
+  },
+  metria: {
+    nombre: 'Metria',
+    logo: '/logoMetria.png',
+    soporte: 'soporte.tics@protokimica.com',
+  },
 }
 
 /** ← La única línea que se cambia. Tiene que ser una llave de `MARCAS`. */
@@ -56,3 +64,13 @@ export const NOMBRE_EMPRESA = MARCAS[ACTIVA].nombre
  * cambia la marca.
  */
 export const LOGO_ALT = 'Logo de la empresa'
+
+/**
+ * A quién se le escribe cuando alguien no puede entrar.
+ *
+ * Vive aquí y no dentro del login porque es un dato de la empresa, como el
+ * logo: el día que cambie el buzón de soporte se cambia en un solo sitio, y
+ * una pantalla de inicio de sesión que manda a una dirección muerta deja a
+ * alguien por fuera sin a quién preguntarle.
+ */
+export const CORREO_SOPORTE = MARCAS[ACTIVA].soporte

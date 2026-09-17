@@ -7,6 +7,7 @@ import { useAuth } from '../../core/AuthContext.jsx'
 import api from '../../core/api.js'
 import { AREAS, areasParaSelect } from '../../core/areas.js'
 import { prefijoDe, puntosDeVenta } from '../../core/canales.js'
+import { AREAS_CON_BODEGA, BODEGAS } from '../../core/bodegas.js'
 import { IconoBuscar, IconoCandado, IconoLlave, IconoPersonas } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 
@@ -33,6 +34,25 @@ function SelectPuntoVenta({ valor, onChange, className }) {
       {puntosDeVenta().map(canal => (
         <option key={canal} value={prefijoDe(canal)}>{canal.replace('Punto de venta ', '')}</option>
       ))}
+    </select>
+  )
+}
+
+/**
+ * La bodega por la que responde alguien, para las devoluciones de nota
+ * crédito. Vacío = responde por las dos, igual que un coordinador sin punto
+ * de venta ve los seis puntos.
+ */
+function SelectBodega({ valor, onChange, className }) {
+  return (
+    <select
+      value={valor || ''}
+      onChange={(e) => onChange(e.target.value || null)}
+      title="Qué devoluciones de nota crédito le toca confirmar"
+      className={className}
+    >
+      <option value="">Todas las bodegas</option>
+      {BODEGAS.map(b => <option key={b} value={b}>Bodega {b}</option>)}
     </select>
   )
 }
@@ -417,6 +437,14 @@ function GestionUsuarios() {
                 <SelectPuntoVenta
                   valor={u.punto_venta}
                   onChange={(punto) => mutActualizar.mutate({ id: u.id, cambios: { punto_venta: punto } })}
+                  className="text-xs border border-borde rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-acento"
+                />
+              )}
+
+              {(u.bodega || AREAS_CON_BODEGA.includes(u.area)) && (
+                <SelectBodega
+                  valor={u.bodega}
+                  onChange={(bodega) => mutActualizar.mutate({ id: u.id, cambios: { bodega } })}
                   className="text-xs border border-borde rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-acento"
                 />
               )}

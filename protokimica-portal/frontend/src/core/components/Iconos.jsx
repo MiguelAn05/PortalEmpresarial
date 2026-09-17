@@ -482,3 +482,32 @@ export const IconoEstrella = ({ relleno = false, ...p }) => (
     <path d="m12 2.8 2.85 5.77 6.37.93-4.61 4.49 1.09 6.34L12 17.34l-5.7 3-1.08-6.35L.61 9.5l6.37-.93z" />
   </Icono>
 )
+
+/** El sobre del campo de correo en el inicio de sesión. */
+export const IconoSobre = (p) => (
+  <Icono {...p}>
+    <rect x="2.5" y="5" width="19" height="14" rx="2" />
+    <path d="m3 6.5 8.4 5.6a1 1 0 0 0 1.2 0L21 6.5" />
+  </Icono>
+)
+
+/** El ojo tachado: la contraseña está oculta y este botón la muestra. */
+export const IconoOjoTachado = (p) => (
+  <Icono {...p}>
+    <path d="M10.6 5.2A9.9 9.9 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-2.4 3.3" />
+    <path d="M6.6 6.8A17.4 17.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 4.3-.95" />
+    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    <path d="m3 3 18 18" />
+  </Icono>
+)
+
+/**
+ * El anillo que gira mientras algo está en curso. Es un arco de 3/4 y el giro
+ * lo pone quien lo usa con `className="animate-spin"` — así el mismo dibujo
+ * sirve quieto si algún día hace falta.
+ */
+export const IconoCargando = (p) => (
+  <Icono {...p}>
+    <path d="M12 3a9 9 0 1 0 9 9" />
+  </Icono>
+)

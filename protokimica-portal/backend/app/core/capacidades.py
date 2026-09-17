@@ -38,6 +38,14 @@ CAPACIDADES = {
     "presupuesto.pagar":       "Registrar el pago de un ítem de presupuesto",
     "notas_credito.autorizar": "Autorizar o rechazar una solicitud de nota crédito",
     "notas_credito.registrar": "Registrar el número de la nota crédito ya emitida",
+    # Las tres etapas de la cadena institucional. Van separadas de
+    # `autorizar` porque son tres manos distintas en tres momentos: la bodega
+    # dice si el producto llegó, Comercial si la devolución procede, y
+    # Contabilidad si la factura tiene saldo ante la DIAN. Ver
+    # `modules/notas_credito/flujo.py`.
+    "notas_credito.confirmar_producto": "Confirmar que el producto devuelto llegó a la bodega",
+    "notas_credito.aprobar_comercial":  "Aprobar comercialmente una nota crédito de venta institucional",
+    "notas_credito.verificar_dian":     "Verificar ante la DIAN el saldo de la factura de una nota crédito",
 }
 
 
@@ -238,6 +246,16 @@ SEMILLA_INICIAL = [
     ("presupuesto.pagar",       "Tesorería",             "master_planner/permisos.py::AREA_REGISTRA_PAGOS (por migrar)"),
     ("notas_credito.autorizar", "Contabilidad",          "ya migrado — ver notas_credito/permisos.py"),
     ("notas_credito.registrar", "Contabilidad",          "ya migrado — ver notas_credito/permisos.py"),
+    # La cadena institucional. Las bodegas arrancan con el ÁREA entera y no
+    # con las dos personas encargadas a propósito: una etapa que nadie puede
+    # atender deja la solicitud atascada sin que nadie sepa por qué, y eso es
+    # peor que un correo de más. Para acotarlo a los dos coordinadores se
+    # revoca el área y se otorga por nombre desde Administración ›
+    # Capacidades, sin tocar código.
+    ("notas_credito.confirmar_producto", "Logística",    "bodega La 65 — ver notas_credito/flujo.py"),
+    ("notas_credito.confirmar_producto", "Producción",   "bodega Guayabal (operaciones) — ver notas_credito/flujo.py"),
+    ("notas_credito.aprobar_comercial",  "Comercial",    "coordinación comercial — ver notas_credito/flujo.py"),
+    ("notas_credito.verificar_dian",     "Contabilidad", "verificación ante la DIAN — ver notas_credito/flujo.py"),
 ]
 
 

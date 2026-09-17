@@ -5,6 +5,7 @@ Fase 2: la pantalla que le permite a un admin resolver el caso que motivó
 todo esto — que Aseguramiento también tramite notas crédito sin volverse
 Contabilidad — sin tocar código.
 """
+from app.core.capacidades import CAPACIDADES
 from app.models.user import User
 
 AREA_CONTABILIDAD = "Contabilidad"
@@ -54,7 +55,11 @@ def test_el_catalogo_se_siembra_y_muestra_quien_tiene_cada_capacidad(entorno, v)
     portal.como("admin")
     catalogo = portal.get("/capacidades").json()
 
-    v.check("trae las seis capacidades declaradas", len(catalogo) == 6, len(catalogo))
+    # Se compara contra el catálogo y no contra un número escrito a mano: así
+    # agregar una capacidad no rompe una prueba que no tenía nada que ver con
+    # ella, que es como se aprende a cambiar números para que el rojo se vaya.
+    v.check("trae todas las capacidades declaradas",
+            len(catalogo) == len(CAPACIDADES), (len(catalogo), len(CAPACIDADES)))
     nc = next(c for c in catalogo if c["clave"] == "notas_credito.autorizar")
     v.check("con su descripción", bool(nc["descripcion"]), nc)
     v.check("y Contabilidad ya sembrada",

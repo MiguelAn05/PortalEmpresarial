@@ -118,6 +118,36 @@
   color: var(--color-texto-3);
 }
 
+/**
+ * El panel oscuro del inicio de sesión.
+ *
+ * El degradado va aquí y no dentro del componente por la misma razón que
+ * todos los colores: es marca. Son dos halos —el azul de acento arriba a la
+ * izquierda, un ámbar muy bajo abajo a la derecha— sobre el azul del menú,
+ * para que la pantalla de entrada se lea como el mismo portal que se abre
+ * después y no como otra aplicación.
+ */
+@utility panel-marca {
+  background-color: var(--color-nav);
+  background-image:
+    radial-gradient(900px 620px at 12% -15%, rgba(26, 79, 160, 0.55), transparent 62%),
+    radial-gradient(760px 520px at 88% 112%, rgba(245, 168, 0, 0.14), transparent 60%);
+}
+
+/**
+ * La retícula tenue del panel: textura, no contenido. La máscara la desvanece
+ * hacia los bordes — una cuadrícula que llega hasta la esquina se lee como un
+ * error de renderizado.
+ */
+@utility reticula {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(74% 62% at 28% 18%, black 35%, transparent 100%);
+  mask-image: radial-gradient(74% 62% at 28% 18%, black 35%, transparent 100%);
+}
+
 /** Esqueleto de carga: la forma del contenido real, no un spinner. */
 @utility esqueleto {
   background-color: var(--color-superficie-2);

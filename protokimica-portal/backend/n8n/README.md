@@ -15,7 +15,8 @@ Aquí están los flujos listos para importar.
 | `pqrs-cerrada.json` | Se cierra la PQRS | Al cliente, con la encuesta |
 | `pqrs-resuelta-cliente.json` | La PQRS pasa a «resuelto» | Al cliente, para que confirme |
 | `pqrs-autorizacion.json` | Se pide o se responde una autorización | Al área que firma y de vuelta |
-| `nc-solicitada.json` | Un punto de venta pide una nota crédito | A quien pueda autorizarla |
+| `nc-en-turno.json` | La solicitud llega a un paso de la cadena | A quien atiende ese paso. Cuando está en Comercial, **Contabilidad va en copia** para ir mirando la DIAN. Es uno solo para todas las etapas: el correo dice qué hacer leyendo `que_hacer`, así que agregar un paso no pide un flujo nuevo. Reemplaza a `nc-solicitada` |
+| `nc-devuelta.json` | Alguien la devuelve para corregir | A quien la pidió, con qué hay que arreglar. No es un rechazo: se le pide que la vuelva a mandar |
 | `nc-respondida.json` | Se aprueba o se rechaza | A quien la pidió |
 | `nc-por-emitir.json` | Queda aprobada: **falta emitirla** | Al punto de venta de la factura, que la emite y registra su número |
 
