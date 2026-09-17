@@ -817,6 +817,18 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   cuenta aparte de `rechazada`: una que el vendedor retira no es un caso que
   la empresa negó.
 
+  **Los filtros son GRUPOS con nombre y van en el orden del flujo**
+  (`flujo.GRUPOS_FILTRO`, gemelo en `FILTROS` de `notas_credito/constants.js`,
+  con prueba que los ata). Dos razones: «Contabilidad» cubre los **dos**
+  estados en que le toca a ella —`solicitada` y `en_contabilidad` son dos
+  permisos distintos pero una sola mano esperando, y con etiquetas distintas
+  la pantalla aparentaba cinco pasos donde hay cuatro—; y armar la lista
+  recorriendo los estados tal como se declararon la sacaba en el orden
+  equivocado. **El orden de una lista afirma cómo va el proceso aunque nadie
+  lo escriba**: la que empezaba por Contabilidad decía que el proceso empieza
+  ahí. Un `assert` exige que todo estado esté en algún grupo — uno que no lo
+  esté es una solicitud que no aparece por ningún lado.
+
   **Las cuatro manos van en `nc_historial`, no en columnas.** Con la
   devolución una solicitud puede pasar dos veces por la misma etapa, y eso no
   cabe en tres columnas. `autorizado_por` quedó como la ÚLTIMA firma.

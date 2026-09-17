@@ -22,7 +22,7 @@ import {
 import { mensajeDeError } from '../../core/errores.js'
 import { useCierreSeguro } from '../../core/components/cierreSeguro.jsx'
 import {
-  ESTADOS, MAX_FACTURA, MAX_NUMERO_NC, MAX_OBSERVACIONES,
+  ESTADOS, FILTROS, MAX_FACTURA, MAX_NUMERO_NC, MAX_OBSERVACIONES,
   describirPaso, estaAbierta, faltaEnSolicitud, pideBodega,
 } from './constants.js'
 
@@ -115,7 +115,9 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-borde">
           <div>
             <h2 className="font-bold text-acento-fuerte text-lg">Solicitar nota crédito</h2>
-            <p className="text-xs text-texto-2">La autoriza Contabilidad</p>
+            <p className="text-xs text-texto-2">
+              El portal la manda por su camino según el canal y el motivo
+            </p>
           </div>
           <button onClick={intentarCerrar} aria-label="Cerrar"
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-texto-3 hover:bg-superficie-2 hover:text-texto transition-colors duration-150">
@@ -562,21 +564,31 @@ export default function NotasCredito() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {/* «Lo que me toca» va de primero: es la pregunta con la que la gente
-            entra. El servidor resuelve cuáles son — depende de qué capacidad
-            tenga cada quien, y eso la pantalla no lo sabe. */}
-        {[['mi_turno', 'Lo que me toca'], ['', 'Todas'],
-          ...Object.entries(ESTADOS).map(([k, e]) => [k, e.label])].map(([clave, texto]) => (
-          <button key={clave} onClick={() => setFiltro(clave)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    filtro === clave
-                      ? 'bg-acento-fuerte text-white'
-                      : 'bg-white border border-borde text-texto-2 hover:bg-fondo'
-                  }`}>
-            {texto}
-          </button>
-        ))}
+      {/* Un desplegable y no once botones: once opciones son una lista, y una
+          fila de píldoras partida en dos renglones obliga a leerlas todas
+          para encontrar una. «Lo que me toca» va de primero porque es la
+          pregunta con la que la gente entra. */}
+      <div className="flex items-center gap-2 mb-4">
+        <label htmlFor="nc-filtro" className="text-xs font-semibold text-texto-2">
+          Ver
+        </label>
+        <select
+          id="nc-filtro"
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          className="px-3 py-2 rounded-lg border border-borde bg-white text-sm font-semibold text-texto focus:outline-none focus:ring-2 focus:ring-acento"
+        >
+          {FILTROS.map(f => f.opciones ? (
+            <optgroup key={f.grupo} label={f.grupo}>
+              {f.opciones.map(o => <option key={o.clave} value={o.clave}>{o.texto}</option>)}
+            </optgroup>
+          ) : (
+            <option key={f.clave} value={f.clave}>{f.texto}</option>
+          ))}
+        </select>
+        <span className="text-xs text-texto-3 cifra">
+          {solicitudes.length} {solicitudes.length === 1 ? 'solicitud' : 'solicitudes'}
+        </span>
       </div>
 
       {isLoading ? (

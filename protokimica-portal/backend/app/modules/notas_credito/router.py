@@ -246,15 +246,17 @@ def listar_solicitudes(
     query = db.query(SolicitudNotaCredito).filter(
         SolicitudNotaCredito.tenant_id == tenant_id
     )
-    if estado == "abiertas":
-        # Un atajo con nombre propio: «lo que todavía está en trámite» es lo
-        # que la gente mira de verdad, y pedirlo estado por estado obligaría
-        # a la pantalla a conocer la cadena — que es justo lo que vive en el
-        # servidor.
-        query = query.filter(SolicitudNotaCredito.estado.in_(ESTADOS_ABIERTOS))
-    elif estado == "mi_turno":
+    # Los filtros son GRUPOS con nombre, no estados sueltos: «Contabilidad»
+    # son los dos momentos en que la pelota está en su cancha, y pedirlo
+    # estado por estado obligaría a la pantalla a conocer la cadena — que es
+    # justo lo que vive en el servidor. Ver `flujo.GRUPOS_FILTRO`.
+    if estado == flujo.GRUPO_MI_TURNO:
         query = query.filter(SolicitudNotaCredito.estado.in_(_estados_que_atiende(db, current_user)))
+    elif estados := flujo.estados_del_filtro(estado or ""):
+        query = query.filter(SolicitudNotaCredito.estado.in_(estados))
     elif estado:
+        # Un estado suelto sigue sirviendo: hay enlaces viejos y los correos
+        # de n8n podrían traerlo.
         query = query.filter(SolicitudNotaCredito.estado == estado)
 
     query = filtrar_visibles(query, db, current_user)

@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs'
 import { BODEGAS, AREAS_CON_BODEGA, esBodegaValida } from '../src/core/bodegas.js'
 import {
-  ESTADOS, ESTADOS_ABIERTOS, CANAL_INSTITUCIONAL,
+  ESTADOS, ESTADOS_ABIERTOS, CANAL_INSTITUCIONAL, FILTROS, clavesDeFiltro,
   describirPaso, estaAbierta, etiquetaEstado, faltaEnSolicitud, pideBodega,
   MAX_FACTURA, MAX_NUMERO_NC, MAX_OBSERVACIONES,
 } from '../src/modules/notas_credito/constants.js'
@@ -87,6 +87,44 @@ check('los abiertos son los mismos seis',
 check('una devuelta sigue ABIERTA: espera a quien la pidio', estaAbierta('devuelta') === true)
 check('una cancelada no', estaAbierta('cancelada') === false)
 check('una aplicada tampoco', estaAbierta('aplicada') === false)
+
+console.log('\n== Los filtros van en el orden del flujo ==')
+// Salian «Contabilidad, bodega, Comercial» porque la lista se armaba
+// recorriendo los estados tal como estaban declarados. El orden de una lista
+// es una afirmacion sobre el proceso aunque nadie la escriba, y esa decia que
+// el flujo empieza por Contabilidad.
+const esperando = FILTROS.find(f => f.grupo === 'Esperando a').opciones.map(o => o.clave)
+check('bodega, comercial, contabilidad, emitir, corregir',
+  JSON.stringify(esperando) ===
+  JSON.stringify(['bodega', 'comercial', 'contabilidad', 'por_emitir', 'devueltas']), esperando)
+
+const estadosEnOrden = Object.keys(ESTADOS)
+check('y los estados tambien: la bodega antes que Comercial',
+  estadosEnOrden.indexOf('en_bodega') < estadosEnOrden.indexOf('en_comercial'), estadosEnOrden)
+check('y Comercial antes que Contabilidad',
+  estadosEnOrden.indexOf('en_comercial') < estadosEnOrden.indexOf('en_contabilidad'), estadosEnOrden)
+
+console.log('\n== Cada filtro existe en el servidor ==')
+const gruposPy = [...PY_FLUJO.match(/^GRUPOS_FILTRO: dict\[str, tuple\[str, \.\.\.\]\] = \{(.*?)^\}/ms)[1]
+  .matchAll(/^\s+"([a-z_]+)":/gm)].map(m => m[1])
+const claves = clavesDeFiltro().filter(c => c && c !== 'mi_turno')
+check('la pantalla no pide un grupo que el backend no conoce',
+  claves.every(c => gruposPy.includes(c)), { pantalla: claves, servidor: gruposPy })
+check('ni el backend define uno que nadie ofrece',
+  gruposPy.every(g => claves.includes(g)), { servidor: gruposPy, pantalla: claves })
+check('«Todas» va sin filtro', clavesDeFiltro().includes(''))
+check('y «lo que me toca» lo resuelve el servidor', clavesDeFiltro().includes('mi_turno'))
+
+console.log('\n== Contabilidad es UNA mano, no dos ==')
+// Son dos estados porque son dos permisos distintos, pero para quien mira la
+// lista son lo mismo: la pelota esta en su cancha.
+check('los dos estados se llaman igual',
+  etiquetaEstado('solicitada') === etiquetaEstado('en_contabilidad'),
+  [etiquetaEstado('solicitada'), etiquetaEstado('en_contabilidad')])
+check('y un solo filtro los cubre',
+  /"contabilidad":\s*\(ESTADO_SOLICITADA, ESTADO_EN_CONTABILIDAD\)/.test(PY_FLUJO))
+check('ninguna etiqueta menciona la DIAN: eso es QUE hacer, no donde esta',
+  !Object.values(ESTADOS).some(e => /DIAN/i.test(e.label)))
 
 console.log('\n== Ningun estado se muestra con su nombre de columna ==')
 for (const estado of Object.keys(ESTADOS)) {

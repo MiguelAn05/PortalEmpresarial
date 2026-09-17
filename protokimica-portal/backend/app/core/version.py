@@ -58,6 +58,10 @@ HISTORIAL = [
             ("nuevo", "Quien la pidió puede retirarla mientras esté en trámite. "
                       "Retirada y rechazada se cuentan aparte: no es lo mismo "
                       "que uno se arrepienta a que la empresa la niegue."),
+            ("mejora", "El filtro de la lista es un desplegable, agrupado y en "
+                       "el orden del proceso: bodega, Comercial, Contabilidad, "
+                       "falta emitir. Antes eran once botones en dos "
+                       "renglones."),
             ("mejora", "En Administración › Capacidades están los tres permisos "
                        "nuevos, y en Admin › Usuarios se elige qué bodega "
                        "maneja cada quien."),

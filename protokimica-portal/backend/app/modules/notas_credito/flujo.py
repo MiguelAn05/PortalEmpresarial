@@ -37,8 +37,9 @@ firma sería darla por buena sin que nadie la mire otra vez.
 """
 from app.core import bodegas, canales
 from app.models.nota_credito import (
-    ESTADO_APROBADA, ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL,
-    ESTADO_EN_CONTABILIDAD, ESTADO_SOLICITADA,
+    ESTADO_APLICADA, ESTADO_APROBADA, ESTADO_CANCELADA, ESTADO_DEVUELTA,
+    ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD,
+    ESTADO_RECHAZADA, ESTADO_SOLICITADA, ESTADOS, ESTADOS_ABIERTOS,
 )
 from app.models.user import User
 
@@ -62,11 +63,18 @@ CAPACIDAD_POR_ESTADO = {
 
 # Cómo se nombra cada turno en pantalla y en el asunto de un correo. Sin
 # esto, un estado como «en_contabilidad» llegaría crudo al usuario.
+#
+# `solicitada` y `en_contabilidad` dicen LO MISMO a propósito: son dos
+# estados porque son dos capacidades distintas —autorizar en la rama del
+# punto de venta, verificar ante la DIAN en la institucional—, pero para
+# quien mira la lista son la misma mano esperando. Nombrarlos distinto hacía
+# que la pantalla pareciera tener cinco pasos donde hay cuatro. Lo que cambia
+# entre uno y otro es QUÉ HACER, y eso se dice abajo.
 ETIQUETA_ESTADO = {
-    ESTADO_SOLICITADA:      "Esperando autorización de Contabilidad",
-    ESTADO_EN_BODEGA:       "Esperando confirmación de la bodega",
-    ESTADO_EN_COMERCIAL:    "Esperando aprobación de Coordinación Comercial",
-    ESTADO_EN_CONTABILIDAD: "Esperando verificación ante la DIAN",
+    ESTADO_SOLICITADA:      "Esperando a Contabilidad",
+    ESTADO_EN_BODEGA:       "Esperando a la bodega",
+    ESTADO_EN_COMERCIAL:    "Esperando a Coordinación Comercial",
+    ESTADO_EN_CONTABILIDAD: "Esperando a Contabilidad",
     ESTADO_APROBADA:        "Aprobada · falta emitirla",
 }
 
@@ -85,6 +93,46 @@ ACCION_APROBAR = "aprobar"
 ACCION_RECHAZAR = "rechazar"
 ACCION_DEVOLVER = "devolver"
 ACCIONES = (ACCION_APROBAR, ACCION_RECHAZAR, ACCION_DEVOLVER)
+
+
+# ── Por qué se filtra la lista ──────────────────────────────────────
+#
+# **En el orden del flujo, y eso importa.** Cuando la lista de filtros se
+# armaba recorriendo los estados tal como están declarados, salía
+# «Contabilidad, bodega, Comercial» — y quien la lee concluye, con razón, que
+# el flujo va en ese orden. El orden de una lista es una afirmación sobre el
+# proceso aunque nadie la escriba.
+#
+# Un grupo puede cubrir VARIOS estados: «Contabilidad» son los dos momentos
+# en que la pelota está en su cancha, que para quien filtra son uno solo.
+GRUPO_MI_TURNO = "mi_turno"       # se resuelve contra el usuario, no contra una lista
+
+GRUPOS_FILTRO: dict[str, tuple[str, ...]] = {
+    "abiertas":     (),   # se llena abajo con ESTADOS_ABIERTOS
+    "bodega":       (ESTADO_EN_BODEGA,),
+    "comercial":    (ESTADO_EN_COMERCIAL,),
+    "contabilidad": (ESTADO_SOLICITADA, ESTADO_EN_CONTABILIDAD),
+    "por_emitir":   (ESTADO_APROBADA,),
+    "devueltas":    (ESTADO_DEVUELTA,),
+    "emitidas":     (ESTADO_APLICADA,),
+    "rechazadas":   (ESTADO_RECHAZADA,),
+    "retiradas":    (ESTADO_CANCELADA,),
+}
+GRUPOS_FILTRO["abiertas"] = tuple(ESTADOS_ABIERTOS)
+
+assert set(ESTADOS) == {
+    estado for clave, estados in GRUPOS_FILTRO.items() if clave != "abiertas"
+    for estado in estados
+}, (
+    "Hay un estado de nota crédito que ningún filtro alcanza, o un filtro que "
+    "apunta a un estado que ya no existe. Un estado sin filtro es una "
+    "solicitud que no aparece por ningún lado."
+)
+
+
+def estados_del_filtro(clave: str) -> tuple[str, ...]:
+    """Los estados que cubre un filtro; vacío si la clave no es un grupo."""
+    return GRUPOS_FILTRO.get(clave, ())
 
 
 def es_institucional(punto_venta: str | None) -> bool:

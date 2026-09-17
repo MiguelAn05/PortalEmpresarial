@@ -30,16 +30,64 @@ export const MAX_NUMERO_NC = 60
  * El texto nunca va solo con color: el ámbar de la marca no alcanza el
  * contraste mínimo sobre blanco, así que la etiqueta lo dice con palabras.
  */
+// Declarados EN EL ORDEN DEL FLUJO: bodega, Comercial, Contabilidad, emitir.
+// El orden de esta lista termina siendo el de cualquier cosa que la recorra,
+// y una lista que empieza por Contabilidad afirma —sin que nadie lo escriba—
+// que el proceso empieza ahí.
+//
+// `solicitada` y `en_contabilidad` se llaman IGUAL a propósito: son dos
+// estados porque son dos permisos distintos (autorizar en la rama del punto
+// de venta, verificar la DIAN en la institucional), pero para quien mira la
+// lista son la misma mano esperando. Nombrarlos distinto hacía parecer que
+// había cinco pasos donde hay cuatro.
 export const ESTADOS = {
-  solicitada:      { label: 'Esperando a Contabilidad', color: 'bg-alerta-bg text-alerta' },
   en_bodega:       { label: 'Esperando a la bodega',    color: 'bg-alerta-bg text-alerta' },
   en_comercial:    { label: 'Esperando a Comercial',    color: 'bg-alerta-bg text-alerta' },
-  en_contabilidad: { label: 'Verificando en la DIAN',   color: 'bg-alerta-bg text-alerta' },
+  solicitada:      { label: 'Esperando a Contabilidad', color: 'bg-alerta-bg text-alerta' },
+  en_contabilidad: { label: 'Esperando a Contabilidad', color: 'bg-alerta-bg text-alerta' },
   aprobada:        { label: 'Aprobada, falta emitir',   color: 'bg-info-bg text-info' },
   devuelta:        { label: 'Devuelta para corregir',   color: 'bg-negativo-bg text-negativo' },
+  aplicada:        { label: 'Nota crédito emitida',     color: 'bg-positivo-bg text-positivo' },
   rechazada:       { label: 'Rechazada',                color: 'bg-negativo-bg text-negativo' },
   cancelada:       { label: 'Retirada por quien la pidió', color: 'bg-superficie-2 text-texto-2' },
-  aplicada:        { label: 'Nota crédito emitida',     color: 'bg-positivo-bg text-positivo' },
+}
+
+/**
+ * Las opciones del desplegable de filtros, agrupadas y en el orden del flujo.
+ *
+ * Eran once botones sueltos en dos renglones. Once opciones no son un
+ * conjunto de botones: son una lista, y una lista se despliega. Además cada
+ * clave es un GRUPO que resuelve el servidor (`flujo.GRUPOS_FILTRO`), no un
+ * estado: «Contabilidad» cubre los dos momentos en que le toca a ella, y
+ * pedirlos por separado obligaría a la pantalla a conocer la cadena.
+ */
+export const FILTROS = [
+  { clave: 'mi_turno', texto: 'Lo que me toca' },
+  { clave: '',         texto: 'Todas' },
+  { clave: 'abiertas', texto: 'En trámite' },
+  {
+    grupo: 'Esperando a',
+    opciones: [
+      { clave: 'bodega',       texto: 'La bodega' },
+      { clave: 'comercial',    texto: 'Coordinación Comercial' },
+      { clave: 'contabilidad', texto: 'Contabilidad' },
+      { clave: 'por_emitir',   texto: 'Que la emitan' },
+      { clave: 'devueltas',    texto: 'Que la corrijan' },
+    ],
+  },
+  {
+    grupo: 'Ya cerradas',
+    opciones: [
+      { clave: 'emitidas',   texto: 'Emitidas' },
+      { clave: 'rechazadas', texto: 'Rechazadas' },
+      { clave: 'retiradas',  texto: 'Retiradas' },
+    ],
+  },
+]
+
+/** Todas las claves que el desplegable puede mandar, aplanadas. */
+export function clavesDeFiltro() {
+  return FILTROS.flatMap(f => (f.opciones ? f.opciones.map(o => o.clave) : [f.clave]))
 }
 
 /** Las que todavía esperan a alguien. Gemelo de `ESTADOS_ABIERTOS` del modelo. */
