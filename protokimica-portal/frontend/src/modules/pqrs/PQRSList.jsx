@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
@@ -10,8 +10,9 @@ import {
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 import {
-  DEPARTAMENTOS, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES, faltaEnProductos,
-  nombrePrincipal, productoVacio, productosParaEnviar,
+  AREA_SIN_ASIGNAR, DEPARTAMENTOS, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES,
+  areasParaFiltrar, coincideAreaAsignada, faltaEnProductos, nombrePrincipal,
+  productoVacio, productosParaEnviar,
 } from './constants.js'
 
 // Un estado se llama y se pinta igual en la lista, en el filtro y en el
@@ -42,10 +43,6 @@ const PRIORIDADES = {
 // Sale de core/canales.js, gemelo de core/canales.py: se usa para filtrar
 // por punto de venta a partir del prefijo del radicado.
 const PUNTOS_VENTA = canalesConPrefijo()
-
-// AREAS_CAUSANTES y AREAS_PQRS eran la misma lista repetida: ahora las dos
-// salen de src/core/areas.js
-const AREAS_CAUSANTES = AREAS
 
 // Compara el prefijo exacto del radicado (evita que "PVC" matchee "PVCR0010")
 function coincidePuntoVenta(codigo, prefijo) {
@@ -656,7 +653,7 @@ export default function PQRSList() {
   const [filtroFechaDesde, setFiltroFechaDesde]       = useState('')
   const [filtroFechaHasta, setFiltroFechaHasta]       = useState('')
   const [filtroPuntoVenta, setFiltroPuntoVenta]       = useState('')
-  const [filtroAreaCausante, setFiltroAreaCausante]   = useState('')
+  const [filtroAreaAsignada, setFiltroAreaAsignada]   = useState('')
 
   const { data: pqrsList = [], isLoading, isError } = useQuery({
     queryKey: ['pqrs', filtroEstado, filtroTipo],
@@ -682,6 +679,8 @@ export default function PQRSList() {
 
   const refetch = () => queryClient.invalidateQueries({ queryKey: ['pqrs'] })
 
+  const areasDisponibles = useMemo(() => areasParaFiltrar(pqrsList), [pqrsList])
+
   // Búsqueda + filtros adicionales, todo en client-side sobre lo ya traído
   const pqrsFiltrada = pqrsList.filter((p) => {
     const q = busqueda.trim().toLowerCase()
@@ -701,7 +700,7 @@ export default function PQRSList() {
 
     if (filtroPuntoVenta && !coincidePuntoVenta(p.codigo_seguimiento, filtroPuntoVenta)) return false
 
-    if (filtroAreaCausante && p.area_causante !== filtroAreaCausante) return false
+    if (!coincideAreaAsignada(p, filtroAreaAsignada)) return false
 
     return true
   })
@@ -799,11 +798,11 @@ export default function PQRSList() {
 
       {/* Filtros */}
       {(() => {
-        const hayFiltrosActivos = filtroEstado || filtroTipo || filtroFechaDesde || filtroFechaHasta || filtroPuntoVenta || filtroAreaCausante
+        const hayFiltrosActivos = filtroEstado || filtroTipo || filtroFechaDesde || filtroFechaHasta || filtroPuntoVenta || filtroAreaAsignada
         const limpiarTodo = () => {
           setFiltroEstado(''); setFiltroTipo('')
           setFiltroFechaDesde(''); setFiltroFechaHasta('')
-          setFiltroPuntoVenta(''); setFiltroAreaCausante('')
+          setFiltroPuntoVenta(''); setFiltroAreaAsignada('')
         }
         return (
           <div className="mb-4">
@@ -879,14 +878,15 @@ export default function PQRSList() {
                 )}
 
                 <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Área causante</label>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Área asignada</label>
                   <select
-                    value={filtroAreaCausante}
-                    onChange={(e) => setFiltroAreaCausante(e.target.value)}
+                    value={filtroAreaAsignada}
+                    onChange={(e) => setFiltroAreaAsignada(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
                   >
                     <option value="">Todas</option>
-                    {AREAS_CAUSANTES.map(a => (
+                    <option value={AREA_SIN_ASIGNAR}>Sin asignar</option>
+                    {areasDisponibles.map(a => (
                       <option key={a} value={a}>{a}</option>
                     ))}
                   </select>

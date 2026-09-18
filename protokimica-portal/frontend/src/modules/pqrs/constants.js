@@ -4,6 +4,7 @@
  * Vive en un .js y no dentro de los .jsx para que `tests/pqrs.test.mjs` pueda
  * importarlo: Node no lee JSX.
  */
+import { AREAS, normalizarArea } from '../../core/areas.js'
 
 /**
  * Tope de cada dato corregible. ATADOS a `PQRSEditarDatos` en
@@ -180,4 +181,42 @@ export function cambiosDeDatos(pqrs, form) {
     if (antes !== ahora) cambios[campo] = ahora
   }
   return cambios
+}
+
+// ── Filtro por área asignada ──────────────────────────────────────
+/**
+ * El filtro de área de la lista es por la que HOY tiene la PQRS
+ * (`area_responsable`), no por la causante: lo que se busca ahí es «qué le
+ * toca a mi área», mientras que la causante es un dato de indicadores que se
+ * marca al cerrar y que la mayoría de las solicitudes abiertas aún no tiene.
+ */
+export const AREA_SIN_ASIGNAR = '__sin_asignar__'
+
+/**
+ * Las áreas a ofrecer en el desplegable: el catálogo completo más las que
+ * traigan los datos y ya no estén en él. Sin ese añadido, una PQRS asignada
+ * a un área que se retiró del catálogo no tendría con qué filtrarse y solo
+ * podría encontrarse mirando la lista entera.
+ */
+export function areasParaFiltrar(lista) {
+  const fuera = new Set()
+  for (const pqrs of lista || []) {
+    const area = normalizarArea(pqrs.area_responsable)
+    if (area && !AREAS.includes(area)) fuera.add(area)
+  }
+  return [...AREAS, ...[...fuera].sort()]
+}
+
+/**
+ * ¿Esta PQRS entra en el filtro de área elegido?
+ *
+ * Se compara el área normalizada para que una solicitud vieja guardada como
+ * «Servicio al cliente» aparezca al filtrar por «Servicio al Cliente». Con
+ * `AREA_SIN_ASIGNAR` se buscan justamente las que no tienen dueño, que son
+ * las peligrosas: el plazo de ley corre igual.
+ */
+export function coincideAreaAsignada(pqrs, filtro) {
+  if (!filtro) return true
+  const area = normalizarArea(pqrs?.area_responsable)
+  return filtro === AREA_SIN_ASIGNAR ? !area : area === filtro
 }

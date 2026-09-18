@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs'
 import {
   nombrePrincipal, cambiosDeDatos, datosEditables, aplicaProducto, LIMITES_DATOS,
   LIMITES_RADICACION, MAX_PRODUCTOS, productoVacio, productosParaEnviar, faltaEnProductos,
+  AREA_SIN_ASIGNAR, areasParaFiltrar, coincideAreaAsignada,
 } from '../src/modules/pqrs/constants.js'
+import { AREAS } from '../src/core/areas.js'
 
 const PY = readFileSync(new URL('../../backend/app/modules/pqrs/schemas.py', import.meta.url), 'utf8')
   .replaceAll('\r', '')  // schemas.py viene con CRLF de Windows
@@ -83,6 +85,36 @@ for (const [campo, tope] of Object.entries(LIMITES_RADICACION)) {
   const col = MODELO.match(new RegExp(`^\\s+${campo} = Column\\(String\\((\\d+)\\)`, 'm'))
   check(`${campo}: ${tope} como la columna`, col && Number(col[1]) === tope, { columna: col?.[1] })
 }
+
+console.log('\n== Filtro por área asignada ==')
+// El filtro mira `area_responsable` (quién la tiene HOY), no `area_causante`,
+// que es un dato de indicadores y que una PQRS abierta casi nunca tiene.
+const enCalidad = { area_responsable: 'Calidad', area_causante: 'Producción' }
+check('filtra por el área que la tiene', coincideAreaAsignada(enCalidad, 'Calidad'))
+check('y no por la causante', !coincideAreaAsignada(enCalidad, 'Producción'))
+check('sin filtro entran todas', coincideAreaAsignada(enCalidad, ''))
+
+// El área se compara normalizada: lo guardado antes de unificar el catálogo
+// tiene que aparecer al filtrar por el nombre de hoy.
+check('un área histórica cae en la actual',
+  coincideAreaAsignada({ area_responsable: 'Servicio al cliente' }, 'Servicio al Cliente'))
+
+// La que no tiene dueño es la que hay que poder pescar: el plazo corre igual.
+check('«sin asignar» encuentra las que no tienen área',
+  coincideAreaAsignada({ area_responsable: null }, AREA_SIN_ASIGNAR))
+check('y deja fuera las que sí lo tienen',
+  !coincideAreaAsignada(enCalidad, AREA_SIN_ASIGNAR))
+
+const opciones = areasParaFiltrar([
+  { area_responsable: 'Calidad' },
+  { area_responsable: 'Área que ya no existe' },
+  { area_responsable: null },
+])
+check('ofrece el catálogo completo', AREAS.every(a => opciones.includes(a)))
+check('más un área retirada que aún aparece en los datos',
+  opciones.includes('Área que ya no existe'), opciones)
+check('sin repetir las del catálogo',
+  opciones.length === AREAS.length + 1, opciones.length)
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

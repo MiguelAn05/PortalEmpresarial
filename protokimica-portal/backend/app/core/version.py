@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.33.0"
-FECHA = "2026-09-17"
+VERSION = "0.33.1"
+FECHA = "2026-09-18"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,20 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.33.1",
+        "fecha": "2026-09-18",
+        "titulo": "En PQRS ahora se filtra por el área que la tiene hoy",
+        "cambios": [
+            ("mejora", "El filtro de área de la lista de PQRS ya no busca por "
+                       "el área causante sino por el área a la que está "
+                       "asignada la solicitud, que es lo que uno quiere ver "
+                       "para saber qué le toca a su equipo."),
+            ("nuevo", "El mismo filtro trae la opción «Sin asignar», para "
+                      "encontrar de una las PQRS que todavía no tienen área "
+                      "responsable y a las que el plazo ya les está corriendo."),
+        ],
+    },
     {
         "version": "0.33.0",
         "fecha": "2026-09-17",
