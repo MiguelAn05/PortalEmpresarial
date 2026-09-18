@@ -18,7 +18,7 @@ const navItems = [
   { to: '/pqrs', Icono: IconoPQRS, label: 'PQRS', modulo: 'pqrs' },
   { to: '/master-planner', Icono: IconoProyectos, label: 'Master Planner', modulo: 'master_planner' },
   { to: '/indicadores', Icono: IconoIndicadores, label: 'Indicadores', modulo: 'indicadores' },
-  { to: '/mejora', Icono: IconoIdea, label: 'Mejora', modulo: 'mejora' },
+  { to: '/mejora', Icono: IconoIdea, label: 'OMP', modulo: 'mejora' },
   { to: '/encuestas', Icono: IconoEncuestas, label: 'Encuestas', modulo: 'encuestas' },
 ]
 
@@ -35,7 +35,7 @@ const TITULO_DE_MODULO = {
   pqrs: 'PQRS',
   master_planner: 'Master Planner',
   indicadores: 'Indicadores',
-  mejora: 'Oportunidades de mejora',
+  mejora: 'Oportunidades de mejora OMP',
   encuestas: 'Encuestas',
   admin: 'Administración',
 }

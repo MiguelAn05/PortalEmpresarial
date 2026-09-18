@@ -32,7 +32,7 @@ const MARCAS = {
   protokimica: {
     nombre: 'Protokimica',
     logo: '/logo.png',
-    soporte: 'soporte.tics@protokimica.com',
+    soporte: 'grsistemas@protokimica.com',
   },
   metria: {
     nombre: 'Metria',
