@@ -493,8 +493,8 @@ export default function NotasCredito() {
   // «¿eso es bueno?», así que va con su etiqueta.
   //
   // «En trámite» cuenta todos los turnos intermedios y no solo `solicitada`:
-  // con la cadena institucional, una que está en Comercial también está
-  // esperando, y contar solo el primer paso la haría invisible.
+  // toda solicitud pasa por Comercial antes que nada, así que contar solo el
+  // primer paso dejaría invisible justo donde está la mayoría.
   const enTramite = solicitudes.filter(
     s => estaAbierta(s.estado) && s.estado !== 'aprobada' && s.estado !== 'devuelta',
   ).length

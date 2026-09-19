@@ -95,9 +95,53 @@ def test_la_portada_responde_lo_que_pinta_el_tablero(entorno, v):
 
     # Los conteos tienen que ser los MISMOS que los del tablero de siempre:
     # si divergen, gerencia y calidad discuten sobre números distintos.
+    #
+    # Se compara campo a campo y no los diccionarios enteros: la portada
+    # agrega el delta contra el mes pasado, que el tablero no tiene. Exigir
+    # igualdad total obligaría a meterle al tablero un dato que no usa solo
+    # para que la prueba pase.
     t = portal.get("/indicadores/tablero", params={"anio": A, "mes": M}).json()
-    v.check("el resumen coincide con el tablero",
-            datos["resumen"] == t["resumen"], (datos["resumen"], t["resumen"]))
+    v.check("el resumen coincide con el tablero en todo lo que comparten",
+            all(datos["resumen"][k] == valor for k, valor in t["resumen"].items()),
+            (datos["resumen"], t["resumen"]))
+
+    # El delta se calcula en el servidor y con la MISMA regla del mes
+    # actual: el mes pasado los dos estaban en verde (100%), este uno se
+    # cayó (50%). Si el frontend restara los dos números, tarde o temprano
+    # diría algo distinto del reporte.
+    v.check("dice cuánto cumplía el mes pasado",
+            datos["resumen"]["cumplimiento_pct_anterior"] == 100.0, datos["resumen"])
+    v.check("y cuánto se movió",
+            datos["resumen"]["delta_cumplimiento"] == -50.0, datos["resumen"])
+    v.check("nombrando el mes con el que compara",
+            datos["resumen"]["mes_anterior_nombre"] == "Junio", datos["resumen"])
+
+
+def test_la_matriz_trae_con_que_buscar_y_agrupar(entorno, v):
+    """
+    La matriz son 73 filas × 12 meses. Sin responsable no se puede buscar
+    «qué le falta a Hoover» —la pregunta de cada cierre de mes— y sin fuente
+    los veinte «Gestión de OMP» ocupan veinte renglones que nadie lee de a
+    uno. Los dos datos salen del servidor: deducirlos del nombre en la
+    pantalla sería adivinar.
+    """
+    portal = entorno
+    portal.como("admin")
+    A, M = 2026, 7
+    ind = _crear(portal, "Capacidad de almacenamiento", area="Logística")
+    _medir(portal, ind, A, M, 95)
+
+    datos = portal.get("/indicadores/como-vamos", params={"anio": A, "mes": M}).json()
+    fila = next(f for f in datos["matriz"] if f["id"] == ind)
+
+    v.check("la fila dice de quién es", "responsable_nombre" in fila, fila.keys())
+    v.check("y de qué fuente sale", "fuente_automatica" in fila, fila.keys())
+    v.check("con un mes medido, no está vacía", fila["sin_registros"] is False, fila)
+
+    vacio = _crear(portal, "Indicador que nadie midió", area="Logística")
+    datos = portal.get("/indicadores/como-vamos", params={"anio": A, "mes": M}).json()
+    fila = next(f for f in datos["matriz"] if f["id"] == vacio)
+    v.check("y una sin un solo registro lo dice", fila["sin_registros"] is True, fila)
 
 
 def test_la_matriz_separa_el_mes_futuro_del_no_reportado(entorno, v):

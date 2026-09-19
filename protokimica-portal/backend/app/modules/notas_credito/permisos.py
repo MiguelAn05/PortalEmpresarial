@@ -120,13 +120,18 @@ def puede_ver(db: Session, usuario: User, solicitud) -> bool:
     """
     Quién ve una solicitud.
 
-    La ve quien la pidió, quien tramita todas (ver `ve_todas`), y quien
-    participa en la cadena institucional — pero solo de las institucionales:
-    una nota crédito del almacén de Belén no es asunto de Coordinación
-    Comercial, y llenarle la bandeja de casos que no le tocan es cómo se
-    consigue que deje de mirarla.
+    La ve quien la pidió, quien tramita todas (ver `ve_todas`) y quien
+    atiende algún turno de SU cadena.
 
-    Quien confirma producto ve además solo las de SU bodega.
+    **Comercial las ve todas**, porque desde que toda nota crédito empieza
+    por su aprobación no hay ninguna que no le toque. Si se le escondieran
+    las del mostrador —como pasaba cuando solo intervenía en las
+    institucionales—, el primer turno de esas solicitudes no lo podría
+    atender nadie y se quedarían quietas para siempre.
+
+    Los otros dos turnos siguen siendo solo de las institucionales: la DIAN
+    no se verifica en una del mostrador y una devolución de producto tampoco
+    entra por ahí. Quien confirma producto ve además solo las de SU bodega.
 
     Por defecto se cierra en vez de abrirse: una solicitud lleva números de
     factura y valores de un cliente, y ampliar después es más fácil que
@@ -136,9 +141,13 @@ def puede_ver(db: Session, usuario: User, solicitud) -> bool:
         return True
 
     suyas = _capacidades_de(db, usuario)
-    if not suyas or not flujo.es_institucional(solicitud.punto_venta):
+    if not suyas:
         return False
-    if suyas & {CAP_APROBAR_COMERCIAL, CAP_VERIFICAR_DIAN}:
+    if CAP_APROBAR_COMERCIAL in suyas:
+        return True
+    if not flujo.es_institucional(solicitud.punto_venta):
+        return False
+    if CAP_VERIFICAR_DIAN in suyas:
         return True
     if CAP_CONFIRMAR_PRODUCTO in suyas:
         return flujo.atiende_la_bodega(usuario, solicitud.bodega)
@@ -160,7 +169,11 @@ def filtrar_visibles(query, db: Session, usuario: User):
     suyas = _capacidades_de(db, usuario)
     institucional = SolicitudNotaCredito.punto_venta == flujo.CANAL_INSTITUCIONAL
 
-    if suyas & {CAP_APROBAR_COMERCIAL, CAP_VERIFICAR_DIAN}:
+    if CAP_APROBAR_COMERCIAL in suyas:
+        # Comercial abre TODAS las cadenas, así que no se le acota a las
+        # institucionales: lo que no ve en la lista no lo puede aprobar.
+        return query
+    if CAP_VERIFICAR_DIAN in suyas:
         condiciones.append(institucional)
     elif CAP_CONFIRMAR_PRODUCTO in suyas:
         # Sin bodega marcada responde por las dos, igual que el coordinador

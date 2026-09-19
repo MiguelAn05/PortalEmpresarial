@@ -4,6 +4,8 @@ const {
   formatValor, formatVariacion, tonoVariacion,
   periodoAnterior, periodoSiguiente, periodoPorDefecto, pestanaInicial,
   SEMAFOROS, UNIDADES, TIPOS_CAPTURA, DIRECCIONES, MESES, MESES_CORTOS,
+  PESTANAS, agruparMatriz, coincideBusqueda, leerDelta, normalizarBusqueda,
+  FUENTE_GESTION_OMP, GRUPO_GESTION_OMP, GRUPO_SIN_REGISTROS, GRUPO_SUELTAS,
 } = await import(BASE)
 
 let fallos = []
@@ -96,6 +98,83 @@ check('lectura entra al tablero',
   pestanaInicial({ rol: 'lectura' }) === 'tablero', pestanaInicial({ rol: 'lectura' }))
 check('sin usuario no revienta',
   pestanaInicial(undefined) === 'tablero', pestanaInicial(undefined))
+
+console.log('\n== Las tres pestañas ==')
+check('son tres y en orden de lectura',
+  PESTANAS.map(p => p.clave).join() === 'como-vamos,tablero,el-ano',
+  PESTANAS.map(p => p.clave))
+// `pestanaInicial` decide con cuál abre cada rol: si devolviera una que no
+// existe, el módulo arrancaría con las tres pestañas vacías.
+for (const rol of ['gerencia', 'lider', 'agente', 'admin', 'lectura']) {
+  const inicial = pestanaInicial({ rol })
+  check(`la pestaña inicial de ${rol} existe`,
+    PESTANAS.some(p => p.clave === inicial), inicial)
+}
+
+console.log('\n== Buscador ==')
+// Nadie escribe las tildes en un buscador, y uno que no encuentra lo que
+// existe se deja de usar.
+check('ignora tildes', normalizarBusqueda('Logística') === 'logistica',
+  normalizarBusqueda('Logística'))
+check('ignora mayúsculas y espacios sobrantes',
+  normalizarBusqueda('  TICS  ') === 'tics', normalizarBusqueda('  TICS  '))
+
+const fila = { nombre: 'Capacidad de almacenamiento', area: 'Logística',
+               responsable_nombre: 'Hoover Zapata' }
+check('encuentra por nombre', coincideBusqueda(fila, 'almacen'))
+check('por área, sin tilde', coincideBusqueda(fila, 'logistica'))
+// Es la pregunta del cierre de mes: «qué le falta a Hoover». Sin buscar
+// por persona hay que abrir los indicadores de a uno.
+check('y por responsable', coincideBusqueda(fila, 'hoover'))
+check('lo que no está, no aparece', !coincideBusqueda(fila, 'vehiculos'))
+check('sin búsqueda entran todos', coincideBusqueda(fila, ''))
+check('una fila sin responsable no revienta',
+  coincideBusqueda({ nombre: 'X' }, 'x'))
+
+console.log('\n== Agrupación de la matriz del año ==')
+const matriz = [
+  { id: 1, nombre: 'Normal', sin_registros: false, fuente_automatica: null },
+  { id: 2, nombre: 'Gestión de OMP · TICS', sin_registros: false,
+    fuente_automatica: FUENTE_GESTION_OMP },
+  { id: 3, nombre: 'Nunca medido', sin_registros: true, fuente_automatica: null },
+  // Una de Gestión de OMP que tampoco tiene datos: manda el que no haya
+  // nada que leer en ella, no de qué fuente sale.
+  { id: 4, nombre: 'Gestión de OMP · SST', sin_registros: true,
+    fuente_automatica: FUENTE_GESTION_OMP },
+]
+const grupos = agruparMatriz(matriz)
+check('las normales van sueltas',
+  grupos[GRUPO_SUELTAS].map(f => f.id).join() === '1', grupos[GRUPO_SUELTAS])
+check('las de Gestión de OMP con datos se agrupan',
+  grupos[GRUPO_GESTION_OMP].map(f => f.id).join() === '2', grupos[GRUPO_GESTION_OMP])
+check('lo que no tiene un solo registro va aparte',
+  grupos[GRUPO_SIN_REGISTROS].map(f => f.id).join() === '3,4',
+  grupos[GRUPO_SIN_REGISTROS])
+check('ninguna fila se pierde por el camino',
+  Object.values(grupos).flat().length === matriz.length)
+// Se reconocen por la FUENTE y no por el nombre: renombrar un indicador
+// desde Administración no puede romper la agrupación.
+check('el nombre no decide el grupo',
+  agruparMatriz([{ id: 9, nombre: 'Gestión de OMP · Calidad', sin_registros: false,
+                   fuente_automatica: null }])[GRUPO_SUELTAS].length === 1)
+check('una matriz vacía devuelve los tres grupos vacíos',
+  Object.values(agruparMatriz()).every(g => g.length === 0))
+
+console.log('\n== El delta del cumplimiento ==')
+// El NÚMERO lo calcula el servidor; aquí solo se decide cómo se dice.
+check('subir el cumplimiento siempre es bueno',
+  leerDelta(3.4, 'Julio').tono === 'text-positivo', leerDelta(3.4, 'Julio'))
+check('y bajarlo, malo',
+  leerDelta(-2, 'Julio').tono === 'text-negativo', leerDelta(-2, 'Julio'))
+check('la flecha acompaña al signo',
+  leerDelta(3.4, 'Julio').flecha === 'sube' && leerDelta(-2, 'Julio').flecha === 'baja')
+check('nombra el mes con el que compara',
+  leerDelta(3.4, 'Julio').texto.includes('julio'), leerDelta(3.4, 'Julio').texto)
+check('sin movimiento lo dice en palabras',
+  leerDelta(0, 'Julio').flecha === null, leerDelta(0, 'Julio'))
+// Un mes sin nada con qué comparar NO es un cero: es que no hay dato.
+check('sin dato anterior no inventa un delta', leerDelta(null, 'Julio') === null)
+check('y undefined tampoco', leerDelta(undefined, 'Julio') === null)
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

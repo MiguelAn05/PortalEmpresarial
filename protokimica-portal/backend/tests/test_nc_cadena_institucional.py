@@ -128,8 +128,16 @@ def test_sin_producto_se_salta_la_bodega(entorno, v):
             _estado(entorno, sid))
 
 
-def test_un_punto_de_venta_sigue_como_siempre(entorno, v):
-    """La rama que ya funcionaba no se movió."""
+def test_un_punto_de_venta_tambien_empieza_por_comercial(entorno, v):
+    """
+    Lo que NO cambió de la rama del mostrador: no se le pide bodega aunque
+    el motivo implique producto —el cliente lo devuelve en el mismo almacén,
+    no hay nada que esperar a que llegue—.
+
+    Lo que SÍ cambió: ya no entra directo a Contabilidad. Quien decide si se
+    devuelve la plata es Comercial, venga la venta de un mostrador o de una
+    institución; antes Contabilidad terminaba decidiendo eso sola.
+    """
     _montar_la_cadena(entorno)
     _capacidad(entorno, "notas_credito.autorizar", "Contabilidad")
     motivo_id = _motivo(entorno, "Devolución de mercancía", True)
@@ -137,8 +145,8 @@ def test_un_punto_de_venta_sigue_como_siempre(entorno, v):
     entorno.como("logistica")
     r = _radicar(entorno, punto=PUNTO, motivo_id=motivo_id)
     v.check("se radica sin pedir bodega", r.status_code == 201, r.text[:300])
-    v.check("y queda esperando a Contabilidad",
-            r.json()["estado"] == "solicitada", r.json()["estado"])
+    v.check("y queda esperando a Comercial",
+            r.json()["estado"] == "en_comercial", r.json()["estado"])
     v.check("sin bodega", r.json()["bodega"] is None, r.json())
 
 
@@ -232,8 +240,16 @@ def test_la_bodega_ajena_ni_siquiera_la_ve(entorno, v):
     v.check("la suya sí", entorno.get(f"/notas-credito/{sid}").status_code == 200)
 
 
-def test_comercial_no_ve_las_de_los_puntos_de_venta(entorno, v):
-    """Llenarle la bandeja de casos que no le tocan es cómo deja de mirarla."""
+def test_comercial_ve_las_dos_ramas_porque_abre_las_dos(entorno, v):
+    """
+    Antes Comercial solo veía las institucionales, que eran las únicas que
+    tocaba. Desde que TODA nota crédito empieza por su aprobación, esconderle
+    las del mostrador dejaría su primer turno sin nadie que lo pueda
+    atender: no aparecerían en su lista y al abrirlas por id responderían 404.
+
+    La bodega y la verificación ante la DIAN siguen viendo solo las
+    institucionales — esas dos sí son pasos que las del mostrador no tienen.
+    """
     _montar_la_cadena(entorno)
     _capacidad(entorno, "notas_credito.autorizar", "Contabilidad")
     _usuario(entorno, "comercial", "Comercial")
@@ -247,7 +263,9 @@ def test_comercial_no_ve_las_de_los_puntos_de_venta(entorno, v):
     entorno.como("comercial")
     vistas = {s["id"] for s in entorno.get("/notas-credito").json()}
     v.check("ve la institucional", institucional in vistas, vistas)
-    v.check("y no la del punto de venta", del_punto not in vistas, vistas)
+    v.check("y también la del punto de venta", del_punto in vistas, vistas)
+    v.check("y puede abrirla, no solo verla en la lista",
+            entorno.get(f"/notas-credito/{del_punto}").status_code == 200)
 
 
 # ── Devolver no es rechazar ──────────────────────────────────────────────
@@ -361,8 +379,12 @@ def test_mi_turno_trae_solo_lo_que_le_toca_a_cada_uno(entorno, v):
 # ── La cadena, sin pasar por la API ──────────────────────────────────────
 
 def test_la_cadena_declara_los_pasos_de_cada_rama(v):
-    v.check("punto de venta: autorizar y emitir",
-            flujo.cadena(PUNTO) == ("solicitada", "aprobada"), flujo.cadena(PUNTO))
+    v.check("punto de venta: comercial, autorizar y emitir",
+            flujo.cadena(PUNTO) == ("en_comercial", "solicitada", "aprobada"),
+            flujo.cadena(PUNTO))
+    v.check("las dos ramas arrancan en Comercial",
+            flujo.estado_inicial(PUNTO) == flujo.estado_inicial(INSTITUCIONAL) == "en_comercial",
+            (flujo.estado_inicial(PUNTO), flujo.estado_inicial(INSTITUCIONAL)))
     v.check("institucional sin producto: comercial, DIAN y emitir",
             flujo.cadena(INSTITUCIONAL) == ("en_comercial", "en_contabilidad", "aprobada"),
             flujo.cadena(INSTITUCIONAL))

@@ -16,13 +16,11 @@ from sqlalchemy.orm import Session
 from app.core import canales
 from app.core.capacidades import correos_de, usuarios_con
 from app.core.config import settings
-from app.models.nota_credito import ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL
+from app.models.nota_credito import ESTADO_APROBADA, ESTADO_EN_BODEGA
 from app.models.user import User
 from app.modules.pqrs.notificaciones import Aviso, _protegido
 from app.modules.notas_credito import flujo
-from app.modules.notas_credito.permisos import (
-    CAP_REGISTRAR, CAP_VERIFICAR_DIAN,
-)
+from app.modules.notas_credito.permisos import CAP_REGISTRAR
 
 # El nombre del evento ES el path del webhook en n8n. Una prueba compara esta
 # lista contra los flujos de `backend/n8n/`: un path mal escrito no falla, n8n
@@ -131,6 +129,35 @@ def avisos_por_emitir(db: Session, tenant_id: int, solicitud, aprobada_por: str)
     return _protegido(_aviso_por_emitir, db, tenant_id, solicitud, aprobada_por)
 
 
+def _lideres_del_solicitante(db: Session, tenant_id: int, solicitud) -> list[str]:
+    """
+    Los líderes del área de quien radicó, para ponerlos en copia.
+
+    No es un paso del flujo: el líder no aprueba nada aquí y la solicitud no
+    lo espera. Es enterarse de que su gente está pidiendo notas crédito —el
+    jefe del punto de venta quiere saber que su sede pidió una, no firmarla—,
+    y por eso va como copia del primer aviso y no como un turno más. Meterlo
+    en la cadena habría sido una firma que nadie pidió y un paso donde una
+    solicitud se queda quieta si el líder está de vacaciones.
+
+    Un área sin nadie con rol de líder simplemente no suma a nadie: que no
+    haya jefe configurado no puede impedir que la solicitud avance.
+    """
+    solicitante = db.get(User, solicitud.solicitado_por)
+    if not solicitante or not solicitante.area:
+        return []
+    lideres = db.query(User).filter(
+        User.tenant_id == tenant_id,
+        User.area == solicitante.area,
+        User.rol == "lider",
+        User.activo.is_(True),
+    ).all()
+    return sorted({
+        u.email for u in lideres
+        if u.email and u.id != solicitud.solicitado_por
+    })
+
+
 def _aviso_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
     """
     Le avisa a quien le toca AHORA, sea la etapa que sea.
@@ -145,9 +172,22 @@ def _aviso_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
       en esa bodega no hay nadie marcado, va a todos los que pueden
       confirmar. Una solicitud parada porque su destinatario no existe es
       peor que un correo de más.
-    - **Cuando llega a Comercial, Contabilidad va en copia.** No decide en
-      ese paso: es para que vaya mirando ante la DIAN si la factura tiene
-      saldo a favor, y no empiece a averiguarlo cuando le llegue el turno.
+    - **Quien atiende el turno SIGUIENTE va en copia.** No decide todavía,
+      pero puede ir mirando: cuando una llega a Comercial, Contabilidad
+      empieza a revisar la factura en vez de arrancar de cero cuando le
+      toque. Sale de la cadena y no de una capacidad escrita a mano, porque
+      el «siguiente» no es el mismo en las dos ramas —en la del mostrador
+      Contabilidad autoriza, en la institucional verifica ante la DIAN— y
+      nombrar una sola dejaba la otra sin copia en silencio.
+      Se excluye el último turno, el de emitir: para eso está `nc-por-emitir`,
+      y adelantarlo sería pedirle a alguien que prepare algo que todavía
+      puede rechazarse.
+    - **En el PRIMER turno, el líder del área de quien pidió va en copia**,
+      para que se entere de que su sede radicó una. Solo en el primero: en
+      los siguientes ya no aporta nada y serían cuatro correos por una nota.
+      Una devuelta que se reenvía vuelve al primer turno, así que el líder
+      también se entera de que volvió a entrar — que es correcto, porque es
+      una solicitud nueva sobre datos corregidos.
     """
     capacidad = flujo.capacidad_de(solicitud.estado)
     if capacidad is None:
@@ -163,9 +203,20 @@ def _aviso_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
         return []
 
     en_copia = []
-    if solicitud.estado == ESTADO_EN_COMERCIAL:
-        en_copia = [c for c in correos_de(db, tenant_id, CAP_VERIFICAR_DIAN)
+    turno_siguiente = flujo.siguiente(
+        solicitud.estado, solicitud.punto_venta, bool(solicitud.bodega),
+    )
+    if turno_siguiente and turno_siguiente != ESTADO_APROBADA:
+        capacidad_siguiente = flujo.capacidad_de(turno_siguiente)
+        en_copia = [c for c in correos_de(db, tenant_id, capacidad_siguiente)
                     if c not in destinatarios]
+
+    es_el_primer_turno = solicitud.estado == flujo.estado_inicial(
+        solicitud.punto_venta, bool(solicitud.bodega),
+    )
+    if es_el_primer_turno:
+        en_copia += [c for c in _lideres_del_solicitante(db, tenant_id, solicitud)
+                     if c not in destinatarios and c not in en_copia]
 
     return [(EVENTO_EN_TURNO, {
         **_base(solicitud),

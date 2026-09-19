@@ -2,7 +2,7 @@
 La portada gerencial: "¿cómo vamos?" en una pantalla.
 
 Responde cuatro preguntas, en este orden:
-  1. ¿Cómo está la empresa este mes?   → resumen
+  1. ¿Cómo está la empresa este mes?   → resumen (con el delta del mes pasado)
   2. ¿Qué cambió?                       → movimientos
   3. ¿Qué área está peor?               → por_area
   4. ¿Y a lo largo del año?             → matriz
@@ -31,6 +31,28 @@ GRAVEDAD = {"rojo": 0, "sin_datos": 1, "amarillo": 2, "verde": 3}
 
 def _empeoro(semaforo_antes: str, semaforo_ahora: str) -> bool:
     return GRAVEDAD[semaforo_ahora] < GRAVEDAD[semaforo_antes]
+
+
+def cumplimiento_del_mes_anterior(fichas: list[dict]) -> float | None:
+    """
+    El mismo porcentaje del mes pasado, para poder decir si subió o bajó.
+
+    Un cumplimiento suelto no se interpreta: un 92,9% puede ser una buena
+    noticia o el cuarto mes cayendo, y desde la cifra sola no hay manera de
+    saberlo. Se resuelve aquí, como todo lo demás: si el frontend restara
+    los dos números, tarde o temprano diría algo distinto del reporte.
+
+    Sale de `semaforo_mes_anterior`, que cada ficha ya trae, así que no
+    cuesta ni una consulta más. La regla es la MISMA del mes actual —solo
+    cuentan los que tienen juicio posible— porque comparar dos porcentajes
+    calculados distinto no compara nada.
+    """
+    verde = sum(1 for f in fichas if f["semaforo_mes_anterior"] == "verde")
+    con_juicio = sum(
+        1 for f in fichas
+        if f["semaforo_mes_anterior"] in ("verde", "amarillo", "rojo")
+    )
+    return round((verde / con_juicio) * 100, 1) if con_juicio else None
 
 
 def calcular_movimientos(fichas: list[dict]) -> list[dict]:
@@ -81,6 +103,13 @@ def construir_matriz(fichas: list[dict], anio: int, mes_corte: int) -> list[dict
     Distingue un mes SIN REPORTAR de uno que aún NO HA LLEGADO. Meterlos en
     la misma bolsa haría ver la empresa peor de lo que está: nadie incumplió
     por no haber reportado noviembre en agosto.
+
+    Cada fila lleva además su RESPONSABLE y su FUENTE. El responsable, para
+    poder buscar por persona —«qué le falta a Hoover» es la pregunta que se
+    hace al cerrar el mes, y sin el dato habría que abrir uno por uno—. La
+    fuente, para poder agrupar: los «Gestión de OMP» son uno por área y
+    ocupan veinte filas que nadie lee de a una; con la fuente, la pantalla
+    las pliega en un solo renglón.
     """
     hoy = date.today()
     filas = []
@@ -101,18 +130,32 @@ def construir_matriz(fichas: list[dict], anio: int, mes_corte: int) -> list[dict
             "unidad": f["unidad"],
             "meta": f["meta"],
             "direccion": f["direccion"],
+            "responsable_nombre": f.get("responsable_nombre"),
+            "fuente_automatica": f.get("fuente_automatica"),
+            # Una fila sin un solo mes reportado en todo el año no es lo
+            # mismo que una con huecos: o el indicador se dejó de medir, o
+            # nadie lo reclamó nunca. La pantalla las agrupa aparte y lo
+            # dice, en vez de dejar veinte renglones de guiones.
+            "sin_registros": all(m["valor"] is None for m in meses),
             "meses": meses,
         })
     return filas
 
 
 def construir_como_vamos(db: Session, tenant_id: int, anio: int, mes: int,
-                         usuario: User, alcance_pedido: str | None = None) -> dict:
+                         usuario: User, alcance_pedido: str | None = None,
+                         area: str | None = None) -> dict:
     """La portada completa, lista para pintar sin que el frontend calcule nada."""
     alcance = resolver_alcance(usuario, alcance_pedido)
-    tablero = construir_tablero(
-        db, tenant_id, anio, mes, areas=areas_a_filtrar(usuario, alcance),
-    )
+
+    # El alcance es el LÍMITE y el área es la elección. Se intersecan, nunca
+    # se reemplazan: mandar un `?area=` ajeno no abre nada que el alcance no
+    # permitiera ya, que es la misma regla del tablero.
+    permitidas = areas_a_filtrar(usuario, alcance)
+    if area:
+        permitidas = [area] if permitidas is None or area in permitidas else []
+
+    tablero = construir_tablero(db, tenant_id, anio, mes, areas=permitidas)
     fichas = tablero["indicadores"]
 
     return {
@@ -126,7 +169,15 @@ def construir_como_vamos(db: Session, tenant_id: int, anio: int, mes: int,
             "puede_cambiar": puede_ver_la_empresa(usuario),
             "area": usuario.area,
         },
-        "resumen": tablero["resumen"],
+        "resumen": {
+            **tablero["resumen"],
+            "cumplimiento_pct_anterior": (anterior := cumplimiento_del_mes_anterior(fichas)),
+            "delta_cumplimiento": (
+                None if anterior is None or tablero["resumen"]["cumplimiento_pct"] is None
+                else round(tablero["resumen"]["cumplimiento_pct"] - anterior, 1)
+            ),
+            "mes_anterior_nombre": MESES[(mes + 10) % 12],
+        },
         "movimientos": calcular_movimientos(fichas),
         "por_area": sorted(
             tablero["por_area"],
@@ -137,4 +188,8 @@ def construir_como_vamos(db: Session, tenant_id: int, anio: int, mes: int,
         ),
         "matriz": construir_matriz(fichas, anio, mes),
         "pendientes": tablero["pendientes"],
+        # El catálogo del selector sale de aquí y no de una segunda petición:
+        # una pantalla que tiene que pedir dos cosas para pintar una barra de
+        # filtros muestra la barra a medias mientras llega la otra.
+        "areas_disponibles": tablero["areas_disponibles"],
     }

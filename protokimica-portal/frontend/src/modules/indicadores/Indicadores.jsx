@@ -1,22 +1,50 @@
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import TarjetaIndicador from "./components/TarjetaIndicador"
+import BarraContexto from "./components/BarraContexto"
+import KpisPeriodo from "./components/KpisPeriodo"
 import ComoVamos from "./components/ComoVamos"
+import ElAno from "./components/ElAno"
 import IndicadorDetalle from "./components/IndicadorDetalle"
 import { useAbrirDesdeUrl } from "../../core/abrirDesdeUrl.js"
 import FormIndicador from "./components/FormIndicador"
 import GestionOmpEnAreas from "./components/GestionOmpEnAreas"
-import { BarrasPorArea, ChipSemaforo } from "./components/Graficas"
-import { obtenerTablero, recalcularPeriodo } from "./api"
+import { ChipSemaforo } from "./components/Graficas"
+import Boton from "../../core/components/Boton.jsx"
+import {
+  Atenuado, EsqueletoKPIs, EsqueletoTarjetas,
+} from "../../core/components/Cargando.jsx"
+import { IconoOjo, IconoRecargar } from "../../core/components/Iconos.jsx"
+import { obtenerComoVamos, obtenerTablero, recalcularPeriodo } from "./api"
 import { listarUsuariosAsignables } from "../masterPlanner/api"
 import { puedeEditar } from "../masterPlanner/constants"
 import { useAuth } from "../../core/AuthContext"
-import { MESES, periodoPorDefecto, periodoAnterior, periodoSiguiente, pestanaInicial } from "./constants"
-import { IconoOjo } from '../../core/components/Iconos.jsx'
+import {
+  PESTANAS, coincideBusqueda, periodoPorDefecto, periodoAnterior,
+  periodoSiguiente, pestanaInicial,
+} from "./constants"
 
 /**
- * Tablero de indicadores. Todo el cálculo (semáforo, acumulados,
- * comparaciones) llega resuelto del servidor: aquí solo se presenta.
+ * Indicadores: tres vistas del mismo mes, con un solo contexto.
+ *
+ * El módulo hace tres cosas y antes las apretaba en dos pestañas que además
+ * no compartían estado:
+ *
+ *   Cómo vamos  — leer el estado de la empresa (gerencial)
+ *   Tablero     — registrar y consultar indicador por indicador (operativo)
+ *   El año      — la matriz de doce meses, que no cabe en ninguna de las dos
+ *
+ * **El contexto vive arriba de las pestañas y las gobierna a las tres**: el
+ * mes, el alcance, el área y la búsqueda. Antes el mes estaba fuera pero el
+ * interruptor empresa/área vivía dentro de una pestaña, así que cambiar de
+ * pestaña cambiaba en silencio qué parte de la empresa se estaba mirando.
+ *
+ * Los cinco conteos también son únicos. Estaban duplicados —una copia en
+ * cada pestaña, con rótulos distintos para lo mismo— y dos versiones del
+ * mismo número en una pantalla acaban discutiéndose entre sí.
+ *
+ * Todo el cálculo (semáforo, acumulados, comparaciones, el delta contra el
+ * mes pasado) llega resuelto del servidor: aquí solo se presenta.
  */
 export default function Indicadores() {
   const queryClient = useQueryClient()
@@ -25,7 +53,10 @@ export default function Indicadores() {
 
   const [pestana, setPestana] = useState(() => pestanaInicial(user))
   const [periodo, setPeriodo] = useState(periodoPorDefecto)
+  const [alcance, setAlcance] = useState('empresa')
   const [area, setArea] = useState("")
+  const [busqueda, setBusqueda] = useState("")
+  const [filtro, setFiltro] = useState(null)        // semáforo elegido en los KPI
   const [abierto, setAbierto] = useState(null)      // id del indicador en detalle
   const [editando, setEditando] = useState(null)    // null | 'nuevo' | indicador
 
@@ -33,7 +64,7 @@ export default function Indicadores() {
   // del inicio, que ya sabe cuál le falta por registrar.
   const abrirIndicadorDeUrl = useCallback((id) => {
     setAbierto(id)
-    setPestana('tablero')   // al cerrar queda donde se registra, no en "cómo vamos"
+    setPestana('tablero')   // al cerrar queda donde se registra
   }, [])
   const { limpiar: limpiarIndicadorDeUrl } = useAbrirDesdeUrl("indicador", abrirIndicadorDeUrl)
 
@@ -42,9 +73,27 @@ export default function Indicadores() {
     limpiarIndicadorDeUrl()
   }
 
-  const { data: tablero, isLoading, isError } = useQuery({
-    queryKey: ["ind-tablero", periodo.anio, periodo.mes, area],
-    queryFn: () => obtenerTablero({ anio: periodo.anio, mes: periodo.mes, ...(area && { area }) }),
+  // Una sola consulta alimenta el contexto, los KPI, «Cómo vamos» y «El año».
+  // El tablero pide lo suyo aparte porque necesita la ficha completa de cada
+  // indicador, que es bastante más de lo que la matriz usa.
+  const { data, isLoading, isError, isFetching } = useQuery({
+    queryKey: ["ind-como-vamos", periodo.anio, periodo.mes, alcance, area],
+    queryFn: () => obtenerComoVamos({
+      anio: periodo.anio, mes: periodo.mes, alcance, ...(area && { area }),
+    }),
+    // Al cambiar de mes se conserva lo anterior mientras llega lo nuevo:
+    // reemplazarlo por un esqueleto obliga a esperar para volver a ver algo
+    // que ya se estaba leyendo, y hace saltar la página en cada flecha.
+    placeholderData: (previa) => previa,
+  })
+
+  const { data: tablero, isFetching: cargandoTablero } = useQuery({
+    queryKey: ["ind-tablero", periodo.anio, periodo.mes, alcance, area],
+    queryFn: () => obtenerTablero({
+      anio: periodo.anio, mes: periodo.mes, ...(area && { area }),
+    }),
+    enabled: pestana === 'tablero',
+    placeholderData: (previa) => previa,
   })
 
   const { data: usuarios = [] } = useQuery({
@@ -54,192 +103,160 @@ export default function Indicadores() {
 
   const mutRecalcular = useMutation({
     mutationFn: () => recalcularPeriodo(periodo.anio, periodo.mes),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ind-tablero"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ind-tablero"] })
+      .then(() => queryClient.invalidateQueries({ queryKey: ["ind-como-vamos"] })),
   })
 
+  const porDefecto = periodoPorDefecto()
+  const esUltimoCerrado = periodo.anio === porDefecto.anio && periodo.mes === porDefecto.mes
   const hoy = new Date()
   const esFuturo = periodo.anio > hoy.getFullYear()
     || (periodo.anio === hoy.getFullYear() && periodo.mes >= hoy.getMonth() + 1)
 
+  const moverPeriodo = (hacia) => setPeriodo(
+    hacia === 'anterior'
+      ? periodoAnterior(periodo.anio, periodo.mes)
+      : periodoSiguiente(periodo.anio, periodo.mes),
+  )
+
+  // Qué se está mirando, dicho en voz alta: una lista acotada que no avisa
+  // que lo está se lee como «en la empresa solo hay estos».
+  const resumenAlcance = useMemo(() => {
+    if (!data) return null
+    const responsables = new Set(
+      data.matriz.map(f => f.responsable_nombre).filter(Boolean),
+    ).size
+    const cuantos = data.matriz.length
+    return `${cuantos} indicador${cuantos === 1 ? '' : 'es'} · ${responsables} responsable${responsables === 1 ? '' : 's'}`
+  }, [data])
+
   return (
-    <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-6">
-      <div className="flex flex-wrap justify-between items-start gap-4">
+    <div className="max-w-[1400px] mx-auto space-y-4">
+
+      <header className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-acento-fuerte">Indicadores</h1>
-          <p className="text-texto-2 mt-2">
-            Seguimiento de metas: avance mes a mes.
-          </p>
+          <h1 className="text-2xl font-semibold text-acento-fuerte">Indicadores</h1>
+          <p className="text-sm text-texto-2 mt-1">Seguimiento de metas, mes a mes.</p>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-2 items-center">
           {!editable && (
-            <span className="text-xs font-semibold text-texto-2 bg-superficie-2 border border-borde rounded-lg px-3 py-2">
-              <IconoOjo tam={14} className="inline mr-1.5 -mt-0.5" />Modo consulta
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-texto-2
+                             bg-superficie-2 border border-borde rounded-lg px-3 h-9">
+              <IconoOjo tam={14} />Modo consulta
             </span>
           )}
           {editable && (
             <>
               <GestionOmpEnAreas />
-              <button
+              <Boton
                 onClick={() => mutRecalcular.mutate()}
-                disabled={mutRecalcular.isPending}
+                cargando={mutRecalcular.isPending}
+                textoCargando="Recalculando…"
+                icono={IconoRecargar}
                 title="Vuelve a calcular todos los indicadores automáticos de este periodo"
-                className="bg-white border border-borde hover:bg-superficie-2 text-acento-fuerte font-semibold px-5 py-3 rounded-xl shadow-sm transition disabled:opacity-40"
               >
-                {mutRecalcular.isPending ? 'Recalculando…' : 'Recalcular automáticos'}
-              </button>
-              <button
-                onClick={() => setEditando('nuevo')}
-                className="bg-ambar hover:bg-ambar-claro text-acento-fuerte font-semibold px-6 py-3 rounded-xl shadow-sm transition"
-              >
-                + Nuevo indicador
-              </button>
+                Recalcular automáticos
+              </Boton>
+              <Boton tono="marca" onClick={() => setEditando('nuevo')}>
+                Nuevo indicador
+              </Boton>
             </>
           )}
         </div>
-      </div>
+      </header>
 
-      {/* Periodo y área */}
-      <div className="bg-white rounded-2xl border border-borde p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setPeriodo(periodoAnterior(periodo.anio, periodo.mes))}
-            aria-label="Mes anterior"
-            className="w-9 h-9 rounded-lg border border-borde hover:bg-superficie-2 text-texto-2">‹</button>
-          <span className="text-base font-bold text-acento-fuerte min-w-[160px] text-center">
-            {MESES[periodo.mes - 1]} {periodo.anio}
-          </span>
-          <button onClick={() => setPeriodo(periodoSiguiente(periodo.anio, periodo.mes))}
-            aria-label="Mes siguiente"
-            className="w-9 h-9 rounded-lg border border-borde hover:bg-superficie-2 text-texto-2">›</button>
-          <button onClick={() => setPeriodo(periodoPorDefecto())}
-            className="ml-2 text-xs font-semibold text-acento hover:underline">
-            Último mes cerrado
-          </button>
-        </div>
+      <BarraContexto
+        periodo={{ ...periodo, esUltimoCerrado }}
+        onPeriodo={moverPeriodo}
+        onUltimoCerrado={() => setPeriodo(periodoPorDefecto())}
+        area={area}
+        onArea={setArea}
+        areasDisponibles={data?.areas_disponibles || []}
+        alcance={alcance}
+        onAlcance={setAlcance}
+        puedeCambiarAlcance={data?.alcance?.puede_cambiar}
+        areaPropia={data?.alcance?.area}
+        busqueda={busqueda}
+        onBusqueda={setBusqueda}
+        resumenAlcance={resumenAlcance}
+      />
 
-        <div className="flex items-center gap-3">
-          <select value={area} onChange={(e) => setArea(e.target.value)}
-            className="rounded-lg border border-borde px-3 py-2 text-sm bg-white min-w-[170px]">
-            <option value="">Todas las áreas</option>
-            {(tablero?.areas_disponibles || []).map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {/* Dos usos del mismo módulo: leer el estado, o registrar y consultar. */}
-      <div className="flex gap-1 border-b border-borde" role="tablist">
-        {[['como-vamos', 'Cómo vamos'], ['tablero', 'Tablero']].map(([id, label]) => (
+      <nav className="flex gap-6 border-b border-borde" role="tablist">
+        {PESTANAS.map(({ clave, texto }) => (
           <button
-            key={id}
+            key={clave}
             role="tab"
-            aria-selected={pestana === id}
-            onClick={() => setPestana(id)}
-            className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition ${
-              pestana === id
-                ? 'border-acento text-acento'
-                : 'border-transparent text-texto-2 hover:text-acento'
+            aria-selected={pestana === clave}
+            onClick={() => setPestana(clave)}
+            className={`pb-2.5 -mb-px text-sm border-b-2 transition ${
+              pestana === clave
+                ? 'border-acento text-texto font-semibold'
+                : 'border-transparent text-texto-3 font-medium hover:text-texto-2'
             }`}
           >
-            {label}
+            {texto}
+            {clave === 'tablero' && data && (
+              <span className="ml-2 px-1.5 py-0.5 rounded-full bg-superficie-2 text-texto-3
+                               text-[10.5px] font-semibold cifra">
+                {data.resumen.total}
+              </span>
+            )}
           </button>
         ))}
-      </div>
+      </nav>
 
       {esFuturo && (
-        <div className="bg-alerta-bg border border-ambar/30 text-alerta text-sm rounded-xl px-4 py-3">
-          Este mes todavía no ha cerrado. Los valores que veas están incompletos.
-        </div>
+        <p className="bg-alerta-bg border border-ambar/30 text-alerta text-sm rounded-xl px-4 py-3">
+          Este mes todavía no ha cerrado. Lo que veas está incompleto.
+        </p>
       )}
 
-      {pestana === 'como-vamos' && (
-        <ComoVamos
-          periodo={periodo}
-          onVerIndicador={(id) => { setPestana('tablero'); setAbierto(id) }}
-        />
-      )}
+      {isError ? (
+        <p className="text-center py-16 text-negativo text-sm">
+          No se pudieron cargar los indicadores. Revisa tu conexión y vuelve a intentar.
+        </p>
+      ) : isLoading || !data ? (
+        <EsqueletoKPIs />
+      ) : (
+        <Atenuado cargando={isFetching}>
+          <div className="space-y-4">
+            <KpisPeriodo resumen={data.resumen} filtro={filtro} onFiltro={setFiltro} />
 
-      {pestana === 'tablero' && <>
+            {pestana === 'como-vamos' && (
+              <ComoVamos
+                datos={data}
+                periodo={periodo}
+                filtro={filtro}
+                onFiltro={setFiltro}
+                busqueda={busqueda}
+                onVerIndicador={(id) => { setPestana('tablero'); setAbierto(id) }}
+              />
+            )}
 
-      {isError && (
-        <div className="text-center py-16 text-negativo text-sm">No se pudo cargar el tablero.</div>
-      )}
+            {pestana === 'el-ano' && (
+              <ElAno
+                matriz={data.matriz}
+                anio={periodo.anio}
+                busqueda={busqueda}
+                onVerIndicador={(id) => { setPestana('tablero'); setAbierto(id) }}
+              />
+            )}
 
-      {isLoading ? (
-        <div className="text-center py-16 text-texto-3 text-sm">Cargando indicadores...</div>
-      ) : tablero && (
-        <>
-          {/* Resumen del periodo */}
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-            <Tarjeta label="Cumplimiento"
-              value={tablero.resumen.cumplimiento_pct !== null ? `${tablero.resumen.cumplimiento_pct}%` : '—'}
-              color="border-t-acento-fuerte"
-              nota={tablero.resumen.cumplimiento_pct !== null
-                ? `${tablero.resumen.verde} de ${tablero.resumen.verde + tablero.resumen.amarillo + tablero.resumen.rojo} con meta`
-                : 'Sin indicadores con meta'} />
-            <Tarjeta label="Cumplen" value={tablero.resumen.verde} color="border-t-positivo-vivo" />
-            <Tarjeta label="En alerta" value={tablero.resumen.amarillo} color="border-t-ambar" />
-            <Tarjeta label="No cumplen" value={tablero.resumen.rojo} color="border-t-negativo-vivo"
-              alerta={tablero.resumen.rojo > 0} />
-            <Tarjeta label="Falta registrar" value={tablero.resumen.pendientes_registro}
-              color="border-t-texto-3"
-              nota={tablero.resumen.sin_datos > 0 ? `${tablero.resumen.sin_datos} sin dato` : null} />
+            {pestana === 'tablero' && (
+              <Tablero
+                tablero={tablero}
+                cargando={cargandoTablero && !tablero}
+                area={area}
+                busqueda={busqueda}
+                filtro={filtro}
+                editable={editable}
+                onAbrir={setAbierto}
+                onCrear={() => setEditando('nuevo')}
+              />
+            )}
           </div>
-
-          {tablero.pendientes.length > 0 && editable && (
-            <div className="bg-alerta-bg border border-ambar/30 rounded-xl px-4 py-3">
-              <p className="text-sm font-semibold text-alerta mb-1.5">
-                Falta registrar {tablero.pendientes.length} indicador{tablero.pendientes.length === 1 ? '' : 'es'} de este mes
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {tablero.pendientes.map(p => (
-                  <button key={p.id} onClick={() => setAbierto(p.id)}
-                    className="text-xs bg-white border border-ambar/30 rounded-full px-3 py-1 hover:border-ambar text-alerta">
-                    {p.nombre}
-                    {p.responsable_nombre && <span className="text-alerta/70"> · {p.responsable_nombre}</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {tablero.indicadores.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-dashed border-borde p-16 text-center">
-              <p className="text-texto-2 mb-4">
-                {area ? 'Esta área no tiene indicadores configurados.' : 'Todavía no hay indicadores configurados.'}
-              </p>
-              {editable && !area && (
-                <button onClick={() => setEditando('nuevo')}
-                  className="bg-ambar hover:bg-ambar-claro text-acento-fuerte font-semibold px-6 py-3 rounded-xl shadow-sm transition">
-                  + Crear el primer indicador
-                </button>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {tablero.indicadores.map(ficha => (
-                  <TarjetaIndicador key={ficha.id} ficha={ficha} onAbrir={(f) => setAbierto(f.id)} />
-                ))}
-              </div>
-
-              {tablero.por_area.length > 1 && (
-                <div className="bg-white rounded-2xl border border-borde shadow-sm overflow-hidden">
-                  <div className="px-5 py-4 border-b border-borde">
-                    <h3 className="text-sm font-bold text-acento-fuerte">Cumplimiento por área</h3>
-                    <p className="text-xs text-texto-3 mt-0.5">
-                      Porcentaje de indicadores del área que cumplen su meta este mes.
-                    </p>
-                  </div>
-                  <div className="p-5">
-                    <BarrasPorArea areas={tablero.por_area} />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </>
+        </Atenuado>
       )}
-
-      </>}
 
       {abierto && (
         <IndicadorDetalle
@@ -262,13 +279,54 @@ export default function Indicadores() {
   )
 }
 
-/** Misma tarjeta de resumen que usan PQRS y Master Planner. */
-function Tarjeta({ label, value, color, nota, alerta }) {
+/**
+ * La pestaña operativa: una tarjeta por indicador, para registrar y abrir.
+ *
+ * Responde al buscador y al semáforo elegido arriba, igual que las otras
+ * dos. Un filtro que solo funciona en una pestaña obliga a recordar dónde
+ * sirve, y se acaba usando en la que no.
+ */
+function Tablero({ tablero, cargando, area, busqueda, filtro, editable, onAbrir, onCrear }) {
+  const visibles = useMemo(() => {
+    const fichas = tablero?.indicadores ?? []
+    return fichas
+      .filter(f => coincideBusqueda(f, busqueda))
+      .filter(f => !filtro || f.semaforo === filtro)
+  }, [tablero, busqueda, filtro])
+
+  if (cargando) return <EsqueletoTarjetas />
+  if (!tablero) return null
+
+  if (tablero.indicadores.length === 0) {
+    return (
+      <div className="bg-superficie rounded-xl border border-dashed border-borde p-16 text-center">
+        <p className="text-sm text-texto-2 mb-4">
+          {area
+            ? 'Esta área no tiene indicadores configurados.'
+            : 'Todavía no hay indicadores configurados.'}
+        </p>
+        {editable && !area && (
+          <Boton tono="marca" tam="lg" onClick={onCrear}>Crear el primer indicador</Boton>
+        )}
+      </div>
+    )
+  }
+
+  if (visibles.length === 0) {
+    return (
+      <div className="bg-superficie rounded-xl border border-dashed border-borde p-16 text-center">
+        <p className="text-sm text-texto-2">
+          Ningún indicador coincide con lo que estás filtrando.
+        </p>
+      </div>
+    )
+  }
+
   return (
-    <div className={`bg-white rounded-xl border border-borde border-t-4 ${color} p-4`}>
-      <div className="text-xs font-semibold text-texto-2 uppercase tracking-wide">{label}</div>
-      <div className={`text-3xl font-bold mt-1 ${alerta ? 'text-negativo-vivo' : 'text-acento-fuerte'}`}>{value}</div>
-      {nota && <div className="text-[11px] text-texto-3 mt-0.5">{nota}</div>}
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {visibles.map(ficha => (
+        <TarjetaIndicador key={ficha.id} ficha={ficha} onAbrir={(f) => onAbrir(f.id)} />
+      ))}
     </div>
   )
 }

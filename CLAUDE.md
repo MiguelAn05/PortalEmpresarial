@@ -155,6 +155,34 @@ que el historial no termine siendo un `git log`.
 | `agente` | Opera lo que le asignan |
 | `lectura` | No escribe nada |
 
+**Indicadores son TRES vistas del mismo mes, con un solo contexto**
+(`PESTANAS` en `modules/indicadores/constants.js`): «Cómo vamos» para leer el
+estado, «Tablero» para registrar y consultar, y «El año» para la matriz de
+doce meses. La matriz vivía dentro de «Cómo vamos» y ahí no cabe —73 filas ×
+12 meses empujan fuera de pantalla lo que alguien entra a ver—.
+
+El mes, el alcance, el área y la búsqueda viven **arriba de las pestañas**
+(`BarraContexto`) y valen para las tres; los cinco conteos también son únicos
+(`KpisPeriodo`). Antes el interruptor empresa/área vivía DENTRO de una
+pestaña, así que cambiar de pestaña cambiaba en silencio qué parte de la
+empresa se estaba mirando, y los conteos estaban duplicados con rótulos
+distintos para lo mismo.
+
+- **`alcance` es el límite y `area` la elección**, igual que en el tablero:
+  se intersecan, nunca se reemplazan. Mandar un `?area=` ajeno no abre nada.
+- **El delta contra el mes pasado lo calcula el servidor**
+  (`cumplimiento_del_mes_anterior` en `indicadores/como_vamos.py`), con la
+  MISMA regla del mes actual — comparar dos porcentajes calculados distinto
+  no compara nada. Restarlos en el frontend es fácil, y por eso mismo es la
+  clase de cuenta que un día deja de coincidir con el reporte.
+- **La matriz agrupa lo que nadie lee de a uno**: los «Gestión de OMP» son
+  uno por área y las filas sin un solo registro del año son otra cosa
+  distinta (la pregunta de si ese indicador sigue vivo). Se reconocen por la
+  **fuente**, nunca por el nombre: renombrar uno desde Administración no
+  puede romper la agrupación.
+- **Se busca también por responsable**, que es la pregunta del cierre de mes
+  —«qué le falta a Hoover»—, y sin tildes: nadie las escribe en un buscador.
+
 **Qué módulo abre cada rol** — `backend/app/core/modulos.py` es la fuente, con
 gemelo en `frontend/src/core/modulos.js` (una prueba verifica que coincidan).
 
@@ -591,6 +619,38 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   `gap-6` entre bloques).
 - Formularios en modal: usar `useCierreSeguro` de
   `core/components/cierreSeguro.jsx` para que un clic fuera no borre lo escrito.
+- **Esperar tiene cuatro capas, y cada una es para un momento distinto**
+  (`core/components/Cargando.jsx`). Un «Cargando…» centrado servía para las
+  cuatro y no sirve para ninguna: el layout salta cuando llegan los datos, y
+  un texto en medio de la pantalla no dice si falta un segundo o un minuto.
+
+  | Cuándo | Qué se usa |
+  |---|---|
+  | Al abrir el portal | El bloque de `index.html` — **no** un componente |
+  | Cambiar de módulo o de mes | `BarraDeCarga`, 2,5 px arriba, sin tapar nada |
+  | Datos de una vista | `Esqueleto`, `EsqueletoKPIs`, `EsqueletoFilas`… |
+  | Guardar, recalcular | `Boton` con `cargando`, o `Spinner` suelto |
+
+  **El arranque vive en `index.html` a propósito.** El bundle pesa ~860 KB:
+  entre que llega el HTML y React monta hay una espera real, y escrito en
+  React solo aparecería DESPUÉS de descargarlo — o sea, cuando ya no hace
+  falta. Es la única excepción a «los colores viven en index.css»: van en
+  línea porque el CSS también se descarga, y esto tiene que estar pintado en
+  el primer frame. `main.jsx` lo retira al montar.
+
+  **`BarraDeCarga` no recibe props**: lee `useIsFetching()` de React Query,
+  así que una pantalla nueva no tiene que acordarse de encender nada.
+
+  **Nunca reemplaces datos ya visibles por un esqueleto.** Al cambiar de mes
+  o filtrar, lo anterior se atenúa con `Atenuado` y se queda; taparlo obliga
+  a esperar para volver a ver algo que ya se estaba leyendo. El esqueleto es
+  solo para cuando no hay NADA que mostrar, y tiene la forma exacta de lo que
+  viene: si no coincide, la página salta y se percibe peor que el blanco.
+
+  **El spinner va DENTRO del botón que lo disparó**, con el botón inerte
+  (`Boton` lo hace solo). Un overlay de pantalla completa para guardar un
+  formulario tapa justo lo que se acaba de escribir, y un botón que sigue
+  pulsable mientras viaja la petición termina en dos registros iguales.
 - Gráficas: SVG a mano, sin librería (el servidor no reinstala dependencias con
   fiabilidad). Una serie = un color y sin leyenda; la meta es una anotación
   punteada, no una segunda serie; nunca doble eje.
@@ -775,15 +835,34 @@ de n8n se rompe en silencio.
 Lo que no tiene responsable **sale aparte, nunca se descarta**: una PQRS sin
 asignar con el plazo corriendo es el caso más peligroso de todos.
 
-- **Notas crédito: hay DOS cadenas, y el canal decide cuál.** La cadena vive
+- **Notas crédito: toda solicitud empieza por COMERCIAL.** La cadena vive
   en `modules/notas_credito/flujo.py` y es la **única fuente**; el router, los
   correos y la pantalla preguntan ahí.
 
   | Quién pide | Recorrido |
   |---|---|
-  | Un punto de venta | Contabilidad autoriza → el punto emite. Igual que siempre |
+  | Un punto de venta | Comercial aprueba → Contabilidad autoriza → el punto emite |
   | Ventas Institucionales | Comercial aprueba → Contabilidad verifica en la DIAN → se emite |
   | Ventas Institucionales, motivo con producto | **La bodega confirma que llegó** y después lo anterior |
+
+  Antes las del punto de venta entraban directo a Contabilidad —era el flujo
+  heredado de cuando esto se pedía por correo— y el resultado era que
+  **Contabilidad terminaba decidiendo un asunto comercial**. Quien decide si
+  se le devuelve la plata al cliente es Comercial, y eso no cambia porque la
+  venta se haya hecho en un mostrador.
+
+  El turno de Contabilidad en la rama del mostrador **se sigue llamando
+  `solicitada`** y no `en_contabilidad`: son dos capacidades distintas
+  (`autorizar` contra `verificar_dian`), y renombrarlo habría movido de sitio
+  a las solicitudes que ya estaban esperando y le habría quitado el permiso a
+  quien lo tiene. En pantalla las dos se leen igual.
+
+  **Comercial ve las dos ramas**, justamente porque abre las dos: mientras
+  solo intervenía en las institucionales se le escondían las del mostrador, y
+  dejarlo así habría hecho que el primer turno de esas no lo pudiera atender
+  nadie —ni en la lista ni abriéndolas por id (404)—. La bodega y la
+  verificación ante la DIAN sí siguen viendo solo las institucionales: son
+  pasos que las del mostrador no tienen.
 
   **El estado dice de quién es el turno** (`en_bodega`, `en_comercial`,
   `en_contabilidad`…) y no hay un campo `etapa` aparte: dos columnas que
@@ -839,6 +918,22 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   paso. Cuando la solicitud llega a Comercial, **Contabilidad va en copia**
   (`en_copia` → `ccEmail`) para que vaya mirando la DIAN sin decidir todavía.
   `nc-solicitada` se retiró: `nc-en-turno` lo cubre.
+
+  **El líder del área de quien radica va en COPIA del primer correo**, para
+  que sepa que su sede pidió una nota crédito. No es un paso del flujo: no
+  firma nada y la solicitud no lo espera. Meterlo en la cadena habría sido una
+  firma que nadie pidió y un sitio donde todo se queda quieto cuando el líder
+  está de vacaciones. Solo en el PRIMER turno — en los siguientes no aporta
+  nada y serían cuatro correos por una sola nota, que es como se aprende a no
+  abrirlos. Un área sin nadie con rol `lider` simplemente no suma a nadie.
+
+  **En copia va siempre quien atiende el turno SIGUIENTE**, y sale de la
+  cadena, no de una capacidad escrita a mano: el «siguiente» no es el mismo en
+  las dos ramas (en la del mostrador Contabilidad *autoriza*, en la
+  institucional *verifica ante la DIAN*), así que nombrar una sola dejaba la
+  otra sin copia en silencio. Se excluye el último turno, el de emitir: para
+  eso está `nc-por-emitir`, y adelantarlo sería pedirle a alguien que prepare
+  algo que todavía puede rechazarse.
 
   Las tres capacidades nuevas (`notas_credito.confirmar_producto`,
   `.aprobar_comercial`, `.verificar_dian`) las siembra la migración a

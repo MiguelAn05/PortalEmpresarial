@@ -6,9 +6,18 @@ preguntan aquí; si cada uno armara su propia secuencia, el día que se agregue
 un paso el que se olvide es el que deja una solicitud atascada sin que nadie
 sepa en manos de quién está.
 
-Hay dos cadenas, y la rama se decide por QUIÉN pide:
+**Toda solicitud empieza por COMERCIAL.** Quien decide si la empresa acepta
+devolverle la plata al cliente es Comercial, y eso no cambia porque la venta
+se haya hecho en un mostrador o a una institución. Antes las del punto de
+venta entraban directo a Contabilidad —era el flujo de siempre, de cuando
+esto se pedía por correo—, y el resultado era que Contabilidad terminaba
+decidiendo un asunto comercial.
 
-    Punto de venta ──► Contabilidad autoriza ──► el punto emite
+Lo que cambia entre ramas es QUÉ hace Contabilidad después, y quién sigue:
+
+    Punto de venta ──► COMERCIAL aprueba
+                    ──► CONTABILIDAD autoriza
+                    ──► el punto emite y registra el número
 
     Ventas Institucionales
         └─(si el motivo implica producto)─► BODEGA confirma que llegó
@@ -16,10 +25,16 @@ Hay dos cadenas, y la rama se decide por QUIÉN pide:
                                          ──► CONTABILIDAD verifica en la DIAN
                                          ──► quien emite registra el número
 
-La institucional pasa SIEMPRE por Comercial y después por Contabilidad. Lo
-único que agrega el producto es la confirmación de la bodega al principio:
+Lo único que agrega el producto es la confirmación de la bodega al principio:
 sin producto no hay nada que confirmar y pedirlo sería una firma que no mira
 nada, de las que la gente aprende a dar sin leer.
+
+**Por qué el turno de Contabilidad en la rama del punto de venta sigue
+llamándose `solicitada`** y no `en_contabilidad`: son dos capacidades
+distintas —autorizar contra verificar ante la DIAN—, y renombrarlo habría
+movido de sitio a todas las solicitudes que ya estaban esperando, además de
+quitarle el permiso a quien lo tiene. Para quien mira la pantalla las dos se
+leen igual («Esperando a Contabilidad»), que es lo que importa.
 
 **El estado dice de quién es el turno**, así que avanzar es pasar al
 siguiente estado de la lista. En cada paso caben tres respuestas:
@@ -84,7 +99,7 @@ ETIQUETA_ESTADO = {
 QUE_HACER = {
     ESTADO_SOLICITADA:      "Autoriza o rechaza la solicitud.",
     ESTADO_EN_BODEGA:       "Confirma si el producto llegó a la bodega y en qué estado.",
-    ESTADO_EN_COMERCIAL:    "Aprueba o rechaza la devolución.",
+    ESTADO_EN_COMERCIAL:    "Aprueba o rechaza la nota crédito.",
     ESTADO_EN_CONTABILIDAD: "Verifica ante la DIAN si la factura tiene saldo a favor.",
     ESTADO_APROBADA:        "Emite la nota crédito y registra su número.",
 }
@@ -147,7 +162,7 @@ def cadena(punto_venta: str | None, requiere_bodega: bool = False) -> tuple[str,
     turno de quien la emite.
     """
     if not es_institucional(punto_venta):
-        return (ESTADO_SOLICITADA, ESTADO_APROBADA)
+        return (ESTADO_EN_COMERCIAL, ESTADO_SOLICITADA, ESTADO_APROBADA)
     if requiere_bodega:
         return (ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)
     return (ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)

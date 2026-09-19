@@ -4,6 +4,7 @@ import { useAuth } from '../AuthContext.jsx'
 import { moduloDeRuta, puedeVerModulo } from '../modulos.js'
 import { LOGO, NOMBRE_EMPRESA } from '../marca.js'
 import CambiarPasswordModal from './CambiarPasswordModal.jsx'
+import { BarraDeCarga } from './Cargando.jsx'
 import { AvisoVersionNueva, ChipVersion } from './Version.jsx'
 import {
   IconoAdmin, IconoAgente, IconoCarpeta, IconoEncuestas, IconoFicha,
@@ -289,6 +290,11 @@ export default function Layout() {
             />
           </button>
         </header>
+
+        {/* Arriba del todo y sin tapar nada: quien navega ya está viendo el
+            portal, y un overlay le quitaría lo que estaba leyendo para no
+            mostrarle nada a cambio. */}
+        <BarraDeCarga />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <AvisoVersionNueva />

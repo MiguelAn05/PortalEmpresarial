@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.33.1"
-FECHA = "2026-09-18"
+VERSION = "0.35.0"
+FECHA = "2026-09-19"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,63 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.35.0",
+        "fecha": "2026-09-19",
+        "titulo": "Indicadores se rehizo entero, y el portal ya no se queda en blanco al abrir",
+        "cambios": [
+            ("nuevo", "Indicadores tiene ahora tres pestañas: «Cómo vamos» "
+                      "para ver el estado del mes, «Tablero» para registrar y "
+                      "consultar, y «El año» para la matriz de los doce "
+                      "meses, que antes estaba metida en medio de todo y "
+                      "empujaba el resto fuera de la pantalla."),
+            ("mejora", "El mes, el área, el alcance y la búsqueda viven ahora "
+                       "arriba y valen para las tres pestañas. Antes cambiar "
+                       "de pestaña cambiaba en silencio qué parte de la "
+                       "empresa se estaba mirando."),
+            ("nuevo", "Se puede buscar un indicador por su nombre, su área o "
+                      "su responsable, sin preocuparse por las tildes."),
+            ("mejora", "El cumplimiento del mes dice ahora cuánto subió o "
+                       "bajó respecto del mes pasado, y avisa cuando está "
+                       "calculado sobre unos pocos indicadores porque el "
+                       "resto no se ha registrado."),
+            ("nuevo", "La franja de pendientes dice quién debe registrar qué, "
+                      "agrupado por persona, y desde ahí se abre cada "
+                      "indicador."),
+            ("mejora", "En la matriz del año, los «Gestión de OMP» y los "
+                       "indicadores sin ningún registro se pliegan en un "
+                       "renglón que se puede abrir, y la columna del nombre "
+                       "ya no se pierde al desplazarse hasta diciembre."),
+            ("nuevo", "Al abrir el portal aparece el logo mientras carga, en "
+                      "vez de una pantalla en blanco."),
+            ("mejora", "Los botones que guardan o recalculan muestran el "
+                       "avance dentro del propio botón y dejan de responder "
+                       "al segundo clic, así que ya no se puede registrar dos "
+                       "veces lo mismo por impaciencia."),
+            ("mejora", "Al cambiar de mes, lo que ya estaba en pantalla se "
+                       "queda mientras llegan los datos nuevos, en vez de "
+                       "desaparecer y volver."),
+        ],
+    },
+    {
+        "version": "0.34.0",
+        "fecha": "2026-09-19",
+        "titulo": "Toda nota crédito pasa primero por Coordinación Comercial",
+        "cambios": [
+            ("nuevo", "Las notas crédito que piden los puntos de venta ahora "
+                      "las aprueba Coordinación Comercial antes de que las "
+                      "vea Contabilidad. Antes entraban directo a "
+                      "Contabilidad, que terminaba decidiendo sola si se le "
+                      "devolvía la plata al cliente."),
+            ("mejora", "Coordinación Comercial ve ahora las solicitudes de "
+                       "los puntos de venta además de las institucionales, "
+                       "porque le toca aprobarlas todas."),
+            ("nuevo", "Al líder del área de quien pide la nota crédito le "
+                      "llega copia del primer correo, para que sepa que su "
+                      "sede solicitó una. No tiene que aprobar nada: es solo "
+                      "para enterarse."),
+        ],
+    },
     {
         "version": "0.33.1",
         "fecha": "2026-09-18",

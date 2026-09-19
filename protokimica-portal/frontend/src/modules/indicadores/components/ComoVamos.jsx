@@ -1,148 +1,61 @@
-import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { obtenerComoVamos } from "../api"
-import { SEMAFOROS, MESES, formatValor } from "../constants"
-import { GraficaTendencia } from "./Graficas"
-import {
-  IconoAlerta, IconoCerrar, IconoCheck,
-} from '../../../core/components/Iconos.jsx'
-
 /**
- * La portada de "cómo vamos": el estado de la empresa en una pantalla.
+ * La portada gerencial: el estado de la empresa en una pantalla.
  *
- * Todo llega calculado del servidor —conteos, movimientos, matriz— porque es
- * lo mismo que alimenta el tablero: si aquí se recalculara algo, tarde o
- * temprano las dos pantallas mostrarían números distintos del mismo mes.
+ * Responde tres preguntas y nada más: ¿está completa la lectura del mes?,
+ * ¿qué se salió de meta o empeoró?, ¿qué área está peor. El mes, el alcance
+ * y el buscador viven arriba, en `BarraContexto`, y los cinco conteos en
+ * `KpisPeriodo`: los dos gobiernan las tres pestañas, así que cambiarse de
+ * pestaña ya no cambia lo que se está mirando.
  *
- * Es una vista de LECTURA. Registrar, editar y adjuntar evidencia siguen
- * viviendo en el tablero; aquí no se toca ningún dato.
+ * La matriz del año se fue a su propia pestaña. Son casi novecientas celdas
+ * y empujaban fuera de pantalla justamente lo que alguien viene a ver aquí.
+ *
+ * Todo llega calculado del servidor —conteos, movimientos, cumplimiento por
+ * área—, que es lo mismo que alimenta el tablero. Si aquí se recalculara
+ * algo, tarde o temprano las dos pantallas mostrarían números distintos del
+ * mismo mes.
+ *
+ * Es una vista de LECTURA: registrar y editar siguen viviendo en el tablero.
  */
+import { IconoAlerta, IconoCerrar, IconoReloj } from '../../../core/components/Iconos.jsx'
+import { SEMAFOROS, coincideBusqueda, formatValor } from '../constants'
 
-// El símbolo va además del color, nunca en su lugar: el ámbar de la marca no
-// alcanza el contraste mínimo, y un semáforo que solo es color no se lee en
-// un proyector malo, impreso en gris, ni por quien no distingue rojo y verde.
-//
-// Cada estado tiene una FORMA distinta —palomita, triángulo, equis— y no solo
-// un color: es lo único que sobrevive a una fotocopia en blanco y negro.
-const GLIFO = { verde: IconoCheck, amarillo: IconoAlerta, rojo: IconoCerrar }
+export default function ComoVamos({
+  datos, periodo, filtro, onFiltro, busqueda, onVerIndicador,
+}) {
+  const { resumen, movimientos, por_area: porArea, matriz, pendientes } = datos
 
-function Glifo({ estado, tam = 11 }) {
-  const Icono = GLIFO[estado]
-  if (!Icono) return <span aria-hidden="true">–</span>
-  return <Icono tam={tam} className="inline-block flex-shrink-0" />
-}
-
-const ORDEN_TARJETAS = ['verde', 'amarillo', 'rojo', 'sin_datos']
-const BORDE = {
-  verde: 'border-t-positivo-vivo',
-  amarillo: 'border-t-ambar',
-  rojo: 'border-t-negativo-vivo',
-  sin_datos: 'border-t-borde-fuerte',
-}
-const ROTULO = {
-  verde: 'Cumplen', amarillo: 'En alerta', rojo: 'No cumplen', sin_datos: 'Sin reportar',
-}
-
-export default function ComoVamos({ periodo, onVerIndicador }) {
-  const [alcance, setAlcance] = useState('empresa')
-  const [filtro, setFiltro] = useState(null)      // semáforo abierto bajo las tarjetas
-  const [detalle, setDetalle] = useState(null)    // fila de la matriz en la gráfica
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["ind-como-vamos", periodo.anio, periodo.mes, alcance],
-    queryFn: () => obtenerComoVamos({ anio: periodo.anio, mes: periodo.mes, alcance }),
-  })
-
-  if (isLoading) {
-    return <div className="text-center py-16 text-texto-3 text-sm">Cargando...</div>
-  }
-  if (isError || !data) {
-    return <div className="text-center py-16 text-negativo text-sm">No se pudo cargar el resumen.</div>
-  }
-
-  const { resumen, movimientos, por_area: porArea, matriz } = data
-  const juzgados = resumen.verde + resumen.amarillo + resumen.rojo
-  const elegido = detalle !== null ? matriz.find(m => m.id === detalle) : matriz[0]
+  // El filtro sale de los KPI de arriba: de «hay 3 en rojo» a «estos son».
+  const delFiltro = filtro
+    ? matriz.filter(f => estadoDelMes(f, periodo.mes) === filtro && coincideBusqueda(f, busqueda))
+    : []
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      <LecturaIncompleta
+        pendientes={pendientes}
+        medidos={resumen.verde + resumen.amarillo + resumen.rojo}
+        total={resumen.total}
+        cumplimiento={resumen.cumplimiento_pct}
+        onVer={onVerIndicador}
+      />
 
-      {/* El interruptor lo decide el backend, no el frontend: si esta persona
-          no puede ver la empresa, no se le muestra un control que no va a poder usar. */}
-      {data.alcance.puede_cambiar && (
-        <div className="flex items-center gap-2">
-          <div className="inline-flex bg-white border border-borde rounded-full p-1">
-            {[['empresa', 'Empresa'], ['area', data.alcance.area || 'Mi área']].map(([valor, label]) => (
-              <button
-                key={valor}
-                onClick={() => setAlcance(valor)}
-                aria-pressed={alcance === valor}
-                className={`px-4 py-1.5 text-sm font-semibold rounded-full transition ${
-                  alcance === valor ? 'bg-acento text-white' : 'text-texto-2 hover:text-acento'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Estado del mes */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-xl border border-borde border-t-4 border-t-acento p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-texto-2">Cumplimiento</p>
-          <p className="text-3xl font-bold text-acento-fuerte mt-1 tabular-nums">
-            {resumen.cumplimiento_pct !== null ? `${resumen.cumplimiento_pct}%` : '—'}
-          </p>
-          <p className="text-xs text-texto-2 mt-1">
-            {juzgados > 0 ? `${resumen.verde} de ${juzgados} con meta` : 'sin datos del periodo'}
-          </p>
-        </div>
-
-        {ORDEN_TARJETAS.map(estado => (
-          <button
-            key={estado}
-            type="button"
-            onClick={() => setFiltro(filtro === estado ? null : estado)}
-            aria-pressed={filtro === estado}
-            className={`bg-white rounded-xl border border-borde border-t-4 ${BORDE[estado]} p-4 text-left
-              transition hover:-translate-y-0.5 hover:shadow-md
-              ${filtro === estado ? 'ring-2 ring-acento ring-offset-1' : ''}`}
-          >
-            <p className="text-xs font-semibold uppercase tracking-wide text-texto-2">{ROTULO[estado]}</p>
-            <p className={`text-3xl font-bold mt-1 tabular-nums ${SEMAFOROS[estado].texto}`}>
-              {resumen[estado]}
-            </p>
-            <p className="text-xs text-acento font-semibold mt-1">
-              {filtro === estado ? 'Ocultar' : 'Ver cuáles'}
-            </p>
-          </button>
-        ))}
-      </div>
-
-      {/* De la cifra al detalle: "hay 3 en rojo" -> "estos son" */}
       {filtro && (
         <ListaFiltrada
           estado={filtro}
-          indicadores={matriz.filter(m => estadoDelMes(m, periodo.mes) === filtro)}
-          onCerrar={() => setFiltro(null)}
+          indicadores={delFiltro}
+          onCerrar={() => onFiltro(null)}
           onVer={onVerIndicador}
         />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Movimientos movimientos={movimientos} mes={periodo.mes} onVer={onVerIndicador} />
+      <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-4">
+        <RequiereAtencion
+          movimientos={movimientos.filter(m => coincideBusqueda(m, busqueda))}
+          onVer={onVerIndicador}
+        />
         <PorArea areas={porArea} />
       </div>
-
-      <Matriz
-        matriz={matriz}
-        seleccionado={elegido?.id}
-        onSeleccionar={setDetalle}
-      />
-
-      {elegido && <Tendencia fila={elegido} mes={periodo.mes} onVer={onVerIndicador} />}
     </div>
   )
 }
@@ -153,282 +66,320 @@ function estadoDelMes(fila, mes) {
   return punto ? punto.semaforo : 'sin_datos'
 }
 
-function Chip({ estado }) {
-  const cfg = SEMAFOROS[estado]
+/**
+ * Cuánto de la lectura del mes falta, y de quién es.
+ *
+ * Va arriba de todo y no como una nota al pie porque **cambia cómo se lee el
+ * número principal**: un 92,9% calculado sobre 14 de 73 indicadores no es el
+ * cumplimiento de la empresa, es el de los que alcanzaron a reportar. Sin
+ * decirlo, la cifra promete más de lo que sabe.
+ *
+ * Los responsables van agrupados con cuántos le faltan a cada uno: un aviso
+ * que dice «faltan 59» no se atiende, y uno que dice «a Hoover le faltan 6»
+ * sí tiene a quién preguntarle.
+ */
+function LecturaIncompleta({ pendientes, medidos, total, cumplimiento, onVer }) {
+  if (!pendientes || pendientes.length === 0) return null
+
+  const porPersona = agruparPorResponsable(pendientes)
+
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold ${cfg.chip}`}>
-      <Glifo estado={estado} /> {cfg.label}
+    <section className="bg-superficie border border-borde border-l-[3px] border-l-ambar
+                        rounded-xl shadow-sm px-4 py-3.5">
+      <div className="flex flex-wrap items-start gap-3">
+        <span className="w-8 h-8 rounded-full bg-alerta-bg text-alerta grid place-items-center shrink-0"
+              aria-hidden="true">
+          <IconoReloj tam={16} />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-texto">
+            La lectura de este mes está incompleta
+          </h2>
+          <p className="text-xs text-texto-3 mt-0.5 cifra">
+            {pendientes.length} de {total} sin registrar
+            {cumplimiento !== null && medidos > 0 && (
+              <> · el {cumplimiento}% se calcula solo sobre los {medidos} que sí se midieron</>
+            )}
+          </p>
+        </div>
+      </div>
+
+      <ul className="flex flex-wrap gap-1.5 mt-3">
+        {porPersona.map(({ responsable, fichas }) => (
+          <li key={responsable}>
+            <details className="group">
+              <summary className="list-none cursor-pointer inline-flex items-center gap-1.5
+                                  px-2.5 py-1 rounded-md bg-superficie-2 border border-borde
+                                  text-[11.5px] text-texto-2 hover:border-borde-fuerte transition">
+                <span className="w-5 h-5 rounded-full bg-acento-suave text-acento grid place-items-center
+                                 text-[9.5px] font-semibold shrink-0" aria-hidden="true">
+                  {iniciales(responsable)}
+                </span>
+                {responsable}
+                <span className="cifra font-semibold text-texto">{fichas.length}</span>
+              </summary>
+              <ul className="mt-1.5 ml-1 space-y-0.5">
+                {fichas.map(f => (
+                  <li key={f.id}>
+                    <button
+                      type="button"
+                      onClick={() => onVer?.(f.id)}
+                      className="text-[11.5px] text-acento hover:underline text-left"
+                    >
+                      {f.nombre}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/**
+ * Quién debe registrar qué.
+ *
+ * Los que no tienen responsable van en su propio grupo y NUNCA se descartan:
+ * un indicador que nadie reclama es el que con más seguridad no se va a
+ * registrar, y esconderlo lo vuelve invisible justo por eso.
+ */
+function agruparPorResponsable(pendientes) {
+  const mapa = new Map()
+  for (const ficha of pendientes) {
+    const clave = ficha.responsable_nombre || 'Sin responsable'
+    if (!mapa.has(clave)) mapa.set(clave, [])
+    mapa.get(clave).push(ficha)
+  }
+  return [...mapa.entries()]
+    .map(([responsable, fichas]) => ({ responsable, fichas }))
+    // Quien más debe, primero; «Sin responsable» al final, que no es persona.
+    .sort((a, b) => {
+      if (a.responsable === 'Sin responsable') return 1
+      if (b.responsable === 'Sin responsable') return -1
+      return b.fichas.length - a.fichas.length
+    })
+}
+
+function iniciales(nombre) {
+  if (nombre === 'Sin responsable') return '—'
+  return nombre.split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase()
+}
+
+/**
+ * Lo que se salió de meta o empeoró contra el mes pasado.
+ *
+ * Es la sección que hace corto el tablero: nadie necesita revisar setenta
+ * indicadores, necesita ver los tres que se movieron. Lo que sigue igual no
+ * ocupa espacio. El orden —lo que empeoró primero, y dentro de eso lo más
+ * grave— lo decide el servidor.
+ */
+function RequiereAtencion({ movimientos, onVer }) {
+  const VISIBLES = 6
+  const mostrados = movimientos.slice(0, VISIBLES)
+
+  return (
+    <section className="bg-superficie rounded-xl border border-borde shadow-sm overflow-hidden">
+      <header className="px-5 py-3.5 border-b border-borde">
+        <h2 className="text-sm font-semibold text-texto">Requiere atención</h2>
+        <p className="text-xs text-texto-3 mt-0.5">
+          Lo que cambió de estado contra el mes pasado. Lo demás sigue igual.
+        </p>
+      </header>
+
+      {movimientos.length === 0 ? (
+        <p className="px-5 py-8 text-sm text-texto-2 text-center">
+          Ningún indicador cambió de estado este mes.
+        </p>
+      ) : (
+        <ul className="divide-y divide-borde">
+          {mostrados.map(m => (
+            <li key={m.id}>
+              <button
+                type="button"
+                onClick={() => onVer?.(m.id)}
+                className="w-full flex items-center gap-3 px-5 py-2.5 text-left
+                           hover:bg-superficie-2 transition"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-texto leading-snug">
+                    {m.nombre}
+                  </span>
+                  <span className="block text-[11.5px] text-texto-3 mt-0.5 truncate">
+                    {m.area || 'Sin área'}
+                  </span>
+                </span>
+
+                <span className="text-right shrink-0">
+                  <span className="block text-[13px] font-semibold text-texto cifra">
+                    {formatValor(m.valor, m.unidad)}
+                  </span>
+                  <span className="block text-[11px] text-texto-3 cifra">
+                    desde {formatValor(m.valor_anterior, m.unidad)}
+                  </span>
+                </span>
+
+                <Chip estado={m.semaforo} empeoro={m.empeoro} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {movimientos.length > VISIBLES && (
+        <p className="px-5 py-2.5 border-t border-borde text-[11.5px] text-texto-3">
+          Y {movimientos.length - VISIBLES} más. Están todos en la pestaña «Tablero».
+        </p>
+      )}
+    </section>
+  )
+}
+
+/**
+ * El estado, con forma además de color.
+ *
+ * El ámbar de la marca no alcanza el contraste mínimo sobre blanco, así que
+ * el color nunca va solo: cada chip lleva su palabra y su icono, que es lo
+ * único que sobrevive a una fotocopia en gris.
+ */
+function Chip({ estado, empeoro }) {
+  const cfg = SEMAFOROS[estado]
+  const Icono = empeoro ? IconoCerrar : IconoAlerta
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border
+                      text-[11px] font-semibold shrink-0 ${cfg.chip}`}>
+      <Icono tam={11} />
+      {empeoro ? 'Empeoró' : 'Mejoró'}
     </span>
   )
 }
 
-function ListaFiltrada({ estado, indicadores, onCerrar, onVer }) {
+/**
+ * Cumplimiento por área, en barra apilada.
+ *
+ * El porcentaje solo no basta: un área al 80% con algo en rojo pesa más que
+ * una al 75% con todo en amarillo. La barra muestra la composición —cuánto
+ * cumple, cuánto no, cuánto no se midió— y el número va al lado, nunca solo.
+ *
+ * Las áreas sin un solo dato se muestran con la barra vacía en vez de
+ * esconderse: que un área no haya reportado nada es información.
+ */
+function PorArea({ areas }) {
+  if (areas.length === 0) {
+    return (
+      <section className="bg-superficie rounded-xl border border-borde shadow-sm p-5">
+        <h2 className="text-sm font-semibold text-texto">Cumplimiento por área</h2>
+        <p className="text-sm text-texto-2 mt-3">
+          Todavía no hay áreas con indicadores medidos este mes.
+        </p>
+      </section>
+    )
+  }
+
+  const sinDatos = areas.filter(a => a.cumplimiento_pct === null).length
+
   return (
-    <section className="bg-white rounded-xl border border-borde p-5">
-      <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h3 className="font-bold text-acento-fuerte">{ROTULO[estado]} este mes</h3>
-        <button onClick={onCerrar} className="text-sm text-texto-2 hover:text-acento">Cerrar</button>
+    <section className="bg-superficie rounded-xl border border-borde shadow-sm overflow-hidden">
+      <header className="px-5 py-3.5 border-b border-borde">
+        <h2 className="text-sm font-semibold text-texto">Cumplimiento por área</h2>
+        <p className="text-xs text-texto-3 mt-0.5">
+          Las áreas con algo en rojo van primero.
+        </p>
+      </header>
+
+      <div className="py-2">
+        {areas.map(a => {
+          const juzgados = a.verde + a.amarillo + a.rojo
+          const parte = (n) => (juzgados ? (n / juzgados) * 100 : 0)
+          return (
+            <div key={a.area}
+                 className="grid grid-cols-[7.5rem_1fr_2.75rem] items-center gap-3 px-5 py-1.5">
+              <span className="text-xs text-texto-2 text-right truncate" title={a.area}>
+                {a.area}
+              </span>
+              <span className="h-[18px] rounded-md bg-superficie-2 overflow-hidden flex">
+                <i className="h-full bg-positivo-vivo" style={{ width: `${parte(a.verde)}%` }} />
+                <i className="h-full bg-ambar" style={{ width: `${parte(a.amarillo)}%` }} />
+                <i className="h-full bg-negativo-vivo" style={{ width: `${parte(a.rojo)}%` }} />
+              </span>
+              <span className={`text-xs text-right cifra ${
+                a.cumplimiento_pct === null ? 'text-texto-3' : 'font-semibold text-texto'
+              }`}>
+                {a.cumplimiento_pct === null ? '—' : `${Math.round(a.cumplimiento_pct)}%`}
+              </span>
+            </div>
+          )
+        })}
       </div>
+
+      <div className="flex flex-wrap gap-x-4 gap-y-1 px-5 py-3 border-t border-borde
+                      text-[11px] text-texto-3">
+        {[['verde', 'bg-positivo-vivo'], ['amarillo', 'bg-ambar'], ['rojo', 'bg-negativo-vivo']].map(
+          ([estado, fondo]) => (
+            <span key={estado} className="inline-flex items-center gap-1.5">
+              <i className={`inline-block w-2.5 h-2.5 rounded-sm ${fondo}`} aria-hidden="true" />
+              {SEMAFOROS[estado].label}
+            </span>
+          ),
+        )}
+        {sinDatos > 0 && (
+          <span className="ml-auto cifra">{sinDatos} sin datos este mes</span>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** De la cifra al detalle: «hay 3 en rojo» → «estos son». */
+function ListaFiltrada({ estado, indicadores, onCerrar, onVer }) {
+  const cfg = SEMAFOROS[estado]
+
+  return (
+    <section className="bg-superficie rounded-xl border border-borde shadow-sm overflow-hidden">
+      <header className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-borde">
+        <h2 className="text-sm font-semibold text-texto">{cfg.label} este mes</h2>
+        <button
+          type="button"
+          onClick={onCerrar}
+          className="text-xs font-semibold text-texto-2 hover:text-texto inline-flex items-center gap-1.5"
+        >
+          <IconoCerrar tam={13} /> Cerrar
+        </button>
+      </header>
+
       {indicadores.length === 0 ? (
-        <p className="text-sm text-texto-2">Ninguno en este estado.</p>
+        <p className="px-5 py-8 text-sm text-texto-2 text-center">
+          Ninguno en este estado.
+        </p>
       ) : (
         <ul className="divide-y divide-borde">
           {indicadores.map(ind => (
             <li key={ind.id}>
               <button
+                type="button"
                 onClick={() => onVer?.(ind.id)}
-                className="w-full flex items-center justify-between gap-3 py-2.5 text-left hover:bg-superficie-2 rounded px-2 -mx-2"
-              >
-                <span>
-                  <span className="block text-sm font-semibold text-texto">{ind.nombre}</span>
-                  <span className="block text-xs text-texto-2">{ind.area || 'Sin área'}</span>
-                </span>
-                <Chip estado={estado} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  )
-}
-
-/**
- * Lo que cambió de semáforo contra el mes pasado.
- *
- * Es la sección que hace corto el tablero: nadie necesita revisar cuarenta
- * indicadores, necesita ver los tres que se movieron.
- */
-function Movimientos({ movimientos, mes, onVer }) {
-  const anterior = MESES[(mes + 10) % 12]
-
-  return (
-    <section className="bg-white rounded-xl border border-borde p-5">
-      <h3 className="font-bold text-acento-fuerte">Qué se movió</h3>
-      <p className="text-xs text-texto-2 mb-3">
-        Cambios de semáforo contra {anterior.toLowerCase()}. Lo demás sigue igual.
-      </p>
-
-      {movimientos.length === 0 ? (
-        <p className="text-sm text-texto-2 py-2">Ningún indicador cambió de estado este mes.</p>
-      ) : (
-        <ul className="divide-y divide-borde">
-          {movimientos.map(m => (
-            <li key={m.id}>
-              <button
-                onClick={() => onVer?.(m.id)}
-                className="w-full flex items-center justify-between gap-3 py-2.5 text-left hover:bg-superficie-2 rounded px-2 -mx-2"
+                className="w-full flex items-center justify-between gap-3 px-5 py-2.5
+                           text-left hover:bg-superficie-2 transition"
               >
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-texto truncate">{m.nombre}</span>
-                  <span className="block text-xs text-texto-2">{m.area || 'Sin área'}</span>
+                  <span className="block text-[13px] font-medium text-texto">{ind.nombre}</span>
+                  <span className="block text-[11.5px] text-texto-3">
+                    {ind.area || 'Sin área'}
+                    {ind.responsable_nombre && ` · ${ind.responsable_nombre}`}
+                  </span>
                 </span>
-                <span className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-texto-2 tabular-nums">
-                    {formatValor(m.valor_anterior, m.unidad)} → {formatValor(m.valor, m.unidad)}
-                  </span>
-                  <span
-                    className={`text-sm ${m.empeoro ? 'text-negativo-vivo' : 'text-positivo-vivo'}`}
-                    aria-hidden="true"
-                  >
-                    {m.empeoro ? '▼' : '▲'}
-                  </span>
-                  <span className={`text-[11px] font-bold uppercase ${m.empeoro ? 'text-negativo-vivo' : 'text-positivo-vivo'}`}>
-                    {m.empeoro ? 'Empeoró' : 'Mejoró'}
-                  </span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-md border
+                                  text-[11px] font-semibold shrink-0 ${cfg.chip}`}>
+                  {cfg.label}
                 </span>
               </button>
             </li>
           ))}
         </ul>
       )}
-    </section>
-  )
-}
-
-/**
- * Cumplimiento por área: una sola serie, un color, sin leyenda.
- *
- * El porcentaje solo no basta — un área al 80% con algo en rojo pesa más que
- * una al 75% con todo en amarillo — así que cada fila lleva su desglose.
- */
-function PorArea({ areas }) {
-  return (
-    <section className="bg-white rounded-xl border border-borde p-5">
-      <h3 className="font-bold text-acento-fuerte">Cumplimiento por área</h3>
-      <p className="text-xs text-texto-2 mb-3">
-        Proporción de indicadores en meta. Las áreas con algo en rojo van primero.
-      </p>
-
-      {areas.length === 0 ? (
-        <p className="text-sm text-texto-2 py-2">Todavía no hay áreas con indicadores medidos.</p>
-      ) : (
-        <div className="space-y-2.5">
-          {areas.map(a => (
-            <div key={a.area} className="grid grid-cols-[minmax(0,7rem)_1fr_2.5rem] gap-2.5 items-center">
-              <span className="text-xs text-texto-2 text-right truncate" title={a.area}>{a.area}</span>
-              <span className="relative h-4 bg-superficie-2 rounded overflow-hidden">
-                <span
-                  className="absolute inset-y-0 left-0 bg-acento rounded"
-                  style={{ width: `${a.cumplimiento_pct ?? 0}%` }}
-                />
-              </span>
-              <span className="text-xs font-bold tabular-nums text-right text-texto">
-                {a.cumplimiento_pct !== null ? `${Math.round(a.cumplimiento_pct)}%` : '—'}
-              </span>
-              <span className="col-start-2 col-span-2 flex gap-1.5 flex-wrap">
-                {a.rojo > 0 && <MiniChip estado="rojo" n={a.rojo} />}
-                {a.amarillo > 0 && <MiniChip estado="amarillo" n={a.amarillo} />}
-                {a.verde > 0 && <MiniChip estado="verde" n={a.verde} />}
-                {a.sin_datos > 0 && <MiniChip estado="sin_datos" n={a.sin_datos} />}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function MiniChip({ estado, n }) {
-  return (
-    <span className={`inline-flex items-center gap-1 px-1.5 rounded-full border text-[10px] font-bold tabular-nums ${SEMAFOROS[estado].chip}`}>
-      <Glifo estado={estado} tam={10} />{n}
-    </span>
-  )
-}
-
-/**
- * El año en matriz: indicadores en filas, meses en columnas.
- *
- * Muestra lo que una gráfica de líneas no deja ver de un vistazo: qué
- * indicador lleva meses en rojo, o qué mes fue malo para todas las áreas.
- * Un mes que aún no llega se dibuja vacío, no como un hueco sin reportar.
- */
-function Matriz({ matriz, seleccionado, onSeleccionar }) {
-  const CELDA = {
-    verde: 'bg-positivo-bg text-positivo border-positivo/25',
-    amarillo: 'bg-alerta-bg text-alerta border-ambar/30',
-    rojo: 'bg-negativo-bg text-negativo border-negativo/25',
-    sin_datos: 'bg-superficie-2 text-borde-fuerte border-borde border-dashed',
-    futuro: 'border-borde border-dotted text-transparent',
-  }
-
-  return (
-    <section className="bg-white rounded-xl border border-borde p-5">
-      <h3 className="font-bold text-acento-fuerte">El año completo</h3>
-      <p className="text-xs text-texto-2 mb-3">
-        Cada celda es un mes. Elige una fila para ver su tendencia abajo.
-      </p>
-
-      {matriz.length === 0 ? (
-        <p className="text-sm text-texto-2 py-2">No hay indicadores en este alcance.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] border-separate border-spacing-[3px]">
-            <thead>
-              <tr>
-                <th className="text-left text-[10px] font-bold uppercase tracking-wide text-texto-2 w-56 pb-1">
-                  Indicador
-                </th>
-                {matriz[0].meses.map(m => (
-                  <th key={m.mes} className="text-[10px] font-bold uppercase text-texto-2 pb-1">
-                    {m.etiqueta}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {matriz.map(fila => (
-                <tr
-                  key={fila.id}
-                  onClick={() => onSeleccionar(fila.id)}
-                  className="cursor-pointer group"
-                >
-                  <td className="text-sm">
-                    <span className={`block font-semibold leading-tight group-hover:text-acento
-                      ${seleccionado === fila.id ? 'text-acento' : 'text-texto'}`}>
-                      {fila.nombre}
-                    </span>
-                    <span className="block text-[11px] text-texto-2">{fila.area || 'Sin área'}</span>
-                  </td>
-                  {fila.meses.map(m => (
-                    <td
-                      key={m.mes}
-                      title={`${m.etiqueta}: ${m.semaforo === 'futuro' ? 'aún no llega'
-                        : m.valor === null ? 'sin reportar' : formatValor(m.valor, fila.unidad)}`}
-                      className={`h-7 text-center text-[10px] font-bold tabular-nums border rounded ${CELDA[m.semaforo]}`}
-                    >
-                      {m.semaforo !== 'futuro' && (
-                        <>
-                          <Glifo estado={m.semaforo} tam={10} />{' '}
-                          {m.valor === null ? '' : formatValor(m.valor, '')}
-                        </>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-3 mt-3 text-xs text-texto-2">
-        {['verde', 'amarillo', 'rojo', 'sin_datos'].map(e => (
-          <span key={e} className="inline-flex items-center gap-1.5">
-            <Chip estado={e} />
-          </span>
-        ))}
-        <span className="inline-flex items-center gap-1.5 text-texto-2">
-          <span className="inline-block w-4 h-4 rounded border border-dotted border-borde-fuerte" aria-hidden="true" />
-          Mes que aún no llega
-        </span>
-      </div>
-    </section>
-  )
-}
-
-/** La tendencia del indicador elegido, con la gráfica que ya usa el módulo. */
-function Tendencia({ fila, mes, onVer }) {
-  const serie = fila.meses.map(m => ({
-    mes: m.mes,
-    etiqueta: m.etiqueta,
-    valor: m.semaforo === 'futuro' ? null : m.valor,
-    semaforo: m.semaforo,
-  }))
-  const actual = fila.meses.find(m => m.mes === mes)
-
-  return (
-    <section className="bg-white rounded-xl border border-borde p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-3 mb-3">
-        <div>
-          <h3 className="font-bold text-acento-fuerte">{fila.nombre}</h3>
-          <p className="text-xs text-texto-2">
-            {fila.area || 'Sin área'}
-            {fila.meta !== null && ` · meta ${formatValor(fila.meta, fila.unidad)}`}
-            {fila.direccion === 'arriba' ? ' · más alto es mejor' : ' · más bajo es mejor'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold tabular-nums text-acento-fuerte">
-            {formatValor(actual?.valor ?? null, fila.unidad)}
-          </span>
-          <button
-            onClick={() => onVer?.(fila.id)}
-            className="text-sm font-semibold text-acento hover:underline"
-          >
-            Ver detalle →
-          </button>
-        </div>
-      </div>
-
-      <GraficaTendencia
-        serie={serie}
-        unidad={fila.unidad}
-        meta={fila.meta}
-        mesActual={mes}
-      />
     </section>
   )
 }

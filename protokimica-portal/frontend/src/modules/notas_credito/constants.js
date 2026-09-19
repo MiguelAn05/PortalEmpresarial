@@ -35,6 +35,10 @@ export const MAX_NUMERO_NC = 60
 // y una lista que empieza por Contabilidad afirma —sin que nadie lo escriba—
 // que el proceso empieza ahí.
 //
+// TODA solicitud empieza por Comercial, venga del mostrador o de una venta
+// institucional: quien decide si se le devuelve la plata al cliente es
+// Comercial, y eso no cambia con el canal.
+//
 // `solicitada` y `en_contabilidad` se llaman IGUAL a propósito: son dos
 // estados porque son dos permisos distintos (autorizar en la rama del punto
 // de venta, verificar la DIAN en la institucional), pero para quien mira la
@@ -145,7 +149,7 @@ export function faltaEnSolicitud(form, motivo) {
  */
 const VERBO_AL_APROBAR = {
   en_bodega: 'confirmó que el producto llegó',
-  en_comercial: 'aprobó la devolución',
+  en_comercial: 'aprobó la nota crédito',
   en_contabilidad: 'verificó ante la DIAN',
   solicitada: 'autorizó la solicitud',
 }

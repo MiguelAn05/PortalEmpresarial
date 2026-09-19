@@ -292,6 +292,7 @@ def como_vamos(
     anio: int | None = None,
     mes: int | None = None,
     alcance: str | None = None,
+    area: str | None = None,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     usuario: User = Depends(get_current_user),
@@ -303,12 +304,18 @@ def como_vamos(
     `alcance` es "empresa" o "area". A quien no le corresponde ver la empresa
     se le devuelve su área sin protestar; la respuesta trae `puede_cambiar`
     para que la interfaz sepa si mostrar el interruptor.
+
+    `area` acota a UNA sola, dentro de lo que el alcance ya permite. Son dos
+    cosas distintas y por eso son dos parámetros: el alcance es el LÍMITE que
+    impone el servidor —hasta dónde llega esta persona— y el área es lo que
+    eligió mirar. Pedir un área fuera del alcance no la abre: se filtra sobre
+    lo que ya estaba permitido, igual que en el tablero.
     """
     if anio is None or mes is None:
         anio_def, mes_def = service.periodo_por_defecto()
         anio, mes = anio or anio_def, mes or mes_def
     _validar_periodo(anio, mes)
-    return construir_como_vamos(db, tenant_id, anio, mes, usuario, alcance)
+    return construir_como_vamos(db, tenant_id, anio, mes, usuario, alcance, area)
 
 
 # ── Definición de indicadores ───────────────────────────────────

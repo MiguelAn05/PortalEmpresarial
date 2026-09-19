@@ -112,3 +112,103 @@ export function periodoPorDefecto() {
   const hoy = new Date()
   return periodoAnterior(hoy.getFullYear(), hoy.getMonth() + 1)
 }
+
+// ── Las tres pestañas ─────────────────────────────────────────
+/**
+ * El módulo hace tres cosas distintas y cada una necesita su pantalla:
+ * leer cómo va la empresa, registrar y consultar, y mirar el año completo.
+ *
+ * La matriz anual vivía dentro de «Cómo vamos» y ahí no cabe: 73 filas por
+ * 12 meses empujan todo lo demás fuera de la pantalla, así que quien entraba
+ * a ver el estado del mes tenía que pasar por encima de ochocientas celdas.
+ */
+export const PESTANAS = [
+  { clave: 'como-vamos', texto: 'Cómo vamos' },
+  { clave: 'tablero',    texto: 'Tablero' },
+  { clave: 'el-ano',     texto: 'El año' },
+]
+
+// ── Buscador ──────────────────────────────────────────────────
+/**
+ * Busca por nombre, área o responsable, sin tildes ni mayúsculas.
+ *
+ * Por responsable porque es la pregunta del cierre de mes —«qué le falta a
+ * Hoover»— y sin eso hay que abrir los indicadores de a uno. Sin tildes
+ * porque nadie escribe «Logística» con su tilde en un buscador, y un
+ * buscador que no encuentra lo que existe se deja de usar.
+ */
+export function normalizarBusqueda(texto) {
+  return (texto ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+export function coincideBusqueda(fila, busqueda) {
+  const q = normalizarBusqueda(busqueda)
+  if (!q) return true
+  return [fila?.nombre, fila?.area, fila?.responsable_nombre]
+    .filter(Boolean)
+    .some(campo => normalizarBusqueda(campo).includes(q))
+}
+
+// ── Agrupación de la matriz anual ─────────────────────────────
+/**
+ * La fuente automática de «Gestión de OMP», que se crea UNO POR ÁREA.
+ *
+ * Son veinte filas idénticas en estructura que nadie lee de a una, y puestas
+ * en medio de la matriz separan indicadores que sí se comparan entre sí. Se
+ * pliegan en un solo renglón que se puede abrir.
+ *
+ * Se reconoce por la FUENTE y no por el nombre: renombrar un indicador desde
+ * Administración no puede romper la agrupación, que es exactamente lo que
+ * pasa cuando la regla cuelga de un texto.
+ */
+export const FUENTE_GESTION_OMP = 'mejora_gestion_omp'
+
+export const GRUPO_SUELTAS = 'sueltas'
+export const GRUPO_GESTION_OMP = 'gestion_omp'
+export const GRUPO_SIN_REGISTROS = 'sin_registros'
+
+/**
+ * Reparte las filas de la matriz en los tres bloques que se pintan.
+ *
+ * El orden importa y es el de la lectura: primero lo que se mira de verdad,
+ * después los automáticos por área, y al final lo que no tiene un solo dato
+ * del año — que no es ruido, es la pregunta «¿este indicador sigue vivo?».
+ *
+ * Una fila sin registros va a su grupo AUNQUE sea de Gestión de OMP: lo que
+ * manda es que no haya nada que leer en ella.
+ */
+export function agruparMatriz(matriz = []) {
+  const grupos = { [GRUPO_SUELTAS]: [], [GRUPO_GESTION_OMP]: [], [GRUPO_SIN_REGISTROS]: [] }
+  for (const fila of matriz) {
+    if (fila.sin_registros) grupos[GRUPO_SIN_REGISTROS].push(fila)
+    else if (fila.fuente_automatica === FUENTE_GESTION_OMP) grupos[GRUPO_GESTION_OMP].push(fila)
+    else grupos[GRUPO_SUELTAS].push(fila)
+  }
+  return grupos
+}
+
+// ── El delta del cumplimiento ─────────────────────────────────
+/**
+ * Cómo se lee el movimiento del cumplimiento contra el mes pasado.
+ *
+ * El NÚMERO lo calcula el servidor (`delta_cumplimiento`); aquí solo se
+ * decide cómo se dice y de qué color va. Subir el cumplimiento siempre es
+ * bueno —a diferencia de un indicador suelto, donde depende de su
+ * dirección—, así que la regla no necesita mirar nada más.
+ */
+export function leerDelta(delta, mesAnterior) {
+  if (delta === null || delta === undefined) return null
+  if (delta === 0) {
+    return { texto: `igual que ${(mesAnterior || '').toLowerCase()}`, tono: 'text-texto-3', flecha: null }
+  }
+  const subio = delta > 0
+  return {
+    texto: `${Math.abs(delta).toFixed(1).replace(/\.0$/, '')} pts vs. ${(mesAnterior || '').toLowerCase()}`,
+    tono: subio ? 'text-positivo' : 'text-negativo',
+    flecha: subio ? 'sube' : 'baja',
+  }
+}
