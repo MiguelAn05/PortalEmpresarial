@@ -265,6 +265,8 @@ export function textoFechaAccion(accion) {
 
 export const MAX_ACCION = 300
 export const MAX_TITULO = 200
+// Sin contar espacios en las puntas, igual que `_limpiar_titulo()` del schema.
+export const MIN_TITULO = 5
 export const MAX_TEXTO_LARGO = 4000
 export const MAX_SEGUIMIENTO = 6000
 export const MAX_NOMBRE = 150

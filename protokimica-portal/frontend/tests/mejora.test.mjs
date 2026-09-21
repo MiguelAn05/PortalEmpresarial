@@ -4,8 +4,9 @@
 import {
   CICLO, ESTADOS, ESTADOS_ACCION, CAMPOS_6M, TRATAMIENTOS, estaCerrada,
   siguienteEstado, loQueFaltaPara, textoDeAvance, estadoDelPlazo, resumen6M,
-  textoFechaAccion,
+  textoFechaAccion, MAX_TITULO, MIN_TITULO,
 } from '../src/modules/mejora/constants.js'
+import { readFileSync } from 'node:fs'
 
 let fallos = []
 const check = (n, cond, extra = '') => {
@@ -136,6 +137,17 @@ const aplazada = textoFechaAccion({
   fecha_limite: '2026-09-30T00:00:00Z', fecha_limite_original: '2026-08-10T00:00:00Z', aplazada: true,
 })
 check('aplazada dice contra cuál se mide', /aplazada, comprometida para el 10 (de )?ago/.test(aplazada), aplazada)
+
+console.log('\n== El título tiene los mismos topes en los dos lados ==')
+// Editar el título en la ficha usa estos números; si se separan del schema,
+// el botón «Guardar» deja pasar algo que el servidor rechaza con un 422.
+const SCHEMA = readFileSync(
+  new URL('../../backend/app/modules/mejora/schemas.py', import.meta.url), 'utf8')
+const delSchema = (nombre) => Number(SCHEMA.match(new RegExp(`^${nombre} = (\\d+)`, 'm'))?.[1])
+check('MAX_TITULO coincide con el schema', MAX_TITULO === delSchema('MAX_TITULO'),
+  [MAX_TITULO, delSchema('MAX_TITULO')])
+check('MIN_TITULO coincide con el schema', MIN_TITULO === delSchema('MIN_TITULO'),
+  [MIN_TITULO, delSchema('MIN_TITULO')])
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

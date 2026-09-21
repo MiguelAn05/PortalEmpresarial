@@ -12,7 +12,7 @@ import {
 } from '../api.js'
 import {
   CAMPOS_6M, CICLO, ESTADOS, ESTADOS_ACCION, MAX_ACCION, MAX_SEGUIMIENTO,
-  MAX_TEXTO_LARGO, estaCerrada, loQueFaltaPara, resumen6M, siguienteEstado,
+  MAX_TEXTO_LARGO, MAX_TITULO, MIN_TITULO, estaCerrada, loQueFaltaPara, resumen6M, siguienteEstado,
   textoDeAvance, textoFechaAccion,
 } from '../constants.js'
 import { mensajeDeError } from '../../../core/errores.js'
@@ -226,6 +226,75 @@ function CampoLargo({ titulo, valor, vacio, ayuda, editable, onGuardar }) {
         )}
       </div>
     </section>
+  )
+}
+
+/**
+ * El título, que se corrige en el mismo sitio donde se lee.
+ *
+ * Se escribe con prisa al abrir la OMP y es lo que más se equivoca: antes
+ * la única salida era descartarla y abrir otra, que quema un consecutivo y
+ * deja una OMP falsa en el reporte del SGC. El anterior queda en el
+ * historial, que es con el que la conocían hasta hoy.
+ */
+function TituloEditable({ valor, editable, guardando, onGuardar }) {
+  const [borrador, setBorrador] = useState(null)   // null = no se está editando
+
+  if (borrador === null) {
+    return (
+      <div className="flex items-start gap-3 mt-1">
+        <h2 className="text-lg font-semibold text-texto">{valor}</h2>
+        {editable && (
+          <button
+            onClick={() => setBorrador(valor)}
+            className="text-xs font-medium text-acento hover:underline flex-shrink-0 mt-1.5"
+          >
+            Editar título
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  const limpio = borrador.trim()
+  const corto = limpio.length < MIN_TITULO
+  const guardar = () => {
+    if (corto) return
+    if (limpio === valor) { setBorrador(null); return }
+    onGuardar(limpio, () => setBorrador(null))
+  }
+
+  return (
+    <div className="mt-1 space-y-2">
+      <input
+        value={borrador} onChange={(e) => setBorrador(e.target.value)} autoFocus
+        maxLength={MAX_TITULO} aria-label="Título de la oportunidad"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') guardar()
+          if (e.key === 'Escape') { e.stopPropagation(); setBorrador(null) }
+        }}
+        className={`${claseInput} text-base font-semibold`}
+      />
+      <div className="flex items-center gap-2">
+        <button
+          onClick={guardar} disabled={corto || guardando}
+          className="px-3 py-1.5 rounded-lg bg-acento-fuerte text-white text-xs font-semibold
+            disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {guardando ? 'Guardando…' : 'Guardar'}
+        </button>
+        <button
+          onClick={() => setBorrador(null)}
+          className="px-3 py-1.5 rounded-lg border border-borde-fuerte text-xs
+            font-medium text-texto-2"
+        >
+          Cancelar
+        </button>
+        <span className={`cifra text-xs ml-auto ${corto ? 'text-negativo' : 'text-texto-3'}`}>
+          {corto ? `Mínimo ${MIN_TITULO} caracteres` : `${borrador.length}/${MAX_TITULO}`}
+        </span>
+      </div>
+    </div>
   )
 }
 
@@ -623,7 +692,11 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
                 </span>
               )}
             </div>
-            <h2 className="text-lg font-semibold text-texto mt-1">{omp.titulo}</h2>
+            <TituloEditable
+              valor={omp.titulo} editable={editable} guardando={mutCampos.isPending}
+              onGuardar={(titulo, listo) =>
+                mutCampos.mutate({ titulo }, { onSuccess: listo })}
+            />
             <p className="text-xs text-texto-3 mt-0.5">
               {/* El número que el SGC cita: «la 6 de TIC's». */}
               {omp.proceso_nombre

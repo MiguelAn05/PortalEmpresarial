@@ -63,6 +63,14 @@ check('toma el último nivel y quita los guiones bajos',
 check('no muestra "body" ni el índice',
   !anidado.includes('body') && !anidado.includes('0'), anidado)
 
+console.log('\n== Un validador propio ya habla español ==')
+const propio = mensajeDeError(conDetalle([
+  { type: 'value_error', loc: ['body', 'titulo'],
+    msg: 'Value error, El título debe tener al menos 5 caracteres.' },
+]))
+check('quita el «Value error,» de Pydantic',
+  !propio.includes('Value error') && propio.includes('El título debe tener'), propio)
+
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }
 console.log('TODAS LAS PRUEBAS PASARON')

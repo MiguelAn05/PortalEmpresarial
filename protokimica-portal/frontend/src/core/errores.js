@@ -30,6 +30,9 @@ const TRADUCCIONES = [
 ]
 
 function traducir(mensaje) {
+  // Un `field_validator` ya escribe su mensaje en español; Pydantic solo le
+  // antepone «Value error, », que en pantalla no le dice nada a nadie.
+  if (/^value error, /i.test(mensaje)) return mensaje.replace(/^value error, /i, '')
   for (const [patron, reemplazo] of TRADUCCIONES) {
     if (patron.test(mensaje)) return mensaje.replace(patron, reemplazo)
   }

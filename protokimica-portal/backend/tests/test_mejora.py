@@ -98,6 +98,65 @@ def test_el_area_por_defecto_es_la_de_quien_la_abre(entorno):
     assert r.json()["area"] == "Calidad"
 
 
+# ── Corregir el título ───────────────────────────────────────────────
+
+def test_el_titulo_se_corrige_y_el_anterior_queda_en_el_historial(entorno):
+    """
+    Se escribe con prisa al abrirla. Sin poder corregirlo, la salida era
+    descartarla y abrir otra: un consecutivo quemado y una OMP falsa en el
+    reporte del SGC.
+    """
+    entorno.como("calidad")
+    creada = _crear(entorno, titulo="Entregas por debjao de la meta").json()
+
+    r = entorno.patch(f"/mejora/{creada['id']}",
+                      json={"titulo": "  Entregas por debajo de la meta  "})
+    assert r.status_code == 200, r.text
+    assert r.json()["titulo"] == "Entregas por debajo de la meta"
+    # Corregir el título no la mueve de sitio: sigue siendo la misma OMP.
+    assert r.json()["codigo"] == creada["codigo"]
+    assert r.json()["consecutivo"] == creada["consecutivo"]
+
+    historial = entorno.get(f"/mejora/{creada['id']}/historial").json()
+    cambio = next(c for c in historial if c["campo"] == "Título")
+    assert cambio["valor_anterior"] == "Entregas por debjao de la meta"
+    assert cambio["valor_nuevo"] == "Entregas por debajo de la meta"
+
+
+@pytest.mark.parametrize("titulo", ["       ", "  ab  ", None])
+def test_el_titulo_no_queda_vacio(entorno, titulo):
+    """`min_length` contaba espacios, y un `null` llegaba a la columna: 500."""
+    entorno.como("calidad")
+    omp_id = _crear(entorno).json()["id"]
+
+    r = entorno.patch(f"/mejora/{omp_id}", json={"titulo": titulo})
+    assert r.status_code == 422, r.text
+    assert "título" in r.text
+    assert entorno.get(f"/mejora/{omp_id}").json()["titulo"] == "Entregas por debajo de la meta"
+
+
+def test_editar_otro_campo_no_exige_el_titulo(entorno):
+    entorno.como("calidad")
+    omp_id = _crear(entorno).json()["id"]
+
+    r = entorno.patch(f"/mejora/{omp_id}", json={"prioridad": "alta"})
+    assert r.status_code == 200, r.text
+
+
+def test_un_titulo_de_puros_espacios_no_abre_una_omp(entorno):
+    entorno.como("calidad")
+    assert _crear(entorno, titulo="          ").status_code == 422
+
+
+def test_un_lider_no_corrige_el_titulo_de_otra_area(entorno):
+    entorno.como("calidad")
+    omp_id = _crear(entorno, area="Calidad").json()["id"]
+
+    entorno.como("tics")
+    r = entorno.patch(f"/mejora/{omp_id}", json={"titulo": "Título cambiado por otra área"})
+    assert r.status_code == 404, r.text
+
+
 def test_sin_periodo_no_se_puede_verificar_despues(entorno):
     """Sin el periodo no hay contra qué comparar: se avisa al crearla."""
     entorno.como("calidad")

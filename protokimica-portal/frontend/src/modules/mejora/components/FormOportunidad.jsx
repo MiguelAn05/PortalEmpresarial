@@ -5,7 +5,7 @@ import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 import { useCierreSeguro } from '../../../core/components/cierreSeguro.jsx'
 import { obtenerTablero } from '../../indicadores/api.js'
 import { crearOportunidad, obtenerCatalogos } from '../api.js'
-import { CLASIFICACIONES, MAX_TITULO, ORIGENES, TRATAMIENTOS } from '../constants.js'
+import { CLASIFICACIONES, MAX_TITULO, MIN_TITULO, ORIGENES, TRATAMIENTOS } from '../constants.js'
 import { mensajeDeError } from '../../../core/errores.js'
 
 /**
@@ -107,7 +107,7 @@ export default function FormOportunidad({ indicador = null, periodo = null,
 
   const enviar = (e) => {
     e.preventDefault()
-    if (form.titulo.trim().length < 5) {
+    if (form.titulo.trim().length < MIN_TITULO) {
       setError('Ponle un título que diga qué se va a mejorar.')
       return
     }

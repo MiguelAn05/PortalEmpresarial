@@ -210,6 +210,9 @@ def asignar_codigo(db: Session, oportunidad: Oportunidad, tenant_id: int) -> str
 # una bitácora con cada corrección de ortografía en la descripción entierra
 # justamente esa pregunta.
 CAMPOS_CON_HISTORIAL = {
+    # El título se corrige seguido —se escribe con prisa al abrirla—, y el
+    # anterior tiene que quedar: es con el que la conocían hasta ese día.
+    "titulo": "Título",
     "estado": "Estado",
     "prioridad": "Prioridad",
     "fecha_limite": "Fecha estimada de solución",

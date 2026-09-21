@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.35.0"
-FECHA = "2026-09-19"
+VERSION = "0.36.0"
+FECHA = "2026-09-21"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,20 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.36.0",
+        "fecha": "2026-09-21",
+        "titulo": "El título de una OMP ya se puede corregir",
+        "cambios": [
+            ("nuevo", "En la ficha de una OMP, «Editar título» corrige el "
+                      "título sin tener que descartarla y abrir otra. Sigue "
+                      "siendo la misma OMP, con su mismo código y número."),
+            ("mejora", "El título anterior queda en el historial de la OMP, "
+                       "con quién lo cambió y cuándo."),
+            ("correccion", "Ya no se puede dejar un título hecho solo de "
+                           "espacios en blanco."),
+        ],
+    },
     {
         "version": "0.35.0",
         "fecha": "2026-09-19",

@@ -8,7 +8,7 @@ objetos que la pantalla no sabe pintar.
 """
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Topes que el formulario también aplica. El del análisis de causas es
 # generoso a propósito: en el Excel las descripciones llegan a dos mil
@@ -18,6 +18,25 @@ MAX_ACCION = 300
 MAX_TEXTO_LARGO = 4000
 MAX_SEGUIMIENTO = 6000
 MAX_NOMBRE = 150
+MIN_TITULO = 5
+
+
+def _limpiar_titulo(valor: str | None) -> str:
+    """
+    El título sin los espacios de las puntas, y con sus cinco letras de
+    verdad. `min_length` cuenta espacios, así que «     » pasaba como título;
+    y un `null` explícito al editar llegaba hasta la columna, que no admite
+    vacío, y respondía un 500.
+    """
+    if valor is None:
+        raise ValueError("El título no puede quedar vacío. Escribe de qué trata la oportunidad.")
+    valor = valor.strip()
+    if len(valor) < MIN_TITULO:
+        raise ValueError(
+            f"El título debe tener al menos {MIN_TITULO} caracteres. "
+            "Escribe de qué trata la oportunidad."
+        )
+    return valor
 
 
 # ── Catálogos ────────────────────────────────────────────────────────
@@ -149,7 +168,7 @@ class CambioOut(BaseModel):
 # ── Oportunidad ──────────────────────────────────────────────────────
 
 class OportunidadCrear(BaseModel):
-    titulo: str = Field(min_length=5, max_length=MAX_TITULO)
+    titulo: str = Field(max_length=MAX_TITULO)
     descripcion: str | None = Field(default=None, max_length=MAX_TEXTO_LARGO)
     origen: str = "indicador"
     fecha_registro: date | None = None
@@ -181,9 +200,11 @@ class OportunidadCrear(BaseModel):
 
     responsables: list[ResponsableCrear] = []
 
+    _titulo = field_validator("titulo")(_limpiar_titulo)
+
 
 class OportunidadActualizar(BaseModel):
-    titulo: str | None = Field(default=None, min_length=5, max_length=MAX_TITULO)
+    titulo: str | None = Field(default=None, max_length=MAX_TITULO)
     descripcion: str | None = Field(default=None, max_length=MAX_TEXTO_LARGO)
     area: str | None = None
     prioridad: str | None = None
@@ -213,6 +234,9 @@ class OportunidadActualizar(BaseModel):
     nota_cierre: str | None = Field(default=None, max_length=MAX_TEXTO_LARGO)
 
     meta_esperada: float | None = None
+
+    # Solo corre cuando el título viene: los demás campos se editan sin él.
+    _titulo = field_validator("titulo")(_limpiar_titulo)
 
 
 class CambioEstado(BaseModel):
