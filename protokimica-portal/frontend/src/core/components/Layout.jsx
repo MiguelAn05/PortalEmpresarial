@@ -123,6 +123,13 @@ export default function Layout() {
     return () => window.removeEventListener('keydown', alTeclear)
   }, [abierto])
 
+  // Cambiar de módulo empieza arriba. Ahora que scrollea la página, sin esto
+  // se entra a PQRS a la altura a la que se había quedado el Master Planner,
+  // que se lee como que la pantalla cargó mal.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+
   const handleLogout = () => {
     logout()
     navigate('/login')
@@ -135,8 +142,24 @@ export default function Layout() {
   const tituloActual = TITULO_DE_MODULO[moduloDeRuta(pathname)] ?? ''
   const encogido = esEscritorio && collapsed
 
+  // Quien scrollea es la PÁGINA, no un panel de adentro.
+  //
+  // Antes el contenido vivía en un `<main>` de altura fija con su propio
+  // `overflow-y`, y en las listas largas —PQRS con todo el histórico— el
+  // navegador dejaba de pintar el final: media pantalla en blanco, como si
+  // la página se cortara, y volvía sola al mover el mouse. Es un fallo de
+  // repintado del navegador en esos paneles, y no se arregla desde el código
+  // de la vista; lo que se arregla es no tener el panel.
+  //
+  // De paso se recuperan cosas que un scroll propio rompe: la barra de
+  // desplazamiento del navegador, volver atrás y caer donde se estaba, y en
+  // el celular que la barra de direcciones se esconda al bajar.
+  //
+  // El menú y la cabecera se quedan arriba con `sticky`, que a diferencia de
+  // `fixed` sí ocupa su lugar en la fila y no hay que compensarlo con
+  // márgenes.
   return (
-    <div className="flex h-screen bg-fondo overflow-hidden">
+    <div className="flex min-h-screen bg-fondo">
 
       {/* En celular el menú entra encima del contenido; el velo lo cierra. */}
       {abierto && (
@@ -153,7 +176,8 @@ export default function Layout() {
       <aside
         inert={!esEscritorio && !abierto ? '' : undefined}
         className={`
-          fixed inset-y-0 left-0 z-40 md:static md:z-auto
+          fixed inset-y-0 left-0 z-40
+          md:sticky md:inset-y-auto md:top-0 md:h-screen md:z-auto
           flex flex-col bg-nav flex-shrink-0
           transition-[width,transform] duration-200 ease-suave
           ${encogido ? 'md:w-16' : 'md:w-60'}
@@ -244,9 +268,9 @@ export default function Layout() {
       </aside>
 
       {/* ── CONTENIDO ── */}
-      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+      <div className="flex flex-col flex-1 min-w-0">
 
-        <header className="h-[60px] bg-superficie border-b border-borde
+        <header className="sticky top-0 z-20 h-[60px] bg-superficie border-b border-borde
           flex items-center px-4 sm:px-5 gap-3 flex-shrink-0">
           <button
             onClick={alternarMenu}
@@ -296,7 +320,7 @@ export default function Layout() {
             mostrarle nada a cambio. */}
         <BarraDeCarga />
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <main className="flex-1 p-4 sm:p-6">
           <AvisoVersionNueva />
           <Outlet />
         </main>

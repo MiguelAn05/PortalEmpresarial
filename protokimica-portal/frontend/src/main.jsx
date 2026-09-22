@@ -3,10 +3,30 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './core/AuthContext.jsx'
+import { debeReintentar } from './core/api.js'
 import './index.css'
 import App from './App.jsx'
 
-const queryClient = new QueryClient()
+/**
+ * Cuánto vale un dato ya traído antes de volver a pedirlo.
+ *
+ * Sin esto, cada dato se considera viejo apenas llega: entrar a PQRS, pasar
+ * a Inicio y volver son tres consultas completas en veinte segundos, y eso
+ * se multiplica por cada persona conectada. Treinta segundos no le quitan
+ * frescura a nada porque lo que uno mismo cambia se refresca aparte —cada
+ * pantalla invalida lo suyo al guardar— y al volver a la pestaña se vuelve a
+ * consultar igual.
+ */
+const MEDIO_MINUTO = 30 * 1000
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: MEDIO_MINUTO,
+      retry: debeReintentar,
+    },
+  },
+})
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../api.js'
 import { IconoCerrar, IconoRecargar } from './Iconos.jsx'
 import {
-  VERSION_APP, hayNovedades, marcarVersionVista, servidorAdelantado, versionVista,
+  VERSION_APP, hayNovedades, marcarVersionVista, recargarDeVerdad, servidorAdelantado,
+  versionVista,
 } from '../version.js'
 
 /** Cada diez minutos basta: una versión no cambia mientras alguien trabaja. */
@@ -38,7 +39,7 @@ export function AvisoVersionNueva() {
         Recarga la página para trabajar con la última.
       </span>
       <button
-        onClick={() => window.location.reload()}
+        onClick={recargarDeVerdad}
         className="px-3 py-1.5 rounded-lg bg-acento-fuerte text-white text-xs font-semibold
           hover:bg-acento transition-colors duration-150 ease-suave flex-shrink-0"
       >

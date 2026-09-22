@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.36.0"
-FECHA = "2026-09-21"
+VERSION = "0.37.0"
+FECHA = "2026-09-22"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,29 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.37.0",
+        "fecha": "2026-09-22",
+        "titulo": "Se acabó el «bórrale la caché del navegador»",
+        "cambios": [
+            ("correccion", "El navegador ya no se queda con una versión "
+                           "vieja del portal. Era la causa de que a algunas "
+                           "personas no les sirvieran los filtros, el cambio "
+                           "de mes o la conexión con Outlook hasta que "
+                           "alguien les borraba la caché a mano."),
+            ("correccion", "El botón «Recargar» del aviso de versión nueva "
+                           "ahora trae de verdad la última, en vez de volver "
+                           "a mostrar la que ya estaba guardada."),
+            ("correccion", "En las listas largas —PQRS con todo el "
+                           "histórico— la parte de abajo de la página ya no "
+                           "se queda en blanco al bajar."),
+            ("mejora", "La lista de PQRS abre mucho más rápido: pesa ocho "
+                       "veces menos porque ya solo trae lo que la tabla "
+                       "muestra."),
+            ("mejora", "Al entrar a un módulo la pantalla empieza arriba, y "
+                       "no a la altura donde se había quedado el anterior."),
+        ],
+    },
     {
         "version": "0.36.0",
         "fecha": "2026-09-21",

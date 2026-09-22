@@ -84,6 +84,36 @@ entorno. Siempre `up -d`, que recrea el contenedor. Confirmar después con
 **El frontend se compila en local** (`npm run build`) y `dist/` se commitea:
 el servidor no tiene internet estable para `npm ci`.
 
+### Qué se cachea y qué no
+
+**Lo que lleva hash en el nombre se guarda un año; lo demás se revalida
+siempre.** Las cabeceras las pone `frontend/nginx.conf` y no son una
+afinación: `index.html` es el único archivo cuyo nombre no cambia entre
+versiones, y es el que dice qué bundle cargar. Servirlo sin `Cache-Control`
+deja que el navegador aplique su heurística —una fracción del tiempo que el
+archivo lleva sin cambiar, que en un archivo copiado dentro de una imagen son
+días— y siga pidiendo el JS de la versión anterior contra un backend nuevo.
+
+Eso costó dos casos de «no me sirven los filtros / no me cambia el mes / no
+conecta con Outlook» que solo se arreglaban borrando la caché a mano, y que
+por eso parecían problemas del computador de esa persona.
+
+- `index.html`: `no-store`. Lo demás sin hash (logo…): `no-cache`, que
+  revalida y responde 304 si no cambió.
+- `/assets/`: `immutable`, un año. Para eso Vite les pone el hash.
+- `/api/`: `no-store`, salvo cuando el backend ya mandó su propia
+  `Cache-Control` (los QR, que son públicos y valen un día). Lo resuelve un
+  `map` sobre `$upstream_http_cache_control`.
+- `/uploads/`: un día. Los nombres son UUID, así que un archivo nunca cambia
+  de contenido.
+- El botón «Recargar» del aviso de versión usa `recargarDeVerdad()` de
+  `core/version.js`: `location.reload()` a secas vuelve a leer el HTML
+  guardado, que es justo el que está viejo.
+
+**Al desplegar esto la primera vez, los navegadores que ya tienen el HTML
+viejo guardado no se enteran solos**: necesitan una recarga (F5) para
+preguntar de nuevo. De ahí en adelante ya no vuelve a pasar.
+
 ### Cómo se entra al portal
 
 Hay **dos puertas**, y la de todos los días es la primera:
@@ -651,6 +681,16 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   (`Boton` lo hace solo). Un overlay de pantalla completa para guardar un
   formulario tapa justo lo que se acaba de escribir, y un botón que sigue
   pulsable mientras viaja la petición termina en dos registros iguales.
+- **Quien scrollea es la PÁGINA, no un panel de adentro.** El contenido vivía
+  en un `<main>` de altura fija con su propio `overflow-y`, y en las listas
+  largas —PQRS con todo el histórico— el navegador dejaba de pintar el final:
+  media pantalla en blanco, como si la página se cortara, y volvía sola al
+  mover el mouse. Es un fallo de repintado de esos paneles: no se arregla
+  desde la vista, se arregla no teniendo el panel. El menú y la cabecera se
+  quedan arriba con `sticky` —que ocupa su lugar en la fila, a diferencia de
+  `fixed`— y `Layout.jsx` sube al tope al cambiar de módulo. **Una vista
+  nueva no crea su propio contenedor con scroll**; los que quedan
+  (modales, el Gantt, la matriz del año) son cajas acotadas a propósito.
 - Gráficas: SVG a mano, sin librería (el servidor no reinstala dependencias con
   fiabilidad). Una serie = un color y sin leyenda; la meta es una anotación
   punteada, no una segunda serie; nunca doble eje.
@@ -777,6 +817,16 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   build— y ninguno reemplaza a otro.
 - **Los comentarios `//` no van entre atributos de JSX.** Ahí solo sirve
   `{/* ... */}`, o el comentario arriba del elemento.
+- **Una lista devolvía el registro entero para pintar ocho columnas.** `GET
+  /pqrs` mandaba la PQRS completa —descripción de hasta 4.000 caracteres,
+  productos, rutas de adjuntos, la solución— por cada solicitud del
+  histórico, y la pantalla usaba trece campos. Peor: los productos son otra
+  tabla, así que serializarlos era **una consulta POR FILA**. Medido con
+  5.000 PQRS: 14,1 MB y 2,2 s contra 1,7 MB y 0,1 s con `PQRSResumenOut` +
+  `load_only`. **Una lista manda lo que la lista pinta**; el detalle lo pide
+  el detalle. La regla se prueba en `tests/test_pqrs_lista.py`, que cuenta
+  las consultas y falla si vuelve a haber una por fila. Con unos cientos de
+  registros nada de esto se nota — y por eso se descubre tarde.
 - **El radicado de Calidad salía de un `count()`.** El mismo defecto que ya
   había mordido en el código de seguimiento: con un hueco en el medio, el
   siguiente número ya existe y el `commit` revienta por la restricción de
@@ -958,6 +1008,16 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
 
 ## Pendientes conocidos
 
+- **Las listas todavía se traen enteras, y se filtran en el navegador.** PQRS,
+  proyectos y OMP piden TODO el histórico y buscan en memoria. Aligerar la
+  fila (arriba) compró tiempo, no resolvió el fondo: a partir de unos pocos
+  miles de registros lo que pesa es pintar la tabla. El paso siguiente es
+  filtrar y paginar **en el servidor** —búsqueda, fechas y punto de venta
+  incluidos, porque un filtro que solo mira la página actual miente— y
+  empezar por PQRS, que es la que más crece. Para saber cuándo toca, medir en
+  vez de opinar: `docker exec protokimica_backend python -m
+  app.medir_lista_pqrs --filas 20000` siembra, mide y borra (solo contra la
+  base de desarrollo; se niega si encuentra demasiadas PQRS de verdad).
 - **Catálogo de productos: falta el lado del ERP.** El portal ya está
   completo (tabla, sincronización, buscador con límite por IP, pruebas, y el
   formulario público conectado al catálogo real). Lo que falta es **fuera del

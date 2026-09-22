@@ -29,6 +29,25 @@ export function esPeticionDeLogin(url) {
   return /\/auth\/login$/.test(String(url ?? ''))
 }
 
+/**
+ * ¿Vale la pena repetir una petición que falló?
+ *
+ * React Query reintenta tres veces por defecto, y eso está pensado para una
+ * red que se cayó un segundo. Cuando el servidor respondió 403 o 404 —«esto
+ * no es tuyo», «no existe»— la respuesta va a ser la misma las tres veces:
+ * son tres viajes al servidor por cada pantalla que no se puede abrir, y el
+ * error tarda varios segundos en aparecer por esperar entre intento e
+ * intento.
+ *
+ * Se reintenta una vez lo que sí puede cambiar solo: un corte de red o un
+ * 500 pasajero.
+ */
+export function debeReintentar(fallos, error) {
+  const codigo = error?.response?.status
+  if (codigo >= 400 && codigo < 500) return false
+  return fallos < 1
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {

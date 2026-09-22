@@ -7,7 +7,7 @@ from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form, HTTPException,
     UploadFile, status,
 )
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from app.core import canales
 from app.core.database import get_db
@@ -15,7 +15,7 @@ from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_
 from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
 from app.modules.pqrs.schemas import (
-    AlcancePQRS, PQRSOut, PQRSDetailOut, PQRSAsignar,
+    AlcancePQRS, PQRSOut, PQRSDetailOut, PQRSResumenOut, PQRSAsignar,
     PQRSAsignarArea, PQRSAreaCausante, PQRSEditarDatos, ProductoCorregir, ProductoIn,
     PuntoVentaOut, VisibilidadPQRS,
 )
@@ -157,7 +157,7 @@ async def crear_pqrs(
     return solicitud
 
 
-@router.get("", response_model=list[PQRSOut])
+@router.get("", response_model=list[PQRSResumenOut])
 def listar_pqrs(
     estado: str | None = None,
     tipo: str | None = None,
@@ -165,7 +165,14 @@ def listar_pqrs(
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(PQRSSolicitud).filter(PQRSSolicitud.tenant_id == tenant_id)
+    # Se traen del disco solo las columnas que la lista pinta. Los campos de
+    # `PQRSResumenOut` son todos columnas de la tabla, así que la lista se
+    # deduce del schema y no hay dos sitios que se puedan desincronizar; una
+    # prueba lo verifica. Sin esto, cada fila arrastra la descripción entera
+    # —hasta cuatro mil caracteres— para no mostrarla.
+    query = db.query(PQRSSolicitud).options(
+        load_only(*(getattr(PQRSSolicitud, campo) for campo in PQRSResumenOut.model_fields))
+    ).filter(PQRSSolicitud.tenant_id == tenant_id)
     # Un punto de venta solo ve las de su sede. Ver `permisos.filtrar_visibles`.
     query = filtrar_visibles(query, current_user)
     if estado:

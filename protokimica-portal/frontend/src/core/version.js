@@ -39,6 +39,29 @@ export function servidorAdelantado(versionServidor, versionApp = VERSION_APP) {
   return compararVersiones(versionServidor, versionApp) > 0
 }
 
+/**
+ * Recargar de verdad, no volver a leer lo que ya estaba guardado.
+ *
+ * `location.reload()` a secas confía en la caché del navegador para el HTML,
+ * y el HTML es justamente lo que se queda viejo: es el único archivo cuyo
+ * nombre no cambia entre versiones. Alguien pulsaba «Recargar», la página
+ * parpadeaba y seguía en la versión de antes — hasta que un técnico le
+ * borraba la caché a mano.
+ *
+ * `fetch(cache: 'reload')` obliga a ir a la red y deja el HTML nuevo en la
+ * caché; la recarga que sigue ya lee ese. Si el fetch falla —sin red, o el
+ * navegador no lo permite— se recarga igual: lo peor que pasa es que quede
+ * como estaba, que es donde ya estábamos.
+ */
+export async function recargarDeVerdad() {
+  try {
+    await fetch(window.location.href, { cache: 'reload', credentials: 'same-origin' })
+  } catch {
+    /* sin red o bloqueado: la recarga de abajo sigue siendo lo correcto */
+  }
+  window.location.reload()
+}
+
 const CLAVE_VISTA = 'version_novedades_vista'
 
 /**

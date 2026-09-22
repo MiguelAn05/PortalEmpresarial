@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class PQRSCreate(BaseModel):
@@ -43,6 +43,45 @@ class SeguimientoOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PQRSResumenOut(BaseModel):
+    """
+    Una fila de la lista: exactamente lo que la tabla pinta, y nada más.
+
+    La lista devolvía la PQRS COMPLETA —descripción de hasta cuatro mil
+    caracteres, productos, rutas de adjuntos, la solución— para cada una de
+    las solicitudes de la empresa, y la pantalla usaba trece campos. Con
+    doscientas PQRS no se notaba; el histórico no deja de crecer y esto crece
+    con él.
+
+    Los productos, además, se leían con una consulta POR FILA: son una
+    relación aparte y el schema los pedía uno a uno. Al no nombrarlos aquí,
+    esa consulta deja de existir.
+
+    Los campos son los que usa `PQRSList.jsx` (las columnas de la tabla, la
+    búsqueda y los filtros). Si la lista necesita uno nuevo, se agrega aquí —
+    no se vuelve a mandar la solicitud entera.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    codigo_seguimiento: str | None = None
+    radicado_calidad: str | None = None
+    tipo: str
+
+    # Con qué se reconoce al cliente en la lista. Ver `nombrePrincipal()`.
+    empresa: str | None = None
+    nit_cedula: str | None = None
+    cliente_nombre: str
+    cliente_email: str | None = None
+
+    area_responsable: str | None = None
+    estado: str
+    prioridad: str
+
+    fecha_creacion: datetime
+    fecha_limite_sla: datetime | None = None
+
 
 class PQRSOut(BaseModel):
     id: int
