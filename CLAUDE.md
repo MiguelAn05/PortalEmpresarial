@@ -322,6 +322,24 @@ permisos en silencio, así que el proceso vive en su propio catálogo y solo se
 Las áreas sin equivalente no se adivinan: adivinar mal manda la acción al
 archivo de otro proceso.
 
+**Y se nombran como lo que hacen, porque se confunden solos.** En el
+formulario el proceso decía «Proceso al que se remite», que se lee como «a
+quién se la remito» —no se remite a nadie: es la carpeta del `RCN-F-13` donde
+la busca un auditor—, y el área decía «Área», con la opción vacía escrita
+«Area», sin decir que dejarla vacía es asignarla a TODA la empresa. Hoy son
+«Proceso del SGC» y «Área a la que se asigna», cada uno con su línea de
+ayuda. **A quién se le encarga el trabajo no es ninguno de los dos: son los
+responsables.**
+
+**Quien abre una OMP la sigue viendo, aunque la asigne a otra área**
+(`creado_por` en `aplicar_filtro_area` y en `exigir_acceso`). El área es a
+quién se le asigna, y no siempre es la de quien detecta el problema; sin esto,
+escribirla completa y guardarla la hacía desaparecer de la pantalla de su
+autor, que ni siquiera podía consultarla. Es lo mismo que en Master Planner
+con el proyecto sin líder. **Lo que se ve es la que uno abrió, no el área
+entera**: si abrir una para TICS destapara todas las de TICS, sería la forma
+más fácil de mirar la gestión de otro.
+
 **Los catálogos son tabla, no enum** (`omp_catalogos`, con discriminador
 `tipo`): proceso, fuente y tratamiento. Calidad los cambia sin avisarle a
 TIC's, y agregar un proceso no puede pedir un despliegue. Se siembran solos y

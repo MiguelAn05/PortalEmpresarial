@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AREAS } from '../../../core/areas.js'
+import { useAuth } from '../../../core/AuthContext.jsx'
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 import { useCierreSeguro } from '../../../core/components/cierreSeguro.jsx'
 import { obtenerTablero } from '../../indicadores/api.js'
@@ -29,6 +30,7 @@ import { mensajeDeError } from '../../../core/errores.js'
 export default function FormOportunidad({ indicador = null, periodo = null,
                                           valorInicial = null, onCerrar, onCreada }) {
   const hoy = new Date()
+  const { user } = useAuth()
   const [form, setForm] = useState({
     titulo: '',
     descripcion: '',
@@ -38,7 +40,10 @@ export default function FormOportunidad({ indicador = null, periodo = null,
     periodo_mes: periodo?.mes ?? hoy.getMonth() + 1,
     valor_inicial: valorInicial ?? '',
     meta_esperada: '',
-    area: indicador?.area ?? '',
+    // La del indicador si nace de uno; si no, la propia. Lo normal es
+    // mejorar lo de uno, y dejarlo en blanco no significa «sin definir»:
+    // significa de toda la empresa, que la ve todo el mundo.
+    area: indicador?.area ?? user?.area ?? '',
     prioridad: 'media',
     fecha_limite: '',
     // Los catálogos del formato. En blanco = «que lo proponga el servidor»,
@@ -268,16 +273,21 @@ export default function FormOportunidad({ indicador = null, periodo = null,
                 que salga mal manda la acción al archivo de otro proceso. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="etiqueta block mb-1.5">Proceso al que se remite</label>
+                <label className="etiqueta block mb-1.5">Proceso del SGC</label>
                 <select
                   value={form.proceso_id} onChange={cambiar('proceso_id')}
                   className={input}
                 >
-                  <option value="">El que corresponda al área</option>
+                  <option value="">El del área que la trabaja</option>
                   {(catalogos?.proceso ?? []).map(p => (
                     <option key={p.id} value={p.id}>{p.nombre}</option>
                   ))}
                 </select>
+                <p className="text-xs text-texto-3 mt-1.5">
+                  En qué proceso queda archivada para el SGC. No le asigna la
+                  tarea a nadie: es la carpeta del formato donde la busca un
+                  auditor.
+                </p>
               </div>
               <div>
                 <label className="etiqueta block mb-1.5">Fuente del hallazgo</label>
@@ -308,9 +318,9 @@ export default function FormOportunidad({ indicador = null, periodo = null,
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="etiqueta block mb-1.5">Área</label>
+                <label className="etiqueta block mb-1.5">Área a la que se asigna</label>
                 <select value={form.area} onChange={cambiar('area')} className={input}>
-                  <option value="">Area</option>
+                  <option value="">Toda la empresa — la ve todo el mundo</option>
                   {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
               </div>
@@ -330,6 +340,18 @@ export default function FormOportunidad({ indicador = null, periodo = null,
                 />
               </div>
             </div>
+
+            {/* El área es el campo que más se malinterpreta del formulario:
+                no es «de dónde salió» —eso lo guarda el portal solo— sino
+                quién queda respondiendo. Y como además cuenta en el
+                indicador de gestión de esa área, asignarla a otra no es un
+                detalle administrativo. */}
+            <p className="text-xs text-texto-3 -mt-1">
+              El área asignada es la que responde por la mejora: la ve, la
+              trabaja y le cuenta en su indicador de gestión. No tiene que ser
+              la tuya. Que la abriste tú queda registrado solo, y la vas a
+              seguir viendo aunque se la asignes a otra área.
+            </p>
 
             {error && (
               <p role="alert" className="text-sm text-negativo bg-negativo-bg

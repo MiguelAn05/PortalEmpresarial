@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.37.0"
+VERSION = "0.38.0"
 FECHA = "2026-09-22"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,29 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.38.0",
+        "fecha": "2026-09-22",
+        "titulo": "En las OMP ya se entiende a quién se le asigna",
+        "cambios": [
+            ("mejora", "El campo «Área» del formulario ahora dice «Área a la "
+                       "que se asigna» y explica qué significa: es quien "
+                       "responde por la mejora, la trabaja y a quien le "
+                       "cuenta en su indicador de gestión."),
+            ("mejora", "«Proceso al que se remite» pasó a llamarse «Proceso "
+                       "del SGC», que es lo que es: el proceso donde queda "
+                       "archivada para el formato de Calidad. No le asigna "
+                       "la tarea a nadie."),
+            ("correccion", "Si abres una OMP y se la asignas a otra área, la "
+                           "sigues viendo. Antes desaparecía de tu pantalla "
+                           "apenas la guardabas, y ni siquiera podías "
+                           "consultarla. En la lista aparece marcada como «la "
+                           "abriste tú»."),
+            ("mejora", "Dejar el área en blanco ya avisa qué significa: la "
+                       "oportunidad queda de toda la empresa y la ve todo el "
+                       "mundo. Por defecto viene la tuya."),
+        ],
+    },
     {
         "version": "0.37.0",
         "fecha": "2026-09-22",

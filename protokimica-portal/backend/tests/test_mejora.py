@@ -220,6 +220,45 @@ def test_un_lider_no_ve_las_de_otra_area(entorno):
     assert all(o["area"] != "Calidad" for o in entorno.get("/mejora").json())
 
 
+def test_quien_la_abre_la_sigue_viendo_aunque_sea_de_otra_area(entorno, v):
+    """
+    El área es a quién se le asigna, y no siempre es la de quien detecta el
+    problema: Calidad abre una por algo que le toca resolver a TICS. Antes,
+    escribirla completa y darle guardar la hacía desaparecer de la pantalla
+    de su autor — la había abierto y ya no podía ni consultarla.
+    """
+    entorno.como("calidad")
+    omp_id = _crear(entorno, area="TICS").json()["id"]
+
+    v.check("la abre y la ve", entorno.get(f"/mejora/{omp_id}").status_code == 200)
+    v.check("y sale en su lista",
+            omp_id in [o["id"] for o in entorno.get("/mejora").json()])
+
+    # Sigue siendo de TICS: el área asignada es la que responde.
+    entorno.como("tics")
+    v.check("el área asignada también la ve",
+            entorno.get(f"/mejora/{omp_id}").status_code == 200)
+
+
+def test_ver_la_propia_no_abre_las_demas_de_esa_area(entorno, v):
+    """
+    Lo que se ve es LA QUE UNO ABRIÓ, no el área entera. Si abrir una para
+    TICS destapara todas las de TICS, sería la forma más fácil de mirar la
+    gestión de otro.
+    """
+    entorno.como("tics")
+    ajena = _crear(entorno, area="TICS", titulo="Algo interno de TICS").json()["id"]
+
+    entorno.como("calidad")
+    propia = _crear(entorno, area="TICS").json()["id"]
+
+    visibles = [o["id"] for o in entorno.get("/mejora").json()]
+    v.check("la suya sí", propia in visibles, visibles)
+    v.check("la del otro no", ajena not in visibles, visibles)
+    v.check("y abrirla por id responde 404",
+            entorno.get(f"/mejora/{ajena}").status_code == 404)
+
+
 def test_las_de_toda_la_empresa_las_ve_cualquiera(entorno):
     """Sin área no son de nadie; esconderlas haría que nadie las trabaje."""
     entorno.como("admin")

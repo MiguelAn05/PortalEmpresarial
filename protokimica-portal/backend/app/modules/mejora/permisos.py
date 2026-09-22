@@ -49,6 +49,13 @@ def aplicar_filtro_area(query, usuario: User, modelo):
 
     Las que no tienen área asignada las ve todo el mundo: son de la empresa,
     no de un área, y esconderlas haría que nadie las trabajara.
+
+    **Y quien la abrió la sigue viendo, aunque sea de otra área.** Una
+    oportunidad se puede asignar al área que responde por el problema, que no
+    siempre es la de quien lo detectó; sin esta línea, escribirla completa y
+    darle guardar la hacía desaparecer de la pantalla de su autor. Es lo
+    mismo que ya se hace en Master Planner al crear un proyecto sin líder:
+    quien lo creó no se queda por fuera de lo que acaba de abrir.
     """
     if ve_todas(usuario):
         return query
@@ -56,7 +63,9 @@ def aplicar_filtro_area(query, usuario: User, modelo):
     # director ve la mejora de las áreas por las que responde; el equipo de
     # esas áreas sigue viendo solo la suya.
     return query.filter(
-        modelo.area.in_(areas_visibles(usuario)) | (modelo.area.is_(None))
+        modelo.area.in_(areas_visibles(usuario))
+        | (modelo.area.is_(None))
+        | (modelo.creado_por == usuario.id)
     )
 
 
@@ -99,7 +108,14 @@ def exigir_acceso(oportunidad, usuario: User):
     if oportunidad is None:
         raise HTTPException(status_code=404, detail="Oportunidad de mejora no encontrada.")
 
-    if ve_todas(usuario) or oportunidad.area is None or supervisa(usuario, oportunidad.area):
+    if (
+        ve_todas(usuario)
+        or oportunidad.area is None
+        or supervisa(usuario, oportunidad.area)
+        # Quien la abrió entra a la suya, esté asignada al área que esté.
+        # Mismo criterio que en la lista, o abriría desde ahí un 404.
+        or oportunidad.creado_por == usuario.id
+    ):
         return oportunidad
 
     raise HTTPException(status_code=404, detail="Oportunidad de mejora no encontrada.")

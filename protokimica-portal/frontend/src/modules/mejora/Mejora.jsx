@@ -43,9 +43,13 @@ function Chip({ tono = 'neutro', children }) {
   )
 }
 
-function Fila({ omp, onAbrir }) {
+function Fila({ omp, onAbrir, usuarioId }) {
   const estado = ESTADOS[omp.estado] ?? ESTADOS.abierta
   const plazo = PLAZOS[estadoDelPlazo(omp)]
+  // Quien la abre la sigue viendo aunque se la haya asignado a otra área.
+  // Sin decirlo, una OMP de otra área en la lista propia se lee como un
+  // error del portal — o peor, como que se están viendo las ajenas.
+  const laAbriYo = Boolean(usuarioId) && omp.creado_por === usuarioId
 
   return (
     <button
@@ -60,7 +64,9 @@ function Fila({ omp, onAbrir }) {
         </span>
         <span className="block text-xs text-texto-3 mt-0.5 truncate">
           {omp.area || 'Toda la empresa'}
-          {omp.autor_nombre && ` · la abrió ${omp.autor_nombre}`}
+          {laAbriYo
+            ? ' · la abriste tú'
+            : omp.autor_nombre && ` · la abrió ${omp.autor_nombre}`}
           {omp.indicador_nombre && ` · ${omp.indicador_nombre}`}
         </span>
       </span>
@@ -240,7 +246,7 @@ export default function Mejora() {
         {visibles.length > 0 && (
           <div className="divide-y divide-borde">
             {visibles.map(omp => (
-              <Fila key={omp.id} omp={omp} onAbrir={setAbierta} />
+              <Fila key={omp.id} omp={omp} onAbrir={setAbierta} usuarioId={user?.id} />
             ))}
           </div>
         )}
