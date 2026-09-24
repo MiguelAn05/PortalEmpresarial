@@ -20,6 +20,7 @@ from app.models.pqrs import PQRSSolicitud
 from app.models.user import User
 from app.modules.indicadores import service as ind_service
 from app.modules.master_planner.permisos import aplicar_filtro_proyectos
+from app.modules.pqrs.pendientes import ESTADOS_ABIERTOS as ESTADOS_CON_PLAZO
 
 # Cuántos días antes se considera que algo "está por vencer". Igual que en
 # Master Planner, para que la misma tarea no salga como urgente en un sitio
@@ -113,6 +114,12 @@ def _mis_pqrs(db: Session, usuario: User) -> dict:
     vencidas, por_vencer = [], []
 
     for p in solicitudes:
+        # Una resuelta ya no corre contra el reloj: la respuesta salió y solo
+        # falta que el cliente la confirme. Sin esto le aparecía al agente
+        # como vencida, que es un pendiente que ya no existe. La regla es la
+        # del módulo (`pendientes.ESTADOS_ABIERTOS`), no una copia local.
+        if p.estado not in ESTADOS_CON_PLAZO:
+            continue
         sla = _aware(p.fecha_limite_sla)
         if not sla:
             continue

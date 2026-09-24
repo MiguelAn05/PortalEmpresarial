@@ -530,6 +530,32 @@ de decir cuántos registros se van a perder.
 Ejemplos: `DELETE /indicadores/{id}?incluir_mediciones=true`, cancelar un
 proyecto lo archiva sin borrar nada, retomar anula el acta pero no la elimina.
 
+**Un usuario es el caso extremo: si ya trabajó, no se borra nunca** — tampoco
+forzándolo, y por eso ese `DELETE` no tiene parámetro de escape. Su id está
+escrito en quién aprobó un presupuesto, quién autorizó una nota crédito y
+quién firmó el cierre de una OMP; borrarlo obligaría a romper o vaciar esas
+referencias, y el historial —que es lo que se audita— pasaría a decir
+«alguien» donde decía un nombre. Se responde 409 diciendo QUÉ tiene y se
+ofrece **desactivar**, que es lo que de verdad se necesita cuando alguien se
+va. Eliminar queda para el usuario creado por error, que nunca hizo nada; sin
+eso, la lista de un portal viejo termina siendo un cementerio de intentos que
+nadie se atreve a tocar.
+
+Los rastros se cuentan recorriendo el **metadato** (`auth/rastros.py`): toda
+columna que apunte a `users.id`, sin lista escrita a mano — una tabla nueva
+que referencie usuarios queda cubierta el día que se crea, que es justo el
+día en que nadie se acordaría de venir a agregarla. Lo único que NO cuenta es
+la configuración propia (las áreas que supervisa, los permisos que le
+otorgaron): eso se va con él, y si bloqueara, un usuario recién creado al que
+alguien alcanzó a marcarle una supervisión ya no se podría eliminar.
+
+**El nombre y el correo se corrigen** (`PATCH /auth/usuarios/{id}`). Se
+escriben a mano y con prisa al dar de alta a alguien, y sin esto un correo
+mal escrito obligaba a crear OTRO usuario y desactivar el primero — con lo
+que el trabajo ya hecho se quedaba colgando del equivocado. El correo nuevo
+pasa por la misma validación de dominio que al crear y no puede ser el de
+otra persona de la empresa.
+
 ### Datos que vienen de fuera
 
 - **Listas cerradas, no texto libre**, cuando el dato alimenta un reporte. Si
@@ -855,6 +881,33 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   sus notas de trabajo. Ahora el movimiento se REDACTA a partir de
   `estado_nuevo` (ver `pqrs/historial_publico.py`), y el schema público no tiene
   campo de comentario: no es que llegue vacío, es que no existe.
+- **El seguimiento público le anunciaba al cliente que se venció el plazo.**
+  En rojo: «El plazo de respuesta está vencido». Los 15 días hábiles de una
+  petición salen de la Ley 1755 de 2015, así que eso es **la empresa
+  dejándole constancia por escrito a un tercero de que incumplió un término
+  legal**, redactada por nosotros y consultable cuando quiera. Que un plazo
+  se venza es un problema interno y se avisa por dentro y ANTES
+  (`/pqrs/por-vencer`); al cliente se le responde. **En esa pantalla no va
+  ningún plazo**: ni el aviso ni la fecha límite, que era el otro lado de lo
+  mismo —comprometerse por escrito ante un tercero con una fecha—. Y el
+  servidor tampoco la manda: `PQRSConsultaOut` de `router_public.py` no tiene
+  ese campo, igual que no tiene el comentario del seguimiento. Esconder el
+  dato solo en la pantalla lo deja viajando igual.
+  `tests/plazoPublico.test.mjs` verifica las dos cosas. **Todo lo que se le
+  muestra al cliente se lee como una declaración de la empresa, no como una
+  etiqueta de interfaz.**
+- **Una PQRS cerrada seguía contando el tiempo.** La lista pintaba el SLA a
+  partir de la fecha sola, sin mirar el estado, así que una PQRS cerrada hace
+  medio año aparecía hoy «Vencida» contra el reloj del calendario — para
+  siempre, y en un listado que se audita. **El plazo deja de correr cuando se
+  responde**, no cuando se cierra: una `resuelto` ya salió, solo falta que el
+  cliente confirme. La regla estaba bien en el servidor
+  (`pendientes.ESTADOS_ABIERTOS`) y mal en tres sitios que llevaban su propia
+  copia: la columna de la lista, el conteo de «vencidas» del encabezado y el
+  resumen de Inicio, que excluía solo las cerradas. Hoy es **una sola fuente
+  por lado** —`ESTADOS_CON_PLAZO` en `modules/pqrs/constants.js`, gemelo del
+  de `pendientes.py` con prueba que los ata— y el componente recibe la PQRS
+  entera, no la fecha: **el estado es parte de la cuenta.**
 - **Filtrar por área ignoraba las áreas participantes.** Un proyecto de TICS
   donde Mercadeo trabaja se le mostraba a Mercadeo en la lista general y
   desaparecía apenas filtraba por su área. Para filtrar se usa `condicion_area()`

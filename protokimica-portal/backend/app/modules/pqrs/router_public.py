@@ -130,6 +130,18 @@ class SeguimientoPublicoOut(BaseModel):
 
 
 class PQRSConsultaOut(BaseModel):
+    """
+    Lo que ve el cliente al consultar con su código.
+
+    **No lleva la fecha límite de respuesta, y es a propósito.** Los términos
+    de una PQRS salen de la Ley 1755 de 2015; mandárselos al cliente es la
+    empresa comprometiéndose por escrito ante un tercero con una fecha, y la
+    pantalla además le anunciaba en rojo cuando esa fecha había pasado — o
+    sea, dejándole constancia de un incumplimiento, redactada por nosotros y
+    consultable cuando quiera. El plazo se vigila por dentro y ANTES de que
+    venza (ver `/pqrs/por-vencer`). Igual que con el comentario del
+    seguimiento: no es que llegue vacío, es que no existe.
+    """
     codigo_seguimiento: str
     tipo: str
     estado: str
@@ -137,7 +149,6 @@ class PQRSConsultaOut(BaseModel):
     empresa: str | None
     area_responsable: str | None
     fecha_creacion: datetime
-    fecha_limite_sla: datetime | None
     fecha_cierre: datetime | None
     historial: list[SeguimientoPublicoOut]
 
@@ -308,7 +319,6 @@ def consultar_pqrs_publica(codigo: str, db: Session = Depends(get_db)):
         empresa=solicitud.empresa,
         area_responsable=solicitud.area_responsable,
         fecha_creacion=solicitud.fecha_creacion,
-        fecha_limite_sla=solicitud.fecha_limite_sla,
         fecha_cierre=solicitud.fecha_cierre,
         historial=historial_publico,
     )

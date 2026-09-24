@@ -2,8 +2,8 @@ import { useState } from 'react'
 import api from '../../core/api.js'
 import { LOGO, LOGO_ALT, NOMBRE_EMPRESA } from '../../core/marca.js'
 import {
-  IconoAdmin, IconoAlDia, IconoAlerta, IconoCandado, IconoEstrella,
-  IconoHistorial, IconoPQRS, IconoReloj, IconoUsuario,
+  IconoAdmin, IconoAlDia, IconoCandado, IconoEstrella,
+  IconoHistorial, IconoPQRS, IconoUsuario,
 } from '../../core/components/Iconos.jsx'
 
 // El estado se dice con palabra, forma y color — en ese orden de importancia.
@@ -31,33 +31,23 @@ function formatFecha(fecha) {
   })
 }
 
-function SLAInfo({ fechaLimite, cerrado }) {
-  if (!fechaLimite || cerrado) return null
-  const diff = new Date(fechaLimite) - new Date()
-  const dias = Math.ceil(diff / (1000 * 60 * 60 * 24))
-
-  if (dias < 0) return (
-    <div className="flex items-start gap-2.5 bg-negativo-bg border border-negativo/20
-      rounded-xl p-3 text-sm text-negativo font-medium">
-      <IconoAlerta tam={17} className="mt-0.5 flex-shrink-0" />
-      <span>El plazo de respuesta está vencido. Estamos trabajando en su caso.</span>
-    </div>
-  )
-  if (dias <= 2) return (
-    <div className="flex items-start gap-2.5 bg-alerta-bg border border-ambar/30
-      rounded-xl p-3 text-sm text-alerta font-medium">
-      <IconoReloj tam={17} className="mt-0.5 flex-shrink-0" />
-      <span>Fecha límite de respuesta: {formatFecha(fechaLimite)}</span>
-    </div>
-  )
-  return (
-    <div className="flex items-start gap-2.5 bg-positivo-bg border border-positivo/20
-      rounded-xl p-3 text-sm text-positivo">
-      <IconoAlDia tam={17} className="mt-0.5 flex-shrink-0" />
-      <span>Fecha límite de respuesta: {formatFecha(fechaLimite)}</span>
-    </div>
-  )
-}
+/*
+ * Aquí NO va ningún plazo.
+ *
+ * Esta pantalla mostraba la fecha límite de respuesta y, cuando pasaba, un
+ * aviso en rojo diciendo que el plazo estaba vencido. Los términos de una
+ * PQRS salen de la Ley 1755 de 2015, así que ponerlos aquí es **la empresa
+ * comprometiéndose por escrito ante un tercero con una fecha, y después
+ * dejándole constancia de que no la cumplió** — redactada por nosotros y
+ * consultable cuando quiera.
+ *
+ * El plazo se vigila por dentro y ANTES de que venza (`/pqrs/por-vencer`
+ * avisa a quien responde). Al cliente se le responde; el estado de su
+ * solicitud ya le dice en qué va.
+ *
+ * El servidor tampoco manda la fecha: `PQRSConsultaOut` de `router_public.py`
+ * no tiene ese campo. No es que llegue y no se pinte — es que no llega.
+ */
 
 export default function SeguimientoPQRS() {
   const [codigo, setCodigo]   = useState('')
@@ -178,8 +168,6 @@ export default function SeguimientoPQRS() {
                   </div>
                 )}
               </div>
-
-              <SLAInfo fechaLimite={pqrs.fecha_limite_sla} cerrado={pqrs.estado === 'cerrado'} />
             </div>
 
             {/* Timeline de eventos */}

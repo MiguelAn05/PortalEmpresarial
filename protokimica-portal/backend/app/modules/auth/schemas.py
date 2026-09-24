@@ -71,6 +71,12 @@ class UsuarioCreate(BaseModel):
 
 
 class UsuarioUpdate(BaseModel):
+    # Se corrigen porque se escriben a mano y con prisa al dar de alta a
+    # alguien. Sin esto, un nombre mal escrito o un correo con una letra de
+    # más obligaban a crear OTRO usuario y desactivar el primero — y el
+    # trabajo ya hecho se quedaba con el usuario equivocado.
+    nombre: str | None = None
+    email: str | None = None
     rol: str | None = None
     area: str | None = None
     # A diferencia de `area`, aquí `null` SÍ significa «quítaselo»: se mira

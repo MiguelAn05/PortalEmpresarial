@@ -21,6 +21,13 @@ from app.models.user import User
 # Estados en los que una PQRS todavía corre contra el reloj. Los válidos son
 # recibido | asignado | en_proceso | resuelto | cerrado (ver router.py); una
 # resuelta o cerrada ya no vence.
+#
+# **Es la única fuente de esa regla**, y por eso vive aquí y la importan los
+# demás: el resumen de Inicio llevaba su propia versión que solo excluía las
+# cerradas, así que una PQRS ya respondida —esperando la confirmación del
+# cliente— le seguía apareciendo al agente como vencida. El gemelo del
+# frontend es `ESTADOS_CON_PLAZO` en `modules/pqrs/constants.js`, y
+# `tests/pqrs.test.mjs` verifica que coincidan.
 ESTADOS_ABIERTOS = ("recibido", "asignado", "en_proceso")
 
 

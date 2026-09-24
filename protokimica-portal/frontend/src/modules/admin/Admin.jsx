@@ -8,7 +8,9 @@ import api from '../../core/api.js'
 import { AREAS, areasParaSelect } from '../../core/areas.js'
 import { prefijoDe, puntosDeVenta } from '../../core/canales.js'
 import { AREAS_CON_BODEGA, BODEGAS } from '../../core/bodegas.js'
-import { IconoBuscar, IconoCandado, IconoLlave, IconoPersonas } from '../../core/components/Iconos.jsx'
+import {
+  IconoBuscar, IconoCandado, IconoEditar, IconoLlave, IconoPapelera, IconoPersonas,
+} from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 
 // Las áreas viven en un solo sitio: src/core/areas.js
@@ -209,6 +211,88 @@ const ROLES = [
 // informativa, decide qué proyectos ve.
 const NOTA_AREA = 'En Master Planner el área determina qué proyectos ve la persona. Sin área, solo verá lo asignado a ella y los proyectos sin clasificar.'
 
+/**
+ * Corregir el nombre y el correo de alguien que ya existe.
+ *
+ * Los dos se escriben a mano y con prisa al dar de alta a una persona, y
+ * hasta ahora no había forma de arreglarlos: la salida era crear OTRO
+ * usuario y desactivar el primero, con lo que el trabajo ya hecho se quedaba
+ * colgando del usuario equivocado.
+ *
+ * Va en modal y no en la fila porque la fila ya tiene seis controles; un
+ * séptimo campo de texto ahí no se encuentra.
+ */
+function ModalEditarUsuario({ usuario, guardando, onGuardar, onCerrar }) {
+  const [nombre, setNombre] = useState(usuario.nombre || '')
+  const [email, setEmail] = useState(usuario.email || '')
+
+  const cambio = nombre.trim() !== usuario.nombre || email.trim() !== usuario.email
+  const completo = nombre.trim() && email.trim()
+  const campo = 'w-full px-3 py-2.5 rounded-lg border border-borde text-sm ' +
+    'focus:outline-none focus:ring-2 focus:ring-acento'
+
+  return (
+    <div
+      className="fixed inset-0 bg-texto/50 flex items-center justify-center z-[60] p-4"
+      onClick={onCerrar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-superficie rounded-2xl shadow-lg w-full max-w-md"
+      >
+        <header className="px-6 py-4 border-b border-borde">
+          <h3 className="text-base font-semibold text-texto">Editar usuario</h3>
+          <p className="text-xs text-texto-3 mt-0.5">
+            El rol, el área y lo demás se cambian desde la lista.
+          </p>
+        </header>
+
+        <div className="px-6 py-5 space-y-4">
+          <div>
+            <label className="etiqueta block mb-1.5" htmlFor="editar-nombre">Nombre</label>
+            <input
+              id="editar-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)}
+              autoFocus className={campo}
+            />
+            <p className="text-xs text-texto-3 mt-1.5">
+              Es con lo que se le reconoce en las asignaciones y en el historial.
+            </p>
+          </div>
+
+          <div>
+            <label className="etiqueta block mb-1.5" htmlFor="editar-email">Correo</label>
+            <input
+              id="editar-email" type="email" value={email}
+              onChange={(e) => setEmail(e.target.value)} className={campo}
+            />
+            <p className="text-xs text-texto-3 mt-1.5">
+              Con este entra al portal y a este le llegan los avisos.
+            </p>
+          </div>
+        </div>
+
+        <footer className="flex justify-end gap-3 px-6 py-4 border-t border-borde">
+          <button
+            onClick={onCerrar}
+            className="px-4 py-2 rounded-lg border border-borde-fuerte text-sm
+              font-medium text-texto-2 hover:bg-superficie-2 transition-colors duration-150"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onGuardar({ nombre: nombre.trim(), email: email.trim() })}
+            disabled={!completo || !cambio || guardando}
+            className="px-4 py-2 rounded-lg bg-acento-fuerte text-white text-sm font-semibold
+              disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+          >
+            {guardando ? 'Guardando…' : 'Guardar'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  )
+}
+
 function GestionUsuarios() {
   const queryClient = useQueryClient()
   const { user: usuarioActual } = useAuth()
@@ -217,6 +301,7 @@ function GestionUsuarios() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [verInactivos, setVerInactivos] = useState(false)
+  const [editando, setEditando] = useState(null)
 
   // Se filtra en el cliente: son decenas de usuarios, no miles, y así el
   // buscador responde mientras se escribe sin ir al servidor por cada letra.
@@ -249,8 +334,19 @@ function GestionUsuarios() {
 
   const mutActualizar = useMutation({
     mutationFn: ({ id, cambios }) => api.patch(`/auth/usuarios/${id}`, cambios),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['usuarios'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['usuarios'] })
+      setEditando(null)
+    },
     onError: (err) => alert(mensajeDeError(err, 'Error al actualizar el usuario.')),
+  })
+
+  // El 409 de «tiene trabajo asociado» llega redactado del servidor, con qué
+  // tiene y qué hacer en vez de borrarlo. Se muestra tal cual.
+  const mutEliminar = useMutation({
+    mutationFn: (id) => api.delete(`/auth/usuarios/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['usuarios'] }),
+    onError: (err) => alert(mensajeDeError(err, 'No se pudo eliminar el usuario.')),
   })
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
@@ -450,6 +546,15 @@ function GestionUsuarios() {
               )}
 
               <button
+                onClick={() => setEditando(u)}
+                title="Editar nombre y correo"
+                aria-label={`Editar ${u.nombre}`}
+                className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 bg-fondo text-texto-2 hover:bg-borde transition"
+              >
+                <IconoEditar tam={15} />
+              </button>
+
+              <button
                 onClick={() => {
                   const nueva = prompt(`Nueva contraseña para ${u.nombre} (mínimo 6 caracteres):`)
                   if (nueva) mutActualizar.mutate({ id: u.id, cambios: { password: nueva } })
@@ -494,10 +599,45 @@ function GestionUsuarios() {
               >
                 {u.activo ? 'Desactivar' : 'Activar'}
               </button>
+
+              {/* Eliminar es para el usuario que se creó por error y nunca
+                  hizo nada. Si ya trabajó, el servidor responde 409 y dice
+                  qué tiene: ahí lo que se necesita es desactivarlo, no
+                  borrar el nombre de quien aprobó las cosas. */}
+              <button
+                onClick={() => {
+                  if (!window.confirm(
+                    `¿Eliminar a ${u.nombre}?\n\n` +
+                    'Esto es para un usuario creado por error. Si ya tiene ' +
+                    'trabajo en el portal, no se va a poder: en ese caso ' +
+                    'desactívalo, que lo deja fuera sin borrar su historial.'
+                  )) return
+                  mutEliminar.mutate(u.id)
+                }}
+                disabled={u.id === usuarioActual?.id || mutEliminar.isPending}
+                title={u.id === usuarioActual?.id
+                  ? 'No puedes eliminar tu propia cuenta'
+                  : 'Eliminar este usuario'}
+                aria-label={`Eliminar ${u.nombre}`}
+                className="text-texto-3 hover:text-negativo p-1.5 rounded-lg flex-shrink-0
+                  hover:bg-negativo-bg transition-colors duration-150
+                  disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+              >
+                <IconoPapelera tam={15} />
+              </button>
             </div>
           ))
         )}
       </div>
+
+      {editando && (
+        <ModalEditarUsuario
+          usuario={editando}
+          guardando={mutActualizar.isPending}
+          onCerrar={() => setEditando(null)}
+          onGuardar={(cambios) => mutActualizar.mutate({ id: editando.id, cambios })}
+        />
+      )}
     </div>
   )
 }

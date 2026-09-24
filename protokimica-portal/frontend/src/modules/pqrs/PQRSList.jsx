@@ -11,8 +11,8 @@ import {
 import { mensajeDeError } from '../../core/errores.js'
 import {
   AREA_SIN_ASIGNAR, DEPARTAMENTOS, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES,
-  areasParaFiltrar, coincideAreaAsignada, faltaEnProductos, nombrePrincipal,
-  productoVacio, productosParaEnviar,
+  areasParaFiltrar, coincideAreaAsignada, estaVencida, estadoDelPlazo, faltaEnProductos,
+  nombrePrincipal, productoVacio, productosParaEnviar,
 } from './constants.js'
 
 // Un estado se llama y se pinta igual en la lista, en el filtro y en el
@@ -59,15 +59,28 @@ function Badge({ map, value }) {
   )
 }
 
-function SLALabel({ fechaLimite }) {
-  if (!fechaLimite) return null
-  const diff = new Date(fechaLimite) - new Date()
-  const dias = Math.ceil(diff / (1000 * 60 * 60 * 24))
+const TONO_PLAZO = {
+  negativo: 'text-negativo font-semibold',
+  alerta: 'text-alerta font-semibold',
+  neutro: 'text-texto-2',
+}
 
-  if (dias < 0)   return <span className="text-xs font-semibold text-negativo">Vencida</span>
-  if (dias === 0) return <span className="text-xs font-semibold text-negativo">Vence hoy</span>
-  if (dias <= 2)  return <span className="cifra text-xs font-semibold text-alerta">Vence en {dias}d</span>
-  return <span className="cifra text-xs text-texto-2">Vence en {dias}d</span>
+/**
+ * Cuánto le queda de plazo, o una raya cuando ya no hay plazo que contar.
+ *
+ * Recibe la PQRS entera y no solo la fecha: **el estado es parte de la
+ * cuenta.** Con la fecha sola, una PQRS cerrada hace meses seguía contra el
+ * reloj del calendario y aparecía «Vencida» para siempre. La regla vive en
+ * `estadoDelPlazo()` del `constants.js` del módulo, que es gemelo de la del
+ * servidor y tiene prueba.
+ */
+function SLALabel({ pqrs }) {
+  const plazo = estadoDelPlazo(pqrs)
+  if (!plazo) return <span className="text-xs text-texto-3">—</span>
+
+  return (
+    <span className={`cifra text-xs ${TONO_PLAZO[plazo.tono]}`}>{plazo.texto}</span>
+  )
 }
 
 const CANALES_ATENCION = CANALES
@@ -536,7 +549,7 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
             </div>
             <div>
               <span className="text-xs text-texto-2 block">SLA</span>
-              <SLALabel fechaLimite={pqrs.fecha_limite_sla} />
+              <SLALabel pqrs={pqrs} />
             </div>
             {pqrs.cliente_email && (
               <div>
@@ -709,7 +722,12 @@ export default function PQRSList() {
   const total    = pqrsList.length
   const abiertas = pqrsList.filter(p => p.estado !== 'cerrado').length
   const criticas = pqrsList.filter(p => p.prioridad === 'alta' || p.prioridad === 'critica').length
-  const vencidas = pqrsList.filter(p => p.fecha_limite_sla && new Date(p.fecha_limite_sla) < new Date() && p.estado !== 'cerrado').length
+  // Misma regla que la columna de SLA: una resuelta o una cerrada no vence.
+  // Antes esto excluía solo las cerradas, así que una PQRS ya respondida
+  // —esperando la confirmación del cliente— seguía contándose como vencida.
+  // Ojo: `filter(estaVencida)` le pasaría el ÍNDICE como segundo argumento,
+  // que aquí es el reloj. Va con lambda a propósito.
+  const vencidas = pqrsList.filter(p => estaVencida(p)).length
 
   return (
     <div>
@@ -982,7 +1000,7 @@ export default function PQRSList() {
                       ● {PRIORIDADES[pqrs.prioridad]?.label}
                     </span>
                   </td>
-                  <td className="px-4 py-3"><SLALabel fechaLimite={pqrs.fecha_limite_sla} /></td>
+                  <td className="px-4 py-3"><SLALabel pqrs={pqrs} /></td>
                   <td className="px-4 py-3"><Badge map={ESTADOS} value={pqrs.estado} /></td>
                   <td className="px-4 py-3">
                     <button className="text-xs text-acento font-semibold hover:underline">

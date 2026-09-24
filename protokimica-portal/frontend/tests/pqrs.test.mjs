@@ -5,6 +5,7 @@ import {
   nombrePrincipal, cambiosDeDatos, datosEditables, aplicaProducto, LIMITES_DATOS,
   LIMITES_RADICACION, MAX_PRODUCTOS, productoVacio, productosParaEnviar, faltaEnProductos,
   AREA_SIN_ASIGNAR, areasParaFiltrar, coincideAreaAsignada,
+  ESTADOS_CON_PLAZO, plazoCorriendo, estadoDelPlazo, estaVencida,
 } from '../src/modules/pqrs/constants.js'
 import { AREAS } from '../src/core/areas.js'
 
@@ -115,6 +116,45 @@ check('más un área retirada que aún aparece en los datos',
   opciones.includes('Área que ya no existe'), opciones)
 check('sin repetir las del catálogo',
   opciones.length === AREAS.length + 1, opciones.length)
+
+console.log('\n== Una PQRS cerrada deja de contar el tiempo ==')
+// El reloj se paraba solo al cerrar, y ni siquiera en todas partes: la lista
+// no miraba el estado, asi que una PQRS cerrada hace meses aparecia hoy
+// «Vencida» para siempre, contra el reloj del calendario.
+const AHORA = new Date('2026-09-24T10:00:00')
+const enDias = (d) => new Date(AHORA.getTime() + d * 24 * 60 * 60 * 1000).toISOString()
+const conPlazo = (estado, dias) => ({ estado, fecha_limite_sla: enDias(dias) })
+
+check('una cerrada con el plazo pasado no esta vencida',
+  estaVencida(conPlazo('cerrado', -30), AHORA) === false)
+check('y no muestra nada en la columna',
+  estadoDelPlazo(conPlazo('cerrado', -30), AHORA) === null)
+check('una resuelta tampoco: la respuesta ya salio',
+  estaVencida(conPlazo('resuelto', -30), AHORA) === false)
+check('una en proceso con el plazo pasado SI esta vencida',
+  estaVencida(conPlazo('en_proceso', -1), AHORA) === true)
+check('y lo dice con palabra, no solo con color',
+  estadoDelPlazo(conPlazo('en_proceso', -1), AHORA).texto === 'Vencida')
+
+console.log('\n== Y lo que si corre se sigue avisando ==')
+check('vence hoy', estadoDelPlazo(conPlazo('recibido', 0), AHORA).texto === 'Vence hoy')
+check('faltando dos dias avisa en ambar',
+  estadoDelPlazo(conPlazo('asignado', 2), AHORA).tono === 'alerta')
+check('con holgura va neutro',
+  estadoDelPlazo(conPlazo('asignado', 9), AHORA).tono === 'neutro')
+check('sin fecha limite no hay plazo que contar',
+  plazoCorriendo({ estado: 'recibido' }) === false)
+check('y sin PQRS no revienta', estadoDelPlazo(undefined, AHORA) === null)
+
+console.log('\n== La regla es la misma que la del servidor ==')
+const PY_PENDIENTES = readFileSync(
+  new URL('../../backend/app/modules/pqrs/pendientes.py', import.meta.url), 'utf8')
+const abiertosPy = [...PY_PENDIENTES
+  .match(/^ESTADOS_ABIERTOS = \(([^)]*)\)/m)[1]
+  .matchAll(/"([a-z_]+)"/g)].map(m => m[1])
+check('los estados con plazo coinciden con pendientes.py',
+  JSON.stringify([...abiertosPy].sort()) === JSON.stringify([...ESTADOS_CON_PLAZO].sort()),
+  { python: abiertosPy, js: ESTADOS_CON_PLAZO })
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

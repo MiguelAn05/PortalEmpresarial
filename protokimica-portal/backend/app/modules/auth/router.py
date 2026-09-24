@@ -15,9 +15,11 @@ from app.core.security import hash_password, verify_password, create_access_toke
 from app.core.deps import get_current_user, get_current_tenant_id, require_role, ROLES_VALIDOS
 from app.core.rate_limit import limitar_login
 from app.core.areas import AREAS
+from app.models.capacidad import CapacidadOtorgada
 from app.models.user import AreaSupervisada, User
 from app.models.tenant import Tenant
 from app.modules.pqrs.permisos import AREA_PUNTOS_DE_VENTA
+from app.modules.auth.rastros import explicar, rastros_de
 from app.modules.auth.schemas import (
     RegisterRequest, LoginRequest, TokenResponse, UserOut,
     UsuarioCreate, UsuarioUpdate, UsuarioOut, CambiarPasswordRequest,
@@ -295,6 +297,37 @@ def actualizar_usuario(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
+    if payload.nombre is not None:
+        nombre = payload.nombre.strip()
+        if not nombre:
+            raise HTTPException(
+                status_code=400,
+                detail="El nombre no puede quedar vacío: es con lo que se le "
+                       "reconoce en las asignaciones y en el historial.",
+            )
+        usuario.nombre = nombre
+
+    if payload.email is not None:
+        email = payload.email.strip().lower()
+        if not email:
+            raise HTTPException(
+                status_code=400, detail="El correo no puede quedar vacío: es con lo que entra.",
+            )
+        validar_dominio_email(email)
+        # Dentro de la misma empresa, claro: dos tenants pueden tener el
+        # mismo correo y eso no es asunto de este admin.
+        repetido = (
+            db.query(User)
+            .filter(User.tenant_id == tenant_id, User.email == email, User.id != usuario.id)
+            .first()
+        )
+        if repetido:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ese correo ya es de {repetido.nombre}. Cada persona entra con el suyo.",
+            )
+        usuario.email = email
+
     if payload.rol is not None:
         if payload.rol not in ROLES_VALIDOS:
             raise HTTPException(
@@ -348,3 +381,52 @@ def actualizar_usuario(
     db.commit()
     db.refresh(usuario)
     return usuario
+
+
+@router.delete("/usuarios/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(require_role("admin")),
+):
+    """
+    Borra un usuario que nunca hizo nada.
+
+    Es para el que se creó con el correo mal escrito, o dos veces, o para
+    alguien que al final no entró. **Uno que ya trabajó no se borra**: su id
+    está escrito en quién aprobó, quién autorizó y quién firmó, y vaciar eso
+    dejaría el historial diciendo «alguien». Ahí se responde 409 diciendo qué
+    tiene y ofreciendo desactivarlo, que es lo que de verdad se necesita
+    cuando una persona se va. Ver `auth/rastros.py`.
+    """
+    usuario = (
+        db.query(User)
+        .filter(User.id == usuario_id, User.tenant_id == tenant_id)
+        .first()
+    )
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    if usuario.id == current_user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="No puedes eliminar tu propia cuenta: te quedarías sin "
+                   "cómo entrar a deshacerlo.",
+        )
+
+    conteos = rastros_de(db, usuario.id)
+    if conteos:
+        raise HTTPException(status_code=409, detail=explicar(usuario.nombre, conteos))
+
+    # Lo único que se va con él es su propia configuración: las áreas que
+    # supervisaba y los permisos que le habían otorgado.
+    db.query(AreaSupervisada).filter(
+        AreaSupervisada.usuario_id == usuario.id
+    ).delete(synchronize_session=False)
+    db.query(CapacidadOtorgada).filter(
+        CapacidadOtorgada.usuario_id == usuario.id
+    ).delete(synchronize_session=False)
+
+    db.delete(usuario)
+    db.commit()

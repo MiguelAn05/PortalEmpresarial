@@ -10,7 +10,7 @@ import {
   IconoEtiqueta, IconoRecargar, IconoRechazo, IconoRecibo, IconoReloj, IconoUsuario,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
-import { nombrePrincipal } from './constants.js'
+import { nombrePrincipal, plazoCorriendo } from './constants.js'
 import { BotonEditar, ModalEditarDatos, PanelAdjuntos } from './EdicionDatos.jsx'
 import { ListaProductos } from './ProductosPQRS.jsx'
 
@@ -74,9 +74,16 @@ function formatFecha(fecha) {
   })
 }
 
-function SLALabel({ fechaLimite, cerrado }) {
-  if (!fechaLimite || cerrado) return null
-  const diff = new Date(fechaLimite) - new Date()
+/**
+ * Recibe la PQRS entera: **el estado es parte de la cuenta.** Con la fecha
+ * sola, una resuelta o una cerrada seguían contra el reloj del calendario y
+ * terminaban diciendo «Vencida hace 180 días» sobre un caso ya atendido.
+ * Quién corre y quién no lo decide `plazoCorriendo()` del `constants.js`,
+ * que es gemelo de la regla del servidor.
+ */
+function SLALabel({ pqrs }) {
+  if (!plazoCorriendo(pqrs)) return null
+  const diff = new Date(pqrs.fecha_limite_sla) - new Date()
   const dias = Math.ceil(diff / (1000 * 60 * 60 * 24))
   // Punto y palabra, no solo color: el rojo no se lee en voz alta.
   const linea = (Icono, clase, texto) => (
@@ -832,7 +839,7 @@ export default function PQRSDetail() {
           <div className="text-right text-sm text-white/70 flex-shrink-0">
             <div>{formatFecha(pqrs.fecha_creacion)}</div>
             <div className="mt-1">
-              <SLALabel fechaLimite={pqrs.fecha_limite_sla} cerrado={pqrs.estado === 'cerrado'} />
+              <SLALabel pqrs={pqrs} />
             </div>
             {/* Área causante — distinta del área que gestiona el caso.
                 Solo de uso interno, para poder sacar reportes de "qué área

@@ -220,3 +220,46 @@ export function coincideAreaAsignada(pqrs, filtro) {
   const area = normalizarArea(pqrs?.area_responsable)
   return filtro === AREA_SIN_ASIGNAR ? !area : area === filtro
 }
+
+/**
+ * Los estados en los que el plazo TODAVÍA corre.
+ *
+ * Gemelo de `ESTADOS_ABIERTOS` de `modules/pqrs/pendientes.py`, y
+ * `tests/pqrs.test.mjs` verifica que coincidan. El servidor ya tenía la
+ * regla bien —los recordatorios de «por vencer» nunca miraron una resuelta
+ * ni una cerrada—; era la pantalla la que seguía contando.
+ */
+export const ESTADOS_CON_PLAZO = ['recibido', 'asignado', 'en_proceso']
+
+/**
+ * ¿Al plazo de esta PQRS todavía le corre el reloj?
+ *
+ * **Una PQRS resuelta o cerrada no vence.** La respuesta ya salió, así que
+ * el plazo dejó de correr el día que se respondió: seguir contra el reloj
+ * del calendario hace que una PQRS cerrada hace medio año aparezca hoy como
+ * «Vencida», que no es cierto y es justo lo que nadie quiere ver en un
+ * listado que se audita.
+ */
+export function plazoCorriendo(pqrs) {
+  return Boolean(pqrs?.fecha_limite_sla) && ESTADOS_CON_PLAZO.includes(pqrs?.estado)
+}
+
+/**
+ * Qué decir en la columna de SLA, o `null` si no hay plazo que contar.
+ *
+ * `ahora` se inyecta para poder probarlo sin depender del reloj.
+ */
+export function estadoDelPlazo(pqrs, ahora = new Date()) {
+  if (!plazoCorriendo(pqrs)) return null
+
+  const dias = Math.ceil((new Date(pqrs.fecha_limite_sla) - ahora) / (1000 * 60 * 60 * 24))
+  if (dias < 0) return { tono: 'negativo', texto: 'Vencida' }
+  if (dias === 0) return { tono: 'negativo', texto: 'Vence hoy' }
+  if (dias <= 2) return { tono: 'alerta', texto: `Vence en ${dias}d` }
+  return { tono: 'neutro', texto: `Vence en ${dias}d` }
+}
+
+/** Para el conteo del encabezado: las que de verdad están vencidas hoy. */
+export function estaVencida(pqrs, ahora = new Date()) {
+  return estadoDelPlazo(pqrs, ahora)?.texto === 'Vencida'
+}

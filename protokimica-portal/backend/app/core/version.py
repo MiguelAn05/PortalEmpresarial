@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.39.0"
-FECHA = "2026-09-23"
+VERSION = "0.40.0"
+FECHA = "2026-09-24"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,47 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.40.0",
+        "fecha": "2026-09-24",
+        "titulo": "Una PQRS cerrada deja de contar el tiempo, y ya se pueden editar y eliminar usuarios",
+        "cambios": [
+            ("correccion", "Una PQRS resuelta o cerrada ya no aparece como "
+                           "«Vencida». El plazo deja de correr cuando se "
+                           "responde: antes seguía contra el calendario, así "
+                           "que un caso cerrado hace meses salía vencido para "
+                           "siempre, también en el inicio y en el conteo de "
+                           "vencidas."),
+            ("correccion", "El seguimiento público ya no le muestra al "
+                           "cliente la fecha límite de respuesta."),
+            ("nuevo", "En Administración › Usuarios ya se corrigen el nombre "
+                      "y el correo de una persona. Antes, un correo mal "
+                      "escrito obligaba a crear otro usuario, y el trabajo "
+                      "ya hecho se quedaba con el equivocado."),
+            ("nuevo", "También se puede eliminar un usuario creado por "
+                      "error. Si la persona ya tiene trabajo en el portal no "
+                      "se elimina: el portal dice qué tiene y ofrece "
+                      "desactivarla, que la deja fuera sin borrar de su "
+                      "historial quién hizo cada cosa."),
+        ],
+    },
+    {
+        "version": "0.39.1",
+        "fecha": "2026-09-24",
+        "titulo": "El seguimiento público ya no le anuncia al cliente que se venció el plazo",
+        "cambios": [
+            ("correccion", "Cuando un cliente consultaba su PQRS con el "
+                           "código de seguimiento y el plazo ya había "
+                           "pasado, el portal le mostraba en rojo que el "
+                           "plazo de respuesta estaba vencido. Ahora le dice "
+                           "que su solicitud está en trámite y que se le "
+                           "responderá por ese mismo medio."),
+            ("mejora", "La fecha límite se sigue mostrando mientras el plazo "
+                       "corre, pero ya no cambia de color según lo cerca que "
+                       "esté: eso era información del trabajo interno que no "
+                       "le aporta nada a quien consulta."),
+        ],
+    },
     {
         "version": "0.39.0",
         "fecha": "2026-09-23",
