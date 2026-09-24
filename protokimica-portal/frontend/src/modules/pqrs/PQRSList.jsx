@@ -11,8 +11,8 @@ import {
 import { mensajeDeError } from '../../core/errores.js'
 import {
   AREA_SIN_ASIGNAR, DEPARTAMENTOS, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES,
-  areasParaFiltrar, coincideAreaAsignada, estaVencida, estadoDelPlazo, faltaEnProductos,
-  nombrePrincipal, productoVacio, productosParaEnviar,
+  areasParaFiltrar, coincideAreaAsignada, contarPorFoco, cumpleFoco, estadoDelPlazo,
+  faltaEnProductos, nombrePrincipal, productoVacio, productosParaEnviar,
 } from './constants.js'
 
 // Un estado se llama y se pinta igual en la lista, en el filtro y en el
@@ -661,6 +661,12 @@ export default function PQRSList() {
   const [modalCrear, setModalCrear]     = useState(false)
   const [seleccionada, setSeleccionada] = useState(null)
 
+  // Cuál tarjeta del encabezado está seleccionada. `null` es «Total», que
+  // no filtra nada. Va aparte de los filtros del panel porque dos de estos
+  // conjuntos no se pueden expresar ahí: «Abiertas» es todo menos cerrado, y
+  // «Vencidas» es una cuenta contra el reloj, no un campo.
+  const [foco, setFoco] = useState(null)
+
   // Filtros adicionales (client-side, sobre lo ya traído del servidor)
   const [panelFiltrosAbierto, setPanelFiltrosAbierto] = useState(false)
   const [filtroFechaDesde, setFiltroFechaDesde]       = useState('')
@@ -694,8 +700,13 @@ export default function PQRSList() {
 
   const areasDisponibles = useMemo(() => areasParaFiltrar(pqrsList), [pqrsList])
 
-  // Búsqueda + filtros adicionales, todo en client-side sobre lo ya traído
-  const pqrsFiltrada = pqrsList.filter((p) => {
+  // Búsqueda + filtros adicionales, todo en client-side sobre lo ya traído.
+  // El foco de las tarjetas NO entra aquí: esta es la base sobre la que se
+  // cuentan, para que la cifra de una tarjeta sea exactamente lo que muestra
+  // al pulsarla. Contándolas sobre la lista completa, filtrar por Guayabal y
+  // pulsar «4 vencidas» daba una sola fila — y el 4 quedaba desmentido por
+  // la pantalla.
+  const base = pqrsList.filter((p) => {
     const q = busqueda.trim().toLowerCase()
     if (q) {
       const coincideBusqueda = [p.codigo_seguimiento, p.radicado_calidad, p.cliente_nombre, p.empresa, p.nit_cedula]
@@ -718,16 +729,14 @@ export default function PQRSList() {
     return true
   })
 
-  // Contadores para las tarjetas de resumen
-  const total    = pqrsList.length
-  const abiertas = pqrsList.filter(p => p.estado !== 'cerrado').length
-  const criticas = pqrsList.filter(p => p.prioridad === 'alta' || p.prioridad === 'critica').length
-  // Misma regla que la columna de SLA: una resuelta o una cerrada no vence.
-  // Antes esto excluía solo las cerradas, así que una PQRS ya respondida
-  // —esperando la confirmación del cliente— seguía contándose como vencida.
-  // Ojo: `filter(estaVencida)` le pasaría el ÍNDICE como segundo argumento,
-  // que aquí es el reloj. Va con lambda a propósito.
-  const vencidas = pqrsList.filter(p => estaVencida(p)).length
+  // Las cifras de las tarjetas salen de las MISMAS funciones que filtran la
+  // lista (`FOCOS` en constants.js). Escritas aparte, el día que una regla
+  // cambie la tarjeta diría un número y la lista mostraría otro.
+  const conteos = contarPorFoco(base)
+
+  // El foco se cruza con los demás filtros, no los reemplaza: «vencidas» y
+  // «de Guayabal» a la vez es una pregunta legítima.
+  const pqrsFiltrada = base.filter(p => cumpleFoco(p, foco))
 
   return (
     <div>
@@ -780,17 +789,28 @@ export default function PQRSList() {
         </div>
       )}
 
-      {/* Tarjetas de resumen — las mismas de Master Planner e Inicio. */}
+      {/* Tarjetas de resumen — las mismas de Master Planner e Inicio, y
+          aquí además filtran: de «hay 4 vencidas» a «estas son». Pulsar la
+          que ya está activa la suelta, que es cómo se vuelve atrás sin
+          buscar dónde se apagó. */}
       <div className="mb-6">
         <TarjetasKPI tarjetas={[
-          { label: 'Total', value: total, nota: `${abiertas} sin cerrar` },
-          { label: 'Abiertas', value: abiertas,
-            nota: abiertas > 0 ? 'esperan respuesta' : 'ninguna pendiente' },
-          { label: 'Alta prioridad', value: criticas,
-            nota: criticas > 0 ? 'atender primero' : 'ninguna' },
-          { label: 'Vencidas SLA', value: vencidas,
-            alerta: vencidas > 0,
-            nota: vencidas > 0 ? 'fuera del plazo de ley' : 'todas dentro del plazo' },
+          { label: 'Total', value: conteos.null,
+            nota: `${conteos.abiertas} sin cerrar`,
+            activa: foco === null, onClick: () => setFoco(null) },
+          { label: 'Abiertas', value: conteos.abiertas,
+            nota: conteos.abiertas > 0 ? 'esperan respuesta' : 'ninguna pendiente',
+            activa: foco === 'abiertas',
+            onClick: () => setFoco(foco === 'abiertas' ? null : 'abiertas') },
+          { label: 'Alta prioridad', value: conteos.prioridad,
+            nota: conteos.prioridad > 0 ? 'atender primero' : 'ninguna',
+            activa: foco === 'prioridad',
+            onClick: () => setFoco(foco === 'prioridad' ? null : 'prioridad') },
+          { label: 'Vencidas SLA', value: conteos.vencidas,
+            alerta: conteos.vencidas > 0,
+            nota: conteos.vencidas > 0 ? 'fuera del plazo de ley' : 'todas dentro del plazo',
+            activa: foco === 'vencidas',
+            onClick: () => setFoco(foco === 'vencidas' ? null : 'vencidas') },
         ]} />
       </div>
 
@@ -816,8 +836,11 @@ export default function PQRSList() {
 
       {/* Filtros */}
       {(() => {
-        const hayFiltrosActivos = filtroEstado || filtroTipo || filtroFechaDesde || filtroFechaHasta || filtroPuntoVenta || filtroAreaAsignada
+        // La tarjeta cuenta como filtro activo: si no, «Limpiar filtros» la
+        // dejaría puesta y la lista seguiría recortada después de limpiar.
+        const hayFiltrosActivos = foco || filtroEstado || filtroTipo || filtroFechaDesde || filtroFechaHasta || filtroPuntoVenta || filtroAreaAsignada
         const limpiarTodo = () => {
+          setFoco(null)
           setFiltroEstado(''); setFiltroTipo('')
           setFiltroFechaDesde(''); setFiltroFechaHasta('')
           setFiltroPuntoVenta(''); setFiltroAreaAsignada('')

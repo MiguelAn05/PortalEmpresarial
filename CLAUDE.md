@@ -705,6 +705,25 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
 - **Toda cifra lleva contexto y `cifra`** (la utilidad de `tabular-nums`). Un
   número sin meta, delta ni estado obliga a preguntar «¿eso es bueno?»: un 0
   de PQRS sin cerrar se acompaña de «Ninguna pendiente» en verde.
+- **Y si la cifra tiene a dónde llevar, lleva.** `TarjetasKPI` acepta
+  `onClick` y `activa`: en PQRS las cuatro del encabezado filtran la lista —
+  de «hay 4 vencidas» a «estas son»—, igual que los KPI de Indicadores.
+  Dos de esos conjuntos **no se podían armar desde el panel de filtros**:
+  «Abiertas» es todo menos cerrado y «Vencidas» es una cuenta contra el
+  plazo, no un campo. Reglas que salieron de hacerlo:
+  - **La cifra y el filtro salen de la misma función** (`FOCOS` y
+    `cumpleFoco` en `pqrs/constants.js`, con prueba que las cruza). Escritas
+    aparte, el día que una condición cambie la tarjeta dice un número y la
+    lista muestra otro, y quien lo note no sabe cuál creer.
+  - **La cifra se cuenta sobre lo que ya está filtrado**, no sobre todo. Con
+    el filtro de Guayabal puesto, una tarjeta que dice 4 y al pulsarla
+    muestra 1 se desmiente sola.
+  - **Pulsar la tarjeta activa la suelta**, y «Limpiar filtros» también la
+    apaga: un recorte que no se sabe cómo quitar se lee como PQRS que
+    faltan.
+  - `onClick` es opcional: sin él se pinta un `<article>` como siempre.
+    Donde la cifra no lleva a ninguna parte, una tarjeta pulsable solo genera
+    la pregunta de qué hace.
 - Profundidad en tres niveles y sin saltárselos: fondo de página (`bg-fondo`)
   → tarjeta (`shadow-sm`) → tarjeta principal o modal (`shadow-md`/`lg`). La
   jerarquía se declara con elevación y tamaño, no pintando cada tarjeta de un

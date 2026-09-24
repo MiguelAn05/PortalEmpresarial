@@ -21,32 +21,55 @@ const COLUMNAS = {
   5: 'md:grid-cols-3 xl:grid-cols-5',
 }
 
+/**
+ * Una tarjeta puede ser solo una cifra o, si trae `onClick`, un filtro.
+ *
+ * Es opcional a propósito: donde la cifra no lleva a ninguna parte —el
+ * resumen de un proyecto, por ejemplo— una tarjeta que se puede pulsar solo
+ * genera la pregunta de qué hace. Sin `onClick` se pinta un `<article>`, sin
+ * cursor de mano y sin foco de teclado, exactamente como antes.
+ */
 export default function TarjetasKPI({ tarjetas }) {
   return (
     <div className={`grid grid-cols-2 gap-4 ${COLUMNAS[tarjetas.length] ?? 'md:grid-cols-4'}`}>
-      {tarjetas.map(({ label, value, nota, alerta }) => (
-        <article
-          key={label}
-          className="bg-superficie rounded-xl border border-borde shadow-sm p-4
-            transition-shadow duration-150 ease-suave hover:shadow-md"
-        >
-          <div className="etiqueta truncate">{label}</div>
-          <div className={`cifra text-[28px] leading-none font-semibold tracking-tight mt-2
-            ${alerta ? 'text-negativo' : 'text-texto'}`}>
-            {value}
-          </div>
-          {nota && (
-            <div className={`flex items-center gap-1.5 text-[11px] mt-2
-              ${alerta ? 'text-negativo font-medium' : 'text-texto-3'}`}>
-              {/* Punto y palabra: el rojo solo no se lee en voz alta. */}
-              {alerta && (
-                <span className="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0" aria-hidden="true" />
-              )}
-              <span className="truncate">{nota}</span>
+      {tarjetas.map(({ label, value, nota, alerta, onClick, activa }) => {
+        const Caja = onClick ? 'button' : 'article'
+        const interactiva = onClick
+          ? 'text-left w-full cursor-pointer hover:border-borde-fuerte'
+          : ''
+        // La tarjeta activa se marca con borde y anillo, no solo con un tono
+        // de fondo: es el estado que dice POR QUÉ la lista de abajo está
+        // recortada, y perderlo de vista deja a alguien creyendo que faltan
+        // PQRS.
+        const marcada = activa ? 'border-acento ring-1 ring-acento' : 'border-borde'
+
+        return (
+          <Caja
+            key={label}
+            onClick={onClick}
+            {...(onClick ? { type: 'button', 'aria-pressed': Boolean(activa) } : {})}
+            className={`bg-superficie rounded-xl border shadow-sm p-4
+              transition-shadow duration-150 ease-suave hover:shadow-md
+              ${marcada} ${interactiva}`}
+          >
+            <div className="etiqueta truncate">{label}</div>
+            <div className={`cifra text-[28px] leading-none font-semibold tracking-tight mt-2
+              ${alerta ? 'text-negativo' : 'text-texto'}`}>
+              {value}
             </div>
-          )}
-        </article>
-      ))}
+            {nota && (
+              <div className={`flex items-center gap-1.5 text-[11px] mt-2
+                ${alerta ? 'text-negativo font-medium' : 'text-texto-3'}`}>
+                {/* Punto y palabra: el rojo solo no se lee en voz alta. */}
+                {alerta && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0" aria-hidden="true" />
+                )}
+                <span className="truncate">{nota}</span>
+              </div>
+            )}
+          </Caja>
+        )
+      })}
     </div>
   )
 }

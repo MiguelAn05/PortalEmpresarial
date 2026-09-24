@@ -6,6 +6,7 @@ import {
   LIMITES_RADICACION, MAX_PRODUCTOS, productoVacio, productosParaEnviar, faltaEnProductos,
   AREA_SIN_ASIGNAR, areasParaFiltrar, coincideAreaAsignada,
   ESTADOS_CON_PLAZO, plazoCorriendo, estadoDelPlazo, estaVencida,
+  FOCOS, cumpleFoco, contarPorFoco,
 } from '../src/modules/pqrs/constants.js'
 import { AREAS } from '../src/core/areas.js'
 
@@ -155,6 +156,40 @@ const abiertosPy = [...PY_PENDIENTES
 check('los estados con plazo coinciden con pendientes.py',
   JSON.stringify([...abiertosPy].sort()) === JSON.stringify([...ESTADOS_CON_PLAZO].sort()),
   { python: abiertosPy, js: ESTADOS_CON_PLAZO })
+
+console.log('\n== Las tarjetas del encabezado filtran ==')
+// Leer «4 vencidas» y no poder llegar a esas cuatro obligaba a ir al panel de
+// filtros a reconstruir a mano la misma condicion. Y dos de estas ni siquiera
+// se podian reconstruir alli: «Abiertas» no es un estado y «Vencidas» no es
+// un campo, es una cuenta contra el reloj.
+const LISTA = [
+  { id: 1, estado: 'cerrado',   prioridad: 'alta',    fecha_limite_sla: enDias(-9) },
+  { id: 2, estado: 'recibido',  prioridad: 'critica', fecha_limite_sla: enDias(-2) },
+  { id: 3, estado: 'en_proceso',prioridad: 'media',   fecha_limite_sla: enDias(5) },
+  { id: 4, estado: 'resuelto',  prioridad: 'baja',    fecha_limite_sla: enDias(-1) },
+]
+const cuenta = contarPorFoco(LISTA, AHORA)
+
+check('Total las cuenta todas', cuenta.null === 4, cuenta)
+check('Abiertas es todo menos cerrado', cuenta.abiertas === 3, cuenta)
+check('Alta prioridad junta alta y critica', cuenta.prioridad === 2, cuenta)
+check('Vencidas no incluye la cerrada ni la resuelta', cuenta.vencidas === 1, cuenta)
+
+console.log('\n== La cifra de la tarjeta es lo que muestra al pulsarla ==')
+// Si el conteo y el filtro se escribieran aparte, el dia que una regla cambie
+// la tarjeta diria un numero y la lista mostraria otro.
+for (const { clave } of FOCOS) {
+  const filtradas = LISTA.filter(p => cumpleFoco(p, clave, AHORA)).length
+  check(`«${clave ?? 'Total'}» cuadra`, filtradas === cuenta[String(clave)],
+    { clave, filtradas, tarjeta: cuenta[String(clave)] })
+}
+
+console.log('\n== Casos limite ==')
+check('sin foco entran todas', cumpleFoco(LISTA[0], null, AHORA) === true)
+check('un foco que no existe no esconde nada',
+  cumpleFoco(LISTA[0], 'inventado', AHORA) === true)
+check('una lista vacia no revienta', contarPorFoco([], AHORA).abiertas === 0)
+check('y sin lista tampoco', contarPorFoco(undefined, AHORA).null === 0)
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

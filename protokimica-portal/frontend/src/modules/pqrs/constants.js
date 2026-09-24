@@ -263,3 +263,61 @@ export function estadoDelPlazo(pqrs, ahora = new Date()) {
 export function estaVencida(pqrs, ahora = new Date()) {
   return estadoDelPlazo(pqrs, ahora)?.texto === 'Vencida'
 }
+
+/**
+ * Las tarjetas del encabezado, que además FILTRAN la lista.
+ *
+ * Existen porque el número solo no sirve: leer «4 vencidas» y no poder
+ * llegar a esas cuatro obliga a ir a los filtros a reconstruir a mano la
+ * misma condición que la tarjeta ya sabe. Y dos de estas ni siquiera se
+ * podían reconstruir: «Abiertas» no es un estado (es todo menos cerrado) y
+ * «Vencidas» no es un campo, es una cuenta contra el reloj.
+ *
+ * **La cifra y el filtro salen de la MISMA función.** Antes cada conteo
+ * estaba escrito suelto arriba de las tarjetas; con la condición repetida en
+ * dos sitios, el día que una cambie la tarjeta va a decir un número y la
+ * lista va a mostrar otro — y quien lo note no va a saber cuál creer.
+ *
+ * `null` (la tarjeta «Total») es no filtrar nada.
+ */
+export const FOCOS = [
+  {
+    clave: null,
+    label: 'Total',
+    cumple: () => true,
+  },
+  {
+    clave: 'abiertas',
+    label: 'Abiertas',
+    cumple: (pqrs) => pqrs?.estado !== 'cerrado',
+  },
+  {
+    clave: 'prioridad',
+    label: 'Alta prioridad',
+    cumple: (pqrs) => ['alta', 'critica'].includes(pqrs?.prioridad),
+  },
+  {
+    clave: 'vencidas',
+    label: 'Vencidas SLA',
+    // La misma regla de la columna de SLA: una resuelta o una cerrada no
+    // vence. Si aquí se escribiera aparte, la tarjeta contaría una cosa y la
+    // columna diría otra sobre la misma PQRS.
+    cumple: (pqrs, ahora) => estaVencida(pqrs, ahora),
+  },
+]
+
+/** ¿Esta PQRS entra en el foco elegido? Sin foco, entran todas. */
+export function cumpleFoco(pqrs, clave, ahora = new Date()) {
+  if (!clave) return true
+  const foco = FOCOS.find(f => f.clave === clave)
+  // Un foco que no existe no esconde nada: mejor mostrar de más que dejar
+  // una lista vacía sin explicación.
+  return foco ? foco.cumple(pqrs, ahora) : true
+}
+
+/** Cuántas hay en cada foco, para las cifras de las tarjetas. */
+export function contarPorFoco(lista, ahora = new Date()) {
+  return Object.fromEntries(
+    FOCOS.map(f => [String(f.clave), (lista || []).filter(p => f.cumple(p, ahora)).length]),
+  )
+}

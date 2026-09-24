@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.41.0"
+VERSION = "0.42.0"
 FECHA = "2026-09-25"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,24 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.42.0",
+        "fecha": "2026-09-25",
+        "titulo": "Las tarjetas de PQRS ya filtran la lista",
+        "cambios": [
+            ("nuevo", "En PQRS, pulsar «Abiertas», «Alta prioridad» o "
+                      "«Vencidas SLA» deja en la lista solo esas. Pulsarla "
+                      "otra vez, o «Total», vuelve a mostrarlas todas."),
+            ("mejora", "«Abiertas» y «Vencidas» no se podían armar desde el "
+                       "panel de filtros: la primera es todo menos cerrado y "
+                       "la segunda es una cuenta contra el plazo, no un "
+                       "campo. Ahora se llega a las dos con un clic."),
+            ("mejora", "La cifra de cada tarjeta ahora respeta los filtros "
+                       "que ya estén puestos, así que el número que muestra "
+                       "es exactamente el de las PQRS que aparecen al "
+                       "pulsarla."),
+        ],
+    },
     {
         "version": "0.41.0",
         "fecha": "2026-09-25",
