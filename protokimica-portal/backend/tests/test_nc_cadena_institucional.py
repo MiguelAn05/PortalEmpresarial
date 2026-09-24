@@ -379,8 +379,11 @@ def test_mi_turno_trae_solo_lo_que_le_toca_a_cada_uno(entorno, v):
 # ── La cadena, sin pasar por la API ──────────────────────────────────────
 
 def test_la_cadena_declara_los_pasos_de_cada_rama(v):
-    v.check("punto de venta: comercial, autorizar y emitir",
-            flujo.cadena(PUNTO) == ("en_comercial", "solicitada", "aprobada"),
+    v.check("punto de venta: Comercial decide y el punto emite",
+            flujo.cadena(PUNTO) == ("en_comercial", "aprobada"),
+            flujo.cadena(PUNTO))
+    v.check("y Contabilidad no tiene turno ahí",
+            "en_contabilidad" not in flujo.cadena(PUNTO) and "solicitada" not in flujo.cadena(PUNTO),
             flujo.cadena(PUNTO))
     v.check("las dos ramas arrancan en Comercial",
             flujo.estado_inicial(PUNTO) == flujo.estado_inicial(INSTITUCIONAL) == "en_comercial",

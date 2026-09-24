@@ -36,13 +36,18 @@ CAPACIDADES = {
     "mejora.validar_sgc":      "Validar la eficacia de una oportunidad de mejora (visto bueno del SGC)",
     "presupuesto.aprobar":     "Aprobar el presupuesto de un proyecto",
     "presupuesto.pagar":       "Registrar el pago de un ítem de presupuesto",
-    "notas_credito.autorizar": "Autorizar o rechazar una solicitud de nota crédito",
+    # `autorizar` ya no atiende ningún turno: era el de Contabilidad en las
+    # del mostrador, y ese paso se quitó (ver `notas_credito/flujo.py`). Hoy
+    # lo que decide es quién ve el módulo COMPLETO, que es lo que Contabilidad
+    # necesita para trabajar las institucionales y para registrar las
+    # emitidas. La clave conserva el nombre viejo a propósito: renombrarla
+    # revocaría el permiso de todo el que lo tiene hoy.
+    "notas_credito.autorizar": "Ver y tramitar todas las notas crédito del portal",
     "notas_credito.registrar": "Registrar el número de la nota crédito ya emitida",
-    # Las tres etapas de la cadena institucional. Van separadas de
-    # `autorizar` porque son tres manos distintas en tres momentos: la bodega
-    # dice si el producto llegó, Comercial si la devolución procede, y
-    # Contabilidad si la factura tiene saldo ante la DIAN. Ver
-    # `modules/notas_credito/flujo.py`.
+    # Las tres etapas de la cadena. Van separadas porque son tres manos
+    # distintas en tres momentos: la bodega dice si el producto llegó,
+    # Comercial si la devolución procede, y Contabilidad si la factura tiene
+    # saldo ante la DIAN. Ver `modules/notas_credito/flujo.py`.
     "notas_credito.confirmar_producto": "Confirmar que el producto devuelto llegó a la bodega",
     "notas_credito.aprobar_comercial":  "Aprobar comercialmente una nota crédito de venta institucional",
     "notas_credito.verificar_dian":     "Verificar ante la DIAN el saldo de la factura de una nota crédito",

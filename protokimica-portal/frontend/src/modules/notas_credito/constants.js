@@ -39,11 +39,10 @@ export const MAX_NUMERO_NC = 60
 // institucional: quien decide si se le devuelve la plata al cliente es
 // Comercial, y eso no cambia con el canal.
 //
-// `solicitada` y `en_contabilidad` se llaman IGUAL a propósito: son dos
-// estados porque son dos permisos distintos (autorizar en la rama del punto
-// de venta, verificar la DIAN en la institucional), pero para quien mira la
-// lista son la misma mano esperando. Nombrarlos distinto hacía parecer que
-// había cinco pasos donde hay cuatro.
+// `solicitada` era el turno en que Contabilidad autorizaba las del
+// mostrador, y ese paso ya no existe: Comercial aprueba y el punto emite.
+// Se queda aquí porque es una etapa del HISTORIAL —las que pasaron por ella
+// lo siguen diciendo— pero ninguna solicitud viva está en ese estado.
 export const ESTADOS = {
   en_bodega:       { label: 'Esperando a la bodega',    color: 'bg-alerta-bg text-alerta' },
   en_comercial:    { label: 'Esperando a Comercial',    color: 'bg-alerta-bg text-alerta' },
@@ -96,7 +95,7 @@ export function clavesDeFiltro() {
 
 /** Las que todavía esperan a alguien. Gemelo de `ESTADOS_ABIERTOS` del modelo. */
 export const ESTADOS_ABIERTOS = [
-  'solicitada', 'en_bodega', 'en_comercial', 'en_contabilidad', 'aprobada', 'devuelta',
+  'en_bodega', 'en_comercial', 'en_contabilidad', 'aprobada', 'devuelta',
 ]
 
 export function estaAbierta(estado) {
@@ -151,11 +150,16 @@ const VERBO_AL_APROBAR = {
   en_bodega: 'confirmó que el producto llegó',
   en_comercial: 'aprobó la nota crédito',
   en_contabilidad: 'verificó ante la DIAN',
+  // Etapa histórica: Contabilidad ya no autoriza las del mostrador, pero las
+  // que autorizó en su día tienen que seguir diciéndolo.
   solicitada: 'autorizó la solicitud',
 }
 
-export function describirPaso({ etapa, accion, usuario_nombre }) {
+export function describirPaso({ etapa, accion, usuario_nombre, comentario }) {
   const quien = usuario_nombre || 'Alguien'
+  // Un paso que el portal se saltó al cambiar el flujo. No lo hizo nadie, así
+  // que no lleva nombre delante: el comentario explica por qué se movió sola.
+  if (accion === 'omitido') return comentario ? 'El portal la movió' : 'Se omitió un paso'
   if (accion === 'creada') return `${quien} radicó la solicitud`
   if (accion === 'aprobar') return `${quien} ${VERBO_AL_APROBAR[etapa] ?? 'aprobó'}`
   if (accion === 'rechazar') return `${quien} la rechazó`

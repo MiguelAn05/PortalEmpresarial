@@ -195,7 +195,7 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
                       placeholder="El cliente compró en la mañana y al recoger se dieron cuenta del error..."
                       className={`${campo} resize-none`} />
             <p className="text-xs text-texto-3 mt-1">
-              Es lo que lee Contabilidad para decidir. Entre más claro, menos idas y vueltas.
+              Es lo que lee Comercial para decidir. Entre más claro, menos idas y vueltas.
             </p>
           </div>
 

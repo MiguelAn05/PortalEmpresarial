@@ -47,7 +47,7 @@ def _solicitud(entorno, punto=GUAYABAL, solicitante=None):
     s = SolicitudNotaCredito(
         tenant_id=entorno.tenant_id, codigo="NC-2026-0001", punto_venta=punto,
         factura_afectada="FV-100", observaciones="Producto devuelto.",
-        solicitado_por=solicitante or entorno.ids["admin"], estado="solicitada",
+        solicitado_por=solicitante or entorno.ids["admin"], estado="en_comercial",
     )
     db.add(s)
     db.commit()

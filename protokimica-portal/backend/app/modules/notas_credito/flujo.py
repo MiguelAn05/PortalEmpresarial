@@ -13,10 +13,9 @@ venta entraban directo a Contabilidad —era el flujo de siempre, de cuando
 esto se pedía por correo—, y el resultado era que Contabilidad terminaba
 decidiendo un asunto comercial.
 
-Lo que cambia entre ramas es QUÉ hace Contabilidad después, y quién sigue:
+Lo que cambia entre ramas es qué pasa DESPUÉS de Comercial:
 
     Punto de venta ──► COMERCIAL aprueba
-                    ──► CONTABILIDAD autoriza
                     ──► el punto emite y registra el número
 
     Ventas Institucionales
@@ -29,12 +28,20 @@ Lo único que agrega el producto es la confirmación de la bodega al principio:
 sin producto no hay nada que confirmar y pedirlo sería una firma que no mira
 nada, de las que la gente aprende a dar sin leer.
 
-**Por qué el turno de Contabilidad en la rama del punto de venta sigue
-llamándose `solicitada`** y no `en_contabilidad`: son dos capacidades
-distintas —autorizar contra verificar ante la DIAN—, y renombrarlo habría
-movido de sitio a todas las solicitudes que ya estaban esperando, además de
-quitarle el permiso a quien lo tiene. Para quien mira la pantalla las dos se
-leen igual («Esperando a Contabilidad»), que es lo que importa.
+**En la rama del mostrador Contabilidad ya no autoriza.** Tenía un turno
+—el estado `solicitada`— entre Comercial y la emisión, y era una firma de
+más: la decisión comercial ya está tomada, el punto emite contra su propia
+factura y no hay nada que verificar ante la DIAN. Dos manos para lo que
+decide una solo agregan el tiempo que la solicitud pasa esperando. En la
+institucional Contabilidad sigue igual, porque ahí sí verifica algo: que la
+factura tenga saldo a favor.
+
+`solicitada` sobrevive como ETAPA DEL HISTORIAL —las que Contabilidad
+autorizó en su día lo siguen diciendo— pero ya no es el estado de ninguna
+solicitud viva ni un turno de nadie. La migración `nc_sin_autorizacion_pdv`
+movió las que estaban ahí: las que Comercial ya había aprobado quedaron
+listas para emitir, y las que no habían pasado por él volvieron a Comercial,
+que es donde el flujo de hoy las habría puesto.
 
 **El estado dice de quién es el turno**, así que avanzar es pasar al
 siguiente estado de la lista. En cada paso caben tres respuestas:
@@ -69,7 +76,6 @@ assert CANAL_INSTITUCIONAL in canales.CANALES, (
 # Qué capacidad hay que tener para atender cada turno. Un estado que no está
 # aquí no es turno de nadie: o es final, o está en manos del solicitante.
 CAPACIDAD_POR_ESTADO = {
-    ESTADO_SOLICITADA:      "notas_credito.autorizar",
     ESTADO_EN_BODEGA:       "notas_credito.confirmar_producto",
     ESTADO_EN_COMERCIAL:    "notas_credito.aprobar_comercial",
     ESTADO_EN_CONTABILIDAD: "notas_credito.verificar_dian",
@@ -79,12 +85,9 @@ CAPACIDAD_POR_ESTADO = {
 # Cómo se nombra cada turno en pantalla y en el asunto de un correo. Sin
 # esto, un estado como «en_contabilidad» llegaría crudo al usuario.
 #
-# `solicitada` y `en_contabilidad` dicen LO MISMO a propósito: son dos
-# estados porque son dos capacidades distintas —autorizar en la rama del
-# punto de venta, verificar ante la DIAN en la institucional—, pero para
-# quien mira la lista son la misma mano esperando. Nombrarlos distinto hacía
-# que la pantalla pareciera tener cinco pasos donde hay cuatro. Lo que cambia
-# entre uno y otro es QUÉ HACER, y eso se dice abajo.
+# `solicitada` sigue aquí aunque ya no sea turno de nadie: es una etapa del
+# historial, y una solicitud que en su día autorizó Contabilidad tiene que
+# poder decir en qué paso fue.
 ETIQUETA_ESTADO = {
     ESTADO_SOLICITADA:      "Esperando a Contabilidad",
     ESTADO_EN_BODEGA:       "Esperando a la bodega",
@@ -97,7 +100,6 @@ ETIQUETA_ESTADO = {
 # la pantalla: un aviso que dice «tienes algo pendiente» sin decir qué hay
 # que hacer se archiva sin abrir.
 QUE_HACER = {
-    ESTADO_SOLICITADA:      "Autoriza o rechaza la solicitud.",
     ESTADO_EN_BODEGA:       "Confirma si el producto llegó a la bodega y en qué estado.",
     ESTADO_EN_COMERCIAL:    "Aprueba o rechaza la nota crédito.",
     ESTADO_EN_CONTABILIDAD: "Verifica ante la DIAN si la factura tiene saldo a favor.",
@@ -126,7 +128,9 @@ GRUPOS_FILTRO: dict[str, tuple[str, ...]] = {
     "abiertas":     (),   # se llena abajo con ESTADOS_ABIERTOS
     "bodega":       (ESTADO_EN_BODEGA,),
     "comercial":    (ESTADO_EN_COMERCIAL,),
-    "contabilidad": (ESTADO_SOLICITADA, ESTADO_EN_CONTABILIDAD),
+    # Solo la rama institucional: en la del mostrador Contabilidad ya no
+    # tiene turno. El grupo se queda porque el turno de la DIAN sigue ahí.
+    "contabilidad": (ESTADO_EN_CONTABILIDAD,),
     "por_emitir":   (ESTADO_APROBADA,),
     "devueltas":    (ESTADO_DEVUELTA,),
     "emitidas":     (ESTADO_APLICADA,),
@@ -161,8 +165,11 @@ def cadena(punto_venta: str | None, requiere_bodega: bool = False) -> tuple[str,
     para emitir. `ESTADO_APROBADA` cierra la lista en las dos ramas: es el
     turno de quien la emite.
     """
+    # El mostrador: Comercial decide y el punto emite. Contabilidad no tiene
+    # turno aquí — no hay nada que verificar ante la DIAN y la decisión
+    # comercial ya está tomada.
     if not es_institucional(punto_venta):
-        return (ESTADO_EN_COMERCIAL, ESTADO_SOLICITADA, ESTADO_APROBADA)
+        return (ESTADO_EN_COMERCIAL, ESTADO_APROBADA)
     if requiere_bodega:
         return (ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)
     return (ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)

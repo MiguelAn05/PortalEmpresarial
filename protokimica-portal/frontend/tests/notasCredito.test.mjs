@@ -82,8 +82,15 @@ check('y no se inventa ninguno',
 
 const abiertosPy = [...PY_MODELO.match(/^ESTADOS_ABIERTOS = \((.*?)\)/ms)[1]
   .matchAll(/ESTADO_([A-Z_]+)/g)].map(m => m[1])
-check('los abiertos son los mismos seis',
-  abiertosPy.length === ESTADOS_ABIERTOS.length, { python: abiertosPy, js: ESTADOS_ABIERTOS })
+// Se comparan los NOMBRES y no solo cuántos son: dos listas del mismo largo
+// pueden decir cosas distintas, que es justo lo que pasa cuando se quita un
+// estado de un lado y se agrega otro del otro.
+const abiertosJs = [...ESTADOS_ABIERTOS].sort()
+check('los abiertos son exactamente los mismos',
+  JSON.stringify(abiertosPy.map(e => e.toLowerCase()).sort()) === JSON.stringify(abiertosJs),
+  { python: abiertosPy, js: ESTADOS_ABIERTOS })
+check('y «solicitada» ya no es uno de ellos: ese turno no existe',
+  !ESTADOS_ABIERTOS.includes('solicitada'), ESTADOS_ABIERTOS)
 check('una devuelta sigue ABIERTA: espera a quien la pidio', estaAbierta('devuelta') === true)
 check('una cancelada no', estaAbierta('cancelada') === false)
 check('una aplicada tampoco', estaAbierta('aplicada') === false)
@@ -115,14 +122,20 @@ check('ni el backend define uno que nadie ofrece',
 check('«Todas» va sin filtro', clavesDeFiltro().includes(''))
 check('y «lo que me toca» lo resuelve el servidor', clavesDeFiltro().includes('mi_turno'))
 
-console.log('\n== Contabilidad es UNA mano, no dos ==')
-// Son dos estados porque son dos permisos distintos, pero para quien mira la
-// lista son lo mismo: la pelota esta en su cancha.
-check('los dos estados se llaman igual',
+console.log('\n== En el mostrador Contabilidad ya no tiene turno ==')
+// Tenia uno —el estado `solicitada`— entre Comercial y la emision, y sobraba:
+// la decision comercial ya estaba tomada y ante la DIAN no hay nada que
+// verificar en una venta de mostrador.
+check('la cadena del mostrador son dos pasos',
+  /if not es_institucional\(punto_venta\):\s*\n\s*return \(ESTADO_EN_COMERCIAL, ESTADO_APROBADA\)/
+    .test(PY_FLUJO))
+check('el filtro de Contabilidad cubre solo el turno de la DIAN',
+  /"contabilidad":\s*\(ESTADO_EN_CONTABILIDAD,\)/.test(PY_FLUJO))
+// `solicitada` sigue teniendo etiqueta: es una etapa del HISTORIAL, y las que
+// paso por ella en su dia tienen que poder decir en que paso fue.
+check('«solicitada» conserva su nombre para el historial',
   etiquetaEstado('solicitada') === etiquetaEstado('en_contabilidad'),
   [etiquetaEstado('solicitada'), etiquetaEstado('en_contabilidad')])
-check('y un solo filtro los cubre',
-  /"contabilidad":\s*\(ESTADO_SOLICITADA, ESTADO_EN_CONTABILIDAD\)/.test(PY_FLUJO))
 check('ninguna etiqueta menciona la DIAN: eso es QUE hacer, no donde esta',
   !Object.values(ESTADOS).some(e => /DIAN/i.test(e.label)))
 

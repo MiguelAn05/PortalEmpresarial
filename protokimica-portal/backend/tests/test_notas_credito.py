@@ -52,12 +52,13 @@ def _dar_capacidad_comercial(portal, area):
 
 def _pasar_comercial(portal, sid):
     """
-    Lleva la solicitud de su primer turno (Comercial) al de Contabilidad.
+    Aprueba el primer turno, el de Comercial.
 
-    TODA nota crédito empieza por Comercial, también las del mostrador, así
-    que una prueba sobre lo que hace Contabilidad tiene que atravesar ese
-    paso antes. Lo aprueba el admin, que puede en cualquier etapa: aquí el
-    objetivo es llegar al turno siguiente, no probar el paso de Comercial
+    En una del MOSTRADOR eso la deja ya lista para emitir: Contabilidad no
+    tiene turno ahí. TODA nota crédito empieza por Comercial, así que una
+    prueba sobre lo que pasa después tiene que atravesar ese paso antes. Lo
+    aprueba el admin, que puede en cualquier etapa: aquí el objetivo es
+    llegar al turno siguiente, no probar el paso de Comercial
     —de eso se encarga test_toda_nota_credito_empieza_por_comercial—.
 
     Deja autenticado al admin: cada prueba dice con como() quién sigue.
@@ -144,21 +145,22 @@ def test_sin_contar_que_paso_no_se_radica(entorno, v):
     r = _radicar(portal, observaciones="   ")
     v.check("no entra", r.status_code == 400, r.status_code)
     v.check("y el mensaje dice para qué sirve",
-            "Contabilidad" in r.json().get("detail", ""), r.json())
+            "Comercial" in r.json().get("detail", ""), r.json())
 
 
 # ── Autorizar ────────────────────────────────────────────────────────────
 
-def test_toda_nota_credito_empieza_por_comercial(entorno, v):
+def test_la_del_mostrador_la_decide_comercial_y_ya(entorno, v):
     """
-    El recorrido completo de una del MOSTRADOR: Comercial aprueba,
-    Contabilidad autoriza, y recién ahí queda lista para emitir.
+    El recorrido completo de una del MOSTRADOR: Comercial aprueba y el punto
+    la emite. Nadie más.
 
-    Antes las del punto de venta entraban directo a Contabilidad —era el
-    flujo heredado del correo—, y el resultado era que Contabilidad decidía
-    un asunto comercial. Quien decide si se le devuelve la plata al cliente
-    es Comercial, y eso no cambia porque la venta se haya hecho en un
-    mostrador.
+    Tuvo dos turnos de más, uno detrás del otro. Primero entraba directo a
+    Contabilidad, y así era Contabilidad la que decidía un asunto comercial.
+    Después pasó a Comercial **y** a Contabilidad, y entonces sobraba la
+    segunda firma: la decisión ya estaba tomada, el punto emite contra su
+    propia factura y ante la DIAN no hay nada que verificar. Dos manos para
+    lo que decide una solo agregan la espera.
     """
     portal = entorno
     _con_area(portal, "tics", "Comercial")
@@ -169,51 +171,71 @@ def test_toda_nota_credito_empieza_por_comercial(entorno, v):
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
 
-    # Contabilidad no puede saltarse a Comercial: no es su turno todavía.
+    # Contabilidad no puede saltarse a Comercial: no es su turno.
     portal.como("calidad")
     r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
     v.check("Contabilidad no se adelanta", r.status_code == 403, r.status_code)
 
     portal.como("tics")
     r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
-    v.check("Comercial aprueba primero", r.status_code == 200, r.text[:250])
-    v.check("y pasa a Contabilidad", r.json()["estado"] == "solicitada", r.json()["estado"])
+    v.check("Comercial aprueba", r.status_code == 200, r.text[:250])
+    v.check("y con eso queda lista para emitir",
+            r.json()["estado"] == "aprobada", r.json()["estado"])
 
+    # Y ya no queda un turno de Contabilidad en el medio.
     portal.como("calidad")
     r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
-    v.check("Contabilidad autoriza después", r.status_code == 200, r.text[:250])
-    v.check("y queda lista para emitir", r.json()["estado"] == "aprobada", r.json()["estado"])
+    v.check("Contabilidad ya no tiene nada que responder", r.status_code == 400, r.status_code)
+    v.check("y el mensaje dice en qué estado está",
+            "emitir" in r.json().get("detail", "").lower(), r.json())
 
 
-def test_solo_contabilidad_autoriza(entorno, v):
+def test_el_punto_de_venta_emite_apenas_comercial_aprueba(entorno, v):
+    """
+    Lo que se ganó: entre la decisión y la emisión no queda nadie esperando.
+    """
     portal = entorno
-    portal.como("logistica")
-    sid = _radicar(portal).json()["id"]
-    _pasar_comercial(portal, sid)   # el turno de Contabilidad empieza aquí
-
-    portal.como("tics")   # líder, pero de otra área
-    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
-    v.check("un líder de otra área no puede", r.status_code in (403, 404), r.status_code)
-
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
     _dar_capacidades_nc(portal)
-    portal.como("calidad")
-    r = portal.post(f"/notas-credito/{sid}/responder",
-                    json={"decision": "aprobar", "comentario": "Va"})
-    v.check("Contabilidad sí", r.status_code == 200, r.text[:250])
-    v.check("queda aprobada", r.json()["estado"] == "aprobada", r.json())
-    v.check("con quién firmó", r.json()["autorizador_nombre"] == "Cali", r.json())
-
-
-def test_un_agente_de_contabilidad_tambien_autoriza(entorno, v):
-    """Manda el área, no el cargo: la analista no es líder y firma igual."""
-    portal = entorno
-    portal.como("tics")
+    portal.como("logistica")
     sid = _radicar(portal).json()["id"]
     _pasar_comercial(portal, sid)
 
-    _con_area(portal, "logistica", AREA_CONTABILIDAD)   # rol agente
-    _dar_capacidades_nc(portal)
+    portal.como("calidad")
+    r = portal.post(f"/notas-credito/{sid}/aplicar", json={"numero_nc": "NC-9911"})
+    v.check("se emite sin pasar por nadie más", r.status_code == 200, r.text[:250])
+    v.check("y queda aplicada", r.json()["estado"] == "aplicada", r.json())
+
+
+def test_solo_quien_tiene_la_capacidad_aprueba(entorno, v):
+    portal = entorno
+    _con_area(portal, "tics", "Comercial")
+    _dar_capacidad_comercial(portal, "Comercial")
+
+    portal.como("logistica")
+    sid = _radicar(portal).json()["id"]
+
+    portal.como("calidad")   # líder, pero de un área sin la capacidad
+    r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
+    v.check("un líder de otra área no puede", r.status_code in (403, 404), r.status_code)
+
+    portal.como("tics")
+    r = portal.post(f"/notas-credito/{sid}/responder",
+                    json={"decision": "aprobar", "comentario": "Va"})
+    v.check("quien tiene la capacidad sí", r.status_code == 200, r.text[:250])
+    v.check("queda aprobada", r.json()["estado"] == "aprobada", r.json())
+    v.check("con quién firmó", r.json()["autorizador_nombre"] == "Tico", r.json())
+
+
+def test_un_agente_del_area_tambien_aprueba(entorno, v):
+    """Manda la capacidad del área, no el cargo: la analista no es líder."""
+    portal = entorno
+    _con_area(portal, "logistica", "Comercial")   # rol agente
+    _dar_capacidad_comercial(portal, "Comercial")
+
+    portal.como("tics")
+    sid = _radicar(portal).json()["id"]
+
     portal.como("logistica")
     r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
     v.check("el agente del área firma", r.status_code == 200, r.text[:250])
@@ -221,11 +243,10 @@ def test_un_agente_de_contabilidad_tambien_autoriza(entorno, v):
 
 def test_no_se_responde_dos_veces(entorno, v):
     portal = entorno
-    _con_area(portal, "calidad", AREA_CONTABILIDAD)
-    _dar_capacidades_nc(portal)
+    _con_area(portal, "calidad", "Comercial")
+    _dar_capacidad_comercial(portal, "Comercial")
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
-    _pasar_comercial(portal, sid)
 
     portal.como("calidad")
     portal.post(f"/notas-credito/{sid}/responder", json={"decision": "rechazar"})
@@ -244,7 +265,6 @@ def test_el_numero_de_la_nc_cierra_el_ciclo(entorno, v):
     _pasar_comercial(portal, sid)
 
     portal.como("calidad")
-    portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
     r = portal.post(f"/notas-credito/{sid}/aplicar", json={"numero_nc": "NC-9911"})
     v.check("se registra", r.status_code == 200, r.text[:250])
     v.check("queda aplicada", r.json()["estado"] == "aplicada", r.json())
@@ -266,17 +286,24 @@ def test_no_se_aplica_lo_que_nadie_aprobo(entorno, v):
     portal.como("calidad")
     r = portal.post(f"/notas-credito/{sid}/aplicar", json={"numero_nc": "NC-9911"})
     v.check("no deja, recién radicada", r.status_code == 400, r.status_code)
-    v.check("y dice en qué estado está",
-            "en_comercial" in r.json().get("detail", ""), r.json())
+    # En palabras y no con el nombre de la columna: «en_comercial» no le dice
+    # nada a quien está intentando registrar el número.
+    v.check("y dice en qué estado está, en español",
+            "Esperando a Coordinación Comercial" in r.json().get("detail", ""), r.json())
 
-    # Tampoco a mitad de camino: que Comercial la haya aprobado no la hace
-    # emitida, y es justo donde queda a una sola firma de parecerlo.
-    _pasar_comercial(portal, sid)
+    # Tampoco a mitad de camino. En la rama institucional, que Comercial la
+    # haya aprobado no la hace emitible: falta la verificación ante la DIAN,
+    # y es justo donde queda a una sola firma de parecer lista.
+    portal.como("logistica")
+    otra = _radicar(portal, punto_venta="Venta institucional").json()["id"]
+    _pasar_comercial(portal, otra)
+
     portal.como("calidad")
-    r = portal.post(f"/notas-credito/{sid}/aplicar", json={"numero_nc": "NC-9911"})
-    v.check("ni con Comercial ya aprobada", r.status_code == 400, r.status_code)
+    r = portal.post(f"/notas-credito/{otra}/aplicar", json={"numero_nc": "NC-9912"})
+    v.check("una institucional con Comercial aprobada todavía no",
+            r.status_code == 400, r.status_code)
     v.check("y también dice dónde está",
-            "solicitada" in r.json().get("detail", ""), r.json())
+            "Esperando a Contabilidad" in r.json().get("detail", ""), r.json())
 
 
 # ── Quién ve qué ─────────────────────────────────────────────────────────
@@ -312,23 +339,29 @@ def test_contabilidad_las_ve_todas(entorno, v):
 def test_el_alcance_dice_la_verdad(entorno, v):
     """El frontend no decide permisos: los pregunta."""
     portal = entorno
+    _con_area(portal, "tics", "Comercial")
+    _dar_capacidad_comercial(portal, "Comercial")
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
     _dar_capacidades_nc(portal)
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
 
     alcance = portal.get(f"/notas-credito/{sid}").json()["alcance"]
-    v.check("quien la pidió no la autoriza", alcance["puede_responder"] is False, alcance)
-
-    _pasar_comercial(portal, sid)
+    v.check("quien la pidió no la aprueba", alcance["puede_responder"] is False, alcance)
 
     portal.como("calidad")
     alcance = portal.get(f"/notas-credito/{sid}").json()["alcance"]
-    v.check("Contabilidad sí", alcance["puede_responder"] is True, alcance)
-    v.check("pero todavía no puede registrar el número",
+    v.check("Contabilidad tampoco: en el mostrador no es su turno",
+            alcance["puede_responder"] is False, alcance)
+
+    portal.como("tics")
+    alcance = portal.get(f"/notas-credito/{sid}").json()["alcance"]
+    v.check("Comercial sí", alcance["puede_responder"] is True, alcance)
+    v.check("pero todavía no se registra el número",
             alcance["puede_aplicar"] is False, alcance)
 
     portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
+    portal.como("calidad")
     alcance = portal.get(f"/notas-credito/{sid}").json()["alcance"]
     v.check("aprobada: ya no se vuelve a firmar",
             alcance["puede_responder"] is False, alcance)
@@ -383,17 +416,26 @@ def test_la_ruta_de_motivos_no_se_la_come_el_id(entorno, v):
 
 # ── A quién se le avisa ──────────────────────────────────────────────────
 
-def test_el_primer_aviso_va_a_comercial_con_contabilidad_en_copia(entorno, v):
+def _primer_aviso(portal, sid):
+    from app.modules.notas_credito.notificaciones import avisos_en_turno
+
+    db = portal.Session()
+    solicitud = db.get(SolicitudNotaCredito, sid)
+    avisos = avisos_en_turno(db, portal.tenant_id, solicitud)
+    db.close()
+    return avisos
+
+
+def test_el_primer_aviso_va_a_comercial(entorno, v):
     """
     Sin esto habríamos cambiado un correo que funciona por una pantalla que
     nadie mira.
 
-    El primer turno es de Comercial, así que el primer correo es suyo.
-    Contabilidad va en COPIA: no decide todavía, pero puede ir mirando la
-    factura en vez de empezar a averiguarla cuando le llegue el turno.
+    El primer turno es de Comercial, así que el primer correo es suyo. Y en
+    una del MOSTRADOR Contabilidad ya no va en copia: no le toca después, así
+    que sería un correo sobre algo en lo que no tiene que hacer nada — que es
+    como se aprende a no abrirlos.
     """
-    from app.modules.notas_credito.notificaciones import avisos_en_turno
-
     portal = entorno
     _con_area(portal, "tics", "Comercial")
     _dar_capacidad_comercial(portal, "Comercial")
@@ -402,21 +444,44 @@ def test_el_primer_aviso_va_a_comercial_con_contabilidad_en_copia(entorno, v):
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
 
-    db = portal.Session()
-    solicitud = db.get(SolicitudNotaCredito, sid)
-    avisos = avisos_en_turno(db, portal.tenant_id, solicitud)
-    db.close()
-
+    avisos = _primer_aviso(portal, sid)
     v.check("se arma un aviso", len(avisos) == 1, avisos)
     evento, payload = avisos[0]
     v.check("por el evento del turno", evento == "nc-en-turno", evento)
     v.check("le llega a Comercial",
             payload["destinatarios"] == ["tics@p.com"], payload["destinatarios"])
-    v.check("y Contabilidad va en copia",
-            "calidad@p.com" in payload["en_copia"], payload["en_copia"])
+    v.check("y Contabilidad NO va en copia",
+            "calidad@p.com" not in payload["en_copia"], payload["en_copia"])
     v.check("dice de qué factura es",
             payload["factura_afectada"] == "POS#141824", payload)
     v.check("y qué tiene que hacer quien lo recibe", bool(payload["que_hacer"]), payload)
+
+
+def test_en_la_institucional_contabilidad_sigue_yendo_en_copia(entorno, v):
+    """
+    Ahí sí le toca después —verificar ante la DIAN—, así que puede ir mirando
+    la factura en vez de empezar a averiguarla cuando le llegue el turno. La
+    copia sale de la CADENA, no de una lista escrita a mano: por eso una rama
+    la lleva y la otra no, sin que nadie tenga que acordarse.
+    """
+    portal = entorno
+    _con_area(portal, "tics", "Comercial")
+    _dar_capacidad_comercial(portal, "Comercial")
+    _con_area(portal, "calidad", AREA_CONTABILIDAD)
+    _dar_capacidades_nc(portal)
+    db = portal.Session()
+    otorgar_a_area(db, portal.tenant_id, "notas_credito.verificar_dian",
+                   AREA_CONTABILIDAD, portal.ids["admin"])
+    db.close()
+
+    portal.como("logistica")
+    sid = _radicar(portal, punto_venta="Venta institucional").json()["id"]
+
+    _, payload = _primer_aviso(portal, sid)[0]
+    v.check("le llega a Comercial",
+            payload["destinatarios"] == ["tics@p.com"], payload["destinatarios"])
+    v.check("y Contabilidad va en copia",
+            "calidad@p.com" in payload["en_copia"], payload["en_copia"])
 
 
 def test_despues_de_comercial_el_aviso_es_de_contabilidad(entorno, v):
@@ -549,43 +614,39 @@ def test_el_soporte_no_viaja_como_enlace(entorno, v):
 
 # ── El caso real que motivó la migración ──────────────────────────────────
 
-def test_una_segunda_area_autoriza_sin_quitarle_nada_a_contabilidad(entorno, v):
+def test_una_segunda_area_aprueba_sin_quitarle_nada_a_la_primera(entorno, v):
     """
-    Aseguramiento también tramita notas crédito, no solo Contabilidad — el
-    caso real que hizo migrar este módulo al sistema de capacidades. Se
-    otorga por la MISMA API que usaría un administrador desde Administración
-    › Capacidades, y de ahí en adelante es el flujo real de autorizar:
+    Aseguramiento también tramita notas crédito, no solo el área que ya tenía
+    la capacidad — el caso real que hizo migrar este módulo al sistema de
+    capacidades. Se otorga por la MISMA API que usaría un administrador desde
+    Administración › Capacidades, y de ahí en adelante es el flujo real:
     endpoint /responder, no una llamada directa a una función de permisos.
     """
     from app.core.capacidades import otorgar_a_area
 
     portal = entorno
-    # Contabilidad ya tenía la capacidad —en producción, por la migración de
-    # datos que sembró el estado base; aquí, con el mismo helper que usa el
-    # resto del archivo—. Aseguramiento la recibe AHORA, con una persona ya
-    # trabajando en el portal, sin tocar código ni desplegar nada.
-    _dar_capacidades_nc(portal)
+    _con_area(portal, "calidad", "Comercial")
+    _dar_capacidad_comercial(portal, "Comercial")
 
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
-    _pasar_comercial(portal, sid)
 
+    # Aseguramiento la recibe AHORA, con gente ya trabajando en el portal,
+    # sin tocar código ni desplegar nada.
     _con_area(portal, "tics", "Aseguramiento")
     db = portal.Session()
-    otorgar_a_area(db, portal.tenant_id, "notas_credito.autorizar",
+    otorgar_a_area(db, portal.tenant_id, "notas_credito.aprobar_comercial",
                    "Aseguramiento", portal.ids["admin"])
     db.close()
 
     portal.como("tics")
     r = portal.post(f"/notas-credito/{sid}/responder", json={"decision": "aprobar"})
-    v.check("Aseguramiento autoriza", r.status_code == 200, r.text[:250])
+    v.check("Aseguramiento aprueba", r.status_code == 200, r.text[:250])
 
-    # Y Contabilidad conserva su capacidad intacta: otorgar a una segunda
-    # área no le quitó nada a la primera.
+    # Y la primera área conserva su capacidad intacta: otorgar a una segunda
+    # no le quitó nada.
     portal.como("logistica")
     sid2 = _radicar(portal).json()["id"]
-    _pasar_comercial(portal, sid2)
-    _con_area(portal, "calidad", AREA_CONTABILIDAD)
     portal.como("calidad")
     r = portal.post(f"/notas-credito/{sid2}/responder", json={"decision": "aprobar"})
-    v.check("Contabilidad sigue autorizando", r.status_code == 200, r.text[:250])
+    v.check("Comercial sigue aprobando", r.status_code == 200, r.text[:250])

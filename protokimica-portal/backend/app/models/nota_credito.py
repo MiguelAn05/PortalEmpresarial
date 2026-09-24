@@ -38,6 +38,12 @@ from app.core.database import Base
 
 # Los estados por los que pasa una solicitud. Se declaran aquí para que el
 # router, el servicio y las pruebas miren el mismo sitio.
+#
+# `solicitada` es una ETAPA HISTÓRICA: era el turno en que Contabilidad
+# autorizaba las del mostrador, un paso que ya no existe (ver
+# `notas_credito/flujo.py`). No está en `ESTADOS` porque ninguna solicitud
+# viva puede estar ahí, pero la constante se queda: `nc_historial` guarda esa
+# etapa en las que sí pasaron por ella, y el historial es lo que se audita.
 ESTADO_SOLICITADA = "solicitada"
 ESTADO_APROBADA = "aprobada"
 ESTADO_RECHAZADA = "rechazada"
@@ -73,7 +79,7 @@ ESTADO_DEVUELTA = "devuelta"
 ESTADO_CANCELADA = "cancelada"
 
 ESTADOS = (
-    ESTADO_SOLICITADA, ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL,
+    ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL,
     ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA, ESTADO_DEVUELTA,
     ESTADO_RECHAZADA, ESTADO_APLICADA, ESTADO_CANCELADA,
 )
@@ -82,7 +88,7 @@ ESTADOS = (
 # Una devuelta SÍ está abierta — está esperando a que el solicitante la
 # corrija, que es trabajo pendiente como cualquier otro.
 ESTADOS_ABIERTOS = (
-    ESTADO_SOLICITADA, ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL,
+    ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL,
     ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA, ESTADO_DEVUELTA,
 )
 
@@ -170,7 +176,10 @@ class SolicitudNotaCredito(Base):
     adjunto = Column(String(255), nullable=True)
 
     solicitado_por = Column(Integer, ForeignKey("users.id"), nullable=False)
-    estado = Column(String(20), nullable=False, default=ESTADO_SOLICITADA)
+    # Toda solicitud empieza por Comercial, venga del mostrador o de una
+    # venta institucional. El router lo pone explícito con
+    # `flujo.estado_inicial()`; esto es solo el respaldo del modelo.
+    estado = Column(String(20), nullable=False, default=ESTADO_EN_COMERCIAL)
 
     # La firma que la dejó lista para emitir: Contabilidad en la rama del
     # punto de venta, y la verificación ante la DIAN en la institucional. Es

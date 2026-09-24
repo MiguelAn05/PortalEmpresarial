@@ -13,11 +13,17 @@ Contabilidad sigue teniendo las dos capacidades por defecto — eso lo dejó
 sembrado la migración `d81f6a4c92e3`, no este archivo — así que para el caso
 de todos los días nada cambió.
 
-Autorizar (aprobar/rechazar) y registrar el número ya emitido son DOS
-capacidades separadas (`notas_credito.autorizar` y `notas_credito.registrar`)
-aunque hoy las tenga la misma gente: un administrador podría, por ejemplo,
-darle a alguien solo el registro sin dejarlo aprobar montos. Antes una sola
-función cubría las dos acciones, así que no había manera de separarlas.
+`notas_credito.autorizar` **ya no atiende ningún turno de la cadena.** Era el
+de Contabilidad en las del mostrador, y ese paso se quitó: Comercial aprueba
+y el punto emite. Lo que la capacidad sigue decidiendo es quién ve el módulo
+COMPLETO (`ve_todas`), que es lo que Contabilidad necesita para trabajar las
+institucionales. Se le dejó el nombre viejo porque renombrarla le quitaría el
+permiso a todo el que hoy lo tiene, por nada a cambio.
+
+Quién aprueba cada etapa son capacidades aparte —`aprobar_comercial`,
+`confirmar_producto`, `verificar_dian`— y `registrar` es la de escribir el
+número ya emitido: un administrador puede dar solo esa, sin dejar a nadie
+aprobar montos.
 
 Servicio al Cliente NO participa. Esto es un trámite entre el punto de venta
 y quien tenga la capacidad; meterlos sería darles una bandeja más que
@@ -49,9 +55,9 @@ assert all(c in CAPACIDADES for c in CAPACIDADES_DEL_MODULO), (
 )
 
 
-def puede_autorizar(db: Session, usuario: User) -> bool:
-    """Aprobar o rechazar una solicitud."""
-    return tiene(db, usuario, CAP_AUTORIZAR)
+# `puede_autorizar()` se retiró con el turno que comprobaba. Quién aprueba un
+# paso lo decide `puede_atender()`, contra la capacidad de la etapa en la que
+# está la solicitud; `CAP_AUTORIZAR` solo abre el módulo entero (`ve_todas`).
 
 
 def puede_registrar(db: Session, usuario: User) -> bool:

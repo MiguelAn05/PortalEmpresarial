@@ -143,7 +143,7 @@ async def crear_solicitud(
     if not observaciones:
         raise HTTPException(
             status_code=400,
-            detail="Cuenta qué pasó: es lo que necesita Contabilidad para autorizar.",
+            detail="Cuenta qué pasó: es lo que necesita Comercial para aprobarla.",
         )
     if len(factura_afectada) > MAX_FACTURA:
         raise HTTPException(status_code=400, detail=f"La factura no puede pasar de {MAX_FACTURA} caracteres.")
@@ -558,9 +558,11 @@ def aplicar_solicitud(
     if solicitud.estado != ESTADO_APROBADA:
         raise HTTPException(
             status_code=400,
+            # En palabras, no con el nombre de la columna: «en_comercial» no
+            # le dice nada a quien está tratando de registrar un número.
             detail=(
                 "Solo se registra el número de una solicitud aprobada. Esta "
-                f"está '{solicitud.estado}'."
+                f"está '{flujo.etiqueta(solicitud.estado)}'."
             ),
         )
 

@@ -909,7 +909,7 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
 
   | Quién pide | Recorrido |
   |---|---|
-  | Un punto de venta | Comercial aprueba → Contabilidad autoriza → el punto emite |
+  | Un punto de venta | Comercial aprueba → el punto emite |
   | Ventas Institucionales | Comercial aprueba → Contabilidad verifica en la DIAN → se emite |
   | Ventas Institucionales, motivo con producto | **La bodega confirma que llegó** y después lo anterior |
 
@@ -919,11 +919,35 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   se le devuelve la plata al cliente es Comercial, y eso no cambia porque la
   venta se haya hecho en un mostrador.
 
-  El turno de Contabilidad en la rama del mostrador **se sigue llamando
-  `solicitada`** y no `en_contabilidad`: son dos capacidades distintas
-  (`autorizar` contra `verificar_dian`), y renombrarlo habría movido de sitio
-  a las solicitudes que ya estaban esperando y le habría quitado el permiso a
-  quien lo tiene. En pantalla las dos se leen igual.
+  **En el mostrador Contabilidad ya no autoriza.** Tuvo un turno —el estado
+  `solicitada`— entre Comercial y la emisión, y era una firma de más: la
+  decisión comercial ya está tomada, el punto emite contra su propia factura
+  y ante la DIAN no hay nada que verificar. Dos manos para lo que decide una
+  solo agregan el tiempo que la solicitud pasa esperando. En la institucional
+  Contabilidad sigue igual, porque ahí sí verifica algo.
+
+  `solicitada` sobrevive como **etapa del historial** —las que autorizó en su
+  día lo siguen diciendo— pero no es el estado de ninguna solicitud viva: no
+  está en `ESTADOS` ni en ningún grupo de filtro. La migración
+  `c4d81e73ab20` movió las que estaban ahí, y **no todas significaban lo
+  mismo**: las que Comercial ya había aprobado quedaron `aprobada`, y las que
+  nunca pasaron por él —del flujo viejo, cuando una del mostrador nacía
+  directo en Contabilidad— volvieron a `en_comercial`. Darlas todas por
+  aprobadas habría aprobado en silencio algo que nadie miró. La diferencia se
+  lee de `nc_historial`, no se adivina, y cada solicitud movida dejó ahí su
+  renglón: una que ayer decía «Esperando a Contabilidad» y hoy dice
+  «Aprobada» sin explicación se lee como que alguien la firmó a escondidas.
+
+  Consecuencia que sale sola de que la copia salga de la CADENA: cuando una
+  del mostrador llega a Comercial, **Contabilidad ya no va en copia** — no le
+  toca después, así que sería un correo sobre algo en lo que no tiene nada
+  que hacer. En la institucional sigue yendo.
+
+  `notas_credito.autorizar` **ya no atiende ningún turno**. Se dejó la
+  capacidad porque es la que decide quién ve el módulo COMPLETO (`ve_todas`),
+  que es lo que Contabilidad necesita para trabajar las institucionales;
+  conserva el nombre viejo porque renombrarla le quitaría el permiso a todo
+  el que hoy lo tiene, por nada a cambio.
 
   **Comercial ve las dos ramas**, justamente porque abre las dos: mientras
   solo intervenía en las institucionales se le escondían las del mostrador, y
@@ -934,9 +958,8 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
 
   **El estado dice de quién es el turno** (`en_bodega`, `en_comercial`,
   `en_contabilidad`…) y no hay un campo `etapa` aparte: dos columnas que
-  describen lo mismo terminan diciendo cosas distintas. Los cuatro estados
-  viejos significan lo mismo que antes, así que las solicitudes que ya
-  existían no se movieron de sitio.
+  describen lo mismo terminan diciendo cosas distintas. Por eso quitar un
+  paso del flujo es mover solicitudes, y eso va con migración de datos.
 
   **Un solo endpoint mueve toda la cadena** (`POST /{id}/responder` con
   `aprobar` | `rechazar` | `devolver`). Con uno por etapa, aprobar «por
