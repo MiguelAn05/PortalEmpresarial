@@ -17,6 +17,7 @@
  *
  * Es una vista de LECTURA: registrar y editar siguen viviendo en el tablero.
  */
+import { useState } from 'react'
 import { IconoAlerta, IconoCerrar, IconoReloj } from '../../../core/components/Iconos.jsx'
 import { SEMAFOROS, coincideBusqueda, formatValor } from '../constants'
 
@@ -54,7 +55,7 @@ export default function ComoVamos({
           movimientos={movimientos.filter(m => coincideBusqueda(m, busqueda))}
           onVer={onVerIndicador}
         />
-        <PorArea areas={porArea} />
+        <PorArea areas={porArea} onVer={onVerIndicador} />
       </div>
     </div>
   )
@@ -267,7 +268,124 @@ function Chip({ estado, empeoro }) {
  * Las áreas sin un solo dato se muestran con la barra vacía en vez de
  * esconderse: que un área no haya reportado nada es información.
  */
-function PorArea({ areas }) {
+// El orden en que se dibujan los pedazos de la barra, con su color.
+const PEDAZOS = [
+  ['verde', 'bg-positivo-vivo'],
+  ['amarillo', 'bg-ambar'],
+  ['rojo', 'bg-negativo-vivo'],
+]
+
+/**
+ * Qué hay dentro de un pedazo de la barra: el porcentaje y quiénes son.
+ *
+ * Una barra dice que a Logística le faltan tres, y lo siguiente que uno
+ * quiere es saber CUÁLES y entrar a verlos. Antes había que salir a buscarlos
+ * al tablero filtrando por área y por estado, que son dos pasos y una
+ * pantalla distinta para responder algo que ya está en la barra.
+ *
+ * El porcentaje llega del servidor (`pct`): el número que se ve aquí tiene
+ * que ser el mismo del reporte, redondeado una sola vez y en un solo sitio.
+ */
+function DetalleDelPedazo({ estado, pct, indicadores, juzgados, onVer }) {
+  return (
+    <div
+      role="tooltip"
+      className="absolute left-0 right-0 top-full mt-1.5 z-20 rounded-xl border border-borde
+        bg-superficie shadow-md p-3 text-left"
+    >
+      <div className="flex items-baseline gap-2 mb-2">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-texto">
+          <i className={`inline-block w-2.5 h-2.5 rounded-sm ${
+            PEDAZOS.find(([e]) => e === estado)[1]
+          }`} aria-hidden="true" />
+          {SEMAFOROS[estado].label}
+        </span>
+        <span className="cifra text-xs text-texto-2">
+          {indicadores.length} de {juzgados}
+          {pct !== null && pct !== undefined && ` · ${pct}%`}
+        </span>
+      </div>
+
+      <ul className="space-y-0.5 max-h-44 overflow-y-auto">
+        {indicadores.map(ind => (
+          <li key={ind.id}>
+            <button
+              onClick={() => onVer?.(ind.id)}
+              className="w-full text-left px-2 py-1 rounded-md text-xs text-texto
+                hover:bg-superficie-2 transition-colors duration-150"
+            >
+              {ind.nombre}
+              {ind.responsable_nombre && (
+                <span className="block text-[11px] text-texto-3">{ind.responsable_nombre}</span>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function BarraDeArea({ area, onVer }) {
+  // Cuál pedazo se está mirando. Se abre al pasar el cursor y también con el
+  // teclado: si solo respondiera al mouse, esto no existiría para quien
+  // navega tabulando.
+  const [abierto, setAbierto] = useState(null)
+
+  const juzgados = area.verde + area.amarillo + area.rojo
+  const parte = (n) => (juzgados ? (n / juzgados) * 100 : 0)
+  const indicadoresDe = (estado) => area.indicadores?.[estado] ?? []
+
+  return (
+    <div className="grid grid-cols-[7.5rem_1fr_2.75rem] items-center gap-3 px-5 py-1.5">
+      <span className="text-xs text-texto-2 text-right truncate" title={area.area}>
+        {area.area}
+      </span>
+
+      {/* El cierre va en el contenedor que envuelve barra Y panel: así el
+          cursor puede bajar hasta la lista sin que se cierre en el camino. */}
+      <span
+        className="relative"
+        onMouseLeave={() => setAbierto(null)}
+      >
+        <span className="h-[18px] rounded-md bg-superficie-2 overflow-hidden flex">
+          {PEDAZOS.map(([estado, fondo]) => (
+            area[estado] > 0 && (
+              <button
+                key={estado}
+                type="button"
+                style={{ width: `${parte(area[estado])}%` }}
+                onMouseEnter={() => setAbierto(estado)}
+                onFocus={() => setAbierto(estado)}
+                onClick={() => setAbierto(abierto === estado ? null : estado)}
+                aria-label={`${area[estado]} ${SEMAFOROS[estado].label} en ${area.area}`}
+                className={`h-full ${fondo} focus:outline-none focus-visible:brightness-75`}
+              />
+            )
+          ))}
+        </span>
+
+        {abierto && (
+          <DetalleDelPedazo
+            estado={abierto}
+            pct={area.pct?.[abierto]}
+            indicadores={indicadoresDe(abierto)}
+            juzgados={juzgados}
+            onVer={onVer}
+          />
+        )}
+      </span>
+
+      <span className={`text-xs text-right cifra ${
+        area.cumplimiento_pct === null ? 'text-texto-3' : 'font-semibold text-texto'
+      }`}>
+        {area.cumplimiento_pct === null ? '—' : `${Math.round(area.cumplimiento_pct)}%`}
+      </span>
+    </div>
+  )
+}
+
+function PorArea({ areas, onVer }) {
   if (areas.length === 0) {
     return (
       <section className="bg-superficie rounded-xl border border-borde shadow-sm p-5">
@@ -286,38 +404,18 @@ function PorArea({ areas }) {
       <header className="px-5 py-3.5 border-b border-borde">
         <h2 className="text-sm font-semibold text-texto">Cumplimiento por área</h2>
         <p className="text-xs text-texto-3 mt-0.5">
-          Las áreas con algo en rojo van primero.
+          Las áreas con algo en rojo van primero. Pasa el cursor por un pedazo
+          para ver cuáles son y abrirlos.
         </p>
       </header>
 
       <div className="py-2">
-        {areas.map(a => {
-          const juzgados = a.verde + a.amarillo + a.rojo
-          const parte = (n) => (juzgados ? (n / juzgados) * 100 : 0)
-          return (
-            <div key={a.area}
-                 className="grid grid-cols-[7.5rem_1fr_2.75rem] items-center gap-3 px-5 py-1.5">
-              <span className="text-xs text-texto-2 text-right truncate" title={a.area}>
-                {a.area}
-              </span>
-              <span className="h-[18px] rounded-md bg-superficie-2 overflow-hidden flex">
-                <i className="h-full bg-positivo-vivo" style={{ width: `${parte(a.verde)}%` }} />
-                <i className="h-full bg-ambar" style={{ width: `${parte(a.amarillo)}%` }} />
-                <i className="h-full bg-negativo-vivo" style={{ width: `${parte(a.rojo)}%` }} />
-              </span>
-              <span className={`text-xs text-right cifra ${
-                a.cumplimiento_pct === null ? 'text-texto-3' : 'font-semibold text-texto'
-              }`}>
-                {a.cumplimiento_pct === null ? '—' : `${Math.round(a.cumplimiento_pct)}%`}
-              </span>
-            </div>
-          )
-        })}
+        {areas.map(a => <BarraDeArea key={a.area} area={a} onVer={onVer} />)}
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 px-5 py-3 border-t border-borde
                       text-[11px] text-texto-3">
-        {[['verde', 'bg-positivo-vivo'], ['amarillo', 'bg-ambar'], ['rojo', 'bg-negativo-vivo']].map(
+        {PEDAZOS.map(
           ([estado, fondo]) => (
             <span key={estado} className="inline-flex items-center gap-1.5">
               <i className={`inline-block w-2.5 h-2.5 rounded-sm ${fondo}`} aria-hidden="true" />

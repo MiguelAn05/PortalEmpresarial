@@ -183,6 +183,69 @@ def test_las_areas_con_algo_en_rojo_van_primero(entorno, v):
             areas.index("Comercial") < areas.index("Calidad"), datos["por_area"])
 
 
+def test_cada_pedazo_de_la_barra_dice_cuales_son(entorno, v):
+    """
+    La barra por área dice cuántos hay de cada color; al pasar el cursor
+    tiene que decir CUÁLES, para entrar a verlos sin salir a buscarlos al
+    tablero filtrando por área y por estado.
+    """
+    portal = entorno
+    A, M = 2026, 7
+    _medir(portal, _crear(portal, "Ventas del plan", "Comercial"), A, M, 95)     # verde
+    _medir(portal, _crear(portal, "Visitas cumplidas", "Comercial"), A, M, 80)   # amarillo
+    _medir(portal, _crear(portal, "Cartera al día", "Comercial"), A, M, 40)      # rojo
+
+    datos = portal.get("/indicadores/como-vamos", params={"anio": A, "mes": M}).json()
+    comercial = next(a for a in datos["por_area"] if a["area"] == "Comercial")
+
+    rojos = comercial["indicadores"]["rojo"]
+    v.check("el pedazo rojo trae su indicador", len(rojos) == 1, comercial["indicadores"])
+    v.check("con nombre", rojos[0]["nombre"] == "Cartera al día", rojos[0])
+    v.check("y con id, para poder abrirlo", isinstance(rojos[0].get("id"), int), rojos[0])
+    v.check("y dice de quién es, que es la pregunta del cierre de mes",
+            "responsable_nombre" in rojos[0], rojos[0])
+
+    v.check("los tres colores suman los juzgados",
+            sum(len(comercial["indicadores"][e]) for e in ("verde", "amarillo", "rojo")) == 3,
+            comercial["indicadores"])
+
+
+def test_el_porcentaje_del_pedazo_lo_calcula_el_servidor(entorno, v):
+    """
+    Para que el número del tooltip sea el mismo del reporte: redondeado una
+    sola vez y en un solo sitio. Restarlo o dividirlo en la pantalla es la
+    clase de cuenta que un día deja de coincidir.
+    """
+    portal = entorno
+    A, M = 2026, 7
+    for nombre, valor in (("Uno", 95), ("Dos", 95), ("Tres", 95), ("Cuatro", 40)):
+        _medir(portal, _crear(portal, nombre, "Comercial"), A, M, valor)
+
+    datos = portal.get("/indicadores/como-vamos", params={"anio": A, "mes": M}).json()
+    comercial = next(a for a in datos["por_area"] if a["area"] == "Comercial")
+
+    v.check("tres de cuatro en verde es 75%", comercial["pct"]["verde"] == 75.0, comercial["pct"])
+    v.check("y uno en rojo, 25%", comercial["pct"]["rojo"] == 25.0, comercial["pct"])
+    v.check("sin amarillos, 0 y no nulo", comercial["pct"]["amarillo"] == 0.0, comercial["pct"])
+
+
+def test_un_area_sin_nada_medido_no_inventa_porcentajes(entorno, v):
+    """Sin nada juzgado no hay barra: un 0% diría «todo mal»."""
+    portal = entorno
+    A, M = 2026, 7
+    _crear(portal, "Sin medir todavía", "Comercial")
+
+    datos = portal.get("/indicadores/como-vamos", params={"anio": A, "mes": M}).json()
+    comercial = next(a for a in datos["por_area"] if a["area"] == "Comercial")
+
+    v.check("el cumplimiento es nulo", comercial["cumplimiento_pct"] is None, comercial)
+    v.check("y los porcentajes también",
+            all(comercial["pct"][e] is None for e in ("verde", "amarillo", "rojo")),
+            comercial["pct"])
+    v.check("pero el indicador sí aparece en «sin datos»",
+            len(comercial["indicadores"]["sin_datos"]) == 1, comercial["indicadores"])
+
+
 # ── El alcance lo manda el rol ───────────────────────────────────────────
 
 def test_gerencia_ve_toda_la_empresa(entorno, v):

@@ -443,6 +443,27 @@ califica: **se miden los hechos que deja la gestión.** La regla vive en
 - Las fuentes automáticas pueden ser **por área** (`"por_area": True` en el
   `CATALOGO` de `indicadores/fuentes.py`): reciben el área del indicador, y
   crear o editar uno sin área responde 400.
+- Y pueden **aceptar área** (`"acepta_area": True`), que es más suave: si el
+  indicador tiene área, el cálculo se acota a ella; si no, mide toda la
+  empresa, que es lo que quiere un indicador de gerencia. Lo usan las cuatro
+  fuentes del Master Planner. **Antes no miraban el área**, así que «Avance
+  promedio de proyectos» puesto en tres áreas mostraba el mismo número en las
+  tres — un indicador que da igual de quién sea no mide a nadie. Cómo se
+  acota depende de lo que mide, y la diferencia importa: lo que se PROMEDIA
+  (avance, cumplimiento de fechas) usa `condicion_area` e incluye los
+  proyectos donde el área participa; lo que se SUMA o se cuenta (presupuesto,
+  proyectos cerrados) se atribuye solo al área responsable, o sumar las áreas
+  daría más plata y más proyectos de los que hay.
+
+**La barra de «Cumplimiento por área» dice cuáles son, no solo cuántos.** Al
+pasar el cursor por un pedazo sale su porcentaje y la lista de esos
+indicadores con su responsable, y cada uno se abre con un clic. Antes había
+que salir al tablero a filtrar por área y por estado para responder algo que
+ya estaba dibujado en la barra. Las listas y **el porcentaje de cada pedazo
+llegan del servidor** (`indicadores` y `pct` en cada fila de `por_area`):
+el número que se ve al pasar el cursor tiene que ser el mismo del reporte,
+redondeado una sola vez. El porcentaje va sobre los JUZGADOS —los «sin datos»
+no tienen pedazo—, o los del tooltip no sumarían lo que se ve.
 
 
 **Áreas supervisadas: el jefe ve hacia abajo, el equipo no hacia arriba.**

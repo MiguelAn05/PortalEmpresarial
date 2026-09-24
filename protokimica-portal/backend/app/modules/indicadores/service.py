@@ -467,17 +467,42 @@ def construir_tablero(db: Session, tenant_id: int, anio: int, mes: int,
     ]
 
     # Por área, para la comparación lado a lado.
+    #
+    # Cada fila lleva también QUIÉNES son los de cada color, no solo cuántos:
+    # una barra dice que a Logística le faltan tres, y lo primero que uno
+    # quiere es saber cuáles y entrar a verlos. Sin esto había que salir a
+    # buscarlos a mano en el tablero, filtrando por área y por estado.
+    #
+    # El porcentaje de cada pedazo lo calcula el servidor por lo mismo que
+    # todo lo demás: el número que se ve al pasar el cursor tiene que ser el
+    # mismo que saldría en un reporte, redondeado igual y una sola vez.
     por_area: dict[str, dict] = {}
     for f in fichas:
         clave = f["area"] or "Sin área"
         fila = por_area.setdefault(clave, {
             "area": clave, "total": 0, "verde": 0, "amarillo": 0, "rojo": 0, "sin_datos": 0,
+            "indicadores": {"verde": [], "amarillo": [], "rojo": [], "sin_datos": []},
+            "pct": {},
         })
         fila["total"] += 1
         fila[f["semaforo"]] += 1
+        fila["indicadores"][f["semaforo"]].append({
+            "id": f["id"],
+            "nombre": f["nombre"],
+            # La pregunta del cierre de mes es «qué le falta a Hoover», así
+            # que el nombre del responsable viaja con el indicador.
+            "responsable_nombre": f["responsable_nombre"],
+        })
     for fila in por_area.values():
         juzgados = fila["verde"] + fila["amarillo"] + fila["rojo"]
         fila["cumplimiento_pct"] = round((fila["verde"] / juzgados) * 100, 1) if juzgados else None
+        # Sobre los JUZGADOS, que es sobre lo que está dibujada la barra: los
+        # «sin datos» no tienen pedazo, y meterlos en el denominador haría
+        # que los porcentajes del tooltip no sumaran lo que se ve.
+        fila["pct"] = {
+            estado: (round((fila[estado] / juzgados) * 100, 1) if juzgados else None)
+            for estado in ("verde", "amarillo", "rojo")
+        }
 
     return {
         "anio": anio,

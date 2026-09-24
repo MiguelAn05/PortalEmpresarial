@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.40.0"
-FECHA = "2026-09-24"
+VERSION = "0.41.0"
+FECHA = "2026-09-25"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,28 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.41.0",
+        "fecha": "2026-09-25",
+        "titulo": "La barra por área ya dice cuáles son, y los indicadores de proyectos miden por área",
+        "cambios": [
+            ("nuevo", "En «Cómo vamos», al pasar el cursor por un pedazo de "
+                      "la barra de un área sale qué porcentaje es y la lista "
+                      "de esos indicadores, con su responsable. Cada uno se "
+                      "abre con un clic, sin ir a buscarlo al tablero."),
+            ("correccion", "«Avance promedio de proyectos» estaba "
+                           "promediando los proyectos de toda la empresa, "
+                           "así que el mismo indicador puesto en tres áreas "
+                           "mostraba el mismo número. Ahora cada área mide "
+                           "los proyectos que lidera y aquellos en los que "
+                           "participa."),
+            ("correccion", "Lo mismo para «Cumplimiento de fechas», "
+                           "«Ejecución presupuestal» y «Proyectos cerrados». "
+                           "El presupuesto y el conteo de cerrados se le "
+                           "cuentan solo al área responsable, para que sumar "
+                           "las áreas no dé más de lo que hay."),
+        ],
+    },
     {
         "version": "0.40.0",
         "fecha": "2026-09-24",
