@@ -1,5 +1,18 @@
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# Topes con gemelo en `frontend/src/modules/masterPlanner/constants.js`, y
+# una prueba que los ata. Un límite que solo existe aquí devuelve un 422 en
+# la cara de quien ya escribió el texto.
+#
+# El entregable es una frase —«el informe firmado»—, no el detalle de la
+# tarea: para eso está la descripción. 300 es el mismo tope que usa el resto
+# del portal para una línea de texto.
+MAX_ENTREGABLE = 300
+# Un tope alto pero finito: 2.000 horas es un año de trabajo de una persona.
+# Sin él, un dedo de más convierte «8» en «800» y la carga de la semana de
+# alguien queda diciendo cualquier cosa.
+MAX_HORAS = 2000
 
 
 # ── Proyecto ────────────────────────────────────────────────────
@@ -155,6 +168,10 @@ class TareaCreate(BaseModel):
     asignado_a: int | None = None
     prioridad: str = "media"
     riesgos: str | None = None
+    # Qué tiene que quedar hecho. Se pide aquí, al crear: escrito después se
+    # escribe para justificar lo que ya se hizo.
+    entregable: str | None = Field(default=None, max_length=MAX_ENTREGABLE)
+    horas_estimadas: float | None = Field(default=None, ge=0, le=MAX_HORAS)
     fecha_inicio: datetime | None = None
     fecha_fin: datetime | None = None
 
@@ -175,6 +192,8 @@ class TareaUpdate(BaseModel):
     estado: str | None = None
     prioridad: str | None = None
     riesgos: str | None = None
+    entregable: str | None = Field(default=None, max_length=MAX_ENTREGABLE)
+    horas_estimadas: float | None = Field(default=None, ge=0, le=MAX_HORAS)
     fecha_inicio: datetime | None = None
     fecha_fin: datetime | None = None
 
@@ -214,9 +233,15 @@ class TareaOut(BaseModel):
     prioridad: str
     avance_pct: int
     riesgos: str | None
+    entregable: str | None = None
+    horas_estimadas: float | None = None
     fecha_inicio: datetime | None
     fecha_fin: datetime | None
     fecha_completada: datetime | None = None
+    # Cuántas veces se movió la fecha de entrega. Lo cuenta el modelo desde el
+    # historial (`Tarea.veces_aplazada`), no el router: hay siete endpoints
+    # que devuelven tareas y el octavo habría devuelto cero sin fallar.
+    veces_aplazada: int = 0
     creado_en: datetime
     subtareas: list[SubtareaOut] = []
     total_subtareas: int = 0
@@ -259,6 +284,22 @@ class UsuarioAsignableOut(BaseModel):
 
 # ── Actualización de tarea (línea de tiempo) ───────────────────
 
+class RespuestaActualizacionOut(BaseModel):
+    """
+    Una respuesta a un avance. Plana a propósito: no lleva `respuestas`
+    dentro, porque el servidor solo admite un nivel. Si el schema dejara
+    anidar, la pantalla tendría que saber dibujar algo que nunca va a llegar.
+    """
+    id: int
+    usuario_id: int | None
+    usuario_nombre: str | None = None
+    comentario: str | None
+    fecha: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class TareaActualizacionOut(BaseModel):
     id: int
     usuario_id: int | None
@@ -267,6 +308,23 @@ class TareaActualizacionOut(BaseModel):
     avance_pct_nuevo: int | None
     adjunto_evidencia: str | None
     fecha: datetime
+    # Las respuestas viajan DENTRO del avance que contestan, no como entradas
+    # sueltas de la lista: es lo que las hace legibles — se ve a qué
+    # contestan sin tener que cruzar fechas a ojo.
+    respuestas: list[RespuestaActualizacionOut] = []
 
     class Config:
         from_attributes = True
+
+
+class RespuestaActualizacionCrear(BaseModel):
+    """
+    Lo único que lleva una respuesta: el texto.
+
+    No reusa el schema del avance a propósito. Ahí van `avance_pct_nuevo` y la
+    evidencia, y una respuesta no mueve el avance ni adjunta nada — dejar esos
+    campos aceptaría una petición que después nadie sabría explicar, y la
+    pantalla tendría que mandar valores inventados para que el servidor la
+    aceptara.
+    """
+    comentario: str | None = None

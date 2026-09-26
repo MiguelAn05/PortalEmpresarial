@@ -108,6 +108,14 @@ export const listarActualizaciones = (tareaId) =>
 export const agregarActualizacion = (tareaId, formData) =>
   api.post(`/master-planner/tareas/${tareaId}/actualizaciones`, formData).then(r => r.data)
 
+// Responderle a un avance. Va con JSON y no con FormData porque una respuesta
+// es solo texto: no mueve el avance ni adjunta evidencia.
+export const responderActualizacion = (tareaId, actualizacionId, comentario) =>
+  api.post(
+    `/master-planner/tareas/${tareaId}/actualizaciones/${actualizacionId}/respuestas`,
+    { comentario },
+  ).then(r => r.data)
+
 // ── Usuarios asignables ──────────────────────────────────────
 export const listarUsuariosAsignables = () =>
   api.get('/master-planner/usuarios-asignables').then(r => r.data)

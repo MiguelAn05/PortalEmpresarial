@@ -22,6 +22,10 @@ CAMPOS_PROYECTO = {
 CAMPOS_TAREA = {
     "titulo", "estado", "prioridad", "area", "asignado_a", "avance_pct",
     "fecha_inicio", "fecha_fin",
+    # Cambiar el entregable es mover la portería: lo que se iba a entregar no
+    # es lo que se entregó, y eso tiene que quedar dicho con sus dos valores.
+    # Las horas van por lo mismo: replanear el esfuerzo es una decisión.
+    "entregable", "horas_estimadas",
 }
 
 # Campos de texto largo: solo se registra que se modificaron.

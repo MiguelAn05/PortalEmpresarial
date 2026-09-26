@@ -305,6 +305,37 @@ no les da permiso de editarlos. Ver `modules/master_planner/permisos.py`.
 Los pagos se guardan uno por uno (`mp_pagos`) y `valor_pagado` es su suma —
 nunca un campo aparte que se edite en paralelo.
 
+**Master Planner — una tarea se sigue con cuatro cosas**, que llegaron de
+observaciones de quien usa el módulo:
+
+- **El entregable (`mp_tareas.entregable`) se pide al CREARLA.** Es el
+  criterio con el que se da por cumplida: «avance del 60%» no dice nada, «el
+  informe firmado» sí, y es lo que permite que otra persona verifique sin
+  preguntar. Escrito al final se escribe para justificar lo que ya se hizo.
+  Cambiarlo es **mover la portería**, así que va al historial con sus dos
+  valores y la pantalla lo confirma como el título o las fechas.
+- **Las horas (`horas_estimadas`) son la ESTIMACIÓN de quien planea**, no lo
+  ejecutado: sirven para ver si a alguien le cabe en la semana lo que tiene
+  asignado. `Numeric` porque media hora existe, y con tope (`MAX_HORAS`)
+  porque un dedo de más convierte «8» en «800». Vacío es «no se sabe», nunca
+  cero: un 0 diría que la tarea no cuesta nada.
+- **Responder un avance** (`mp_tarea_actualizaciones.parent_id`, un solo
+  nivel). Antes, preguntar «¿esto incluye la revisión de Calidad?» obligaba a
+  escribir OTRO avance y el historial quedaba con conversación mezclada sin
+  decir a cuál contestaba. Las respuestas viajan DENTRO del avance que
+  contestan y la lista solo devuelve los de primer nivel — devolverlas
+  también sueltas las mostraría dos veces, una sin contexto. Va con
+  `puede_comentar` y no con `solo_lectura_no`: **gerencia sí pregunta**, que
+  es el caso que lo motivó — quien lee el avance y necesita una aclaración es
+  justamente quien no mueve el avance.
+- **Cuántas veces se movió la fecha** (`Tarea.veces_aplazada`), como en los
+  proyectos. Sale del HISTORIAL, no de un contador que alguien tenga que
+  acordarse de incrementar, y va como `column_property` porque **hay siete
+  endpoints que devuelven tareas**: calculado en el router, el octavo
+  devolvería cero sin que nada falle. Solo cuenta los movimientos de verdad
+  (`valor_anterior` no nulo): poner la fecha por primera vez no es aplazar
+  nada — misma regla que `_replanificaciones()` de `resumen.py`.
+
 **Oportunidades de Mejora (OMP)** las manejan los **líderes de área**, que son
 quienes responden por que un indicador vuelva a su meta. Gerencia queda fuera
 del módulo a propósito: el avance se le reporta, no se le deja como un tablero

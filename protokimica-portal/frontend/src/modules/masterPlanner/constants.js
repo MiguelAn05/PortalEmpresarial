@@ -414,3 +414,33 @@ export function perteneceAlArea(proyecto, area) {
   if (proyecto?.area === area) return true
   return (proyecto?.areas_participantes || []).includes(area)
 }
+
+// Topes de los campos de una tarea, atados a `master_planner/schemas.py`
+// (`MAX_ENTREGABLE` y `MAX_HORAS`), con prueba que los verifica. Un límite
+// que solo vive en el servidor devuelve un 422 en la cara de quien ya
+// escribió el texto.
+export const MAX_ENTREGABLE = 300
+export const MAX_HORAS = 2000
+
+/**
+ * Cómo se lee «cuántas veces se movió la fecha» de una tarea.
+ *
+ * Un número suelto no dice nada: `2` al lado de una fecha se lee como el día
+ * 2. Y el caso normal —nunca se movió— no merece adorno: devolver texto vacío
+ * hace que la pantalla no pinte nada en vez de pintar un «0 aplazamientos»
+ * que solo agrega ruido a las tareas que van bien.
+ */
+export function textoAplazamientos(veces) {
+  if (!veces) return null
+  return veces === 1 ? 'Aplazada 1 vez' : `Aplazada ${veces} veces`
+}
+
+/** Las horas, escritas como se leen: «8 h», «2,5 h», o nada si no hay. */
+export function textoHoras(horas) {
+  if (horas === null || horas === undefined || horas === '') return null
+  const n = Number(horas)
+  if (Number.isNaN(n)) return null
+  // Sin decimales cuando son enteras: «8 h» y no «8,0 h».
+  const texto = Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',')
+  return `${texto} h`
+}

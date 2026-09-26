@@ -1,14 +1,15 @@
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { crearTarea } from "../api"
-import { AREAS, PRIORIDADES, datetimeLocalAIso } from "../constants"
+import { AREAS, MAX_ENTREGABLE, MAX_HORAS, PRIORIDADES, datetimeLocalAIso } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { tieneDatos } from "../../../core/components/tieneDatos"
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 
 const VACIO = {
   titulo: "", descripcion: "", area: "", asignado_a: "",
-  prioridad: "media", riesgos: "", fecha_inicio: "", fecha_fin: "",
+  prioridad: "media", riesgos: "", entregable: "", horas_estimadas: "",
+  fecha_inicio: "", fecha_fin: "",
 }
 
 export default function TareaFormModal({ proyectos = [], usuarios = [], proyectoIdInicial = null, onClose }) {
@@ -26,6 +27,8 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], proyecto
     mutationFn: () => crearTarea(proyectoId, {
       ...form,
       asignado_a: form.asignado_a ? Number(form.asignado_a) : null,
+      // Vacío es «no sé cuántas», no cero: un 0 diría que no cuesta nada.
+      horas_estimadas: form.horas_estimadas === "" ? null : Number(form.horas_estimadas),
       fecha_inicio: datetimeLocalAIso(form.fecha_inicio),
       fecha_fin: datetimeLocalAIso(form.fecha_fin),
     }),
@@ -92,11 +95,46 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], proyecto
                 </div>
               </div>
 
+              {/* El entregable se pide AL CREAR, no después: escrito al
+                  final se escribe para justificar lo que ya se hizo. Es la
+                  diferencia entre «avance del 60%» y «el informe firmado»,
+                  que es lo que otra persona puede verificar sin preguntar. */}
               <div>
-                <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Prioridad</label>
-                <select value={form.prioridad} onChange={set('prioridad')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
-                  {Object.entries(PRIORIDADES).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
-                </select>
+                <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
+                  Entregable
+                </label>
+                <input
+                  value={form.entregable} onChange={set('entregable')}
+                  maxLength={MAX_ENTREGABLE}
+                  placeholder="Qué tiene que quedar hecho. Ej: el informe de migración firmado"
+                  className="w-full rounded-lg border border-borde px-3 py-2 text-sm"
+                />
+                <p className="text-xs text-texto-3 mt-1">
+                  Con qué se sabe que la tarea está cumplida, sin tener que preguntar.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Prioridad</label>
+                  <select value={form.prioridad} onChange={set('prioridad')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
+                    {Object.entries(PRIORIDADES).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
+                    Horas estimadas
+                  </label>
+                  <input
+                    type="number" min="0" max={MAX_HORAS} step="0.5"
+                    value={form.horas_estimadas} onChange={set('horas_estimadas')}
+                    placeholder="Ej: 8"
+                    className="w-full rounded-lg border border-borde px-3 py-2 text-sm cifra"
+                  />
+                  <p className="text-xs text-texto-3 mt-1">
+                    Cuántas se le va a dedicar.
+                  </p>
+                </div>
               </div>
 
               {/* Fecha y hora: la hora es lo que permite ubicar la tarea en el

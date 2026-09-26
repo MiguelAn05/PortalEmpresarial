@@ -9,8 +9,9 @@ import { calcularCambios } from "../cambiosFormulario"
 import { useAuth } from "../../../core/AuthContext"
 import {
   obtenerTarea, listarActualizaciones, agregarActualizacion, actualizarTarea,
-  eliminarTarea, listarHistorialTarea,
+  eliminarTarea, listarHistorialTarea, responderActualizacion,
 } from "../api"
+import { mensajeDeError } from "../../../core/errores.js"
 import {
   IconoAlerta, IconoCerrar, IconoClip,
 } from '../../../core/components/Iconos.jsx'
@@ -18,7 +19,8 @@ import {
   ESTADOS_TAREA, PRIORIDADES, AREAS, ALERTAS,
   alertaVencimiento, colorAvance, formatFecha, formatFechaHora,
   isoADatetimeLocal, datetimeLocalAIso,
-  puedeEditar, puedeReportarAvance,
+  puedeEditar, puedeReportarAvance, puedeComentar,
+  MAX_ENTREGABLE, MAX_HORAS, textoAplazamientos, textoHoras,
 } from "../constants"
 
 // Qué campos del formulario se confirman antes de guardar y cómo leer su
@@ -32,6 +34,83 @@ const CAMPOS_CONFIRMABLES = {
 }
 
 /**
+ * Las respuestas a un avance, y la caja para escribir una más.
+ *
+ * Preguntar «¿esto incluye la revisión de Calidad?» sobre un avance obligaba
+ * a escribir OTRO avance: el historial quedaba con entradas que no eran
+ * avances sino conversación, mezcladas y sin decir a cuál contestaban.
+ *
+ * La caja aparece al pulsar «Responder» y no siempre abierta: con diez
+ * avances en pantalla, diez cajas de texto convierten la línea de tiempo en
+ * un formulario.
+ */
+function Respuestas({ avance, puedeResponder, onResponder, guardando }) {
+  const [abierta, setAbierta] = useState(false)
+  const [texto, setTexto] = useState("")
+
+  const enviar = () => {
+    const limpio = texto.trim()
+    if (!limpio) return
+    onResponder(limpio, () => { setTexto(""); setAbierta(false) })
+  }
+
+  return (
+    <div className="mt-2">
+      {avance.respuestas?.length > 0 && (
+        <ul className="space-y-2 border-l-2 border-borde pl-3 ml-1 mb-2">
+          {avance.respuestas.map(r => (
+            <li key={r.id}>
+              <div className="flex items-center justify-between">
+                <Avatar name={r.usuario_nombre} compact />
+                <span className="text-[11px] text-texto-3">
+                  {formatFecha(r.fecha, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              {r.comentario && <p className="text-sm text-texto">{r.comentario}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {puedeResponder && !abierta && (
+        <button
+          onClick={() => setAbierta(true)}
+          className="text-[11px] font-semibold text-acento hover:underline"
+        >
+          Responder
+        </button>
+      )}
+
+      {abierta && (
+        <div className="space-y-2">
+          <textarea
+            value={texto} onChange={(e) => setTexto(e.target.value)} rows={2} autoFocus
+            placeholder="Pregunta o aclaración sobre este avance"
+            className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={enviar}
+              disabled={!texto.trim() || guardando}
+              className="px-3 py-1.5 rounded-lg bg-acento hover:bg-acento-fuerte
+                disabled:opacity-40 text-white text-xs font-semibold transition"
+            >
+              {guardando ? 'Enviando…' : 'Responder'}
+            </button>
+            <button
+              onClick={() => { setTexto(""); setAbierta(false) }}
+              className="px-3 py-1.5 rounded-lg border border-borde text-xs font-semibold text-texto-2"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * Detalle de una TAREA. Relee la tarea del servidor por su id en vez de
  * arrastrar la copia que venía del listado: así los cambios hechos aquí
  * (estado, asignado, subtareas) se reflejan sin depender de que el listado
@@ -42,6 +121,10 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
   const { user } = useAuth()
   const editable = puedeEditar(user)
   const puedeAvance = puedeReportarAvance(user)
+  // Responder es comentar, no editar: **gerencia sí pregunta.** Es el caso
+  // que motivó esto — quien lee el avance y necesita una aclaración es
+  // justamente quien no mueve el avance.
+  const puedeResponder = puedeComentar(user)
   const [confirmacion, setConfirmacion] = useState(null) // { cambios, ejecutar }
   const [pidiendoDescarte, setPidiendoDescarte] = useState(false)
   // `form` distinto de null es el modo edición. Se llena al pulsar "Editar
@@ -72,6 +155,10 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
     descripcion: tarea.descripcion || "",
     area: tarea.area || "",
     riesgos: tarea.riesgos || "",
+    entregable: tarea.entregable || "",
+    // Vacío y no 0: el input tiene que poder quedar en blanco para volver a
+    // «no se sabe», y un 0 diría que la tarea no cuesta nada.
+    horas_estimadas: tarea.horas_estimadas ?? "",
     prioridad: tarea.prioridad,
     fecha_inicio: isoADatetimeLocal(tarea.fecha_inicio),
     fecha_fin: isoADatetimeLocal(tarea.fecha_fin),
@@ -106,6 +193,7 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
   const mutGuardarEdicion = useMutation({
     mutationFn: () => actualizarTarea(tareaId, {
       ...form,
+      horas_estimadas: form.horas_estimadas === "" ? null : Number(form.horas_estimadas),
       fecha_inicio: datetimeLocalAIso(form.fecha_inicio),
       fecha_fin: datetimeLocalAIso(form.fecha_fin),
     }),
@@ -117,6 +205,10 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
         ...CAMPOS_CONFIRMABLES,
         descripcion: (t) => t.descripcion || "",
         riesgos: (t) => t.riesgos || "",
+        // Cambiar el entregable es mover la portería, así que se confirma
+        // como el título y las fechas, no en silencio.
+        entregable: (t) => t.entregable || "",
+        horas_estimadas: (t) => (t.horas_estimadas ?? "").toString(),
       })
     : []
 
@@ -152,6 +244,15 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
       invalidar()
       setComentario(""); setAvanceNuevo(""); setEvidencia(null)
     },
+  })
+
+  const mutResponder = useMutation({
+    mutationFn: ({ actualizacionId, comentario }) =>
+      responderActualizacion(tareaId, actualizacionId, comentario),
+    onSuccess: () => queryClient.invalidateQueries({
+      queryKey: ["mp-actualizaciones", tareaId],
+    }),
+    onError: (err) => alert(mensajeDeError(err, 'No se pudo enviar la respuesta.')),
   })
 
   const mutEliminar = useMutation({
@@ -244,6 +345,18 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                     )}
                   </div>
                   {tarea.descripcion && <p className="text-sm text-texto">{tarea.descripcion}</p>}
+
+                  {/* El entregable va arriba y destacado: es el criterio con
+                      el que se da por cumplida, no un dato más de la ficha. */}
+                  {tarea.entregable && (
+                    <div className="bg-white border border-borde rounded-lg px-3 py-2">
+                      <span className="block text-[11px] font-semibold text-texto-3 uppercase tracking-wide">
+                        Entregable
+                      </span>
+                      <span className="text-sm text-texto">{tarea.entregable}</span>
+                    </div>
+                  )}
+
                   {tarea.riesgos && (
                     <p className="text-sm text-negativo bg-negativo-bg border border-negativo/25 rounded-lg px-3 py-2">
                       <IconoAlerta tam={14} className="inline mr-1 -mt-0.5" />{tarea.riesgos}
@@ -253,6 +366,30 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                     <span>Inicio: {formatFechaHora(tarea.fecha_inicio)}</span>
                     <span className={alerta ? ALERTAS[alerta].texto : ''}>Fin: {formatFechaHora(tarea.fecha_fin)}</span>
                   </div>
+
+                  {/* Las horas y los aplazamientos, juntos: son las dos
+                      preguntas sobre el plan —cuánto cuesta y cuántas veces
+                      se ha corrido—. Cada uno se esconde si no aplica: un
+                      «0 aplazamientos» solo agrega ruido a lo que va bien. */}
+                  {(textoHoras(tarea.horas_estimadas) || textoAplazamientos(tarea.veces_aplazada)) && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs pt-1">
+                      {textoHoras(tarea.horas_estimadas) && (
+                        <span className="text-texto-2">
+                          <span className="cifra">{textoHoras(tarea.horas_estimadas)}</span> estimadas
+                        </span>
+                      )}
+                      {/* Punto y palabra: el ámbar solo no se lee en voz alta. */}
+                      {textoAplazamientos(tarea.veces_aplazada) && (
+                        <span
+                          className="inline-flex items-center gap-1.5 font-semibold text-alerta"
+                          title="Cada movimiento de la fecha de fin queda en el historial, con sus dos fechas y quién lo hizo"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" />
+                          {textoAplazamientos(tarea.veces_aplazada)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="bg-superficie-2 rounded-xl p-4 space-y-3">
@@ -262,6 +399,24 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                     rows={2} className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none" placeholder="Descripción" />
                   <textarea value={form.riesgos} onChange={(e) => setForm({ ...form, riesgos: e.target.value })}
                     rows={2} className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none" placeholder="Riesgos" />
+                  <div>
+                    <label className="block text-[11px] font-semibold text-texto-2 uppercase mb-1">
+                      Entregable
+                    </label>
+                    <input value={form.entregable} maxLength={MAX_ENTREGABLE}
+                      onChange={(e) => setForm({ ...form, entregable: e.target.value })}
+                      placeholder="Qué tiene que quedar hecho"
+                      className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-texto-2 uppercase mb-1">
+                      Horas estimadas
+                    </label>
+                    <input type="number" min="0" max={MAX_HORAS} step="0.5"
+                      value={form.horas_estimadas}
+                      onChange={(e) => setForm({ ...form, horas_estimadas: e.target.value })}
+                      className="w-full rounded-lg border border-borde px-3 py-2 text-sm cifra" />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <select value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} className="rounded-lg border border-borde px-3 py-2 text-sm">
                       <option value="">Área</option>
@@ -367,6 +522,16 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                           </a>
                         )
                       )}
+
+                      <Respuestas
+                        avance={act}
+                        puedeResponder={puedeResponder}
+                        guardando={mutResponder.isPending}
+                        onResponder={(texto, listo) => mutResponder.mutate(
+                          { actualizacionId: act.id, comentario: texto },
+                          { onSuccess: listo },
+                        )}
+                      />
                     </div>
                   ))}
                 </div>

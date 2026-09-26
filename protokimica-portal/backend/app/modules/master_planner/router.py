@@ -24,7 +24,8 @@ from app.modules.master_planner.schemas import (
     ItemPresupuestoCreate, ItemPresupuestoUpdate, ItemPresupuestoOut,
     AprobacionIn, PagoIn, PagoOut,
     TareaCreate, TareaUpdate, TareaOut, SubtareaCreate,
-    TareaActualizacionOut, UsuarioAsignableOut, HistorialCambioOut,
+    TareaActualizacionOut, RespuestaActualizacionCrear, RespuestaActualizacionOut,
+    UsuarioAsignableOut, HistorialCambioOut,
 )
 from app.modules.master_planner.historial import (
     instantanea, registrar_cambios, registrar_evento,
@@ -1113,6 +1114,69 @@ async def agregar_actualizacion(
     return actualizacion
 
 
+@router.post(
+    "/tareas/{tarea_id}/actualizaciones/{actualizacion_id}/respuestas",
+    response_model=RespuestaActualizacionOut, status_code=status.HTTP_201_CREATED,
+)
+def responder_actualizacion(
+    tarea_id: int,
+    actualizacion_id: int,
+    payload: RespuestaActualizacionCrear,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(puede_comentar),
+):
+    """
+    Responderle a un avance.
+
+    Antes, preguntar «¿esto incluye la revisión de Calidad?» sobre un avance
+    obligaba a escribir OTRO avance: el historial quedaba con entradas que no
+    eran avances sino conversación, mezcladas y sin decir a cuál contestaban.
+
+    Va con `puede_comentar` y no con `solo_lectura_no`: **gerencia sí puede
+    preguntar.** Es el caso que motiva esto — quien lee el avance y necesita
+    una aclaración es justamente quien no mueve el avance.
+
+    Un nivel y no más: esto es «pregúntale al que reportó», no un foro.
+    """
+    _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
+
+    comentario = (payload.comentario or "").strip()
+    if not comentario:
+        raise HTTPException(
+            status_code=400,
+            detail="Escribe la respuesta: una entrada vacía no le dice nada a quien reportó.",
+        )
+
+    avance = (
+        db.query(TareaActualizacion)
+        .filter(
+            TareaActualizacion.id == actualizacion_id,
+            TareaActualizacion.tarea_id == tarea_id,
+        )
+        .first()
+    )
+    if not avance:
+        raise HTTPException(status_code=404, detail="Ese avance no existe en esta tarea.")
+    if avance.parent_id is not None:
+        raise HTTPException(
+            status_code=400,
+            detail=("No se responde una respuesta. Contesta el avance para que la "
+                    "conversación quede en un solo hilo."),
+        )
+
+    respuesta = TareaActualizacion(
+        tarea_id=tarea_id,
+        parent_id=avance.id,
+        usuario_id=current_user.id,
+        comentario=comentario,
+    )
+    db.add(respuesta)
+    db.commit()
+    db.refresh(respuesta)
+    return respuesta
+
+
 @router.get("/tareas/{tarea_id}/actualizaciones", response_model=list[TareaActualizacionOut])
 def listar_actualizaciones(
     tarea_id: int,
@@ -1120,10 +1184,20 @@ def listar_actualizaciones(
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Los avances de la tarea, cada uno con sus respuestas adentro.
+
+    Solo los de primer nivel: una respuesta ya viaja dentro del avance que
+    contesta, y devolverla también como entrada suelta la mostraría dos veces
+    —una de ellas sin decir a qué contestaba—.
+    """
     _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
     return (
         db.query(TareaActualizacion)
-        .filter(TareaActualizacion.tarea_id == tarea_id)
+        .filter(
+            TareaActualizacion.tarea_id == tarea_id,
+            TareaActualizacion.parent_id.is_(None),
+        )
         .order_by(TareaActualizacion.fecha.desc())
         .all()
     )

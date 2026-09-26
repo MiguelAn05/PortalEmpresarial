@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.42.0"
-FECHA = "2026-09-25"
+VERSION = "0.43.0"
+FECHA = "2026-09-26"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,28 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.43.0",
+        "fecha": "2026-09-26",
+        "titulo": "Las tareas de proyecto ya dicen qué se entrega, cuánto cuesta y cuántas veces se aplazaron",
+        "cambios": [
+            ("nuevo", "Al crear una tarea se escribe su ENTREGABLE: qué tiene "
+                      "que quedar hecho para darla por cumplida. Se pide al "
+                      "crearla y no al final, que es cuando ya se escribe "
+                      "para justificar lo que se hizo."),
+            ("nuevo", "También cuántas HORAS se le va a dedicar, para poder "
+                      "ver si a alguien le cabe en la semana lo que tiene "
+                      "asignado."),
+            ("nuevo", "Cada avance se puede RESPONDER. Antes, preguntar algo "
+                      "sobre un avance obligaba a escribir otro avance, y la "
+                      "conversación quedaba mezclada sin decir a cuál "
+                      "contestaba. Gerencia también puede preguntar."),
+            ("nuevo", "La ficha de la tarea dice cuántas veces se le movió la "
+                      "fecha de entrega, como ya se veía en los proyectos. "
+                      "Una tarea aplazada cuatro veces no es una que va "
+                      "tarde: es una que está bloqueada o se planeó mal."),
+        ],
+    },
     {
         "version": "0.42.0",
         "fecha": "2026-09-25",

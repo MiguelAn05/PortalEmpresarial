@@ -12,7 +12,6 @@ export const AREAS = [
   'TICS',
   'Calidad',
   'SST',
-  'Controlados',
   'Facturación',
   'Ventas Institucionales',
   'Mercadeo',

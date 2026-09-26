@@ -5,8 +5,10 @@ Sigue el mismo patrón que PQRS: una entidad principal (Proyecto) con
 tablas hijas para desglose (ItemPresupuesto) y trazabilidad
 (TareaActualizacion), en vez de un log narrativo tipo Excel.
 """
-from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime, ForeignKey, Numeric, func
-from sqlalchemy.orm import relationship
+from sqlalchemy import (
+    Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text, func, select,
+)
+from sqlalchemy.orm import column_property, relationship
 
 from app.core.database import Base
 
@@ -344,6 +346,17 @@ class Tarea(Base):
     avance_pct = Column(Integer, nullable=False, default=0)
     riesgos = Column(Text, nullable=True)
 
+    # Qué tiene que quedar hecho para darla por cumplida. Se pide al CREARLA
+    # a propósito: escrito después, se escribe para justificar lo que ya se
+    # hizo. «Avance del 60%» no dice nada; «el informe firmado» sí, y es lo
+    # que permite que otra persona verifique sin preguntar.
+    entregable = Column(String(300), nullable=True)
+
+    # Cuántas horas se piensa dedicarle. Es la ESTIMACIÓN de quien planea, no
+    # lo ejecutado: sirve para ver si a alguien le cabe en la semana lo que
+    # tiene asignado. Numeric y no Integer porque media hora existe.
+    horas_estimadas = Column(Numeric(6, 2), nullable=True)
+
     fecha_inicio = Column(DateTime(timezone=True), nullable=True)
     fecha_fin = Column(DateTime(timezone=True), nullable=True)
     # Momento en que la tarea pasó a "completada". Es lo que permite medir
@@ -399,6 +412,19 @@ class TareaActualizacion(Base):
     tarea_id = Column(Integer, ForeignKey("mp_tareas.id"), nullable=False, index=True)
     usuario_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
+    # A qué avance responde, si es una respuesta. Un solo nivel a propósito
+    # (el router rechaza responder una respuesta): esto es «pregúntale al que
+    # reportó», no un foro. Con hilos anidados la conversación se esconde y
+    # el avance —que es lo que gerencia entra a leer— queda enterrado.
+    #
+    # Sin esto, responder un avance obligaba a escribir OTRO avance, y el
+    # historial quedaba con entradas que no eran avances sino conversación,
+    # mezcladas y sin decir a cuál contestaban.
+    parent_id = Column(
+        Integer, ForeignKey("mp_tarea_actualizaciones.id", ondelete="CASCADE"),
+        nullable=True, index=True,
+    )
+
     comentario = Column(Text, nullable=True)
     avance_pct_nuevo = Column(Integer, nullable=True)
     adjunto_evidencia = Column(String(255), nullable=True)
@@ -407,6 +433,15 @@ class TareaActualizacion(Base):
 
     tarea = relationship("Tarea", back_populates="actualizaciones")
     usuario = relationship("User")
+    # Las respuestas se van con el avance que contestan: una respuesta
+    # huérfana no se entiende sola.
+    respuestas = relationship(
+        "TareaActualizacion", back_populates="responde_a",
+        cascade="all, delete-orphan", order_by="TareaActualizacion.fecha.asc()",
+    )
+    responde_a = relationship(
+        "TareaActualizacion", back_populates="respuestas", remote_side=[id],
+    )
 
     @property
     def usuario_nombre(self):
@@ -512,3 +547,32 @@ class CierreProyecto(Base):
     @property
     def vigente(self) -> bool:
         return self.anulado_en is None
+
+
+# ── Cuántas veces se movió la fecha de una tarea ─────────────────────
+#
+# Sale del HISTORIAL, no de un contador aparte. Guardarlo en una columna que
+# alguien tiene que acordarse de incrementar es cómo dos números que dicen lo
+# mismo terminan diciendo cosas distintas; aquí la única fuente es la
+# bitácora, que además explica cada movimiento con sus fechas y su autor.
+#
+# Va como `column_property` y no como un cálculo en el router porque hay
+# SIETE endpoints que devuelven tareas: hecho ahí, el día que se agregue el
+# octavo devolvería cero sin que nada falle. Así viaja en el mismo SELECT de
+# la tarea, sin una consulta por fila.
+#
+# **Solo cuenta los movimientos de verdad** (`valor_anterior` no nulo): poner
+# la fecha por primera vez no es aplazar nada. Misma regla que usa
+# `_replanificaciones()` para los proyectos en `master_planner/resumen.py`.
+Tarea.veces_aplazada = column_property(
+    select(func.count(HistorialCambio.id))
+    .where(
+        HistorialCambio.entidad == "tarea",
+        HistorialCambio.entidad_id == Tarea.id,
+        HistorialCambio.campo == "fecha_fin",
+        HistorialCambio.valor_anterior.isnot(None),
+    )
+    .correlate_except(HistorialCambio)
+    .scalar_subquery(),
+    deferred=False,
+)
