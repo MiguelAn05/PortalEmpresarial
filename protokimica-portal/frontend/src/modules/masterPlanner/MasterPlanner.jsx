@@ -6,6 +6,7 @@ import ProyectosView from "./views/ProyectosView"
 import ProyectoDetalle from "./views/ProyectoDetalle"
 import TareasView from "./views/TareasView"
 import CalendarioView from "./views/CalendarioView"
+import ActividadesView from "./views/ActividadesView"
 import TareaDetailModal from "./components/TareaDetailModal"
 import { useAbrirDesdeUrl } from "../../core/abrirDesdeUrl.js"
 import ProyectoFormModal from "./components/ProyectoFormModal"
@@ -123,6 +124,10 @@ export default function MasterPlanner() {
           onSelectTarea={(t) => setTareaSeleccionadaId(t.id)}
           onNuevaTarea={() => setFormTarea({ proyectoId: null })}
         />
+      )}
+
+      {vista === "actividades" && (
+        <ActividadesView usuarios={usuarios} />
       )}
 
       {vista === "calendario" && (

@@ -286,9 +286,45 @@ export function filtrarTareas(tareas, filtros) {
 }
 
 // ── Formato ───────────────────────────────────────────────────
+
+/**
+ * Una fecha del servidor, lista para mostrar.
+ *
+ * **`new Date('2026-09-28')` NO es el 28 aquí: es el 27.** Una cadena de
+ * solo fecha la lee el navegador como medianoche UTC, y en Colombia (UTC-5)
+ * eso son las 7 p. m. del día anterior — así que se pintaba un día antes.
+ * Fue exactamente lo que pasó con las actividades diarias: se marcaba el
+ * lunes y el registro decía «domingo 27».
+ *
+ * Con hora sí viene la zona y se respeta tal cual. Sin hora se ancla al
+ * MEDIODÍA local, que es el único punto del día que ningún cambio de huso ni
+ * horario de verano puede mover a otra fecha.
+ */
+export function comoFecha(f) {
+  if (!f) return null
+  if (f instanceof Date) return f
+  const texto = String(f)
+  return new Date(/^\d{4}-\d{2}-\d{2}$/.test(texto) ? `${texto}T12:00:00` : texto)
+}
+
 export function formatFecha(f, opts = { day: '2-digit', month: 'short', year: 'numeric' }) {
-  if (!f) return '—'
-  return new Date(f).toLocaleDateString('es-CO', opts)
+  const fecha = comoFecha(f)
+  if (!fecha) return '—'
+  return fecha.toLocaleDateString('es-CO', opts)
+}
+
+/**
+ * Hoy como `YYYY-MM-DD`, en la hora del computador de quien mira.
+ *
+ * `toISOString().slice(0, 10)` da la fecha en UTC, que en Colombia después
+ * de las 7 p. m. ya es la de mañana: desmarcar algo a esa hora buscaba un
+ * registro de un día que no existe y respondía 404.
+ */
+export function isoDeHoy() {
+  const hoy = new Date()
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0')
+  const dia = String(hoy.getDate()).padStart(2, '0')
+  return `${hoy.getFullYear()}-${mes}-${dia}`
 }
 
 export function formatHora(f) {
@@ -443,4 +479,32 @@ export function textoHoras(horas) {
   // Sin decimales cuando son enteras: «8 h» y no «8,0 h».
   const texto = Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',')
   return `${texto} h`
+}
+
+// ── Actividades diarias ──────────────────────────────────────
+//
+// **Una tarea termina; una actividad diaria no.** Esa es toda la diferencia
+// y es lo que hay que decir en pantalla cada vez que alguien pueda dudar de
+// dónde va algo: por eso los nombres son «Tareas de proyecto» y «Actividades
+// diarias», y no dos palabras cortas que suenan a lo mismo.
+
+// Gemelo de `MAX_TITULO_ACTIVIDAD` en `master_planner/schemas.py`, con
+// prueba que los ata.
+export const MAX_TITULO_ACTIVIDAD = 200
+
+export const FRECUENCIAS = {
+  diaria: 'Todos los días',
+  semanal: 'Algunos días de la semana',
+  mensual: 'Una vez al mes',
+}
+
+// Gemelo de `DIAS_SEMANA` en `master_planner/actividades.py`. Se llama
+// distinto del `DIAS_SEMANA` de arriba a propósito: ese es una lista de
+// abreviaturas para pintar la rejilla del calendario, y este un mapa por
+// número ISO — el que viaja al servidor. Dos cosas parecidas con el mismo
+// nombre es como se termina mandando «Lun» donde se esperaba un 1.
+// número ISO (1 = lunes), que es con el que viajan al servidor.
+export const DIAS_ISO = {
+  1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves',
+  5: 'Viernes', 6: 'Sábado', 7: 'Domingo',
 }

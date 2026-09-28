@@ -70,7 +70,7 @@ SEMILLA = {
 # cambiar en el formulario.
 #
 # Las áreas que no están aquí no tienen equivalente en el listado del SGC
-# (Servicio al Cliente, Facturación, Controlados, Tesorería, Comercial): en
+# (Servicio al Cliente, Facturación, Tesorería, Comercial): en
 # esos casos no se propone nada y la persona elige. Adivinar mal es peor que
 # no adivinar — el proceso es lo que decide en qué archivo cae la acción.
 PROCESO_SEGUN_AREA = {

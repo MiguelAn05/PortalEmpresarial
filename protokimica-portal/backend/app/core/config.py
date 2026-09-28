@@ -45,8 +45,12 @@ class Settings(BaseSettings):
     MS_CLIENT_ID: str = ""
     MS_CLIENT_SECRET: str = ""
 
-    # Zona horaria con la que se crean los eventos en Outlook.
-    MS_ZONA_HORARIA: str = "America/Bogota"
+    # **La zona de la empresa**, y la única del portal. Nació para crear los
+    # eventos de Outlook —por eso se llamaba `MS_ZONA_HORARIA`— pero es la
+    # misma que decide qué día es «hoy» cuando alguien marca una actividad
+    # diaria a las siete de la noche: el servidor guarda en UTC, y en UTC a
+    # esa hora ya es mañana.
+    ZONA_HORARIA: str = "America/Bogota"
 
     # Dominios de correo con los que se puede crear un usuario, separados por
     # coma. El portal es interno: si alguien entra con un correo personal no

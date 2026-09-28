@@ -336,6 +336,59 @@ observaciones de quien usa el módulo:
   (`valor_anterior` no nulo): poner la fecha por primera vez no es aplazar
   nada — misma regla que `_replanificaciones()` de `resumen.py`.
 
+**Master Planner — actividades diarias: lo que se repite.** Viven en su
+propia pestaña (`modules/master_planner/router_actividades.py` y
+`actividades.py`) y no dentro de las tareas. **Una tarea termina; una
+actividad diaria no**, y esa frase es todo el diseño: una tarea tiene
+proyecto, fecha de entrega, avance y entregable, y nada de eso significa algo
+en algo que se hace todos los martes — como casilla «se repite» de una tarea,
+la mitad de las columnas habría quedado vacía en la mitad de las filas.
+
+**Se llaman «Tareas de proyecto» y «Actividades diarias», con los dos
+nombres largos.** «Actividad» ya estaba ocupada: en el Excel que reemplaza el
+módulo, una tarea de proyecto se llama Actividad, así que dos pestañas de una
+palabra corta dejaban a la gente sin saber dónde iba cada cosa. Cada vista
+dice en su encabezado qué le corresponde.
+
+- **Las ocurrencias NO se guardan: se deducen.** No hay una fila por día
+  esperando a que alguien la marque; hay una frecuencia, y contra ella se
+  cuentan los registros. Materializarlas habría obligado a un proceso
+  programado cada madrugada, y el día que no corriera la gente entraría a una
+  pantalla vacía sin que nadie supiera por qué. El precio, asumido: cambiarle
+  la frecuencia a una actividad cambia lo que se esperaba ANTES — se acota con
+  `desde`/`hasta` y con que el indicador del mes guarde su medición.
+- **La fila del registro existe o no existe**: no hay columna «hecho». Un
+  booleano daría tres estados —sí, no, y sin fila— a una pregunta con dos
+  respuestas. `fecha` es el día al que corresponde, no cuándo se escribió:
+  quien no alcanzó a marcar el viernes lo marca el lunes.
+- **Desactivar cierra el periodo** (`hasta`). Sin eso, apagar una actividad
+  hoy dejaría el resto del mes contándose como incumplido. Y `desde` arranca
+  el día que se crea: si arrancara el primero del mes, una actividad creada
+  hoy nacería con todos los días anteriores en rojo.
+- **Diaria respeta los días hábiles** con `core/dias_habiles.py` —festivos
+  colombianos incluidos—, y una mensual «cada 31» se espera el último día en
+  los meses de treinta: saltarse el mes la haría desaparecer en febrero sin
+  que nadie lo notara hasta que el indicador diera de más.
+- **El mes en curso se mide hasta AYER** (`corte_del_mes`). Lo de hoy todavía
+  se puede hacer; contarlo dejaría el indicador en rojo cada mañana.
+- Fuente automática `mp_actividades_diarias`, con `acepta_area`. Sin
+  actividades programadas el valor es «sin dato», nunca 0%: un cero diría que
+  nadie cumplió, y lo cierto es que no había qué cumplir.
+- Una actividad con registros **no se borra** (409): son la constancia de que
+  alguien hizo su trabajo. Se desactiva.
+- **El registro es el MES, no una lista.** Una lista de días registrados crece
+  sin final —a los seis meses son ciento veinte renglones iguales— y no
+  responde la pregunta que uno tiene, que es «¿voy al día?». El mes cabe en un
+  bloque, se lee de un vistazo y nunca pasa de treinta y un cuadros. Lo arma
+  el servidor (`mapa_del_mes`) con **cuatro** estados y no dos: `no_aplica`
+  —pintar como incumplido un día en que no tocaba sería mentir—, `cumplido`,
+  `pendiente` (es hoy, todavía se puede) y `sin_registrar`. Desde ahí se marca
+  un día pasado que se olvidó y se quita el de un día marcado por error.
+- El porcentaje se mide sobre lo que **ya se podía haber hecho**
+  (`esperados_hasta_hoy`), no sobre el mes entero: si no, el primero de
+  octubre toda actividad diaria aparecería con un 5% de cumplimiento por los
+  días que aún no llegan.
+
 **Oportunidades de Mejora (OMP)** las manejan los **líderes de área**, que son
 quienes responden por que un indicador vuelva a su meta. Gerencia queda fuera
 del módulo a propósito: el avance se le reporta, no se le deja como un tablero
@@ -815,6 +868,22 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
 - **Fechas con y sin zona horaria.** Postgres las devuelve con zona y SQLite
   sin ella; restarlas revienta. Usar el helper `_aware()` que hay en
   `resumen.py` y en `fuentes.py`.
+- **«Hoy» tiene dos formas de salir mal, y las dos mordieron el mismo día.**
+  Una actividad diaria marcada el lunes 28 aparecía registrada el «domingo
+  27»:
+  - **En el navegador**, `new Date('2026-09-28')` NO es el 28: una cadena de
+    solo fecha se lee como medianoche UTC, que en Colombia son las 7 p. m.
+    del día anterior. Toda fecha del servidor se pinta con `comoFecha()` de
+    `masterPlanner/constants.js`, que ancla las de solo fecha al **mediodía**
+    local — el único punto del día que ningún huso puede mover. Y para
+    mandar «hoy» al servidor va `isoDeHoy()`, nunca
+    `toISOString().slice(0,10)`, que da la fecha de UTC.
+  - **En el servidor**, `datetime.now(timezone.utc).date()` cambia de día a
+    las 7 p. m. hora de Colombia: quien marcara algo a las 7:30 lo habría
+    visto registrado mañana. Todo lo que signifique «hoy» para una PERSONA
+    usa `dias_habiles.hoy()`, que respeta `settings.ZONA_HORARIA`. Lo que
+    significa «ahora» para una marca de tiempo sigue siendo UTC, que es como
+    se guarda.
 - **Indicadores de fórmula (`tipo_captura="formula"`).** Para cuentas que no
   caben en valor ni en razón: `80 * A / B`, `(A - B) / A * 100`. La fórmula
   se guarda como texto en una gramática cerrada (números, letras A–Z, `+ - *

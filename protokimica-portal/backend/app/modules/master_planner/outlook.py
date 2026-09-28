@@ -39,7 +39,7 @@ def _a_hora_local(dt):
     """
     if dt.tzinfo is None:
         return dt
-    return dt.astimezone(ZoneInfo(settings.MS_ZONA_HORARIA))
+    return dt.astimezone(ZoneInfo(settings.ZONA_HORARIA))
 
 
 def _formato_graph(dt) -> str:
@@ -100,8 +100,8 @@ def construir_evento(tarea: Tarea, proyecto_nombre: str | None = None) -> dict |
     return {
         "subject": tarea.titulo,
         "body": {"contentType": "HTML", "content": _cuerpo_html(tarea, proyecto_nombre)},
-        "start": {"dateTime": _formato_graph(arranque), "timeZone": settings.MS_ZONA_HORARIA},
-        "end": {"dateTime": _formato_graph(cierre), "timeZone": settings.MS_ZONA_HORARIA},
+        "start": {"dateTime": _formato_graph(arranque), "timeZone": settings.ZONA_HORARIA},
+        "end": {"dateTime": _formato_graph(cierre), "timeZone": settings.ZONA_HORARIA},
         "isAllDay": todo_el_dia,
         "categories": [CATEGORIA],
     }
@@ -223,7 +223,7 @@ def eventos_del_usuario(email: str, desde: str, hasta: str) -> list[dict]:
     if not graph.graph_configurado():
         return []
     try:
-        crudos = graph.listar_eventos(email, desde, hasta, settings.MS_ZONA_HORARIA)
+        crudos = graph.listar_eventos(email, desde, hasta, settings.ZONA_HORARIA)
         return [_evento_para_el_portal(e) for e in crudos]
     except Exception:
         logger.exception("No se pudo leer el calendario de Outlook de %s.", email)

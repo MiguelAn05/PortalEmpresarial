@@ -1,12 +1,17 @@
 import {
-  IconoCalendario, IconoCarpeta, IconoOjo, IconoTablero, IconoTarea,
+  IconoCalendario, IconoCarpeta, IconoOjo, IconoRepetir, IconoTablero, IconoTarea,
 } from '../../../core/components/Iconos.jsx'
 
+// «Tareas de proyecto» y no «Tareas» a secas desde que existen las
+// actividades diarias: las dos son cosas que alguien tiene que hacer, y con
+// los dos nombres cortos nadie sabía cuál era cuál. Lo que de verdad las
+// separa —una termina, la otra no— va en la línea de ayuda de cada vista.
 const PESTANAS = [
-  { id: 'resumen',    label: 'Resumen',    Icono: IconoTablero    },
-  { id: 'proyectos',  label: 'Proyectos',  Icono: IconoCarpeta    },
-  { id: 'tareas',     label: 'Tareas',     Icono: IconoTarea      },
-  { id: 'calendario', label: 'Calendario', Icono: IconoCalendario },
+  { id: 'resumen',     label: 'Resumen',             Icono: IconoTablero    },
+  { id: 'proyectos',   label: 'Proyectos',           Icono: IconoCarpeta    },
+  { id: 'tareas',      label: 'Tareas de proyecto',  Icono: IconoTarea      },
+  { id: 'actividades', label: 'Actividades diarias', Icono: IconoRepetir    },
+  { id: 'calendario',  label: 'Calendario',          Icono: IconoCalendario },
 ]
 
 export default function Header({ vista, onChangeVista, onNuevoProyecto, onNuevaTarea, editable = true, rol }) {

@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.43.0"
-FECHA = "2026-09-26"
+VERSION = "0.44.1"
+FECHA = "2026-09-28"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,50 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.44.1",
+        "fecha": "2026-09-28",
+        "titulo": "Las actividades diarias se registran en el día correcto",
+        "cambios": [
+            ("correccion", "Marcar una actividad quedaba registrada un día "
+                           "antes: se chuleaba el lunes y el registro decía "
+                           "domingo. Era la fecha, que se leía en otro huso "
+                           "horario."),
+            ("correccion", "Y marcar algo después de las 7 de la noche lo "
+                           "registraba en el día siguiente. Ahora «hoy» es el "
+                           "de Colombia y no el del reloj del servidor."),
+            ("mejora", "El registro de una actividad ya no es una lista de "
+                       "días que crecía sin final: ahora es el mes completo, "
+                       "donde se ve de un vistazo qué días tocaban, cuáles se "
+                       "hicieron y cuáles faltaron. Se puede mirar mes por "
+                       "mes hacia atrás."),
+            ("nuevo", "Desde ese mes se puede marcar un día pasado que se "
+                      "olvidó, y quitar el de un día marcado por error."),
+        ],
+    },
+    {
+        "version": "0.44.0",
+        "fecha": "2026-09-28",
+        "titulo": "Actividades diarias en el Master Planner",
+        "cambios": [
+            ("nuevo", "El Master Planner tiene una pestaña nueva para lo que "
+                      "se repite y no pertenece a ningún proyecto: la ronda, "
+                      "el informe diario, la revisión de los martes. Se crea "
+                      "una vez, con su frecuencia, y cada día se marca lo que "
+                      "se hizo."),
+            ("nuevo", "Cada actividad guarda el registro de qué días se "
+                      "realizó y cómo va el mes, y alimenta un indicador "
+                      "automático de cumplimiento por área."),
+            ("mejora", "La pestaña de tareas ahora se llama «Tareas de "
+                       "proyecto», para que no se confunda con las "
+                       "actividades diarias: una tarea termina, una actividad "
+                       "diaria no."),
+            ("mejora", "El área «Controlados» se retiró: era la misma que "
+                       "«Control Interno», y con dos nombres para lo mismo "
+                       "cada reporte salía partido en dos mitades. Lo que "
+                       "estaba en ella quedó en Control Interno."),
+        ],
+    },
     {
         "version": "0.43.0",
         "fecha": "2026-09-26",

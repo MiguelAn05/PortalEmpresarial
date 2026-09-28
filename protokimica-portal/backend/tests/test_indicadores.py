@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.models.pqrs import PQRSSolicitud  # noqa: F401
 from app.models.user import User  # noqa: F401
+from app.modules.indicadores import fuentes
 
 
 def test_indicadores(entorno, v):
@@ -18,7 +19,11 @@ def test_indicadores(entorno, v):
     # ── Catalogo y rutas ──
     r = portal.get("/indicadores/catalogo")
     v.check("el catalogo responde 200", r.status_code == 200, r.text[:100])
-    v.check("trae las 12 fuentes", len(r.json()) == 12, len(r.json()))
+    # Contra el CATÁLOGO y no contra un número escrito a mano: con un 12 ahí,
+    # agregar una fuente rompe esta prueba sin que nada esté mal, y el arreglo
+    # es cambiar el número — que es como se aprende a no leerla.
+    v.check("trae todas las fuentes del catálogo",
+            len(r.json()) == len(fuentes.CATALOGO), (len(r.json()), len(fuentes.CATALOGO)))
     v.check("/catalogo no lo captura /{id}", r.status_code != 422)
     v.check("/tablero tampoco", portal.get("/indicadores/tablero").status_code == 200)
 

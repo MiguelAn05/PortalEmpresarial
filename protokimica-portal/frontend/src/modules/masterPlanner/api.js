@@ -125,3 +125,34 @@ export const listarUsuariosAsignables = () =>
 export const listarEventosOutlook = (desde, hasta) =>
   api.get('/master-planner/calendario/outlook', { params: { desde, hasta } })
     .then(r => r.data)
+
+// ── Actividades diarias ──────────────────────────────────────
+// Lo que se repite y no pertenece a un proyecto. Qué tocaba cada día lo
+// deduce el servidor de la frecuencia; aquí solo se pide y se registra.
+export const listarActividades = (params = {}) =>
+  api.get('/master-planner/actividades', { params }).then(r => r.data)
+
+export const crearActividad = (datos) =>
+  api.post('/master-planner/actividades', datos).then(r => r.data)
+
+export const actualizarActividad = (id, cambios) =>
+  api.patch(`/master-planner/actividades/${id}`, cambios).then(r => r.data)
+
+export const eliminarActividad = (id) =>
+  api.delete(`/master-planner/actividades/${id}`)
+
+export const registrarActividad = (id, datos = {}) =>
+  api.post(`/master-planner/actividades/${id}/registros`, datos).then(r => r.data)
+
+export const quitarRegistroActividad = (id, fecha) =>
+  api.delete(`/master-planner/actividades/${id}/registros/${fecha}`)
+
+export const listarRegistrosActividad = (id) =>
+  api.get(`/master-planner/actividades/${id}/registros`).then(r => r.data)
+
+export const cumplimientoActividad = (id, params = {}) =>
+  api.get(`/master-planner/actividades/${id}/cumplimiento`, { params }).then(r => r.data)
+
+// El mes día por día. Reemplaza la lista de registros, que crecía sin final.
+export const mesDeActividad = (id, params = {}) =>
+  api.get(`/master-planner/actividades/${id}/mes`, { params }).then(r => r.data)

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 # Topes con gemelo en `frontend/src/modules/masterPlanner/constants.js`, y
@@ -328,3 +328,131 @@ class RespuestaActualizacionCrear(BaseModel):
     aceptara.
     """
     comentario: str | None = None
+
+
+# ── Actividades diarias ─────────────────────────────────────────
+
+MAX_TITULO_ACTIVIDAD = 200
+MAX_COMENTARIO_REGISTRO = 500
+
+
+class ActividadCrear(BaseModel):
+    """
+    Lo mínimo para crear una: título, responsable y frecuencia.
+
+    Una actividad diaria es corta y repetitiva; pedirle siete campos a algo
+    que se escribe una vez y se marca todos los días es cómo se consigue que
+    nadie la cree. El área NO va aquí: se hereda del responsable en el
+    router, que es quien sabe quién es.
+    """
+    titulo: str = Field(min_length=3, max_length=MAX_TITULO_ACTIVIDAD)
+    asignado_a: int | None = None
+    frecuencia: str = "diaria"
+    # Días ISO (1 = lunes) para la semanal.
+    dias_semana: list[int] = []
+    dia_mes: int | None = Field(default=None, ge=1, le=31)
+    solo_dias_habiles: bool = True
+    desde: date | None = None
+
+
+class ActividadActualizar(BaseModel):
+    titulo: str | None = Field(default=None, min_length=3, max_length=MAX_TITULO_ACTIVIDAD)
+    asignado_a: int | None = None
+    area: str | None = None
+    frecuencia: str | None = None
+    dias_semana: list[int] | None = None
+    dia_mes: int | None = Field(default=None, ge=1, le=31)
+    solo_dias_habiles: bool | None = None
+    activa: bool | None = None
+
+
+class RegistroActividadCrear(BaseModel):
+    """
+    `fecha` vacía es hoy. Se puede mandar otra para registrar lo de ayer:
+    quien no alcanzó a marcarlo el viernes lo marca el lunes, y el
+    cumplimiento tiene que contarlo en el viernes.
+    """
+    fecha: date | None = None
+    comentario: str | None = Field(default=None, max_length=MAX_COMENTARIO_REGISTRO)
+
+
+class RegistroActividadOut(BaseModel):
+    id: int
+    actividad_id: int
+    fecha: date
+    usuario_id: int | None
+    usuario_nombre: str | None = None
+    comentario: str | None
+    creado_en: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ActividadOut(BaseModel):
+    id: int
+    titulo: str
+    asignado_a: int | None
+    asignado_nombre: str | None = None
+    area: str | None
+    frecuencia: str
+    dias_semana: list[int] = []
+    dia_mes: int | None
+    solo_dias_habiles: bool
+    desde: date
+    hasta: date | None
+    activa: bool
+    creado_en: datetime
+
+    # Redactado por el servidor: «Cada lunes, miércoles y viernes». Si lo
+    # armara la pantalla, agregar una frecuencia dejaría un sitio más que
+    # actualizar y el que se olvide muestra «undefined».
+    frecuencia_texto: str = ""
+    # Si tocaba HOY y si ya se registró. Es lo único que la lista necesita
+    # para pintar la casilla, y sale de la misma regla que el indicador.
+    toca_hoy: bool = False
+    registrada_hoy: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class CumplimientoActividadOut(BaseModel):
+    """Cuántas veces tocaba en el periodo y cuántas se registró."""
+    esperados: int
+    cumplidos: int
+    pct: float | None
+    pendientes: list[date] = []
+
+
+class DiaActividadOut(BaseModel):
+    """
+    Un día del mes, con su estado ya resuelto por el servidor.
+
+    Son CUATRO estados y no dos: `no_aplica` (ese día no tocaba),
+    `cumplido`, `pendiente` (es hoy, todavía se puede) y `sin_registrar`.
+    Pintar como incumplidos los días en que no tocaba sería mentir, y cobrar
+    el de hoy antes de que termine, también.
+    """
+    fecha: date
+    estado: str
+    usuario_nombre: str | None = None
+    comentario: str | None = None
+
+
+class MesActividadOut(BaseModel):
+    """
+    El mes entero de una actividad. Reemplaza la lista de días registrados,
+    que crecía sin final: esto siempre son treinta y un cuadros como mucho.
+    """
+    anio: int
+    mes: int
+    dias: list[DiaActividadOut]
+    # Lo que toca en todo el mes, para saber cuánto falta.
+    esperados: int
+    cumplidos: int
+    # Y lo que ya se podía haber hecho, que es sobre lo que se mide: si no,
+    # el primer día del mes toda actividad aparecería con un 5%.
+    esperados_hasta_hoy: int
+    cumplidos_hasta_hoy: int
+    pct: float | None

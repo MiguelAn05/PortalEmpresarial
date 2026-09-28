@@ -17,6 +17,9 @@ tiene tres clases de festivo:
                  entre martes y domingo.
 """
 from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+from app.core.config import settings
 
 # Festivos de fecha fija que NO se mueven.
 FIJOS = [
@@ -140,3 +143,20 @@ def limite_en_habiles(desde: datetime, dias: int) -> datetime:
     base = desde.date() if isinstance(desde, datetime) else desde
     vence = sumar_habiles(base, dias)
     return datetime.combine(vence, HORA_CIERRE, tzinfo=timezone.utc)
+
+
+def hoy() -> date:
+    """
+    Qué día es hoy **en la zona de la empresa**, no en UTC.
+
+    Parece un detalle y no lo es: el servidor guarda en UTC, y en Colombia
+    (UTC-5) a partir de las siete de la noche allá ya es el día siguiente.
+    Con `datetime.now(timezone.utc).date()`, quien marcara una actividad a
+    las 7:30 p. m. la vería registrada mañana — y al día siguiente, el día
+    de hoy le aparecería sin registrar.
+
+    Todo lo que signifique «hoy» para una PERSONA pasa por aquí. Lo que
+    significa «ahora» para una marca de tiempo sigue siendo UTC, que es como
+    se guarda.
+    """
+    return datetime.now(ZoneInfo(settings.ZONA_HORARIA)).date()

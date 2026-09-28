@@ -22,7 +22,10 @@ AREAS = [
     "TICS",
     "Calidad",
     "SST",
-    "Controlados",
+    # «Controlados» se retiró en la migración `e7b2a940cf1f`: era la misma
+    # área que «Control Interno», y dos nombres para lo mismo parten el
+    # reporte en dos mitades que no son ninguna de las dos. Lo que estaba en
+    # ella se movió, no se perdió.
     "Facturación",
     "Ventas Institucionales",
     "Mercadeo",

@@ -277,6 +277,54 @@ def mp_avance_proyectos(db, tenant_id, anio, mes, area=None) -> Resultado:
     )
 
 
+def mp_actividades_diarias(db, tenant_id, anio, mes, area=None) -> Resultado:
+    """
+    % de veces que se registró lo que tocaba hacer.
+
+    Lo que se espera de cada día NO está guardado: sale de la frecuencia de
+    cada actividad (ver `master_planner/actividades.py`), y contra eso se
+    cuentan los registros. Por eso el numerador y el denominador se guardan
+    los dos — el acumulado del trimestre suma veces, no promedia porcentajes.
+
+    **El mes en curso se mide hasta ayer.** Lo de hoy todavía se puede hacer;
+    contarlo como incumplido pondría el indicador en rojo cada mañana.
+    """
+    # Import local: `master_planner` importa modelos de indicadores, y
+    # cargarlo aquí arriba haría que los dos se necesitaran al arrancar.
+    from app.models.master_planner import ActividadDiaria
+    from app.modules.master_planner import actividades as act
+
+    query = db.query(ActividadDiaria).filter(ActividadDiaria.tenant_id == tenant_id)
+    if area:
+        query = query.filter(ActividadDiaria.area == area)
+
+    # El «hoy» de la empresa, no el de UTC: el corte del mes en curso es
+    # «hasta ayer», y con la fecha de UTC ese ayer cambia a las 7 p. m.
+    from app.core.dias_habiles import hoy as hoy_local
+
+    desde, hasta = act.corte_del_mes(anio, mes, hoy_local())
+
+    esperados = cumplidos = 0
+    for actividad in query.all():
+        conteo = act.cumplimiento(db, actividad, desde, hasta)
+        esperados += conteo["esperados"]
+        cumplidos += conteo["cumplidos"]
+
+    if not esperados:
+        # Sin nada que hacer no hay incumplimiento: un 0% diría que nadie
+        # cumplió, y lo cierto es que no había qué cumplir.
+        return Resultado(
+            valor=None, numerador=0, denominador=0,
+            detalle="No había actividades programadas en el periodo",
+        )
+
+    return _proporcion(
+        cumplidos, esperados,
+        f"{cumplidos} de {esperados} veces registradas"
+        + (f" en {area}" if area else ""),
+    )
+
+
 def mp_proyectos_cerrados(db, tenant_id, anio, mes, area=None) -> Resultado:
     desde, hasta = _rango_mes(anio, mes)
     query = (
@@ -403,6 +451,18 @@ CATALOGO = {
         "descripcion": "Proyectos que se dieron por terminados en el periodo.",
         "formula": "Conteo de proyectos con fecha de cierre real dentro del mes",
         "unidad": "cantidad", "direccion": "arriba", "fn": mp_proyectos_cerrados,
+        "acepta_area": True,
+    },
+    "mp_actividades_diarias": {
+        "nombre": "Cumplimiento de actividades diarias",
+        "modulo": "Master Planner",
+        "descripcion": (
+            "Qué tanto se registra lo que se repite: la ronda, el informe "
+            "diario, la revisión semanal."
+        ),
+        "formula": "(Veces registradas ÷ veces que tocaba) × 100",
+        "unidad": "porcentaje", "direccion": "arriba", "fn": mp_actividades_diarias,
+        # Con área mide las de esa área; sin ella, las de toda la empresa.
         "acepta_area": True,
     },
     CLAVE_GESTION_OMP: {

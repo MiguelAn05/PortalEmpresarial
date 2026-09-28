@@ -6,7 +6,8 @@ tablas hijas para desglose (ItemPresupuesto) y trazabilidad
 (TareaActualizacion), en vez de un log narrativo tipo Excel.
 """
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text, func, select,
+    Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text,
+    UniqueConstraint, func, select,
 )
 from sqlalchemy.orm import column_property, relationship
 
@@ -576,3 +577,115 @@ Tarea.veces_aplazada = column_property(
     .scalar_subquery(),
     deferred=False,
 )
+
+
+# ── Actividades diarias ──────────────────────────────────────────────
+#
+# **Una tarea termina; una actividad diaria no termina nunca.** Esa es toda
+# la diferencia, y es la razón de que sean dos tablas y no un campo
+# `es_recurrente` en `mp_tareas`: una tarea tiene fecha de entrega, avance,
+# entregable y un proyecto al que pertenece, y nada de eso significa algo en
+# algo que se repite todos los martes. Mezclarlas habría dejado la mitad de
+# las columnas vacías en la mitad de las filas.
+
+FRECUENCIAS = ("diaria", "semanal", "mensual")
+
+
+class ActividadDiaria(Base):
+    """
+    Lo que alguien hace cada día (o cada semana, o cada mes) y no pertenece a
+    ningún proyecto: revisar el correo del área, sacar el informe de cartera,
+    hacer la ronda de bodega.
+
+    **No guarda las ocurrencias.** Qué se esperaba de cada día se DEDUCE de
+    la frecuencia (ver `master_planner/actividades.py`); lo único que se
+    escribe es lo que de verdad se hizo, en `mp_actividad_registros`.
+    Materializar un pendiente por día obligaría a un proceso programado, y el
+    día que no corriera la gente entraría a una pantalla vacía sin que nadie
+    supiera por qué.
+    """
+    __tablename__ = "mp_actividades"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+
+    titulo = Column(String(200), nullable=False)
+    # Quién responde por ella. El área se hereda de esa persona al crearla,
+    # pero se guarda aparte: si mañana cambia de área, la actividad no se le
+    # muda de golpe a un indicador que no es el suyo.
+    asignado_a = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    area = Column(String(100), nullable=True, index=True)
+
+    frecuencia = Column(String(20), nullable=False, default="diaria")
+    # Para «semanal»: los días en que toca, como números ISO separados por
+    # coma («1,3,5» = lunes, miércoles y viernes). Texto y no una tabla
+    # aparte porque son como mucho siete números que siempre se leen juntos.
+    dias_semana = Column(String(20), nullable=True)
+    # Para «mensual»: qué día del mes. Un 31 en un mes de 30 se espera el
+    # último día — ver `actividades.py`.
+    dia_mes = Column(Integer, nullable=True)
+    # Para «diaria»: si el fin de semana y los festivos cuentan. Por defecto
+    # NO, que es lo normal en una oficina; `core/dias_habiles.py` ya sabe
+    # cuáles son los festivos colombianos.
+    solo_dias_habiles = Column(Boolean, nullable=False, default=True)
+
+    # Desde cuándo se espera, y hasta cuándo. `hasta` se llena al
+    # desactivarla: sin eso, apagar una actividad hoy dejaría el mes entero
+    # en rojo por los días que siguen, en los que ya no se espera nada.
+    desde = Column(Date, nullable=False)
+    hasta = Column(Date, nullable=True)
+    activa = Column(Boolean, nullable=False, default=True)
+
+    creado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    asignado = relationship("User", foreign_keys=[asignado_a])
+    registros = relationship(
+        "ActividadRegistro", back_populates="actividad",
+        cascade="all, delete-orphan", order_by="ActividadRegistro.fecha.desc()",
+    )
+
+    @property
+    def asignado_nombre(self):
+        return self.asignado.nombre if self.asignado else None
+
+
+class ActividadRegistro(Base):
+    """
+    Que la actividad se hizo un día.
+
+    **La fila EXISTE o no existe**: no hay columna «hecho». Un día sin fila
+    es un día sin registrar, que es exactamente lo que el indicador tiene que
+    contar. Con un booleano habría tres estados —sí, no, y sin fila— para una
+    pregunta que solo tiene dos respuestas.
+
+    `fecha` es el día al que corresponde el registro, no cuándo se escribió:
+    alguien puede marcar el viernes lo que hizo el jueves, y el indicador
+    tiene que contarlo en el jueves.
+    """
+    __tablename__ = "mp_actividad_registros"
+
+    id = Column(Integer, primary_key=True, index=True)
+    actividad_id = Column(
+        Integer, ForeignKey("mp_actividades.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    fecha = Column(Date, nullable=False, index=True)
+
+    usuario_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    comentario = Column(Text, nullable=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    actividad = relationship("ActividadDiaria", back_populates="registros")
+    usuario = relationship("User")
+
+    __table_args__ = (
+        # Un día se registra una sola vez: sin esto, dos clics seguidos en el
+        # botón dejarían la actividad «cumplida dos veces» y el indicador
+        # pasaría del 100%.
+        UniqueConstraint("actividad_id", "fecha", name="uq_actividad_dia"),
+    )
+
+    @property
+    def usuario_nombre(self):
+        return self.usuario.nombre if self.usuario else None
