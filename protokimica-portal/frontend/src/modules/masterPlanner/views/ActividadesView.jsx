@@ -97,8 +97,7 @@ export default function ActividadesView({ usuarios = [] }) {
           {/* La diferencia con las tareas, dicha donde se necesita: quien
               duda de dónde va algo, lo lee aquí y no tiene que preguntar. */}
           <p className="text-sm text-texto-2 mt-1">
-            Lo que se repite y no termina nunca — la ronda, el informe, la
-            revisión semanal. Lo que tiene un final va en Tareas de proyecto.
+            Registra aquí las actividades recurrentes. Las tareas con fecha de finalización van en Tareas de proyecto.
           </p>
         </div>
 
