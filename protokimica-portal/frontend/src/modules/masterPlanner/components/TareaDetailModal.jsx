@@ -6,7 +6,7 @@ import SubtareasPanel from "./SubtareasPanel"
 import HistorialPanel from "./HistorialPanel"
 import ConfirmarCambios, { ConfirmarDescarte } from "./ConfirmarCambios"
 import { calcularCambios } from "../cambiosFormulario"
-import { useAuth } from "../../../core/AuthContext"
+import { useAuth } from "../../../core/useAuth.js"
 import {
   obtenerTarea, listarActualizaciones, agregarActualizacion, actualizarTarea,
   eliminarTarea, listarHistorialTarea, responderActualizacion,

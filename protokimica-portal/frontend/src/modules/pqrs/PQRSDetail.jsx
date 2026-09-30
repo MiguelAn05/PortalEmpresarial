@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '../../core/AuthContext.jsx'
+import { useAuth } from '../../core/useAuth.js'
 import api from '../../core/api.js'
 import { AREAS } from '../../core/areas.js'
 import {

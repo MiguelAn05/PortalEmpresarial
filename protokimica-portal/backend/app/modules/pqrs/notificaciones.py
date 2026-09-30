@@ -45,12 +45,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.user import User
-from app.modules.pqrs.service import disparar_webhook_n8n
+from app.core.notificaciones import Aviso, protegido
 
 logger = logging.getLogger("pqrs.n8n")
-
-# Un aviso es una tupla (evento, payload). Se arma primero y se manda después.
-Aviso = tuple[str, dict]
 
 # El nombre del evento ES el path del webhook en n8n. Se declaran aquí y no
 # sueltos en cada función para que exista un solo sitio donde mirar cuando
@@ -82,17 +79,6 @@ EVENTOS = frozenset({
 DIAS_ESPERA_CLIENTE = 3
 
 
-def enviar_avisos(avisos: list[Aviso]) -> None:
-    """
-    Manda los avisos ya preparados. Se ejecuta después de responder.
-
-    Cada uno va por su cuenta: que no llegue el correo del cliente no puede
-    impedir que le llegue el aviso a Servicio al Cliente.
-    """
-    for evento, payload in avisos or []:
-        disparar_webhook_n8n(evento, payload)
-
-
 def _correos_por_area(db: Session, tenant_id: int, area: str) -> list[str]:
     """Correos de los usuarios activos del tenant que pertenecen a esa área."""
     if not area:
@@ -108,26 +94,6 @@ def _correos_por_area(db: Session, tenant_id: int, area: str) -> list[str]:
         u.email for u in usuarios
         if u.area and u.area.strip().lower() == area_norm and u.email
     ]
-
-
-def _protegido(fn, *args, **kwargs) -> list[Aviso]:
-    """
-    Arma un aviso sin poder tumbar la petición.
-
-    Preparar también falla: un campo que ya no existe en el modelo, la
-    consulta de correos contra una base que se cayó. Y como esto corre
-    después del commit, una excepción aquí dejaba la PQRS creada y al
-    cliente viendo un error 500 — que es peor que no avisar, porque lo
-    normal es que vuelva a enviar el formulario.
-    """
-    try:
-        return fn(*args, **kwargs) or []
-    except Exception as exc:
-        logger.error(
-            "No se pudo preparar la notificación %s: %s: %s",
-            getattr(fn, "__name__", fn), type(exc).__name__, exc,
-        )
-        return []
 
 
 # ── Notificaciones al cliente (externas) ────────────────────────────
@@ -284,14 +250,14 @@ def _aviso_area_creacion(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
 def avisos_creacion(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
     """Todo lo que se notifica cuando entra una PQRS, venga de donde venga."""
     return [
-        *_protegido(_aviso_cliente_creacion, solicitud),
-        *_protegido(_aviso_servicio_cliente, db, tenant_id, solicitud),
-        *_protegido(_aviso_area_creacion, db, tenant_id, solicitud),
+        *protegido(_aviso_cliente_creacion, solicitud),
+        *protegido(_aviso_servicio_cliente, db, tenant_id, solicitud),
+        *protegido(_aviso_area_creacion, db, tenant_id, solicitud),
     ]
 
 
 def avisos_reasignacion(db: Session, tenant_id: int, solicitud, area: str) -> list[Aviso]:
-    return _protegido(_aviso_area, db, tenant_id, solicitud, area, "reasignacion")
+    return protegido(_aviso_area, db, tenant_id, solicitud, area, "reasignacion")
 
 
 def _aviso_autorizacion(db: Session, tenant_id: int, solicitud, area: str,
@@ -346,7 +312,7 @@ def avisos_autorizacion_pendiente(db: Session, tenant_id: int, solicitud, area: 
     alguien de Contabilidad, por su cuenta, se le ocurra abrir el portal. El
     plazo de la PQRS mientras tanto sigue corriendo.
     """
-    return _protegido(
+    return protegido(
         _aviso_autorizacion, db, tenant_id, solicitud, area,
         "pendiente", autorizacion, solicitante, "", comentario, tiene_adjunto,
     )
@@ -358,7 +324,7 @@ def avisos_autorizacion_respondida(db: Session, tenant_id: int, solicitud, area:
                                    comentario: str | None = None,
                                    tiene_adjunto: bool = False) -> list[Aviso]:
     """Le avisa al área a la que vuelve el caso, con el sí o el no ya dado."""
-    return _protegido(
+    return protegido(
         _aviso_autorizacion, db, tenant_id, solicitud, area,
         "respondida", autorizacion, respondida_por, decision,
         comentario, tiene_adjunto,
@@ -366,11 +332,11 @@ def avisos_autorizacion_respondida(db: Session, tenant_id: int, solicitud, area:
 
 
 def avisos_cierre(solicitud, motivo_cierre: str = "manual") -> list[Aviso]:
-    return _protegido(_aviso_cliente_cierre, solicitud, motivo_cierre)
+    return protegido(_aviso_cliente_cierre, solicitud, motivo_cierre)
 
 
 def avisos_resuelta(solicitud) -> list[Aviso]:
-    return _protegido(_aviso_cliente_resuelta, solicitud)
+    return protegido(_aviso_cliente_resuelta, solicitud)
 
 
 def _aviso_area_rechazo(db: Session, tenant_id: int, solicitud,
@@ -404,4 +370,4 @@ def _aviso_area_rechazo(db: Session, tenant_id: int, solicitud,
 
 def avisos_cliente_rechazo(db: Session, tenant_id: int, solicitud,
                            comentario_cliente: str) -> list[Aviso]:
-    return _protegido(_aviso_area_rechazo, db, tenant_id, solicitud, comentario_cliente)
+    return protegido(_aviso_area_rechazo, db, tenant_id, solicitud, comentario_cliente)

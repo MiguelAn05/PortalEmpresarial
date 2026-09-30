@@ -11,7 +11,7 @@ excepciones y se llama después de guardar.
 """
 from app.core.config import settings
 from app.models.user import User
-from app.modules.pqrs.service import disparar_webhook_n8n
+from app.core.notificaciones import disparar_webhook_n8n
 
 
 def _link_tarea(tarea_id: int) -> str:

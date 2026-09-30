@@ -1,8 +1,7 @@
 """
 Endpoints del módulo Master Planner.
-Reutiliza disparar_webhook_n8n y guardar_archivo de PQRS: son
-utilidades genéricas (no específicas de PQRS), y así evitamos
-duplicar la misma lógica de subida de archivos y webhooks.
+Los archivos y los avisos a n8n salen de `core/archivos.py` y
+`core/notificaciones.py`, compartidos con el resto del portal.
 """
 from datetime import datetime, timedelta, timezone
 
@@ -22,7 +21,7 @@ from app.models.master_planner import (
 from app.modules.master_planner.schemas import (
     ProyectoCreate, ProyectoUpdate, ProyectoOut,
     ItemPresupuestoCreate, ItemPresupuestoUpdate, ItemPresupuestoOut,
-    AprobacionIn, PagoIn, PagoOut,
+    AprobacionIn, PagoOut,
     TareaCreate, TareaUpdate, TareaOut, SubtareaCreate,
     TareaActualizacionOut, RespuestaActualizacionCrear, RespuestaActualizacionOut,
     UsuarioAsignableOut, HistorialCambioOut,
@@ -31,7 +30,7 @@ from app.modules.master_planner.historial import (
     instantanea, registrar_cambios, registrar_evento,
 )
 from app.modules.master_planner.permisos import (
-    aplicar_filtro_proyectos, puede_ver_proyecto, puede_ver_presupuesto, ve_todo, condicion_area,
+    aplicar_filtro_proyectos, puede_ver_proyecto, puede_ver_presupuesto, condicion_area,
     solo_aprueba_pagos, solo_registra_pagos, puede_cerrar_proyecto,
 )
 from app.modules.master_planner.resumen import construir_resumen
@@ -43,7 +42,7 @@ from app.modules.master_planner.outlook import (
     sincronizar_tarea, borrar_evento_de_tarea, borrar_evento_en_calendario_de,
     eventos_del_usuario,
 )
-from app.modules.pqrs.service import disparar_webhook_n8n, guardar_archivo
+from app.core.archivos import guardar_archivo
 
 router = APIRouter(prefix="/master-planner", tags=["Master Planner"])
 

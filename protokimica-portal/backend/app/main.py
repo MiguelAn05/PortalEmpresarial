@@ -22,6 +22,7 @@ logging.basicConfig(
 # Excepción: el logger de n8n queremos verlo en INFO también en
 # producción — es la única forma de confirmar que un correo SÍ salió,
 # no solo cuando falla.
+logging.getLogger("n8n").setLevel(logging.INFO)
 logging.getLogger("pqrs.n8n").setLevel(logging.INFO)
 # Lo mismo para la sincronización con Outlook: sin un rastro del caso que
 # SÍ funcionó, un calendario vacío y una integración apagada se ven igual
@@ -96,8 +97,8 @@ app.add_middleware(
 )
 
 # Servir archivos subidos
-os.makedirs("/app/uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="/app/uploads"), name="uploads")
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 
 @app.get("/health", tags=["Sistema"])

@@ -14,11 +14,10 @@ from app.core.config import settings
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.deps import get_current_user, get_current_tenant_id, require_role, ROLES_VALIDOS
 from app.core.rate_limit import limitar_login
-from app.core.areas import AREAS
+from app.core.areas import AREA_PUNTOS_DE_VENTA, AREAS
 from app.models.capacidad import CapacidadOtorgada
 from app.models.user import AreaSupervisada, User
 from app.models.tenant import Tenant
-from app.modules.pqrs.permisos import AREA_PUNTOS_DE_VENTA
 from app.modules.auth.rastros import explicar, rastros_de
 from app.modules.auth.schemas import (
     RegisterRequest, LoginRequest, TokenResponse, UserOut,

@@ -3,7 +3,7 @@ Script de datos iniciales (seed). Crea el tenant de Protokimica y un usuario
 admin de prueba para poder loguearse de inmediato.
 
 Uso (con el contenedor backend corriendo):
-    docker compose exec backend python -m app.seed
+    docker compose exec backend python -m app.scripts.seed
 """
 from app.core.database import SessionLocal
 from app.core.security import hash_password

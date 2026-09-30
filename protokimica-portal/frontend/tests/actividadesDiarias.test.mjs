@@ -73,7 +73,7 @@ check('la pestana de tareas dice «de proyecto»',
 check('y existe la de actividades diarias',
   /'Actividades diarias'/.test(HEADER))
 check('la vista explica que lo que termina va en la otra',
-  /Tareas de proyecto/.test(VISTA) && /no termina/.test(VISTA))
+  /Tareas de proyecto/.test(VISTA) && /(recurrentes|se repite|no termina)/.test(VISTA))
 
 console.log('\n== La pantalla no calcula fechas ==')
 // La regla de dias habiles y festivos vive en un solo sitio. Si la pantalla

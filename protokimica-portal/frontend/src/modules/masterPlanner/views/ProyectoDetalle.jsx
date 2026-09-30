@@ -12,7 +12,7 @@ import PanelPresupuesto from "../components/PanelPresupuesto"
 import ConfirmarCambios from "../components/ConfirmarCambios"
 import CierreProyectoModal from "../components/CierreProyectoModal"
 import PanelCierre from "../components/PanelCierre"
-import { useAuth } from "../../../core/AuthContext"
+import { useAuth } from "../../../core/useAuth.js"
 import {
   obtenerProyecto, listarTareasDeProyecto, actualizarTarea, actualizarProyecto,
   listarHistorialProyecto,

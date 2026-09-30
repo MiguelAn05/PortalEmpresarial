@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../../core/AuthContext.jsx'
+import { useAuth } from '../../core/useAuth.js'
 import { RUTA_DE_MODULO } from '../../core/modulos.js'
 import {
   IconoAdmin, IconoAlDia, IconoAlerta, IconoChevron, IconoDinero,

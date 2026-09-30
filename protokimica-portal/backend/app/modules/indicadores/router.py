@@ -1,7 +1,7 @@
 """
 Endpoints del módulo de Indicadores.
 
-Reutiliza `guardar_archivo` de PQRS para la evidencia y las dependencias de
+Usa `guardar_archivo` de `core/archivos.py` para la evidencia y las dependencias de
 permisos del core: `gerencia` consulta todo el tablero pero no registra ni
 configura nada, igual que en el resto del portal.
 """
@@ -27,7 +27,7 @@ from app.modules.indicadores.schemas import (
     FormulaPrueba, FormulaResultado, IndicadorCreate, IndicadorUpdate, IndicadorOut,
     MedicionOut, HistorialOut,
 )
-from app.modules.pqrs.service import guardar_archivo
+from app.core.archivos import guardar_archivo
 
 router = APIRouter(prefix="/indicadores", tags=["Indicadores"])
 

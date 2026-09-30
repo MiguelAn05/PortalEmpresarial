@@ -7,7 +7,7 @@ import {
 import {
   ESTADOS_PAGO, formatMoneda, puedeAprobarPagos, puedeRegistrarPagos,
 } from "../constants"
-import { useAuth } from "../../../core/AuthContext"
+import { useAuth } from "../../../core/useAuth.js"
 import { IconoCerrar, IconoClip } from '../../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../../core/errores.js'
 

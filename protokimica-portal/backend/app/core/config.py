@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # Vacío = la sincronización queda cerrada.
     CLAVE_SINCRONIZACION: str = ""
 
+    # Dónde se guardan los archivos que sube la gente. Lo sirve `main.py` en
+    # `/uploads` y lo escribe `core/archivos.py`; antes estaba escrito a mano
+    # en tres sitios.
+    UPLOAD_DIR: str = "/app/uploads"
+
     # Opcional: URL base de n8n para disparar automatizaciones. Vacío = se ignora.
     N8N_WEBHOOK_URL: str = ""
 

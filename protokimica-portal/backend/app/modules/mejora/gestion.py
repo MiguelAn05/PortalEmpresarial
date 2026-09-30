@@ -32,10 +32,11 @@ revisar el número OMP por OMP en vez de creerle a ciegas.
 """
 from calendar import monthrange
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.fechas import con_zona
 from app.models.mejora import (
     ESTADO_DESCARTADA, CambioMejora, Oportunidad, SeguimientoMejora,
 )
@@ -62,15 +63,6 @@ class EvaluacionOMP:
         return not self.motivos
 
 
-def _aware(valor) -> datetime | None:
-    """Postgres devuelve fechas con zona y SQLite sin ella; aquí todo lleva zona."""
-    if valor is None:
-        return None
-    if isinstance(valor, datetime):
-        return valor if valor.tzinfo else valor.replace(tzinfo=timezone.utc)
-    return datetime.combine(valor, time.min, tzinfo=timezone.utc)
-
-
 def _tramos_abierta(omp: Oportunidad, cambios: list[CambioMejora]) -> list[tuple[datetime, datetime | None]]:
     """
     Los periodos en que la OMP estuvo abierta (no cerrada ni descartada).
@@ -79,14 +71,14 @@ def _tramos_abierta(omp: Oportunidad, cambios: list[CambioMejora]) -> list[tuple
     descartada se puede retomar: si solo se mirara el estado de hoy, los
     meses en que estuvo descartada contarían como meses sin avances.
     """
-    inicio = _aware(omp.creado_en) or _aware(omp.fecha_registro)
+    inicio = con_zona(omp.creado_en) or con_zona(omp.fecha_registro)
     estados = sorted(
-        ((_aware(c.fecha), c.valor_nuevo) for c in cambios if c.fecha),
+        ((con_zona(c.fecha), c.valor_nuevo) for c in cambios if c.fecha),
         key=lambda x: x[0],
     )
     if not estados:
         if omp.estado in TERMINALES:
-            fin = _aware(omp.fecha_cierre) or inicio
+            fin = con_zona(omp.fecha_cierre) or inicio
             return [(inicio, fin)]
         return [(inicio, None)]
 
@@ -121,10 +113,10 @@ def _evaluar(omp: Oportunidad, cambios: list[CambioMejora], fechas_seguimiento: 
     # 1. Plan de acción, contra la fecha original.
     vencidas = tarde = 0
     for accion in omp.acciones:
-        limite = _aware(accion.fecha_limite_original or accion.fecha_limite)
+        limite = con_zona(accion.fecha_limite_original or accion.fecha_limite)
         if limite is None:
             continue
-        hecha = _aware(accion.fecha_completada) if accion.estado == "cumplida" else None
+        hecha = con_zona(accion.fecha_completada) if accion.estado == "cumplida" else None
         if hecha and inicio <= hecha <= corte_omp and hecha.date() > limite.date():
             tarde += 1
         elif limite.date() < corte_omp.date() and (hecha is None or hecha > corte_omp):
@@ -139,21 +131,21 @@ def _evaluar(omp: Oportunidad, cambios: list[CambioMejora], fechas_seguimiento: 
     # 2. Avances. Solo se exige con el mes terminado: a mitad de mes todavía
     # hay tiempo, y medir antes castigaría lo que aún no pasa.
     if mes_completo:
-        registrada = _aware(omp.creado_en) or inicio
+        registrada = con_zona(omp.creado_en) or inicio
         recien_registrada = registrada > corte_omp - timedelta(days=DIAS_GRACIA_AVANCES)
         hubo_seguimiento = any(inicio.date() <= f <= corte_omp.date() for f in fechas_seguimiento)
         hubo_cambio_estado = any(
-            c.fecha and inicio <= _aware(c.fecha) <= corte_omp for c in cambios)
+            c.fecha and inicio <= con_zona(c.fecha) <= corte_omp for c in cambios)
         hubo_movimiento_plan = any(
-            (a.fecha_completada and inicio <= _aware(a.fecha_completada) <= corte_omp)
-            or (a.creado_en and inicio <= _aware(a.creado_en) <= corte_omp)
+            (a.fecha_completada and inicio <= con_zona(a.fecha_completada) <= corte_omp)
+            or (a.creado_en and inicio <= con_zona(a.creado_en) <= corte_omp)
             for a in omp.acciones
         )
         if not (recien_registrada or hubo_seguimiento or hubo_cambio_estado or hubo_movimiento_plan):
             evaluacion.motivos.append("sin avances en el mes")
 
     # 3. Plazo general: se pasó de la fecha estimada estando abierta.
-    limite_omp = _aware(omp.fecha_limite)
+    limite_omp = con_zona(omp.fecha_limite)
     if limite_omp and limite_omp.date() < corte_omp.date():
         evaluacion.motivos.append("pasó su fecha estimada de solución")
 
@@ -163,7 +155,7 @@ def _evaluar(omp: Oportunidad, cambios: list[CambioMejora], fechas_seguimiento: 
 def evaluar_mes(db: Session, tenant_id: int, area: str, anio: int, mes: int,
                 ahora: datetime | None = None) -> list[EvaluacionOMP]:
     """Cada OMP del área que estuvo abierta en el mes, con si quedó al día y por qué no."""
-    ahora = _aware(ahora) or datetime.now(timezone.utc)
+    ahora = con_zona(ahora) or datetime.now(timezone.utc)
     inicio = datetime(anio, mes, 1, tzinfo=timezone.utc)
     fin = datetime(anio, mes, monthrange(anio, mes)[1], 23, 59, 59, tzinfo=timezone.utc)
     if inicio > ahora:

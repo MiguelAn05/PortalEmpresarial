@@ -1,8 +1,7 @@
-f"""
+"""
 Endpoints PÚBLICOS de PQRS — sin autenticación.
 Soporta subida de archivos (imágenes del producto y factura).
 """
-import os
 from datetime import datetime, timezone
 
 from fastapi import (
@@ -10,7 +9,6 @@ from fastapi import (
     UploadFile, status,
 )
 from fastapi.responses import Response
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.modules.pqrs.schemas import EncuestaCreate
@@ -25,24 +23,20 @@ from app.modules.pqrs.cierre_automatico import (
     confirmar_solucion, plazo_confirmacion, rechazar_solucion,
 )
 from app.modules.pqrs.historial_publico import construir as historial_publico_de
+from app.core.archivos import (
+    EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB, guardar_archivo,
+)
+from app.core.notificaciones import enviar_avisos
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla,
     calcular_prioridad,
     asignar_codigo_seguimiento,
-    guardar_archivo,
     validar_largos,
-    EXTENSIONES_VIDEO_PERMITIDAS,
-    MAX_TAMANIO_VIDEO_MB,
 )
-from app.modules.pqrs.notificaciones import (
-    avisos_creacion, enviar_avisos,
-)
+from app.modules.pqrs.notificaciones import avisos_creacion
 
 router = APIRouter(prefix="/public", tags=["Público — PQRS"])
 
-# Carpeta donde se guardan los archivos subidos
-UPLOAD_DIR = "/app/uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 # ── Códigos QR de los puntos de venta ────────────────────────────────

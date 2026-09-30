@@ -7,7 +7,7 @@ import TareasTable from "../components/TareasTable"
 import GanttView from "../components/GanttView"
 import { listarTareas, actualizarTarea } from "../api"
 import { FILTROS_TAREAS_VACIOS, filtrarTareas, puedeEditar } from "../constants"
-import { useAuth } from "../../../core/AuthContext"
+import { useAuth } from "../../../core/useAuth.js"
 
 /** Vista global: todas las tareas de todos los proyectos activos. */
 export default function TareasView({ proyectos, usuarios, onSelectTarea, onNuevaTarea }) {

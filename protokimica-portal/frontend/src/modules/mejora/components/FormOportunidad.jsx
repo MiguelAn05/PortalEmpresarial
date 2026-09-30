@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AREAS } from '../../../core/areas.js'
-import { useAuth } from '../../../core/AuthContext.jsx'
+import { useAuth } from '../../../core/useAuth.js'
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 import { useCierreSeguro } from '../../../core/components/cierreSeguro.jsx'
 import { obtenerTablero } from '../../indicadores/api.js'

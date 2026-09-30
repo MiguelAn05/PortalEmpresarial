@@ -32,8 +32,9 @@ from sqlalchemy.orm import Session
 
 from app.core.dias_habiles import limite_en_habiles
 from app.models.pqrs import PQRSEncuesta, PQRSSeguimiento, PQRSSolicitud
+from app.core.notificaciones import Aviso
 from app.modules.pqrs.notificaciones import (
-    Aviso, DIAS_ESPERA_CLIENTE, avisos_cierre, avisos_cliente_rechazo,
+    DIAS_ESPERA_CLIENTE, avisos_cierre, avisos_cliente_rechazo,
 )
 
 

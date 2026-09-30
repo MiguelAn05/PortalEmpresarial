@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '../../../core/AuthContext.jsx'
+import { useAuth } from '../../../core/useAuth.js'
 import {
   IconoAlDia, IconoAlerta, IconoCerrar, IconoCheck, IconoHistorial,
   IconoIndicadores, IconoRechazo, IconoReloj,

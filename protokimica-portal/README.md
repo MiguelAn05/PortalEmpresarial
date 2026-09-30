@@ -57,7 +57,7 @@ Esto crea las tablas: `tenants`, `users`, `pqrs_solicitudes`, `pqrs_seguimientos
 ## 4. Crear el tenant de Protokimica + usuario admin de prueba
 
 ```bash
-docker compose exec backend python -m app.seed
+docker compose exec backend python -m app.scripts.seed
 ```
 
 Esto te va a dar un usuario para probar el login de inmediato:
@@ -113,7 +113,7 @@ backend/
 │   │   ├── auth/           ← login, registro
 │   │   └── pqrs/           ← módulo PQRS completo, aislado
 │   ├── main.py             ← ensambla todos los módulos
-│   └── seed.py              ← datos iniciales de prueba
+│   └── scripts/seed.py      ← datos iniciales de prueba
 ├── alembic/                ← migraciones de base de datos
 └── requirements.txt
 

@@ -6,10 +6,10 @@ de Contabilidad lo ve llegar. Si el portal solo guardara la solicitud en una
 pantalla, nadie sabría que hay algo esperando — habríamos cambiado un correo
 que funciona por un tablero que nadie mira.
 
-Se apoya en la maquinaria de avisos de PQRS (`enviar_avisos`, los correos por
-área y el envoltorio que impide que notificar tumbe la petición) porque es
-exactamente la misma y duplicarla sería tener dos sitios donde arreglar el
-próximo webhook con un salto de línea al final.
+Se apoya en la maquinaria de avisos de `core/notificaciones.py`
+(`enviar_avisos` y el envoltorio que impide que notificar tumbe la petición)
+porque es la misma de todo el portal: duplicarla sería tener dos sitios
+donde arreglar el próximo webhook con un salto de línea al final.
 """
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,7 @@ from app.core.capacidades import correos_de, usuarios_con
 from app.core.config import settings
 from app.models.nota_credito import ESTADO_APROBADA, ESTADO_EN_BODEGA
 from app.models.user import User
-from app.modules.pqrs.notificaciones import Aviso, _protegido
+from app.core.notificaciones import Aviso, protegido
 from app.modules.notas_credito import flujo
 from app.modules.notas_credito.permisos import CAP_REGISTRAR
 
@@ -122,11 +122,11 @@ def _aviso_por_emitir(db: Session, tenant_id: int, solicitud, aprobada_por: str)
 
 def avisos_respondida(db: Session, tenant_id: int, solicitud, decision: str,
                       respondida_por: str) -> list[Aviso]:
-    return _protegido(_aviso_respondida, db, tenant_id, solicitud, decision, respondida_por)
+    return protegido(_aviso_respondida, db, tenant_id, solicitud, decision, respondida_por)
 
 
 def avisos_por_emitir(db: Session, tenant_id: int, solicitud, aprobada_por: str) -> list[Aviso]:
-    return _protegido(_aviso_por_emitir, db, tenant_id, solicitud, aprobada_por)
+    return protegido(_aviso_por_emitir, db, tenant_id, solicitud, aprobada_por)
 
 
 def _lideres_del_solicitante(db: Session, tenant_id: int, solicitud) -> list[str]:
@@ -251,10 +251,10 @@ def _aviso_devuelta(db: Session, tenant_id: int, solicitud, etapa: str,
 
 
 def avisos_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
-    return _protegido(_aviso_en_turno, db, tenant_id, solicitud)
+    return protegido(_aviso_en_turno, db, tenant_id, solicitud)
 
 
 def avisos_devuelta(db: Session, tenant_id: int, solicitud, etapa: str,
                     devuelta_por: str, comentario: str | None) -> list[Aviso]:
-    return _protegido(_aviso_devuelta, db, tenant_id, solicitud, etapa,
+    return protegido(_aviso_devuelta, db, tenant_id, solicitud, etapa,
                       devuelta_por, comentario)

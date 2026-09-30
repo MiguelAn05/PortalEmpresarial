@@ -11,6 +11,7 @@ que un proyecto que nadie sacó adelante contara igual que uno cumplido.
 """
 from datetime import datetime, timezone
 
+from app.core.fechas import con_zona
 from app.models.master_planner import CierreProyecto, Proyecto
 from app.models.user import User
 
@@ -22,18 +23,11 @@ TIPOS = {FINALIZADO, CANCELADO}
 ESTADO_SEGUN_TIPO = {FINALIZADO: "cerrado", CANCELADO: "cancelado"}
 
 
-def _aware(f):
-    """Postgres devuelve fechas con zona y SQLite sin ella; restarlas revienta."""
-    if f is None:
-        return None
-    return f if f.tzinfo else f.replace(tzinfo=timezone.utc)
-
-
 def _dias_de_duracion(proyecto: Proyecto, cierre: datetime) -> int | None:
-    inicio = _aware(proyecto.fecha_inicio)
+    inicio = con_zona(proyecto.fecha_inicio)
     if not inicio:
         return None
-    return max(0, (_aware(cierre) - inicio).days)
+    return max(0, (con_zona(cierre) - inicio).days)
 
 
 def foto_de_los_numeros(proyecto: Proyecto, momento: datetime) -> dict:

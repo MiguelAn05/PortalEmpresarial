@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.core.fechas import con_zona
 from app.models.master_planner import Proyecto, Tarea, HistorialCambio
 from app.models.user import User
 from app.modules.master_planner.permisos import (
@@ -29,23 +30,13 @@ def _ahora() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _aware(f: datetime | None) -> datetime | None:
-    """
-    SQLite devuelve datetimes sin zona y Postgres con zona. Normalizamos a UTC
-    para poder compararlos sin que reviente en uno de los dos motores.
-    """
-    if f is None:
-        return None
-    return f if f.tzinfo else f.replace(tzinfo=timezone.utc)
-
-
 def _pct(parte: float, total: float) -> float:
     return round((parte / total) * 100, 1) if total else 0.0
 
 
 def _plazo_consumido_pct(proyecto: Proyecto) -> float | None:
     """Qué porcentaje del tiempo planeado del proyecto ya transcurrió."""
-    inicio, fin = _aware(proyecto.fecha_inicio), _aware(proyecto.fecha_fin_estimada)
+    inicio, fin = con_zona(proyecto.fecha_inicio), con_zona(proyecto.fecha_fin_estimada)
     if not inicio or not fin or fin <= inicio:
         return None
     transcurrido = (_ahora() - inicio).total_seconds()
@@ -107,8 +98,8 @@ def _replanificaciones(db: Session, tenant_id: int, ids_visibles: list[int]) -> 
                 # _aware es imprescindible aquí: el historial puede tener
                 # fechas con y sin zona mezcladas (Postgres las devuelve con
                 # zona, SQLite sin ella), y restarlas directo revienta.
-                antes = _aware(datetime.fromisoformat(fila.valor_anterior))
-                despues = _aware(datetime.fromisoformat(fila.valor_nuevo))
+                antes = con_zona(datetime.fromisoformat(fila.valor_anterior))
+                despues = con_zona(datetime.fromisoformat(fila.valor_nuevo))
             except ValueError:
                 continue
             dias = (despues - antes).days
@@ -149,14 +140,14 @@ def construir_resumen(
     # ── Tareas: abiertas, prioridad, vencidas, cumplimiento ──────
     abiertas = [t for t in tareas if t.estado != "completada"]
     alta_prioridad = [t for t in abiertas if t.prioridad in ("alta", "critica")]
-    vencidas = [t for t in abiertas if _aware(t.fecha_fin) and _aware(t.fecha_fin) < ahora]
+    vencidas = [t for t in abiertas if con_zona(t.fecha_fin) and con_zona(t.fecha_fin) < ahora]
 
     # Cumplimiento: solo entran las tareas completadas que tenían fecha
     # comprometida y fecha real de cierre. Las cerradas antes de que
     # existiera el registro no cuentan, ni a favor ni en contra.
     medibles = [t for t in tareas
                 if t.estado == "completada" and t.fecha_fin and t.fecha_completada]
-    a_tiempo = [t for t in medibles if _aware(t.fecha_completada) <= _aware(t.fecha_fin)]
+    a_tiempo = [t for t in medibles if con_zona(t.fecha_completada) <= con_zona(t.fecha_fin)]
 
     # ── Presupuesto por área ─────────────────────────────────────
     # Solo entra la plata de los proyectos cuyo presupuesto el usuario tiene
@@ -223,7 +214,7 @@ def construir_resumen(
             "total_tareas": len(propias),
             "tareas_vencidas": sum(
                 1 for t in propias
-                if t.estado != "completada" and _aware(t.fecha_fin) and _aware(t.fecha_fin) < ahora
+                if t.estado != "completada" and con_zona(t.fecha_fin) and con_zona(t.fecha_fin) < ahora
             ),
             "replanificaciones": r["veces"],
             "dias_aplazados": r["dias"],
@@ -255,13 +246,13 @@ def construir_resumen(
         })
         if t.estado == "completada":
             if t.fecha_fin and t.fecha_completada:
-                if _aware(t.fecha_completada) <= _aware(t.fecha_fin):
+                if con_zona(t.fecha_completada) <= con_zona(t.fecha_fin):
                     fila["a_tiempo"] += 1
                 else:
                     fila["tarde"] += 1
         else:
             fila["abiertas"] += 1
-            if _aware(t.fecha_fin) and _aware(t.fecha_fin) < ahora:
+            if con_zona(t.fecha_fin) and con_zona(t.fecha_fin) < ahora:
                 fila["vencidas"] += 1
 
     cumplimiento_por_area = sorted(
@@ -285,7 +276,7 @@ def construir_resumen(
             "activas": 0, "vencidas": 0, "por_vencer": 0, "alta_prioridad": 0,
         })
         fila["activas"] += 1
-        fin = _aware(t.fecha_fin)
+        fin = con_zona(t.fecha_fin)
         if fin:
             dias = (fin - ahora).days
             if fin < ahora:

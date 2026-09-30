@@ -13,9 +13,8 @@ de línea invisible al final —un `.env` mal pegado— se escapaba del `except`
 import pytest
 
 from app.core.config import settings
-from app.modules.pqrs.notificaciones import (
-    avisos_cierre, avisos_creacion, enviar_avisos,
-)
+from app.core.notificaciones import enviar_avisos
+from app.modules.pqrs.notificaciones import avisos_cierre, avisos_creacion
 
 
 @pytest.fixture
@@ -68,7 +67,7 @@ def test_la_url_se_limpia_para_que_el_correo_salga(n8n, monkeypatch, configurado
         llamadas.append(url)
         return Respuesta()
 
-    monkeypatch.setattr("app.modules.pqrs.service.httpx.post", falso_post)
+    monkeypatch.setattr("app.core.notificaciones.httpx.post", falso_post)
     n8n(configurado)
 
     enviar_avisos([("pqrs-creada-cliente", {"pqrs_id": 1})])
@@ -90,7 +89,7 @@ def test_cada_aviso_va_por_su_cuenta(n8n, monkeypatch):
             text = "ok"
         return R()
 
-    monkeypatch.setattr("app.modules.pqrs.service.httpx.post", falso_post)
+    monkeypatch.setattr("app.core.notificaciones.httpx.post", falso_post)
     n8n("http://n8n:5678/webhook")
 
     enviar_avisos([

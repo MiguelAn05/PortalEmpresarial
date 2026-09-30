@@ -6,8 +6,8 @@ el histórico no se borra y la lista crece con él. Esto responde con números
 —milisegundos y megabytes por respuesta— en vez de con impresiones, y sirve
 para decidir CUÁNDO toca paginar en el servidor y no antes.
 
-    docker exec protokimica_backend python -m app.medir_lista_pqrs
-    docker exec protokimica_backend python -m app.medir_lista_pqrs --filas 20000
+    docker exec protokimica_backend python -m app.scripts.medir_lista_pqrs
+    docker exec protokimica_backend python -m app.scripts.medir_lista_pqrs --filas 20000
 
 **Va contra la base de DESARROLLO.** Se niega a correr si la base ya tiene
 más PQRS de las que se van a sembrar, que es la señal más barata de estar en

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
+from app.core.fechas import con_zona
 from app.core.modulos import modulos_de, ve_todos_los_indicadores
 from app.core import supervision
 from app.models.indicadores import Indicador
@@ -46,13 +47,6 @@ def _ahora() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _aware(f: datetime | None) -> datetime | None:
-    """Postgres devuelve fechas con zona y SQLite sin ella."""
-    if f is None:
-        return None
-    return f if f.tzinfo else f.replace(tzinfo=timezone.utc)
-
-
 def _mis_tareas(db: Session, usuario: User) -> dict:
     """Tareas asignadas a la persona, en proyectos activos."""
     tareas = (
@@ -72,7 +66,7 @@ def _mis_tareas(db: Session, usuario: User) -> dict:
     vencidas, por_vencer = [], []
 
     for t in tareas:
-        fin = _aware(t.fecha_fin)
+        fin = con_zona(t.fecha_fin)
         if not fin:
             continue
         destino = vencidas if fin < ahora else (por_vencer if fin <= limite else None)
@@ -86,8 +80,8 @@ def _mis_tareas(db: Session, usuario: User) -> dict:
             "prioridad": t.prioridad,
         })
 
-    vencidas.sort(key=lambda x: _aware(x["fecha_fin"]))
-    por_vencer.sort(key=lambda x: _aware(x["fecha_fin"]))
+    vencidas.sort(key=lambda x: con_zona(x["fecha_fin"]))
+    por_vencer.sort(key=lambda x: con_zona(x["fecha_fin"]))
 
     return {
         "abiertas": len(tareas),
@@ -120,7 +114,7 @@ def _mis_pqrs(db: Session, usuario: User) -> dict:
         # del módulo (`pendientes.ESTADOS_ABIERTOS`), no una copia local.
         if p.estado not in ESTADOS_CON_PLAZO:
             continue
-        sla = _aware(p.fecha_limite_sla)
+        sla = con_zona(p.fecha_limite_sla)
         if not sla:
             continue
         destino = vencidas if sla < ahora else (por_vencer if sla <= limite else None)
@@ -135,8 +129,8 @@ def _mis_pqrs(db: Session, usuario: User) -> dict:
             "estado": p.estado,
         })
 
-    vencidas.sort(key=lambda x: _aware(x["fecha_limite_sla"]))
-    por_vencer.sort(key=lambda x: _aware(x["fecha_limite_sla"]))
+    vencidas.sort(key=lambda x: con_zona(x["fecha_limite_sla"]))
+    por_vencer.sort(key=lambda x: con_zona(x["fecha_limite_sla"]))
 
     return {
         "abiertas": len(solicitudes),
@@ -213,7 +207,7 @@ def _serie_presupuesto(db: Session, ids_proyectos: list[int]) -> list[dict]:
             .all()
         )
         for fecha, valor in pagos:
-            fecha = _aware(fecha)
+            fecha = con_zona(fecha)
             if fecha and fecha >= desde and (fecha.year, fecha.month) in acumulado:
                 acumulado[(fecha.year, fecha.month)]["pagado"] += float(valor or 0)
 
@@ -224,7 +218,7 @@ def _serie_presupuesto(db: Session, ids_proyectos: list[int]) -> list[dict]:
             .all()
         )
         for fecha, valor in aprobaciones:
-            fecha = _aware(fecha)
+            fecha = con_zona(fecha)
             if fecha and fecha >= desde and (fecha.year, fecha.month) in acumulado:
                 acumulado[(fecha.year, fecha.month)]["aprobado"] += float(valor or 0)
 
@@ -250,7 +244,7 @@ def _proyectos_al_frente(proyectos: list) -> list[dict]:
     """
     activos = [p for p in proyectos if p.estado in ("planeacion", "en_ejecucion")]
     lejos = datetime(2999, 1, 1, tzinfo=timezone.utc)
-    activos.sort(key=lambda p: _aware(p.fecha_fin_estimada) or lejos)
+    activos.sort(key=lambda p: con_zona(p.fecha_fin_estimada) or lejos)
 
     return [
         {
@@ -304,7 +298,7 @@ def _resumen_empresa(db: Session, usuario: User) -> dict | None:
         "proyectos_activos": len(proyectos),
         "proyectos_nuevos_mes": len([
             p for p in proyectos
-            if _aware(p.creado_en) and _aware(p.creado_en) >= inicio_mes
+            if con_zona(p.creado_en) and con_zona(p.creado_en) >= inicio_mes
         ]),
         "proyectos": _proyectos_al_frente(proyectos),
         "pqrs_abiertas": pqrs_abiertas,
@@ -385,7 +379,7 @@ def _mi_area(db: Session, usuario: User) -> dict | None:
 
     vencidas_equipo = [
         t for t in tareas_equipo
-        if _aware(t.fecha_fin) and _aware(t.fecha_fin) < ahora
+        if con_zona(t.fecha_fin) and con_zona(t.fecha_fin) < ahora
     ]
 
     return {

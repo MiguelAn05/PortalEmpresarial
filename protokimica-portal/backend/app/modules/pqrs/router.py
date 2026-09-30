@@ -27,15 +27,16 @@ from app.modules.pqrs import edicion, pendientes
 from app.modules.pqrs import productos as pqrs_productos
 from app.modules.pqrs.cierre_automatico import cerrar_vencidas, plazo_confirmacion
 from app.modules.pqrs.gestion import aplicar_gestion
+from app.core.archivos import (
+    EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB, guardar_archivo,
+)
+from app.core.notificaciones import disparar_webhook_n8n, enviar_avisos
 from app.modules.pqrs.service import (
-    calcular_fecha_limite_sla, calcular_prioridad, disparar_webhook_n8n,
-    asignar_codigo_seguimiento, generar_radicado_calidad, guardar_archivo,
-    validar_largos,
-    EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB, SLA_DIAS_POR_TIPO,
+    calcular_fecha_limite_sla, calcular_prioridad,
+    asignar_codigo_seguimiento, generar_radicado_calidad,
+    validar_largos, SLA_DIAS_POR_TIPO,
 )
-from app.modules.pqrs.notificaciones import (
-    avisos_creacion, enviar_avisos,
-)
+from app.modules.pqrs.notificaciones import avisos_creacion
 
 router = APIRouter(prefix="/pqrs", tags=["PQRS"])
 

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { obtenerPanel, listarPlantillas } from "./api"
 import { ESCALA_MAX, NIVELES, formatNota, nivelCalificacion, urlPublica } from "./constants"
 import FormPlantilla from "./components/FormPlantilla"
-import { useAuth } from "../../core/AuthContext"
+import { useAuth } from "../../core/useAuth.js"
 import { puedeEditar } from "../masterPlanner/constants"
 import { IconoEstrella } from '../../core/components/Iconos.jsx'
 

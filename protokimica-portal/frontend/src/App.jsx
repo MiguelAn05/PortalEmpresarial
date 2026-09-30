@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from './core/AuthContext.jsx'
+import { useAuth } from './core/useAuth.js'
 import { moduloDeRuta, puedeVerModulo, RUTA_POR_DEFECTO } from './core/modulos.js'
 import Login from './modules/auth/Login.jsx'
 import Layout from './core/components/Layout.jsx'

@@ -11,9 +11,12 @@ protokimica-portal/
   backend/          FastAPI + SQLAlchemy + Alembic + PostgreSQL
     app/
       core/         config, database, deps (permisos), security, areas,
-                    dias_habiles, rate_limit, graph (Microsoft 365)
+                    dias_habiles, rate_limit, graph (Microsoft 365),
+                    archivos (subir archivos), notificaciones (n8n),
+                    fechas (con_zona)
       models/       tablas SQLAlchemy, una por módulo
       modules/      un paquete por módulo: router.py, schemas.py, service.py
+      scripts/      herramientas de consola (`python -m app.scripts.<nombre>`)
     alembic/versions/   migraciones, en orden
     tests/          pruebas end-to-end contra la API real
   n8n/              flujos de automatización, versionados como JSON
@@ -171,6 +174,11 @@ que el historial no termine siendo un `git log`.
   porcentajes y comparaciones se resuelven en el servidor. Si el frontend
   recalcula, tarde o temprano los números dejan de coincidir con un reporte.
 - **Los mensajes de error dicen qué hacer**, no solo qué falló.
+- **Lo que usan varios módulos va en `core`, nunca dentro de uno de ellos.**
+  Guardar archivos y avisar a n8n vivían en PQRS y por eso ningún módulo se
+  podía instalar sin él. `tests/test_modularidad.py` falla si un módulo
+  vuelve a importar de `app.modules.pqrs` (las excepciones están escritas
+  con su motivo). Es la fase 1 del plan para vender el portal por módulos.
 - Módulo nuevo: `models/<modulo>.py`, `modules/<modulo>/{router,schemas,service}.py`,
   registrar en `main.py` (import del router + `include_router` + el modelo en la
   línea de `from app.models import ...`).
@@ -866,8 +874,8 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
 ## Cosas que ya mordieron
 
 - **Fechas con y sin zona horaria.** Postgres las devuelve con zona y SQLite
-  sin ella; restarlas revienta. Usar el helper `_aware()` que hay en
-  `resumen.py` y en `fuentes.py`.
+  sin ella; restarlas revienta. Usar `con_zona()` de `core/fechas.py`
+  (estaba copiado en siete módulos como `_aware()`).
 - **«Hoy» tiene dos formas de salir mal, y las dos mordieron el mismo día.**
   Una actividad diaria marcada el lunes 28 aparecía registrada el «domingo
   27»:
@@ -928,7 +936,7 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   se mandan justo después, no salían. Un solo defecto, tres síntomas.
   `asignar_codigo_seguimiento()` además reintenta: dos personas radicando a la
   vez leen el mismo número. Para reparar las que quedaron sin código:
-  `docker exec protokimica_backend python -m app.reparar_codigos --aplicar`.
+  `docker exec protokimica_backend python -m app.scripts.reparar_codigos --aplicar`.
 - **Notificar no puede tumbar la petición.** Cuando se avisa por correo, la
   PQRS ya está guardada: si la excepción sube, el cliente ve un 500 sobre algo
   que sí se radicó, vuelve a enviar el formulario y queda duplicado. Se captura
@@ -1250,7 +1258,7 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   incluidos, porque un filtro que solo mira la página actual miente— y
   empezar por PQRS, que es la que más crece. Para saber cuándo toca, medir en
   vez de opinar: `docker exec protokimica_backend python -m
-  app.medir_lista_pqrs --filas 20000` siembra, mide y borra (solo contra la
+  app.scripts.medir_lista_pqrs --filas 20000` siembra, mide y borra (solo contra la
   base de desarrollo; se niega si encuentra demasiadas PQRS de verdad).
 - **Catálogo de productos: falta el lado del ERP.** El portal ya está
   completo (tabla, sincronización, buscador con límite por IP, pruebas, y el
@@ -1292,7 +1300,7 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
 - Flujos de n8n: quedan las alertas de indicadores en rojo y el disparo mensual
   de `POST /indicadores/calcular-periodo` (necesita el usuario de servicio
   `automatizaciones@protokimica.com`).
-- `/uploads` sin control de acceso real; `UPLOAD_DIR` quemado en 3 sitios.
+- `/uploads` sin control de acceso real.
 - `router_public.py` y `seed.py` tienen `slug == "protokimica"` quemado: lo
   público solo sirve para una empresa.
 - Marca (colores, logo) quemada en el frontend.

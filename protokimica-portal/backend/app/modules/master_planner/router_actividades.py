@@ -15,7 +15,7 @@ módulo.
 Qué se esperaba de cada día no se guarda: se deduce de la frecuencia (ver
 `actividades.py`). Lo único escrito en la base es lo que de verdad se hizo.
 """
-from datetime import date, datetime, timezone
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_

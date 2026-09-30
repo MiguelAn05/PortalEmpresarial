@@ -13,7 +13,7 @@
  */
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useAuth } from "../../../core/AuthContext"
+import { useAuth } from "../../../core/useAuth.js"
 import {
   IconoAlDia, IconoCerrar, IconoRepetir,
 } from "../../../core/components/Iconos.jsx"

@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { crearSubtarea, actualizarTarea, eliminarTarea } from "../api"
 import { ALERTAS, alertaVencimiento, formatFecha, datetimeLocalAIso, puedeEditar } from "../constants"
-import { useAuth } from "../../../core/AuthContext"
+import { useAuth } from "../../../core/useAuth.js"
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 
 /**

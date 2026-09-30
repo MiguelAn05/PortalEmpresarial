@@ -10,8 +10,8 @@ Este script las busca y les asigna el siguiente código libre de su canal,
 respetando los consecutivos que ya existen. No toca ninguna que ya tenga
 código.
 
-    docker exec protokimica_backend python -m app.reparar_codigos          # ver
-    docker exec protokimica_backend python -m app.reparar_codigos --aplicar
+    docker exec protokimica_backend python -m app.scripts.reparar_codigos          # ver
+    docker exec protokimica_backend python -m app.scripts.reparar_codigos --aplicar
 
 Sin `--aplicar` solo enseña lo que haría. Es a propósito: en producción se
 mira antes de escribir.
@@ -49,7 +49,7 @@ def main(aplicar: bool) -> int:
 
         if not aplicar:
             print("\nEsto es solo la vista previa. Para asignarlos de verdad:")
-            print("  docker exec protokimica_backend python -m app.reparar_codigos --aplicar")
+            print("  docker exec protokimica_backend python -m app.scripts.reparar_codigos --aplicar")
             return 0
 
         print()

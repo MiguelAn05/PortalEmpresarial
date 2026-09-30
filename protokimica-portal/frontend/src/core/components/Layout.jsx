@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../AuthContext.jsx'
+import { useAuth } from '../useAuth.js'
 import { moduloDeRuta, puedeVerModulo } from '../modulos.js'
 import { LOGO, NOMBRE_EMPRESA } from '../marca.js'
 import CambiarPasswordModal from './CambiarPasswordModal.jsx'

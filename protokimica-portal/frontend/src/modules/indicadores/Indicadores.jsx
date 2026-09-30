@@ -18,7 +18,7 @@ import { IconoOjo, IconoRecargar } from "../../core/components/Iconos.jsx"
 import { obtenerComoVamos, obtenerTablero, recalcularPeriodo } from "./api"
 import { listarUsuariosAsignables } from "../masterPlanner/api"
 import { puedeEditar } from "../masterPlanner/constants"
-import { useAuth } from "../../core/AuthContext"
+import { useAuth } from "../../core/useAuth.js"
 import {
   PESTANAS, coincideBusqueda, periodoPorDefecto, periodoAnterior,
   periodoSiguiente, pestanaInicial,

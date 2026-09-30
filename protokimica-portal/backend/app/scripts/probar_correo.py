@@ -7,7 +7,7 @@ habla directo con Microsoft, sin n8n de por medio: si aquí funciona, el
 problema está en n8n; si aquí falla, no hay nada que arreglar en n8n.
 
     docker exec -i -e SMTP_PASS protokimica_backend \
-        python -m app.probar_correo <buzón> <destinatario>
+        python -m app.scripts.probar_correo <buzón> <destinatario>
 
 La contraseña se pasa por variable de entorno, no como argumento: los
 argumentos quedan en el historial del shell y en la lista de procesos.

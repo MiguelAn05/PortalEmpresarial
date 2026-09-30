@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.core.fechas import con_zona
 from app.core.dias_habiles import contar_habiles
 from app.models.pqrs import PQRSSolicitud
 from app.models.user import User
@@ -31,12 +32,6 @@ from app.models.user import User
 ESTADOS_ABIERTOS = ("recibido", "asignado", "en_proceso")
 
 
-def _aware(f):
-    if f is None:
-        return None
-    return f if f.tzinfo else f.replace(tzinfo=timezone.utc)
-
-
 def dias_habiles_restantes(solicitud, ahora: datetime) -> int | None:
     """
     Cuántos días hábiles faltan para el vencimiento. Negativo = ya venció.
@@ -44,7 +39,7 @@ def dias_habiles_restantes(solicitud, ahora: datetime) -> int | None:
     Se cuenta en hábiles y no en corridos porque así está definido el plazo;
     contarlos corridos declararía vencido lo que todavía está en término.
     """
-    limite = _aware(solicitud.fecha_limite_sla)
+    limite = con_zona(solicitud.fecha_limite_sla)
     if not limite:
         return None
 

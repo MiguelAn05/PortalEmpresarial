@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.core.fechas import con_zona
 from app.models.pqrs import PQRSSolicitud, PQRSEncuesta
 from app.models.master_planner import Proyecto, Tarea
 
@@ -38,13 +39,6 @@ def _rango_mes(anio: int, mes: int) -> tuple[datetime, datetime]:
         datetime(anio, mes, 1, tzinfo=timezone.utc),
         datetime(anio, mes, ultimo_dia, 23, 59, 59, tzinfo=timezone.utc),
     )
-
-
-def _aware(f):
-    """Postgres devuelve fechas con zona y SQLite sin ella; normalizamos."""
-    if f is None:
-        return None
-    return f if f.tzinfo else f.replace(tzinfo=timezone.utc)
 
 
 def _proporcion(numerador: int, denominador: int, detalle: str) -> Resultado:
@@ -93,7 +87,7 @@ def pqrs_oportunidad_sla(db, tenant_id, anio, mes) -> Resultado:
         .all()
     )
     medibles = [p for p in cerradas if p.fecha_limite_sla]
-    a_tiempo = [p for p in medibles if _aware(p.fecha_cierre) <= _aware(p.fecha_limite_sla)]
+    a_tiempo = [p for p in medibles if con_zona(p.fecha_cierre) <= con_zona(p.fecha_limite_sla)]
     return _proporcion(
         len(a_tiempo), len(medibles),
         f"{len(a_tiempo)} de {len(medibles)} PQRS cerradas dentro del plazo",
@@ -113,7 +107,7 @@ def pqrs_tiempo_cierre(db, tenant_id, anio, mes) -> Resultado:
     if not cerradas:
         return Resultado(valor=None, detalle="No se cerró ninguna PQRS en el periodo")
     dias = [
-        (_aware(p.fecha_cierre) - _aware(p.fecha_creacion)).total_seconds() / 86400
+        (con_zona(p.fecha_cierre) - con_zona(p.fecha_creacion)).total_seconds() / 86400
         for p in cerradas if p.fecha_creacion
     ]
     if not dias:
@@ -221,7 +215,7 @@ def mp_cumplimiento_fechas(db, tenant_id, anio, mes, area=None) -> Resultado:
     )
     completadas = _proyectos_del_area(query, area, incluir_participantes=True).all()
     medibles = [t for t in completadas if t.fecha_fin]
-    a_tiempo = [t for t in medibles if _aware(t.fecha_completada) <= _aware(t.fecha_fin)]
+    a_tiempo = [t for t in medibles if con_zona(t.fecha_completada) <= con_zona(t.fecha_fin)]
     return _proporcion(
         len(a_tiempo), len(medibles),
         f"{len(a_tiempo)} de {len(medibles)} tareas entregadas a tiempo",
@@ -507,7 +501,7 @@ def _respuestas_encuesta_del_mes(db: Session, tenant_id: int, slug: str,
     )
     return [
         r for r in respuestas
-        if r.respondida_en and desde <= _aware(r.respondida_en) <= hasta
+        if r.respondida_en and desde <= con_zona(r.respondida_en) <= hasta
     ]
 
 

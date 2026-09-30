@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../core/AuthContext.jsx'
+import { useAuth } from '../../core/useAuth.js'
 import api from '../../core/api.js'
 import { CORREO_SOPORTE, LOGO, LOGO_ALT, NOMBRE_EMPRESA } from '../../core/marca.js'
 import { VERSION_APP } from '../../core/version.js'

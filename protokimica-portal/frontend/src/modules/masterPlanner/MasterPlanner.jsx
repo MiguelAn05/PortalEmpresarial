@@ -13,7 +13,7 @@ import ProyectoFormModal from "./components/ProyectoFormModal"
 import TareaFormModal from "./components/TareaFormModal"
 import { listarProyectos, listarUsuariosAsignables } from "./api"
 import { puedeEditar } from "./constants"
-import { useAuth } from "../../core/AuthContext"
+import { useAuth } from "../../core/useAuth.js"
 
 /**
  * Shell del módulo. Cuatro pestañas:

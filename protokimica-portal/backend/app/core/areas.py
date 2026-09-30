@@ -48,6 +48,15 @@ AREAS = [
     "Salvak",
 ]
 
+# El área de las seis sedes. Tiene reglas propias en dos módulos —en PQRS cada
+# punto ve solo las suyas, y en usuarios es la única que lleva `punto_venta`—,
+# así que su nombre vive aquí y no dentro de uno de ellos.
+AREA_PUNTOS_DE_VENTA = "Puntos de Venta"
+assert AREA_PUNTOS_DE_VENTA in AREAS, (
+    f"'{AREA_PUNTOS_DE_VENTA}' ya no esta en AREAS. Actualiza esta constante o "
+    "los puntos de venta volverian a ver todas las PQRS."
+)
+
 # Nombres viejos que quedaron en datos ya guardados y a qué área corresponden
 # hoy. Las migraciones `d4a8c1f70b32` y `b9e2f4a17c05` los reescribieron en la
 # base; esto se queda como documentación de la equivalencia y por si aparece

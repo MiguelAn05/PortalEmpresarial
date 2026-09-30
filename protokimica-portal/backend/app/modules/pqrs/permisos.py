@@ -15,7 +15,7 @@ from sqlalchemy import and_, not_, or_
 from sqlalchemy.orm import Query, Session
 
 from app.core import canales
-from app.core.areas import AREAS
+from app.core.areas import AREA_PUNTOS_DE_VENTA, AREAS
 from app.core.deps import get_current_user
 from app.models.pqrs import PQRSSolicitud
 from app.models.user import User
@@ -91,11 +91,7 @@ def puede_cambiar_area(usuario: User) -> bool:
 # Fuera de su alcance, la PQRS responde 404 y no 403 — igual que Master
 # Planner: no se confirma que exista algo que no te toca.
 
-AREA_PUNTOS_DE_VENTA = "Puntos de Venta"
-assert AREA_PUNTOS_DE_VENTA in AREAS, (
-    f"'{AREA_PUNTOS_DE_VENTA}' ya no esta en app/core/areas.py. Actualiza "
-    "esta constante o los puntos de venta volverian a ver todas las PQRS."
-)
+# `AREA_PUNTOS_DE_VENTA` vive en `core/areas.py`: usuarios también la usa.
 
 
 def puntos_visibles(usuario: User) -> list[str] | None:

@@ -1,7 +1,6 @@
-import { createContext, useContext, useState } from 'react'
+import { useState } from 'react'
 import { guardarSesion, limpiarSesion, usuarioGuardado } from './sesion.js'
-
-const AuthContext = createContext(null)
+import { AuthContext } from './useAuth.js'
 
 export function AuthProvider({ children }) {
   // Dónde está guardada la sesión lo decide `sesion.js`: el login ofrece
@@ -26,8 +25,3 @@ export function AuthProvider({ children }) {
   )
 }
 
-// Hook personalizado: en cualquier componente puedes hacer
-// const { user, login, logout } = useAuth()
-export function useAuth() {
-  return useContext(AuthContext)
-}

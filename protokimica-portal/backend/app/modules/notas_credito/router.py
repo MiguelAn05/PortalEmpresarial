@@ -39,8 +39,8 @@ from app.modules.notas_credito.schemas import (
 from app.modules.notas_credito.notificaciones import (
     avisos_devuelta, avisos_en_turno, avisos_por_emitir, avisos_respondida,
 )
-from app.modules.pqrs.notificaciones import enviar_avisos
-from app.modules.pqrs.service import guardar_archivo
+from app.core.archivos import guardar_archivo
+from app.core.notificaciones import enviar_avisos
 
 router = APIRouter(prefix="/notas-credito", tags=["Notas crédito"])
 

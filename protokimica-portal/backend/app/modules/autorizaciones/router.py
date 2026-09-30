@@ -19,7 +19,7 @@ quien reparte, y quien decide qué sigue después del sí o del no.
 from datetime import datetime, timezone
 
 from fastapi import (
-    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status,
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile,
 )
 from sqlalchemy.orm import Session
 
@@ -29,15 +29,16 @@ from app.core.deps import (
 )
 from app.modules.autorizaciones.permisos import puede_responder
 from app.models.user import User
-from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
+from app.models.pqrs import PQRSSeguimiento
 from app.models.autorizacion import TipoAutorizacion, AutorizacionPQRS
 from app.modules.autorizaciones.schemas import (
     TipoAutorizacionCreate, TipoAutorizacionOut, AutorizacionOut,
 )
 from app.modules.pqrs.permisos import AREA_SERVICIO_CLIENTE, obtener_visible
-from app.modules.pqrs.service import guardar_archivo
+from app.core.archivos import guardar_archivo
+from app.core.notificaciones import enviar_avisos
 from app.modules.pqrs.notificaciones import (
-    avisos_autorizacion_pendiente, avisos_autorizacion_respondida, enviar_avisos,
+    avisos_autorizacion_pendiente, avisos_autorizacion_respondida,
 )
 
 router = APIRouter(prefix="/autorizaciones", tags=["Autorizaciones"])

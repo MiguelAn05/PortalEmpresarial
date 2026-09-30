@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useAuth } from '../../core/AuthContext.jsx'
+import { useAuth } from '../../core/useAuth.js'
 import { AREAS } from '../../core/areas.js'
 import {
   IconoAlerta, IconoBuscar, IconoIdea, IconoPersonas, IconoReloj,

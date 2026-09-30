@@ -5,7 +5,7 @@ import { listarProyectos, archivarProyecto, eliminarProyecto } from "../api"
 import {
   ESTADOS_PROYECTO, AREAS, puedeEditar, perteneceAlArea, parametrosListaProyectos,
 } from "../constants"
-import { useAuth } from "../../../core/AuthContext"
+import { useAuth } from "../../../core/useAuth.js"
 import { mensajeDeError } from '../../../core/errores.js'
 
 const FILTROS_VACIOS = { busqueda: "", estado: "", area: "" }

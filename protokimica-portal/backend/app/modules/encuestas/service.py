@@ -5,24 +5,15 @@ Todo lo que sea contar, promediar o agrupar se resuelve aquí. El frontend
 recibe números listos, igual que en el resto del portal — si recalculara,
 tarde o temprano un reporte y una pantalla dirían cosas distintas.
 """
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.fechas import con_zona
 from app.models.encuestas import Plantilla, Pregunta, Respuesta, RespuestaItem
 from app.modules.encuestas.origenes import (
     ESCALA_MAX, ORIGENES, RespuestaVista, todas_las_respuestas,
 )
-
-
-def _aware(f: datetime | None) -> datetime | None:
-    """
-    Postgres devuelve las fechas con zona y SQLite sin ella; restarlas revienta.
-    Es el mismo helper que ya hay en `resumen.py` y `fuentes.py`.
-    """
-    if f is None:
-        return None
-    return f if f.tzinfo else f.replace(tzinfo=timezone.utc)
 
 
 def filtrar(respuestas: list[RespuestaVista], origen: str | None = None,
@@ -34,11 +25,11 @@ def filtrar(respuestas: list[RespuestaVista], origen: str | None = None,
     if sujeto:
         salida = [r for r in salida if (r.sujeto or "") == sujeto]
     if desde:
-        limite = _aware(desde)
-        salida = [r for r in salida if _aware(r.respondida_en) and _aware(r.respondida_en) >= limite]
+        limite = con_zona(desde)
+        salida = [r for r in salida if con_zona(r.respondida_en) and con_zona(r.respondida_en) >= limite]
     if hasta:
-        limite = _aware(hasta)
-        salida = [r for r in salida if _aware(r.respondida_en) and _aware(r.respondida_en) <= limite]
+        limite = con_zona(hasta)
+        salida = [r for r in salida if con_zona(r.respondida_en) and con_zona(r.respondida_en) <= limite]
     return salida
 
 
