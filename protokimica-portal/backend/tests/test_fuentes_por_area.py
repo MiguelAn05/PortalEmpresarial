@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 from app.models.master_planner import Proyecto, ProyectoArea
 from app.modules.indicadores import fuentes
+from app.modules.mejora.fuentes_indicador import CLAVE_GESTION_OMP
 
 ANIO, MES = 2026, 7
 
@@ -126,4 +127,4 @@ def test_el_catalogo_declara_cuales_aceptan_area(entorno, v):
     v.check("y no se vuelven obligatorias por área",
             not any(catalogo[c].get("por_area") for c in catalogo if c.startswith("mp_")))
     v.check("la de gestión de OMP sí sigue exigiéndola",
-            catalogo[fuentes.CLAVE_GESTION_OMP]["por_area"] is True)
+            catalogo[CLAVE_GESTION_OMP]["por_area"] is True)

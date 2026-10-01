@@ -13,6 +13,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
+import { puedeVerModulo } from '../../core/modulos.js'
+import { useAuth } from '../../core/useAuth.js'
 import { CANALES } from '../../core/canales.js'
 import { BODEGAS } from '../../core/bodegas.js'
 import {
@@ -463,6 +465,7 @@ function Tarjeta({ solicitud, invalidar }) {
 // ── Pantalla ───────────────────────────────────────────────────────
 export default function NotasCredito() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const [modal, setModal] = useState(false)
   const [filtro, setFiltro] = useState('')
 
@@ -503,15 +506,19 @@ export default function NotasCredito() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="flex items-center gap-2 mb-5">
-        <Link to="/pqrs"
-              className="px-3 py-1.5 rounded-lg text-sm font-semibold text-texto-2 hover:bg-superficie-2 transition">
-          PQRS
-        </Link>
-        <span className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-acento-suave text-acento">
-          Notas crédito
-        </span>
-      </div>
+      {/* Las pestañas solo si la empresa tiene PQRS: sin él, Notas crédito
+          va directo en el menú y una pestaña sola no es una elección. */}
+      {puedeVerModulo(user, 'pqrs') && (
+        <div className="flex items-center gap-2 mb-5">
+          <Link to="/pqrs"
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold text-texto-2 hover:bg-superficie-2 transition">
+            PQRS
+          </Link>
+          <span className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-acento-suave text-acento">
+            Notas crédito
+          </span>
+        </div>
+      )}
 
       <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
         <div>

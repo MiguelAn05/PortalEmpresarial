@@ -13,7 +13,9 @@ protokimica-portal/
       core/         config, database, deps (permisos), security, areas,
                     dias_habiles, rate_limit, graph (Microsoft 365),
                     archivos (subir archivos), notificaciones (n8n),
-                    fechas (con_zona)
+                    fechas (con_zona), registro (módulos instalados) y
+                    los contratos que un módulo le aporta a otro:
+                    fuentes, inicio, origenes_encuesta
       models/       tablas SQLAlchemy, una por módulo
       modules/      un paquete por módulo: router.py, schemas.py, service.py
       scripts/      herramientas de consola (`python -m app.scripts.<nombre>`)
@@ -49,9 +51,6 @@ cd protokimica-portal/frontend && npm test
 # Lint y build
 cd protokimica-portal/frontend && npx eslint src && npm run build
 ```
-
-`src/core/AuthContext.jsx` tiene un error de lint preexistente
-(`react-refresh/only-export-components`). No es de ningún cambio nuevo.
 
 **Antes de dar algo por terminado**: pruebas del backend + `npm test` +
 `eslint` + `npm run build`. No basta con `py_compile`.
@@ -174,11 +173,22 @@ que el historial no termine siendo un `git log`.
   porcentajes y comparaciones se resuelven en el servidor. Si el frontend
   recalcula, tarde o temprano los números dejan de coincidir con un reporte.
 - **Los mensajes de error dicen qué hacer**, no solo qué falló.
-- **Lo que usan varios módulos va en `core`, nunca dentro de uno de ellos.**
-  Guardar archivos y avisar a n8n vivían en PQRS y por eso ningún módulo se
-  podía instalar sin él. `tests/test_modularidad.py` falla si un módulo
-  vuelve a importar de `app.modules.pqrs` (las excepciones están escritas
-  con su motivo). Es la fase 1 del plan para vender el portal por módulos.
+- **Un módulo no importa de otro: ni sus funciones ni sus tablas.** El
+  portal se va a ofrecer por módulos, y eso exige poder quitar uno sin
+  romper los demás. Dos reglas:
+  - **Lo que usan varios va en `core`** (archivos, avisos a n8n, fechas).
+    Vivían dentro de PQRS y ningún módulo se podía instalar sin él.
+  - **Lo que un módulo le aporta a otro lo declara en su propio paquete**,
+    con nombre fijo, y el otro lo reúne con `core/registro.py`:
+    `fuentes_indicador.py` (fuentes automáticas para Indicadores), `inicio.py`
+    (sus tarjetas y cifras de Inicio) y `origen_encuesta.py` (respuestas que
+    muestra Encuestas). Antes Indicadores importaba las tablas de cuatro
+    módulos, Inicio las de tres y Encuestas la de PQRS.
+  `tests/test_modularidad.py` falla ante cualquier dependencia que no esté en
+  su `DEPENDENCIAS_PERMITIDAS`, que hoy son solo las de un mismo paquete de
+  venta (PQRS con Autorizaciones y Catálogo; Mejora con Indicadores).
+  `MODULOS_INSTALADOS` de `core/registro.py` dice qué código hay en el
+  servidor; qué abre cada empresa lo dice su contrato (abajo).
 - Módulo nuevo: `models/<modulo>.py`, `modules/<modulo>/{router,schemas,service}.py`,
   registrar en `main.py` (import del router + `include_router` + el modelo en la
   línea de `from app.models import ...`).
@@ -221,12 +231,57 @@ distintos para lo mismo.
 - **Se busca también por responsable**, que es la pregunta del cierre de mes
   —«qué le falta a Hoover»—, y sin tildes: nadie las escribe en un buscador.
 
-**Qué módulo abre cada rol** — `backend/app/core/modulos.py` es la fuente, con
-gemelo en `frontend/src/core/modulos.js` (una prueba verifica que coincidan).
+**Antes que el rol, el contrato: cada empresa abre solo los módulos que
+compró.** Viven en `tenant_modulos` y los define `CONTRATABLES` de
+`core/modulos.py`, cada uno con los paquetes de `app/modules` que trae y los
+que requiere:
+
+| Contratable | Trae | Requiere |
+|---|---|---|
+| `pqrs` | pqrs, autorizaciones, catalogo | — |
+| `notas_credito` | notas_credito | — |
+| `master_planner` | master_planner | — |
+| `indicadores` | indicadores | — |
+| `mejora` | mejora | `indicadores` |
+| `encuestas` | encuestas | — |
+
+Inicio y Administración son la base y vienen con cualquier portal.
+
+- **Una empresa sin filas tiene solo la base.** Que «se olvidó configurarla»
+  termine en «tiene todo gratis» es el error caro. La migración
+  `a6c2e9f41d07` le dio todo a las empresas que ya existían.
+- **No lo cambia el `admin` de la empresa**: es lo que compró. Se cambia por
+  consola: `docker exec protokimica_backend python -m app.scripts.modulos
+  <slug> --activar mejora` (activa también lo que requiere; desactivar no
+  borra datos y no deja apagar algo de lo que otro depende).
+- **Se aplica en el `APIRouter(dependencies=[...])` de cada router**, con
+  `contratado("modulo")` —o `contratado_en_publico()` en lo público, que
+  responde 404 en vez de 403: un cliente con un QR viejo no tiene por qué
+  enterarse de qué se contrató—. Así un endpoint nuevo queda cubierto el día
+  que se escribe; `tests/test_modulos_contratados.py` recorre todas las rutas
+  y falla si alguna de un módulo contratable no lo revisa. `requiere_modulo`
+  también mira el contrato, antes que el rol.
+- **Lo que un módulo le aporta a otro se filtra igual**: sin PQRS contratado,
+  Indicadores no ofrece sus fuentes, Inicio no trae su tarjeta y Encuestas no
+  muestra su origen. Un indicador creado cuando sí se tenía queda «sin dato»
+  con el motivo —nunca un error que tumbe el cálculo del mes, ni un cero—.
+- La pantalla sabe qué tiene la empresa por `modulos_contratados` de
+  `/auth/me`, que se refresca al abrir el portal (`AuthContext`). Sin ese dato
+  —una sesión guardada de antes— no esconde nada: quien bloquea es el
+  servidor.
+- Notas crédito se entra por una pestaña de PQRS. Si la empresa no tiene
+  PQRS, va directo en el menú; si no, no habría por dónde llegar.
+- Las páginas públicas sacan la empresa de `core/tenant_publico.py`. Hoy es
+  una sola (`SLUG_PUBLICO`); cuando sean varias, sale del dominio y solo
+  cambia ese archivo.
+
+**Qué módulo abre cada rol** (dentro de lo contratado) — `backend/app/core/modulos.py`
+es la fuente, con gemelo en `frontend/src/core/modulos.js` (una prueba
+verifica que coincidan).
 
 | Módulo | admin | gerencia | lider | agente | lectura |
 |---|:-:|:-:|:-:|:-:|:-:|
-| Inicio, PQRS, Master Planner, Encuestas | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Inicio, PQRS, Notas crédito, Master Planner, Encuestas | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Indicadores | ✓ | ✓ | ✓ | — | — |
 | Mejora | ✓ | — | ✓ | — | — |
 | Administración | ✓ | — | — | — | — |
@@ -532,9 +587,13 @@ califica: **se miden los hechos que deja la gestión.** La regla vive en
   que permite auditar el número.
 - Queda **fuera de `indicadores_en_rojo_sin_omp()`**: pedir una OMP sobre la
   gestión de las OMP sería un círculo.
-- Las fuentes automáticas pueden ser **por área** (`"por_area": True` en el
-  `CATALOGO` de `indicadores/fuentes.py`): reciben el área del indicador, y
-  crear o editar uno sin área responde 400.
+- Las fuentes automáticas pueden ser **por área** (`"por_area": True` en las
+  `FUENTES` del `fuentes_indicador.py` del módulo que la aporta): reciben el
+  área del indicador, y crear o editar uno sin área responde 400.
+- «Gestión de OMP» la declara Mejora con `"una_por_area"` (nombre y meta
+  sugerida), y el botón de Indicadores busca la fuente por esa marca, no por
+  su clave: Indicadores no sabe qué es una OMP. Sin Mejora instalado, los dos
+  endpoints de `/indicadores/gestion-omp` responden 404.
 - Y pueden **aceptar área** (`"acepta_area": True`), que es más suave: si el
   indicador tiene área, el cálculo se acota a ella; si no, mide toda la
   empresa, que es lo que quiere un indicador de gerencia. Lo usan las cuatro
@@ -1301,12 +1360,11 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   de `POST /indicadores/calcular-periodo` (necesita el usuario de servicio
   `automatizaciones@protokimica.com`).
 - `/uploads` sin control de acceso real.
-- `router_public.py` y `seed.py` tienen `slug == "protokimica"` quemado: lo
-  público solo sirve para una empresa.
+- Lo público solo sirve para una empresa: `SLUG_PUBLICO` en
+  `core/tenant_publico.py` (antes estaba quemado en cuatro routers). Fase 4 del
+  plan de modularización: sacarlo del dominio.
 - Marca (colores, logo) quemada en el frontend.
 - Indicadores: falta la exportación.
-- `src/core/AuthContext.jsx` tiene un error de lint preexistente
-  (`react-refresh/only-export-components`). No es de ningún cambio nuevo.
 
 ## Si estás retomando esto en otra conversación
 

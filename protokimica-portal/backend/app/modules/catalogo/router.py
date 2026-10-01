@@ -15,10 +15,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.tenant_publico import tenant_publico
+from app.core.modulos import contratado, contratados_de
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_tenant_id, get_current_user
-from app.models.tenant import Tenant
 from app.models.user import User
 from app.modules.catalogo import service
 
@@ -70,12 +71,14 @@ def sincronizar_catalogo(
     """
     _verificar_clave(x_clave_sincronizacion)
 
-    # TODO: `slug == "protokimica"` sigue quemado, como en el resto de lo
-    # público. Cuando el portal sirva a más de una empresa, el tenant tendrá
-    # que salir de la propia clave de sincronización.
-    tenant = db.query(Tenant).filter(Tenant.slug == "protokimica").first()
-    if not tenant:
-        raise HTTPException(status_code=500, detail="Error de configuración.")
+    # Cuando el portal sirva a más de una empresa, el tenant tendrá que salir
+    # de la propia clave de sincronización (ver `core/tenant_publico.py`).
+    tenant = tenant_publico(db)
+    if "pqrs" not in contratados_de(tenant):
+        raise HTTPException(
+            status_code=403,
+            detail="La empresa no tiene contratado PQRS, que es donde se usa el catálogo.",
+        )
 
     if not payload.productos:
         raise HTTPException(
@@ -91,7 +94,7 @@ def sincronizar_catalogo(
     )
 
 
-@router.get("/productos")
+@router.get("/productos", dependencies=[Depends(contratado("pqrs"))])
 def buscar_productos(
     q: str = "",
     db: Session = Depends(get_db),

@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.modulos import contratado
 from app.core.database import get_db
 from app.core.deps import (
     get_current_user, get_current_tenant_id, solo_lectura_no, puede_comentar,
@@ -44,7 +45,10 @@ from app.modules.master_planner.outlook import (
 )
 from app.core.archivos import guardar_archivo
 
-router = APIRouter(prefix="/master-planner", tags=["Master Planner"])
+router = APIRouter(
+    prefix="/master-planner", tags=["Master Planner"],
+    dependencies=[Depends(contratado("master_planner"))],
+)
 
 
 @router.get("/resumen")

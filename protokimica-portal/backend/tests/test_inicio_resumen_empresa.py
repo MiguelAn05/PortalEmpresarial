@@ -8,8 +8,9 @@ Tesorería dirían cosas distintas.
 from datetime import datetime, timedelta, timezone
 
 from app.models.master_planner import ItemPresupuesto, PagoItem, Proyecto
-from app.modules.inicio.service import (
-    MESES_SERIE, _meses_hacia_atras, _proyectos_al_frente, _serie_presupuesto,
+from app.core.inicio import meses_hacia_atras
+from app.modules.master_planner.inicio import (
+    MESES_SERIE, _proyectos_al_frente, _serie_presupuesto,
 )
 
 
@@ -77,7 +78,7 @@ def test_lo_pagado_hace_mucho_no_entra_en_la_ventana(entorno):
 
 
 def test_los_meses_cruzan_el_cambio_de_ano():
-    periodos = _meses_hacia_atras(14)
+    periodos = meses_hacia_atras(14)
     assert len(periodos) == 14
     assert len(set(periodos)) == 14, "hay meses repetidos"
     assert all(1 <= mes <= 12 for _, mes in periodos)

@@ -18,6 +18,7 @@ from app.models.mejora import Oportunidad
 from app.models.pqrs import PQRSSolicitud
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.core.modulos import CONTRATABLES, contratar
 
 
 @pytest.fixture
@@ -27,6 +28,8 @@ def otra_empresa(entorno):
 
     tenant = Tenant(nombre="Otra Empresa SAS", slug="otra-empresa")
     db.add(tenant)
+    db.commit()
+    contratar(db, tenant.id, list(CONTRATABLES))
     db.commit()
 
     intruso = User(

@@ -9,6 +9,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session, load_only
 
+from app.core.modulos import contratado
 from app.core import canales
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
@@ -38,7 +39,7 @@ from app.modules.pqrs.service import (
 )
 from app.modules.pqrs.notificaciones import avisos_creacion
 
-router = APIRouter(prefix="/pqrs", tags=["PQRS"])
+router = APIRouter(prefix="/pqrs", tags=["PQRS"], dependencies=[Depends(contratado("pqrs"))])
 
 
 @router.post("", response_model=PQRSOut, status_code=status.HTTP_201_CREATED)

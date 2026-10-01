@@ -14,6 +14,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.core.deps import get_current_user
 from app.main import app
+from app.core.modulos import CONTRATABLES, contratar
 from app.models.tenant import Tenant
 from app.models.user import User
 from tests.verificador import Verificador
@@ -74,6 +75,10 @@ def entorno():
     db = Session()
     tenant = Tenant(nombre="Protokimica", slug="protokimica")
     db.add(tenant)
+    db.commit()
+    # Con todo contratado, como Protokimica. Las pruebas de qué pasa sin un
+    # módulo lo apagan a propósito (ver test_modulos_contratados.py).
+    contratar(db, tenant.id, list(CONTRATABLES))
     db.commit()
 
     ids = {}

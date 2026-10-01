@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.modulos import contratado
 from app.core.areas import AREAS
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
@@ -29,7 +30,10 @@ from app.modules.indicadores.schemas import (
 )
 from app.core.archivos import guardar_archivo
 
-router = APIRouter(prefix="/indicadores", tags=["Indicadores"])
+router = APIRouter(
+    prefix="/indicadores", tags=["Indicadores"],
+    dependencies=[Depends(contratado("indicadores"))],
+)
 
 
 def _get_indicador_o_404(
@@ -123,18 +127,28 @@ def probar_formula(
 # El indicador «Gestión de OMP» es uno por área, todos iguales salvo el área.
 # Crearlos uno por uno con 21 áreas es la forma de que siempre falte alguno,
 # así que hay un botón que crea los que falten. Van antes que `/{indicador_id}`.
+#
+# Indicadores no sabe qué es una OMP: la fuente la declara Mejora con
+# `"una_por_area"` (nombre y meta sugerida), y aquí se busca por esa marca.
+# Si Mejora no está instalado, estos dos endpoints responden 404.
 
-NOMBRE_GESTION_OMP = "Gestión de OMP"
-# Meta sugerida al crearlos; cada área la ajusta después en su ficha.
-META_GESTION_OMP = {"meta": 80, "umbral_verde": 80, "umbral_amarillo": 60}
+
+def _fuente_una_por_area(db: Session, tenant_id: int) -> tuple[str, dict]:
+    encontrada = fuentes.una_por_area(db, tenant_id)
+    if not encontrada:
+        raise HTTPException(
+            status_code=404,
+            detail="Tu empresa no tiene el módulo de Oportunidades de Mejora.",
+        )
+    return encontrada
 
 
-def _areas_con_gestion_omp(db: Session, tenant_id: int) -> set[str]:
+def _areas_con_la_fuente(db: Session, tenant_id: int, clave: str) -> set[str]:
     """Las áreas que ya lo tienen, activo o no: uno desactivado también cuenta."""
     return {
         area for (area,) in db.query(Indicador.area).filter(
             Indicador.tenant_id == tenant_id,
-            Indicador.fuente_automatica == fuentes.CLAVE_GESTION_OMP,
+            Indicador.fuente_automatica == clave,
         ).all() if area
     }
 
@@ -158,7 +172,8 @@ def estado_gestion_omp(
 ):
     """En qué áreas falta el indicador, para decirlo antes de crearlo."""
     _exigir_ver_toda_la_empresa(current_user)
-    existentes = _areas_con_gestion_omp(db, tenant_id)
+    clave, _cfg = _fuente_una_por_area(db, tenant_id)
+    existentes = _areas_con_la_fuente(db, tenant_id, clave)
     return {
         "faltantes": [a for a in AREAS if a not in existentes],
         "existentes": sorted(existentes),
@@ -178,18 +193,20 @@ def crear_gestion_omp_en_areas(
     — reactivarlo es decisión de esa área, no de este botón.
     """
     _exigir_ver_toda_la_empresa(current_user)
-    existentes = _areas_con_gestion_omp(db, tenant_id)
-    cfg = fuentes.CATALOGO[fuentes.CLAVE_GESTION_OMP]
+    clave, cfg = _fuente_una_por_area(db, tenant_id)
+    existentes = _areas_con_la_fuente(db, tenant_id, clave)
+    plantilla = cfg["una_por_area"]
     creados = []
     for area in AREAS:
         if area in existentes:
             continue
         db.add(Indicador(
-            tenant_id=tenant_id, nombre=NOMBRE_GESTION_OMP, area=area,
+            tenant_id=tenant_id, nombre=plantilla["nombre"], area=area,
             descripcion=cfg["descripcion"], formula_texto=cfg["formula"],
             unidad=cfg["unidad"], direccion=cfg["direccion"],
-            tipo_captura="automatico", fuente_automatica=fuentes.CLAVE_GESTION_OMP,
-            **META_GESTION_OMP,
+            tipo_captura="automatico", fuente_automatica=clave,
+            meta=plantilla["meta"], umbral_verde=plantilla["umbral_verde"],
+            umbral_amarillo=plantilla["umbral_amarillo"],
         ))
         creados.append(area)
     db.commit()

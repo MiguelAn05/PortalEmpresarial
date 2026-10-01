@@ -51,6 +51,10 @@ class UserOut(BaseModel):
     # Áreas que supervisa ADEMÁS de la suya. Ver core/supervision.py.
     areas_supervisadas: AreasSupervisadas = []
     tenant_id: int
+    # Los módulos que su empresa abre (la base más los contratados). Solo lo
+    # llena `/auth/me`: la pantalla lo usa para no ofrecer en el menú lo que
+    # el servidor va a rechazar. None = no se sabe, y la pantalla no esconde.
+    modulos_contratados: list[str] | None = None
 
     class Config:
         from_attributes = True

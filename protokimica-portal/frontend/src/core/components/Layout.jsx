@@ -9,7 +9,7 @@ import { AvisoVersionNueva, ChipVersion } from './Version.jsx'
 import {
   IconoAdmin, IconoAgente, IconoCarpeta, IconoEncuestas, IconoFicha,
   IconoIdea, IconoIndicadores, IconoInicio, IconoLlave, IconoPQRS, IconoPanel,
-  IconoProyectos, IconoSalir,
+  IconoProyectos, IconoRecibo, IconoSalir,
 } from './Iconos.jsx'
 
 // Cada entrada dice de qué módulo es, para esconder la que el usuario no
@@ -17,6 +17,13 @@ import {
 const navItems = [
   { to: '/', Icono: IconoInicio, label: 'Inicio', modulo: 'inicio', exact: true },
   { to: '/pqrs', Icono: IconoPQRS, label: 'PQRS', modulo: 'pqrs' },
+  // Las notas crédito se piden desde una pestaña de PQRS, que es donde la
+  // gente ya entra. Solo si la empresa no tiene PQRS van en el menú: si no,
+  // no habría por dónde llegar a ellas.
+  {
+    to: '/notas-credito', Icono: IconoRecibo, label: 'Notas crédito', modulo: 'notas_credito',
+    soloSi: user => !puedeVerModulo(user, 'pqrs'),
+  },
   { to: '/master-planner', Icono: IconoProyectos, label: 'Master Planner', modulo: 'master_planner' },
   { to: '/indicadores', Icono: IconoIndicadores, label: 'Indicadores', modulo: 'indicadores' },
   { to: '/mejora', Icono: IconoIdea, label: 'OMP', modulo: 'mejora' },
@@ -203,7 +210,9 @@ export default function Layout() {
         <nav className="flex-1 py-1 overflow-y-auto overflow-x-hidden">
           <Seccion collapsed={encogido}>Gestión</Seccion>
 
-          {navItems.filter(item => puedeVerModulo(user, item.modulo)).map(item => (
+          {navItems
+            .filter(item => puedeVerModulo(user, item.modulo) && (!item.soloSi || item.soloSi(user)))
+            .map(item => (
             <ItemMenu
               key={item.to}
               {...item}

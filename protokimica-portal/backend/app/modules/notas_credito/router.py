@@ -14,6 +14,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from app.core.modulos import contratado
 from app.core import bodegas, canales
 from app.core.capacidades import tiene
 from app.core.database import get_db
@@ -42,7 +43,10 @@ from app.modules.notas_credito.notificaciones import (
 from app.core.archivos import guardar_archivo
 from app.core.notificaciones import enviar_avisos
 
-router = APIRouter(prefix="/notas-credito", tags=["Notas crédito"])
+router = APIRouter(
+    prefix="/notas-credito", tags=["Notas crédito"],
+    dependencies=[Depends(contratado("notas_credito"))],
+)
 
 
 # ── Catálogo de motivos ────────────────────────────────────────────

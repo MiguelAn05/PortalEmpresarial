@@ -24,7 +24,7 @@ globalThis.window = { get localStorage() { return local }, get sessionStorage() 
 
 const {
   CLAVE_TOKEN, CLAVE_USUARIO,
-  guardarSesion, limpiarSesion, tokenGuardado, usuarioGuardado,
+  actualizarUsuarioGuardado, guardarSesion, limpiarSesion, tokenGuardado, usuarioGuardado,
   recordarPreferido, guardarPreferenciaRecordar,
 } = await import('../src/core/sesion.js')
 
@@ -119,6 +119,19 @@ check('tambien con la base delante', esPeticionDeLogin('/api/auth/login') === tr
 check('cualquier otra cosa no', esPeticionDeLogin('/pqrs') === false)
 check('ni una ruta que solo lo contenga', esPeticionDeLogin('/auth/login/intentos') === false)
 check('ni undefined', esPeticionDeLogin(undefined) === false)
+
+console.log('\n== Refrescar el usuario no cambia dónde vive la sesión ==')
+// Al abrir el portal se pide /auth/me y se reescribe el usuario: si eso lo
+// guardara en localStorage, una sesión sin «Mantener sesión iniciada»
+// sobreviviría a cerrar el navegador.
+reiniciar()
+guardarSesion('tok-3', USUARIO, false)
+actualizarUsuarioGuardado({ ...USUARIO, modulos_contratados: ['inicio', 'pqrs'] })
+check('se actualiza en la pestaña', usuarioGuardado()?.modulos_contratados?.length === 2, usuarioGuardado())
+check('y no aparece nada persistente', local.datos.size === 0, [...local.datos])
+reiniciar()
+check('sin sesión abierta no escribe nada', actualizarUsuarioGuardado(USUARIO) === false)
+check('ni deja rastro', local.datos.size === 0 && sesion.datos.size === 0)
 
 console.log('')
 if (fallos.length) {

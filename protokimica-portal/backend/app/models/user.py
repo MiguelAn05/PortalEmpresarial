@@ -45,7 +45,9 @@ class User(Base):
     activo = Column(Boolean, default=True, nullable=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
-    tenant = relationship("Tenant")
+    # `selectin`: de la empresa sale qué módulos abre el usuario, y eso se
+    # pregunta con la sesión de la petición a veces ya cerrada.
+    tenant = relationship("Tenant", lazy="selectin")
     areas_supervisadas = relationship(
         "AreaSupervisada", back_populates="usuario", cascade="all, delete-orphan",
         # Se carga CON el usuario: se consulta en cada filtro por área, y

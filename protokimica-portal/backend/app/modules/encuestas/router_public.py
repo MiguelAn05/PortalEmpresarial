@@ -11,22 +11,20 @@ nadie más.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.tenant_publico import contratado_en_publico, tenant_publico
 from app.core.database import get_db
 from app.models.encuestas import Plantilla
-from app.models.tenant import Tenant
 from app.modules.encuestas import service
 from app.modules.encuestas.schemas import RespuestaCreate
 
-router = APIRouter(prefix="/public/encuestas", tags=["Encuestas (público)"])
+router = APIRouter(
+    prefix="/public/encuestas", tags=["Encuestas (público)"],
+    dependencies=[Depends(contratado_en_publico("encuestas"))],
+)
 
 
 def _plantilla_activa(db: Session, slug: str) -> Plantilla:
-    # TODO: `slug == "protokimica"` sigue quemado como en el resto de lo
-    # público. Cuando el portal sirva a más de una empresa hay que resolver
-    # el tenant por dominio, no por constante.
-    tenant = db.query(Tenant).filter(Tenant.slug == "protokimica").first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Encuesta no disponible.")
+    tenant = tenant_publico(db)
 
     plantilla = db.query(Plantilla).filter(
         Plantilla.tenant_id == tenant.id,

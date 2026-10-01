@@ -10,10 +10,17 @@
  *
  * Regla general: **el rol decide a qué módulo entras, el área decide qué ves
  * dentro.** Un líder entra a Indicadores, pero solo ve los de su área.
+ *
+ * **Y antes que el rol, el contrato:** la empresa abre solo los módulos que
+ * tiene contratados. Eso lo dice el servidor en `/auth/me`
+ * (`modulos_contratados`); aquí no hay una lista propia que se pueda quedar
+ * atrás.
  */
 export const ACCESO_POR_MODULO = {
   inicio: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
   pqrs: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
+  // Entra cualquiera: qué puede hacer adentro lo deciden las capacidades.
+  notas_credito: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
   master_planner: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
   indicadores: ['admin', 'gerencia', 'lider'],
   // La mejora es trabajo de los líderes de área. Gerencia queda fuera: el
@@ -27,6 +34,7 @@ export const ACCESO_POR_MODULO = {
 export const RUTA_DE_MODULO = {
   inicio: '/',
   pqrs: '/pqrs',
+  notas_credito: '/notas-credito',
   master_planner: '/master-planner',
   indicadores: '/indicadores',
   mejora: '/mejora',
@@ -34,10 +42,21 @@ export const RUTA_DE_MODULO = {
   admin: '/admin',
 }
 
+/**
+ * ¿La empresa del usuario tiene este módulo? Sin el dato —una sesión guardada
+ * antes de que el servidor lo mandara— no se esconde nada: el que bloquea de
+ * verdad es el servidor, y esconder de más dejaría a alguien sin su menú.
+ */
+export function estaContratado(usuario, modulo) {
+  const contratados = usuario?.modulos_contratados
+  if (!Array.isArray(contratados)) return true
+  return contratados.includes(modulo)
+}
+
 export function puedeVerModulo(usuario, modulo) {
   const permitidos = ACCESO_POR_MODULO[modulo]
   if (!permitidos) return false
-  return permitidos.includes(usuario?.rol)
+  return permitidos.includes(usuario?.rol) && estaContratado(usuario, modulo)
 }
 
 /** Los módulos que este usuario puede abrir, en orden de menú. */

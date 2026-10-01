@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
+import { puedeVerModulo } from '../../core/modulos.js'
+import { useAuth } from '../../core/useAuth.js'
 import { AREAS } from '../../core/areas.js'
 import { CANALES, canalesConPrefijo } from '../../core/canales.js'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
@@ -655,6 +657,8 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
 export default function PQRSList() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const verNotasCredito = puedeVerModulo(user, 'notas_credito')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroTipo, setFiltroTipo]     = useState('')
   const [busqueda, setBusqueda]         = useState('')
@@ -743,17 +747,20 @@ export default function PQRSList() {
       {/* Las notas crédito no son PQRS —van en su propia tabla, sin plazo de
           ley ni encuesta al cliente— pero se piden desde aquí, que es donde la
           gente ya entra. Sin esta pestaña no habría cómo llegar a ellas. */}
-      <div className="flex items-center gap-2 mb-5">
-        <span className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-acento-suave text-acento">
-          PQRS
-        </span>
-        <Link
-          to="/notas-credito"
-          className="px-3 py-1.5 rounded-lg text-sm font-semibold text-texto-2 hover:bg-superficie-2 transition"
-        >
-          Notas crédito
-        </Link>
-      </div>
+      {/* Sin el módulo contratado no hay pestañas: una sola no es una elección. */}
+      {verNotasCredito && (
+        <div className="flex items-center gap-2 mb-5">
+          <span className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-acento-suave text-acento">
+            PQRS
+          </span>
+          <Link
+            to="/notas-credito"
+            className="px-3 py-1.5 rounded-lg text-sm font-semibold text-texto-2 hover:bg-superficie-2 transition"
+          >
+            Notas crédito
+          </Link>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-start justify-between mb-6">

@@ -7,6 +7,7 @@ Uso (con el contenedor backend corriendo):
 """
 from app.core.database import SessionLocal
 from app.core.security import hash_password
+from app.core.modulos import CONTRATABLES, contratar
 from app.models.tenant import Tenant
 from app.models.user import User
 
@@ -23,6 +24,13 @@ def run():
             print(f"✅ Tenant creado: {tenant.nombre} (id={tenant.id})")
         else:
             print(f"ℹ️  Tenant ya existía: {tenant.nombre} (id={tenant.id})")
+
+        # Protokimica usa todos los módulos. Para otra empresa se contratan
+        # uno por uno con `python -m app.scripts.modulos`.
+        activados = contratar(db, tenant.id, list(CONTRATABLES))
+        db.commit()
+        if activados:
+            print(f"✅ Módulos contratados: {', '.join(activados)}")
 
         admin = (
             db.query(User)

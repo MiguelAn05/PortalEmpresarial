@@ -98,6 +98,26 @@ export function usuarioGuardado() {
   return null
 }
 
+/**
+ * Reemplaza los datos del usuario guardado, en el mismo almacén donde está
+ * su token: refrescarlos no puede convertir una sesión de pestaña en una
+ * recordada. Sin sesión abierta no escribe nada.
+ */
+export function actualizarUsuarioGuardado(usuario) {
+  for (const persistente of [false, true]) {
+    const a = almacen(persistente)
+    try {
+      if (a?.getItem(CLAVE_TOKEN)) {
+        a.setItem(CLAVE_USUARIO, JSON.stringify(usuario))
+        return true
+      }
+    } catch {
+      /* sigue con el otro */
+    }
+  }
+  return false
+}
+
 /** Cierra la sesión en los dos almacenes. */
 export function limpiarSesion() {
   borrarDe(true)

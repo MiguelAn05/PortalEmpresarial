@@ -1,90 +1,25 @@
 """
 De dónde salen las respuestas que muestra el módulo.
 
-Mismo patrón que `indicadores/fuentes.py`: cada origen se registra aquí y el
-resto del módulo no sabe de qué tabla vino cada respuesta. Eso es lo que
-permite mostrar en una sola lista la encuesta de PQRS —que vive en su propia
-tabla desde antes de que este módulo existiera— junto a las plantillas
-nuevas, sin migrar nada ni tocar el flujo de PQRS.
+Mismo patrón que `indicadores/fuentes.py`: cada módulo declara sus orígenes
+en su `origen_encuesta.py` (ver `core/origenes_encuesta.py`), aquí se reúnen
+con el de las plantillas propias, y el resto del módulo no sabe de qué tabla
+vino cada respuesta. Eso es lo que permite mostrar en una sola lista la
+encuesta de PQRS —que vive en su propia tabla desde antes de que este módulo
+existiera— junto a las plantillas nuevas, sin migrar nada ni tocar el flujo
+de PQRS.
 
-Para agregar un origen: escribir la función que devuelve `RespuestaVista` y
-registrarla en ORIGENES. Nada más del módulo cambia.
+Para agregar un origen: escribir en el módulo dueño de los datos la función
+que devuelve `RespuestaVista` y declararla en su `ORIGENES`. Nada de este
+módulo cambia.
 """
-from dataclasses import dataclass, field
-from datetime import datetime
-
 from sqlalchemy.orm import Session
 
+from app.core import registro
+from app.core.modulos import paquete_contratado
+from app.models.tenant import Tenant
+from app.core.origenes_encuesta import ItemVista, RespuestaVista
 from app.models.encuestas import Plantilla, Respuesta
-from app.models.pqrs import PQRSEncuesta, PQRSSolicitud
-
-# Escala común de calificación. La encuesta de PQRS ya venía de 1 a 5, y
-# forzar todo a la misma escala es lo que permite comparar y promediar entre
-# encuestas distintas sin normalizar en cada consulta.
-ESCALA_MAX = 5
-
-
-@dataclass
-class ItemVista:
-    pregunta: str
-    valor: str | None
-    numero: float | None = None
-
-
-@dataclass
-class RespuestaVista:
-    """Una respuesta, venga de donde venga, en la forma que el módulo pinta."""
-    id: str                       # "pqrs-12" / "enc-45": único entre orígenes
-    origen: str                   # clave del origen
-    origen_nombre: str
-    respondida_en: datetime | None
-    calificacion: float | None    # 1..5, o None si esa encuesta no califica
-    comentario: str | None = None
-    sujeto: str | None = None     # a quién o qué califica
-    referencia: str | None = None # de dónde salió (radicado, punto de venta)
-    items: list[ItemVista] = field(default_factory=list)
-
-
-# ── Origen: la encuesta de satisfacción de PQRS ──────────────────────────
-
-def _respuestas_de_pqrs(db: Session, tenant_id: int) -> list[RespuestaVista]:
-    """
-    Lee `pqrs_encuestas` tal como está. Solo las respondidas: las que se
-    crean al cerrar una PQRS y nadie contestó no son datos, son pendientes.
-    """
-    filas = (
-        db.query(PQRSEncuesta, PQRSSolicitud)
-        .join(PQRSSolicitud, PQRSEncuesta.pqrs_id == PQRSSolicitud.id)
-        .filter(
-            PQRSSolicitud.tenant_id == tenant_id,
-            PQRSEncuesta.respondida_en.isnot(None),
-        )
-        .all()
-    )
-
-    vistas = []
-    for encuesta, solicitud in filas:
-        items = [
-            ItemVista("¿Quedó solucionada?", encuesta.solucionada),
-            ItemVista("Calificación de la atención",
-                      str(encuesta.calificacion) if encuesta.calificacion else None,
-                      float(encuesta.calificacion) if encuesta.calificacion else None),
-            ItemVista("Tiempo de respuesta", encuesta.calificacion_tiempo_respuesta),
-            ItemVista("¿Nos recomendaría?",
-                      None if encuesta.recomendaria is None else ("Sí" if encuesta.recomendaria else "No")),
-        ]
-        vistas.append(RespuestaVista(
-            id=f"pqrs-{encuesta.id}",
-            origen="pqrs",
-            origen_nombre="Satisfacción PQRS",
-            respondida_en=encuesta.respondida_en,
-            calificacion=float(encuesta.calificacion) if encuesta.calificacion else None,
-            comentario=encuesta.comentario,
-            sujeto=solicitud.area_responsable,
-            referencia=solicitud.codigo_seguimiento or solicitud.radicado_calidad,
-            items=[i for i in items if i.valor is not None],
-        ))
-    return vistas
 
 
 # ── Origen: las plantillas del propio módulo ─────────────────────────────
@@ -146,26 +81,42 @@ def _respuestas_de_plantillas(db: Session, tenant_id: int) -> list[RespuestaVist
     return vistas
 
 
-# Los orígenes disponibles. PQRS está fijo porque es código; las plantillas
-# aportan uno por cada encuesta que exista en la base.
-ORIGENES = {
-    "pqrs": {
-        "nombre": "Satisfacción PQRS",
-        "descripcion": "La que responde el cliente cuando se cierra su PQRS.",
-        "fn": _respuestas_de_pqrs,
-    },
-    "plantillas": {
+# El origen de las plantillas propias. Va aparte porque aporta uno por cada
+# encuesta que exista en la base, no uno solo.
+CLAVE_PLANTILLAS = "plantillas"
+
+
+def _reunir() -> dict:
+    """Los orígenes que declaran los otros módulos, y al final el propio."""
+    origenes = {}
+    for pieza in registro.piezas("origen_encuesta"):
+        for clave, cfg in getattr(pieza, "ORIGENES", {}).items():
+            assert clave not in origenes, f"El origen '{clave}' está declarado dos veces."
+            origenes[clave] = {**cfg, "paquete": registro.paquete_de(pieza)}
+    origenes[CLAVE_PLANTILLAS] = {
         "nombre": "Encuestas del portal",
         "descripcion": "Las creadas en este módulo.",
         "fn": _respuestas_de_plantillas,
-    },
-}
+    }
+    return origenes
+
+
+ORIGENES = _reunir()
+
+
+def origenes_de(db: Session, tenant_id: int) -> dict:
+    """Los orígenes de los módulos que esta empresa tiene contratados."""
+    tenant = db.get(Tenant, tenant_id)
+    return {
+        clave: cfg for clave, cfg in ORIGENES.items()
+        if "paquete" not in cfg or paquete_contratado(tenant, cfg["paquete"])
+    }
 
 
 def todas_las_respuestas(db: Session, tenant_id: int) -> list[RespuestaVista]:
     """Todo junto, de la más reciente a la más vieja."""
     reunidas: list[RespuestaVista] = []
-    for origen in ORIGENES.values():
+    for origen in origenes_de(db, tenant_id).values():
         reunidas.extend(origen["fn"](db, tenant_id))
 
     # Las que no tienen fecha van al final en vez de reventar la comparación.

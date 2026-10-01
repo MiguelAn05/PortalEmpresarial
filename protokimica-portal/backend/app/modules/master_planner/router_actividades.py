@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.core.modulos import contratado
 from app.core import dias_habiles, supervision
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
@@ -35,7 +36,10 @@ from app.modules.master_planner.schemas import (
     CumplimientoActividadOut, RegistroActividadCrear, RegistroActividadOut,
 )
 
-router = APIRouter(prefix="/master-planner", tags=["Master Planner — Actividades diarias"])
+router = APIRouter(
+    prefix="/master-planner", tags=["Master Planner — Actividades diarias"],
+    dependencies=[Depends(contratado("master_planner"))],
+)
 
 
 def _hoy() -> date:

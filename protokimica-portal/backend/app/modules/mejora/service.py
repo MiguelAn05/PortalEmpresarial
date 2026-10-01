@@ -22,6 +22,7 @@ from app.models.mejora import (
     ESTADO_DESCARTADA, ESTADOS, CambioMejora, ItemCatalogo, Oportunidad,
 )
 from app.modules.mejora import catalogos as cat
+from app.modules.mejora.fuentes_indicador import CLAVE_GESTION_OMP
 
 INTENTOS_CODIGO = 5
 
@@ -570,7 +571,6 @@ def indicadores_en_rojo_sin_omp(db: Session, tenant_id: int,
     # de mejora sobre la gestión de las oportunidades de mejora, que se
     # atrasaría a su vez. Ese rojo se atiende poniendo al día las atrasadas,
     # que su propio análisis nombra una por una.
-    from app.modules.indicadores.fuentes import CLAVE_GESTION_OMP
     de_gestion = {
         i for (i,) in db.query(Indicador.id).filter(
             Indicador.id.in_(ids_en_rojo),

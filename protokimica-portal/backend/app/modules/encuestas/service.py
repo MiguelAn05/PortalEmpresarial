@@ -11,8 +11,9 @@ from sqlalchemy.orm import Session
 
 from app.core.fechas import con_zona
 from app.models.encuestas import Plantilla, Pregunta, Respuesta, RespuestaItem
+from app.core.origenes_encuesta import ESCALA_MAX, RespuestaVista
 from app.modules.encuestas.origenes import (
-    ESCALA_MAX, ORIGENES, RespuestaVista, todas_las_respuestas,
+    CLAVE_PLANTILLAS, origenes_de, todas_las_respuestas,
 )
 
 
@@ -98,11 +99,11 @@ def listar_origenes(db: Session, tenant_id: int) -> list[dict]:
     quien usa el portal, "Calificación de vendedores" es un origen, no una
     fila dentro de "Encuestas del portal".
     """
-    salida = [{
-        "clave": "pqrs",
-        "nombre": ORIGENES["pqrs"]["nombre"],
-        "descripcion": ORIGENES["pqrs"]["descripcion"],
-    }]
+    # Los que aportan otros módulos (la satisfacción de PQRS), tal cual.
+    salida = [
+        {"clave": clave, "nombre": cfg["nombre"], "descripcion": cfg["descripcion"]}
+        for clave, cfg in origenes_de(db, tenant_id).items() if clave != CLAVE_PLANTILLAS
+    ]
     plantillas = db.query(Plantilla).filter(Plantilla.tenant_id == tenant_id).all()
     salida.extend({
         "clave": p.slug,

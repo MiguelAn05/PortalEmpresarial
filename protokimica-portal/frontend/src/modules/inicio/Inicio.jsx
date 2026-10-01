@@ -181,9 +181,16 @@ function VerTodas({ to, children }) {
  * responde esta pantalla para quien no es gerencia. El conteo por gravedad
  * va en chips, no en un texto corrido: «1 vencida» pesa distinto que «4».
  */
+// Lo que se pinta cuando la empresa no tiene el módulo de una tarjeta: el
+// servidor no la manda (ver `core/inicio.py`), y tratarla como vacía es más
+// simple que preguntar en cada línea si llegó.
+const SIN_PENDIENTES = { abiertas: 0, vencidas: 0, por_vencer: 0, lista: [] }
+
 function Pendientes({ inicio }) {
   const { tono, titulo } = tonoPendientes(inicio)
-  const { mis_tareas: tareas, mis_pqrs: pqrs, indicadores_por_registrar: indicadores } = inicio
+  const tareas = inicio.mis_tareas ?? SIN_PENDIENTES
+  const pqrs = inicio.mis_pqrs ?? SIN_PENDIENTES
+  const indicadores = inicio.indicadores_por_registrar ?? []
   const vacio = inicio.total_pendiente === 0
   const estaSemana = Math.max(0, (inicio.total_pendiente || 0) - (inicio.total_urgente || 0))
 
@@ -432,62 +439,77 @@ function Empresa({ empresa, area }) {
 
   // El delta se dice en palabras además del color: una flecha sola no se lee
   // en voz alta ni sobrevive a una impresión en blanco y negro.
-  const deltaIndicadores = (rojos !== null && rojosAntes !== undefined && rojosAntes !== null)
+  const deltaIndicadores = (rojos != null && rojosAntes != null)
     ? rojos - rojosAntes
     : null
+
+  // Cada cifra la aporta su módulo; si la empresa no lo tiene, no llega y su
+  // tarjeta no se pinta. `undefined` es «no hay módulo»; `null` en los
+  // indicadores es «hay módulo, pero tu rol no los ve».
+  const hayProyectos = activos !== undefined
+  const hayPQRS = pqrs !== undefined
+  const hayIndicadores = rojos != null
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[15px] font-semibold text-texto">Cómo va la empresa</h2>
-        <Link
-          to="/indicadores"
-          className="inline-flex items-center gap-1 text-xs font-medium text-acento hover:underline"
-        >
-          Ver el detalle
-          <IconoChevron tam={12} />
-        </Link>
+        {hayIndicadores && (
+          <Link
+            to="/indicadores"
+            className="inline-flex items-center gap-1 text-xs font-medium text-acento hover:underline"
+          >
+            Ver el detalle
+            <IconoChevron tam={12} />
+          </Link>
+        )}
       </div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <TarjetaCifra etiqueta="Proyectos activos" valor={activos} Icono={IconoProyectos}>
-          {nuevos > 0
-            ? <span>{nuevos} {nuevos === 1 ? 'nuevo' : 'nuevos'} este mes</span>
-            : area
-              ? <span>{area.total_proyectos} de {area.area}</span>
-              : <span>ninguno nuevo este mes</span>}
-        </TarjetaCifra>
+        {hayProyectos && (
+          <TarjetaCifra etiqueta="Proyectos activos" valor={activos} Icono={IconoProyectos}>
+            {nuevos > 0
+              ? <span>{nuevos} {nuevos === 1 ? 'nuevo' : 'nuevos'} este mes</span>
+              : area?.total_proyectos !== undefined
+                ? <span>{area.total_proyectos} de {area.area}</span>
+                : <span>ninguno nuevo este mes</span>}
+          </TarjetaCifra>
+        )}
 
-        <TarjetaCifra etiqueta="PQRS sin cerrar" valor={pqrs} Icono={IconoPQRS}>
-          {pqrs > 0
-            ? <Chip tono="alerta">Esperan respuesta</Chip>
-            : <Chip tono="positivo">Ninguna pendiente</Chip>}
-          {cerradas > 0 && (
-            <span className="cifra">{cerradas} cerradas este mes</span>
-          )}
-        </TarjetaCifra>
+        {hayPQRS && (
+          <TarjetaCifra etiqueta="PQRS sin cerrar" valor={pqrs} Icono={IconoPQRS}>
+            {pqrs > 0
+              ? <Chip tono="alerta">Esperan respuesta</Chip>
+              : <Chip tono="positivo">Ninguna pendiente</Chip>}
+            {cerradas > 0 && (
+              <span className="cifra">{cerradas} cerradas este mes</span>
+            )}
+          </TarjetaCifra>
+        )}
 
-        <TarjetaCifra
-          etiqueta="Presupuesto pagado"
-          valor={montoCorto(pagado)}
-          Icono={IconoDinero}
-          exacto={formatMoneda(pagado)}
-        >
-          {/* Se mide sobre lo APROBADO, no sobre lo planeado: lo planeado
-              puede no aprobarse nunca, y la deuda real es lo aprobado. */}
-          {pctAprobado === null || pctAprobado === undefined ? (
-            <span>nada aprobado todavía</span>
-          ) : (
-            <>
-              <Barra pct={pctAprobado} />
-              <span className="cifra">
-                {pctAprobado}% de {montoCorto(aprobado)} aprobados
-              </span>
-            </>
-          )}
-        </TarjetaCifra>
+        {hayProyectos && (
+          <TarjetaCifra
+            etiqueta="Presupuesto pagado"
+            valor={montoCorto(pagado)}
+            Icono={IconoDinero}
+            exacto={formatMoneda(pagado)}
+          >
+            {/* Se mide sobre lo APROBADO, no sobre lo planeado: lo planeado
+                puede no aprobarse nunca, y la deuda real es lo aprobado. */}
+            {pctAprobado === null || pctAprobado === undefined ? (
+              <span>nada aprobado todavía</span>
+            ) : (
+              <>
+                <Barra pct={pctAprobado} />
+                <span className="cifra">
+                  {pctAprobado}% de {montoCorto(aprobado)} aprobados
+                </span>
+              </>
+            )}
+          </TarjetaCifra>
+        )}
 
-        {rojos !== null && (
+        {hayIndicadores && (
           <TarjetaCifra etiqueta="Indicadores en rojo" valor={rojos} Icono={IconoIndicadores}>
             {rojos > 0
               ? <Chip tono="negativo">Bajo la meta en {periodo}</Chip>
@@ -506,8 +528,9 @@ function Empresa({ empresa, area }) {
       </div>
 
       {/* La gráfica pesa más que la tabla porque responde la pregunta cara
-          (¿se está ejecutando lo aprobado?); la tabla acompaña. */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          (¿se está ejecutando lo aprobado?); la tabla acompaña. Las dos son
+          del Master Planner: sin él no hay nada que dibujar. */}
+      {hayProyectos && <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         <section className="lg:col-span-7 bg-superficie rounded-xl border border-borde shadow-sm">
           <header className="flex items-center justify-between gap-3 px-5 py-4 border-b border-borde">
             <h3 className="text-sm font-semibold text-texto">
@@ -551,7 +574,7 @@ function Empresa({ empresa, area }) {
             </div>
           )}
         </section>
-      </div>
+      </div>}
     </div>
   )
 }
@@ -637,7 +660,9 @@ export default function Inicio() {
       ancho: 'lg:col-span-12',
       nodo: <Empresa empresa={inicio.empresa} area={inicio.mi_area} />,
     },
-    area: inicio.mi_area && {
+    // «Mi área» son los proyectos y las tareas del equipo: sin Master Planner
+    // contratado solo quedaría el número de personas, y eso no es una tarjeta.
+    area: inicio.mi_area?.proyectos && {
       ancho: 'lg:col-span-6',
       nodo: <MiArea area={inicio.mi_area} />,
     },

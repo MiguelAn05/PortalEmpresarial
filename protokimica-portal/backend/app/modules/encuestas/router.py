@@ -13,6 +13,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.modulos import contratado
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
 from app.models.encuestas import Plantilla, Pregunta, Respuesta
@@ -22,7 +23,10 @@ from app.modules.encuestas.schemas import (
     PlantillaCreate, PlantillaOut, PlantillaUpdate, validar_tipo_pregunta,
 )
 
-router = APIRouter(prefix="/encuestas", tags=["Encuestas"])
+router = APIRouter(
+    prefix="/encuestas", tags=["Encuestas"],
+    dependencies=[Depends(contratado("encuestas"))],
+)
 
 
 def _get_plantilla_o_404(db: Session, plantilla_id: int, tenant_id: int) -> Plantilla:

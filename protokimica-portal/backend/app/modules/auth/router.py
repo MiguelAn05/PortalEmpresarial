@@ -15,6 +15,7 @@ from app.core.security import hash_password, verify_password, create_access_toke
 from app.core.deps import get_current_user, get_current_tenant_id, require_role, ROLES_VALIDOS
 from app.core.rate_limit import limitar_login
 from app.core.areas import AREA_PUNTOS_DE_VENTA, AREAS
+from app.core.modulos import contratados_de
 from app.models.capacidad import CapacidadOtorgada
 from app.models.user import AreaSupervisada, User
 from app.models.tenant import Tenant
@@ -204,7 +205,9 @@ def login(payload: LoginRequest, db: Session = Depends(get_db), _: None = Depend
 
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
-    return current_user
+    salida = UserOut.model_validate(current_user)
+    salida.modulos_contratados = sorted(contratados_de(current_user.tenant))
+    return salida
 
 
 @router.post("/cambiar-password")

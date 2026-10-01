@@ -3,7 +3,7 @@
 // que el servidor rechaza con 403, o esconde algo que si se podia abrir.
 import { readFileSync } from 'node:fs'
 import {
-  ACCESO_POR_MODULO, RUTA_DE_MODULO, puedeVerModulo, modulosDe, moduloDeRuta,
+  ACCESO_POR_MODULO, RUTA_DE_MODULO, estaContratado, puedeVerModulo, modulosDe, moduloDeRuta,
 } from '../src/core/modulos.js'
 
 const PY = readFileSync(new URL('../../backend/app/core/modulos.py', import.meta.url), 'utf8')
@@ -80,6 +80,17 @@ check('/master-planner es master_planner', moduloDeRuta('/master-planner') === '
 check('una ruta desconocida no se bloquea', moduloDeRuta('/documentos') === null)
 // '/pqrs-publico' NO es '/pqrs': el prefijo tiene que terminar en la ruta o en '/'.
 check('un prefijo parecido no cuenta', moduloDeRuta('/pqrs-publico') === null)
+
+console.log('\n== Lo que la empresa no contrato no se ofrece ==')
+const conContrato = { rol: 'admin', modulos_contratados: ['inicio', 'admin', 'pqrs'] }
+check('admin no ve un modulo no contratado', !puedeVerModulo(conContrato, 'indicadores'))
+check('y si el contratado', puedeVerModulo(conContrato, 'pqrs'))
+check('el contrato no salta el rol',
+  !puedeVerModulo({ rol: 'agente', modulos_contratados: ['indicadores'] }, 'indicadores'))
+// Una sesion guardada antes de que el servidor mandara el dato no trae la
+// lista: esconder todo la dejaria sin menu, y quien bloquea es el servidor.
+check('sin el dato no se esconde nada', estaContratado({ rol: 'lider' }, 'mejora'))
+check('notas credito tiene su ruta', moduloDeRuta('/notas-credito') === 'notas_credito')
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

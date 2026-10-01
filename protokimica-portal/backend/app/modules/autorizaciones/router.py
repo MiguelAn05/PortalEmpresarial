@@ -23,6 +23,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from app.core.modulos import contratado
 from app.core.database import get_db
 from app.core.deps import (
     get_current_user, get_current_tenant_id, require_role, solo_lectura_no,
@@ -41,7 +42,10 @@ from app.modules.pqrs.notificaciones import (
     avisos_autorizacion_pendiente, avisos_autorizacion_respondida,
 )
 
-router = APIRouter(prefix="/autorizaciones", tags=["Autorizaciones"])
+router = APIRouter(
+    prefix="/autorizaciones", tags=["Autorizaciones"],
+    dependencies=[Depends(contratado("pqrs"))],
+)
 
 
 # ── Tipos de autorización (configuración) ─────────────────────────

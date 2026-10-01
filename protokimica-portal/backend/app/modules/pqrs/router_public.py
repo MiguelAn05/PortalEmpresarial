@@ -13,10 +13,10 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.modules.pqrs.schemas import EncuestaCreate
 
+from app.core.tenant_publico import contratado_en_publico, tenant_publico
 from app.core import canales
 from app.core.database import get_db
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
-from app.models.tenant import Tenant
 from app.modules.pqrs import qr
 from app.modules.pqrs import productos as pqrs_productos
 from app.modules.pqrs.cierre_automatico import (
@@ -35,7 +35,10 @@ from app.modules.pqrs.service import (
 )
 from app.modules.pqrs.notificaciones import avisos_creacion
 
-router = APIRouter(prefix="/public", tags=["Público — PQRS"])
+router = APIRouter(
+    prefix="/public", tags=["Público — PQRS"],
+    dependencies=[Depends(contratado_en_publico("pqrs"))],
+)
 
 
 
@@ -199,9 +202,7 @@ async def radicar_pqrs_publica(
         "cantidad_reclamo": cantidad_reclamo,
     })
 
-    tenant = db.query(Tenant).filter(Tenant.slug == "protokimica").first()
-    if not tenant:
-        raise HTTPException(status_code=500, detail="Error de configuración.")
+    tenant = tenant_publico(db)
 
     # Guardar archivos si vienen
     ruta_producto = None
