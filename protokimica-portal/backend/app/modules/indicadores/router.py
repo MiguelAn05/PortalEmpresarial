@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy.orm import Session
 
 from app.core.modulos import contratado
-from app.core.areas import AREAS
+from app.core import areas
 from app.core.database import get_db
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
 from app.core.modulos import requiere_modulo, ve_todos_los_indicadores
@@ -175,7 +175,7 @@ def estado_gestion_omp(
     clave, _cfg = _fuente_una_por_area(db, tenant_id)
     existentes = _areas_con_la_fuente(db, tenant_id, clave)
     return {
-        "faltantes": [a for a in AREAS if a not in existentes],
+        "faltantes": [a for a in areas.nombres(db, tenant_id) if a not in existentes],
         "existentes": sorted(existentes),
     }
 
@@ -197,7 +197,7 @@ def crear_gestion_omp_en_areas(
     existentes = _areas_con_la_fuente(db, tenant_id, clave)
     plantilla = cfg["una_por_area"]
     creados = []
-    for area in AREAS:
+    for area in areas.nombres(db, tenant_id):
         if area in existentes:
             continue
         db.add(Indicador(

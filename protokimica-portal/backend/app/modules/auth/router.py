@@ -14,7 +14,8 @@ from app.core.config import settings
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.deps import get_current_user, get_current_tenant_id, require_role, ROLES_VALIDOS
 from app.core.rate_limit import limitar_login
-from app.core.areas import AREA_PUNTOS_DE_VENTA, AREAS
+from app.core import areas as areas_empresa
+from app.core.capacidades import capacidades_de
 from app.core.modulos import contratados_de
 from app.models.capacidad import CapacidadOtorgada
 from app.models.user import AreaSupervisada, User
@@ -28,20 +29,27 @@ from app.modules.auth.schemas import (
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 
-def resolver_areas_supervisadas(areas: list[str] | None, area_propia: str | None) -> list[str]:
+def resolver_areas_supervisadas(
+    db: Session, tenant_id: int, areas: list[str] | None, area_propia: str | None,
+    validar: bool = True,
+) -> list[str]:
     """
     Las áreas que se le guardan a alguien como supervisadas, ya validadas.
 
     Se quita la propia: supervisarla no agrega nada —ya la ve— y dejarla
     guardada haría que cambiar de área se llevara consigo una supervisión que
     nadie pidió.
+
+    `validar=False` es para volver a limpiar las que ya tenía: si una de ellas
+    se desactivó después, eso no puede impedir guardar otro cambio.
     """
+    vigentes = set(areas_empresa.nombres(db, tenant_id)) if validar else set()
     limpias = []
     for area in areas or []:
         area = (area or "").strip()
         if not area:
             continue
-        if area not in AREAS:
+        if validar and area not in vigentes:
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -65,21 +73,23 @@ def aplicar_areas_supervisadas(usuario: User, areas: list[str]) -> None:
             usuario.areas_supervisadas.append(AreaSupervisada(area=area))
 
 
-def resolver_punto_venta(prefijo: str | None, area: str | None) -> str | None:
+def resolver_punto_venta(db: Session, tenant_id: int, prefijo: str | None,
+                         area: str | None) -> str | None:
     """
     El punto de venta que se le guarda a alguien, ya validado.
 
-    Solo tiene sentido en el área «Puntos de Venta»: en cualquier otra se
+    Solo tiene sentido en el área de las sedes: en cualquier otra se
     descarta, para que no quede un punto olvidado que vuelva a acotarle las
     PQRS el día que alguien lo pase de vuelta al área. Y tiene que ser una
     SEDE: «VI» tiene prefijo pero no es un mostrador donde trabaje alguien.
     """
     prefijo = (prefijo or "").strip().upper() or None
-    if prefijo is None or area != AREA_PUNTOS_DE_VENTA:
+    if prefijo is None or not area or area != areas_empresa.area_de_sedes(db, tenant_id):
         return None
-    canal = canales.canal_por_codigo(prefijo)
-    if canal not in canales.puntos_de_venta():
-        validos = ", ".join(canales.prefijo_de(c) for c in canales.puntos_de_venta())
+    canal = canales.canal_por_codigo(db, tenant_id, prefijo)
+    sedes = canales.puntos_de_venta(db, tenant_id)
+    if canal is None or canal.nombre not in sedes:
+        validos = ", ".join(canales.prefijo_de(db, tenant_id, c) or c for c in sedes)
         raise HTTPException(
             status_code=400,
             detail=(
@@ -204,9 +214,10 @@ def login(payload: LoginRequest, db: Session = Depends(get_db), _: None = Depend
 
 
 @router.get("/me", response_model=UserOut)
-def me(current_user: User = Depends(get_current_user)):
+def me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     salida = UserOut.model_validate(current_user)
     salida.modulos_contratados = sorted(contratados_de(current_user.tenant))
+    salida.capacidades = sorted(capacidades_de(db, current_user))
     return salida
 
 
@@ -271,11 +282,11 @@ def crear_usuario(
         password_hash=hash_password(payload.password),
         rol=payload.rol,
         area=payload.area,
-        punto_venta=resolver_punto_venta(payload.punto_venta, payload.area),
+        punto_venta=resolver_punto_venta(db, tenant_id, payload.punto_venta, payload.area),
         bodega=resolver_bodega(payload.bodega),
     )
     aplicar_areas_supervisadas(
-        user, resolver_areas_supervisadas(payload.areas_supervisadas, payload.area),
+        user, resolver_areas_supervisadas(db, user.tenant_id, payload.areas_supervisadas, payload.area),
     )
     db.add(user)
     db.commit()
@@ -349,19 +360,20 @@ def actualizar_usuario(
     if payload.areas_supervisadas is not None:
         aplicar_areas_supervisadas(
             usuario,
-            resolver_areas_supervisadas(payload.areas_supervisadas, usuario.area),
+            resolver_areas_supervisadas(db, usuario.tenant_id, payload.areas_supervisadas, usuario.area),
         )
     elif "area" in payload.model_fields_set:
         # Cambió de área: si supervisaba la que ahora es la suya, esa fila
         # sobra — la ve por ser suya, no por supervisarla.
         aplicar_areas_supervisadas(
             usuario,
-            resolver_areas_supervisadas(usuario.areas_que_supervisa, usuario.area),
+            resolver_areas_supervisadas(db, usuario.tenant_id, usuario.areas_que_supervisa,
+                                        usuario.area, validar=False),
         )
 
     if "punto_venta" in payload.model_fields_set:
-        usuario.punto_venta = resolver_punto_venta(payload.punto_venta, usuario.area)
-    elif usuario.area != AREA_PUNTOS_DE_VENTA:
+        usuario.punto_venta = resolver_punto_venta(db, usuario.tenant_id, payload.punto_venta, usuario.area)
+    elif usuario.area != areas_empresa.area_de_sedes(db, usuario.tenant_id):
         usuario.punto_venta = None
 
     # La bodega NO se limpia al cambiar de área: el coordinador de La 65 está

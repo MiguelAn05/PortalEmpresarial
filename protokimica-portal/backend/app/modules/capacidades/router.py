@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core import capacidades as cap
-from app.core.areas import AREAS
+from app.core import areas
 from app.core.database import get_db
 from app.core.deps import get_current_tenant_id, require_role
 from app.models.user import User
@@ -59,7 +59,7 @@ def otorgar(
         raise HTTPException(status_code=404, detail=f"'{capacidad}' no es una capacidad del portal.")
 
     if payload.area:
-        if payload.area not in AREAS:
+        if not areas.es_valida(db, tenant_id, payload.area):
             raise HTTPException(
                 status_code=400,
                 detail=f"'{payload.area}' no es un área del portal. Elige una de la lista.",

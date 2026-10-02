@@ -18,6 +18,8 @@ import io
 
 import segno
 
+from sqlalchemy.orm import Session
+
 from app.core import canales
 from app.core.config import settings
 
@@ -50,7 +52,7 @@ def url_del_canal(codigo: str) -> str:
     return f"{base}/q/{codigo.strip().upper()}"
 
 
-def validar_codigo(codigo: str) -> tuple[str, str]:
+def validar_codigo(db: Session, tenant_id: int, codigo: str) -> tuple[str, str]:
     """
     Devuelve `(codigo_normalizado, nombre_del_canal)`.
 
@@ -59,15 +61,15 @@ def validar_codigo(codigo: str) -> tuple[str, str]:
     que el servidor no reconoce mandaría las PQRS al radicado genérico sin
     que nadie se entere.
     """
-    canal = canales.canal_por_codigo(codigo)
+    canal = canales.canal_por_codigo(db, tenant_id, codigo)
     if canal is None:
         raise ValueError(codigo)
-    return canales.PREFIJOS_POR_CANAL[canal], canal
+    return canal.prefijo, canal.nombre
 
 
-def svg(codigo: str) -> bytes:
+def svg(db: Session, tenant_id: int, codigo: str) -> bytes:
     """El QR como SVG, listo para imprimir a cualquier tamaño."""
-    normalizado, _ = validar_codigo(codigo)
+    normalizado, _ = validar_codigo(db, tenant_id, codigo)
     qr = segno.make(url_del_canal(normalizado), error=CORRECCION)
 
     buffer = io.BytesIO()
@@ -79,9 +81,9 @@ def svg(codigo: str) -> bytes:
     return buffer.getvalue()
 
 
-def png(codigo: str) -> bytes:
+def png(db: Session, tenant_id: int, codigo: str) -> bytes:
     """El QR como PNG, para meterlo en un diseño o en un documento."""
-    normalizado, _ = validar_codigo(codigo)
+    normalizado, _ = validar_codigo(db, tenant_id, codigo)
     qr = segno.make(url_del_canal(normalizado), error=CORRECCION)
 
     buffer = io.BytesIO()
@@ -89,7 +91,7 @@ def png(codigo: str) -> bytes:
     return buffer.getvalue()
 
 
-def listar() -> list[dict]:
+def listar(db: Session, tenant_id: int) -> list[dict]:
     """
     Todos los canales que tienen QR, con su código y la URL que llevan
     dentro.
@@ -102,10 +104,10 @@ def listar() -> list[dict]:
     """
     return [
         {
-            "codigo": prefijo,
-            "canal": canal,
-            "url": url_del_canal(prefijo),
-            "es_punto_de_venta": canal.startswith("Punto de venta"),
+            "codigo": c.prefijo,
+            "canal": c.nombre,
+            "url": url_del_canal(c.prefijo),
+            "es_punto_de_venta": c.tipo == "sede",
         }
-        for canal, prefijo in canales.PREFIJOS_POR_CANAL.items()
+        for c in canales.del_tenant(db, tenant_id) if c.prefijo
     ]

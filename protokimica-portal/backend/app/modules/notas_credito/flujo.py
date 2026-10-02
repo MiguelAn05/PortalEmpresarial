@@ -57,7 +57,7 @@ informe. Al reenviarla vuelve al PRINCIPIO de su cadena — quien ya había
 aprobado lo hizo sobre unos datos que acaban de cambiar, y arrastrar esa
 firma sería darla por buena sin que nadie la mire otra vez.
 """
-from app.core import bodegas, canales
+from app.core import bodegas
 from app.models.nota_credito import (
     ESTADO_APLICADA, ESTADO_APROBADA, ESTADO_CANCELADA, ESTADO_DEVUELTA,
     ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD,
@@ -65,13 +65,9 @@ from app.models.nota_credito import (
 )
 from app.models.user import User
 
-CANAL_INSTITUCIONAL = "Venta institucional"
-
-assert CANAL_INSTITUCIONAL in canales.CANALES, (
-    "«Venta institucional» ya no está en core/canales.py. La cadena "
-    "institucional de las notas crédito no sabría a quién aplicarse y todo "
-    "caería en la rama del punto de venta, sin pasar por Comercial."
-)
+# Qué solicitud sigue la cadena institucional lo decide el tipo de su canal
+# al crearla, y queda guardado en `SolicitudNotaCredito.institucional`. Antes
+# era la constante `CANAL_INSTITUCIONAL = "Venta institucional"`.
 
 # Qué capacidad hay que tener para atender cada turno. Un estado que no está
 # aquí no es turno de nadie: o es final, o está en manos del solicitante.
@@ -154,12 +150,7 @@ def estados_del_filtro(clave: str) -> tuple[str, ...]:
     return GRUPOS_FILTRO.get(clave, ())
 
 
-def es_institucional(punto_venta: str | None) -> bool:
-    """La rama se decide por el canal, que ya se elige de una lista cerrada."""
-    return canales.normalizar(punto_venta) == CANAL_INSTITUCIONAL
-
-
-def cadena(punto_venta: str | None, requiere_bodega: bool = False) -> tuple[str, ...]:
+def cadena(institucional: bool, requiere_bodega: bool = False) -> tuple[str, ...]:
     """
     Los turnos por los que pasa esta solicitud, en orden, hasta quedar lista
     para emitir. `ESTADO_APROBADA` cierra la lista en las dos ramas: es el
@@ -168,19 +159,19 @@ def cadena(punto_venta: str | None, requiere_bodega: bool = False) -> tuple[str,
     # El mostrador: Comercial decide y el punto emite. Contabilidad no tiene
     # turno aquí — no hay nada que verificar ante la DIAN y la decisión
     # comercial ya está tomada.
-    if not es_institucional(punto_venta):
+    if not institucional:
         return (ESTADO_EN_COMERCIAL, ESTADO_APROBADA)
     if requiere_bodega:
         return (ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)
     return (ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)
 
 
-def estado_inicial(punto_venta: str | None, requiere_bodega: bool = False) -> str:
+def estado_inicial(institucional: bool, requiere_bodega: bool = False) -> str:
     """Dónde nace la solicitud: el primer turno de su cadena."""
-    return cadena(punto_venta, requiere_bodega)[0]
+    return cadena(institucional, requiere_bodega)[0]
 
 
-def siguiente(estado: str, punto_venta: str | None, requiere_bodega: bool = False) -> str | None:
+def siguiente(estado: str, institucional: bool, requiere_bodega: bool = False) -> str | None:
     """
     El turno que sigue al aprobar, o `None` si ya no hay más.
 
@@ -188,7 +179,7 @@ def siguiente(estado: str, punto_venta: str | None, requiere_bodega: bool = Fals
     es un caso imposible por diseño (el router comprueba el turno antes), y
     adivinar un «siguiente» sería inventar un paso.
     """
-    pasos = cadena(punto_venta, requiere_bodega)
+    pasos = cadena(institucional, requiere_bodega)
     if estado not in pasos:
         return None
     posicion = pasos.index(estado)

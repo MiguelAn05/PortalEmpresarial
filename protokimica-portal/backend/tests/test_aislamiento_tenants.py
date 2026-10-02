@@ -18,6 +18,8 @@ from app.models.mejora import Oportunidad
 from app.models.pqrs import PQRSSolicitud
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.core.areas import sembrar as sembrar_areas
+from app.core.canales import sembrar as sembrar_canales
 from app.core.modulos import CONTRATABLES, contratar
 
 
@@ -30,6 +32,8 @@ def otra_empresa(entorno):
     db.add(tenant)
     db.commit()
     contratar(db, tenant.id, list(CONTRATABLES))
+    sembrar_areas(db, tenant.id)
+    sembrar_canales(db, tenant.id)
     db.commit()
 
     intruso = User(

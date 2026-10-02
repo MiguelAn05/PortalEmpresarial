@@ -299,20 +299,25 @@ filtra, pero eso es cortesía: esconder un botón no impide escribir la URL.
 - `puede_comentar` solo bloquea a `lectura`. Es para comentarios y
   actualizaciones de seguimiento.
 
-**PQRS — cerrar y reclasificar:** solo el área `Servicio al cliente` (más
-`admin`). Se resuelve por ÁREA, no por rol, porque el área ya existe y así se
-administra desde Admin › Usuarios. Ver `modules/pqrs/permisos.py`.
+**PQRS — cerrar y reclasificar:** quien tiene la capacidad `pqrs.cerrar`
+(más `admin`); en Protokimica, el área `Servicio al Cliente`. Esa misma
+capacidad reparte el área de los casos, recibe el aviso de cada PQRS nueva y
+es a quien vuelve una PQRS cuando se responde una autorización (el área que
+la tiene hace más tiempo, `capacidades.area_principal`). Ver
+`modules/pqrs/permisos.py` y «Permisos: por área, no por cargo».
 El tipo (petición/queja/reclamo/…) se corrige **antes de cerrar**: el cliente
 casi nunca acierta al radicar y esa clasificación alimenta los indicadores.
 Al reclasificar se recalcula el SLA **desde la radicación** y la prioridad se
 ajusta al tipo nuevo salvo que alguien la haya cambiado a mano.
 
 **PQRS — cada punto de venta ve las suyas:** todo el portal ve todas las
-PQRS, **menos el área `Puntos de Venta`**. A una sede le interesan las de su
-mostrador; las de las otras cinco y las de Venta institucional son ruido.
-El área es una sola para las seis sedes, así que cada usuario lleva
-`users.punto_venta` con el **prefijo** (`PVG`, `PVC`…), que se elige en
-Admin › Usuarios y solo aparece si el área es `Puntos de Venta`:
+PQRS, **menos el área de las sedes** (la marcada con `es_de_sedes` en
+Administración › Áreas; en Protokimica, `Puntos de Venta`). A una sede le
+interesan las de su mostrador; las de las otras cinco y las de Venta
+institucional son ruido. El área es una sola para todas las sedes, así que
+cada usuario lleva `users.punto_venta` con el **prefijo** (`PVG`, `PVC`…),
+que se elige en Admin › Usuarios y solo aparece si está en el área de las
+sedes. Las sedes son los canales de tipo `sede`:
 
 | Usuario | Ve |
 |---|---|
@@ -329,8 +334,9 @@ reciba un `pqrs_id` —incluidas las autorizaciones— pasa por
 `obtener_visible()` de `modules/pqrs/permisos.py`; la lista usa
 `filtrar_visibles()`. `GET /pqrs/visibilidad` le dice a la pantalla qué se
 está viendo, para que una lista acotada no se lea como «solo hay estas».
-«Venta institucional» tiene prefijo pero **no es un punto de venta**: no se
-le asigna a nadie. Salir del área borra el punto, para que no reaparezca
+«Venta institucional» tiene prefijo pero **no es un punto de venta** —su
+tipo es `institucional`—: no se le asigna a nadie. Una sede desactivada sigue
+contando para quien estaba en ella: sus PQRS no dejaron de existir. Salir del área borra el punto, para que no reaparezca
 acotando a alguien el día que vuelva.
 
 **PQRS — corregir datos y adjuntos:** quien gestiona el caso
@@ -361,10 +367,12 @@ producto radicado no se editan a mano: se confirman contra el catálogo
 Tope: `MAX_PRODUCTOS = 20`, atado al `constants.js` del módulo.
 
 **Master Planner — aprobar y pagar:** el presupuesto recorre
-`planeado → aprobado → pagado`. `Administración` aprueba cuánto se desembolsa
-y `Tesorería` registra los abonos: dos manos distintas a propósito. Las dos
-áreas ven TODOS los proyectos (si no, no podrían hacer su trabajo), pero eso
-no les da permiso de editarlos. Ver `modules/master_planner/permisos.py`.
+`planeado → aprobado → pagado`. Quien tiene `presupuesto.aprobar` aprueba
+cuánto se desembolsa y quien tiene `presupuesto.pagar` registra los abonos
+(en Protokimica, `Administración` y `Tesorería`): dos manos distintas a
+propósito. Quien tiene cualquiera de las dos ve TODOS los proyectos (si no,
+no podría hacer su trabajo), pero eso no le da permiso de editarlos. Ver
+`modules/master_planner/permisos.py`.
 Los pagos se guardan uno por uno (`mp_pagos`) y `valor_pagado` es su suma —
 nunca un campo aparte que se edite en paralelo.
 
@@ -518,8 +526,9 @@ deshabilitarlo.
 Cerrar exige **dos firmas distintas**: la verificación de eficacia (quien
 ejecutó dice si el indicador mejoró) y la **validación del SGC** (Calidad dice
 si la evidencia alcanza). Un solo botón dejaba que el mismo que hizo el
-trabajo lo diera por bueno. Va por ÁREA —`AREA_SGC = "Calidad"` en
-`mejora/permisos.py`, más `admin`— como el cierre de PQRS. Una verificación
+trabajo lo diera por bueno. La da quien tiene la capacidad
+`mejora.validar_sgc` —Calidad en Protokimica—, más `admin`, como el cierre de
+PQRS. Una verificación
 que dice que NO fue eficaz **anula el visto bueno anterior**: si quedara, la
 siguiente vuelta se cerraría con la firma de una evidencia ya descartada. Y
 si no fue eficaz, vuelve a `analisis` — nunca se cierra.
@@ -653,8 +662,9 @@ El precio de esta regla: **un proyecto sin líder y sin tareas no lo ve nadie.**
 Por eso al crear uno sin líder se pone a quien lo creó — si no, desaparecería
 apenas se guarda.
 
-Siguen viendo todo `admin`, `gerencia`, y las áreas `Administración` y
-`Tesorería`: aprueban y desembolsan la plata de TODOS los proyectos.
+Siguen viendo todo `admin`, `gerencia`, y quien aprueba o paga presupuestos
+(`Administración` y `Tesorería` en Protokimica): aprueban y desembolsan la
+plata de TODOS los proyectos.
 
 El presupuesto es aparte y más estrecho: solo lo ve **quien lidera** (más las
 dos áreas financieras). Tener una tarea en un proyecto deja trabajar en él,
@@ -674,14 +684,31 @@ no mirar cuánta plata mueve.
 
 ### Permisos: por área, no por cargo
 
-- **Cuando el permiso depende del trabajo, va por ÁREA; cuando depende de la
-  responsabilidad, por PERSONA.** Nunca por cargo:
-  - Cerrar y reclasificar PQRS → área `Servicio al Cliente`
-  - Aprobar presupuesto → `Administración`; pagar → `Tesorería`
+- **Cuando el permiso depende del trabajo, va por CAPACIDAD (que se le da a
+  un área o a una persona); cuando depende de la responsabilidad, por
+  PERSONA.** Nunca por cargo:
+  - Cerrar y reclasificar PQRS → `pqrs.cerrar`
+  - Validar el SGC → `mejora.validar_sgc`
+  - Aprobar presupuesto → `presupuesto.aprobar`; pagar → `presupuesto.pagar`
+  - Notas crédito → las `notas_credito.*` de cada etapa
   - Responder una autorización → el área autorizadora del tipo
   - Cerrar un proyecto → su líder (más `admin`)
   Amarrarlo al rol dejaba fuera a quien hace el trabajo y obligaba a cambiarle
   el cargo a alguien solo para que pudiera firmar.
+- **Las capacidades se otorgan en Administración › Capacidades**, no en el
+  código (`core/capacidades.py` tiene solo el catálogo). Hasta la 0.45.0 eran
+  constantes con nombres de área de Protokimica (`AREA_SERVICIO_CLIENTE`,
+  `AREA_SGC`…): en otra empresa esas áreas se llaman distinto. La empresa
+  nueva arranca con `SEMILLA_INICIAL`, que se siembra con
+  `sembrar_capacidades_iniciales` (lo hace `seed.py`).
+- **En el backend:** `capacidades.del_usuario(usuario, ...)` cuando solo se
+  tiene al usuario —`get_current_user` le precarga sus capacidades, una
+  consulta por petición—, o `tiene(db, usuario, ...)` con la sesión. Los
+  mensajes de «no puedes» dicen a quién pedírselo con
+  `capacidades.quienes_lo_hacen()`, que sale de la tabla.
+- **En la pantalla:** `tieneCapacidad(user, ...)` de `core/capacidades.js`,
+  con la lista que manda `/auth/me`. Nunca `user.area === 'Calidad'`:
+  `tests/permisosSinAreas.test.mjs` falla si vuelve a aparecer.
 - `admin` siempre puede: es quien destraba cuando el responsable está de
   vacaciones o alguien quedó mal configurado.
 - `solo_lectura_no` sigue protegiendo toda escritura, y bloquea también a
@@ -756,19 +783,66 @@ otra persona de la empresa.
 
 ### Áreas
 
-**Una sola fuente por lado**: `backend/app/core/areas.py` y
-`frontend/src/core/areas.js`. Una prueba verifica que coincidan. Nunca
-declarar una lista de áreas dentro de un componente.
+**Son de cada empresa** (tabla `areas`, `models/area.py`) y se administran
+en Administración › Áreas: crear, renombrar y desactivar. Hasta la
+0.46.0 eran una lista escrita en `core/areas.py` y en `areas.js`, igual para
+cualquier empresa. `AREAS_INICIALES` quedó como la lista de arranque de una
+empresa nueva (`areas.sembrar()`, que llama `seed.py`).
+
+- **Backend:** `areas.nombres(db, tenant_id)` y `areas.es_valida(db,
+  tenant_id, area)`. Nunca una lista propia.
+- **Frontend:** `useAreas()` de `core/areas.js` (`GET /areas`, o
+  `useAreas({ publico: true })` → `/public/areas` en el formulario del
+  cliente). `tests/areas.test.mjs` falla si un archivo vuelve a tener su
+  propia lista.
+- **Las demás tablas guardan el área como TEXTO**, no como llave: así
+  estaban las once columnas cuando llegó la tabla. Por eso **renombrar pasa
+  por `areas.renombrar()`**, que reescribe cada columna de
+  `COLUMNAS_CON_AREA` —incluidas las capacidades otorgadas y las tablas sin
+  `tenant_id` propio, filtradas por su padre— en una sola transacción, y
+  responde cuántas filas cambió. `tests/test_areas.py` recorre el esquema y
+  falla si aparece una columna `area*` que no esté en esa lista: una tabla
+  nueva que guarde un área se quedaría con el nombre viejo en silencio.
+- **No se borra: se desactiva.** Deja de ofrecerse y de aceptarse para lo
+  nuevo, pero lo que ya la tenía la conserva. Los desplegables usan
+  `areasParaSelect(areas, valorActual)` para no borrarle el área a un
+  registro viejo al editarlo.
+- **Siempre en orden alfabético**, sin tildes ni mayúsculas de por medio
+  (`areas.clave_alfabetica`). Hubo flechas para ordenarlas a mano y se
+  quitaron: se leían como si un área tuviera más nivel que otra.
+- `Puntos de Venta` todavía no se renombra ni se desactiva desde la
+  pantalla (409): tiene reglas propias que llegan con la fase 4c.
 
 ### Canales de atención
 
-Mismo trato que las áreas: `backend/app/core/canales.py` y
-`frontend/src/core/canales.js`, con `tests/canales.test.mjs` verificando que
-coincidan. Estaban repetidos en cuatro archivos y ya se habían separado —el
+**Son de cada empresa** (tabla `canales`, `models/canal.py`) y se administran
+en Administración › Canales, igual que las áreas. Hasta la 0.47.0 eran una
+lista en `core/canales.py` y `canales.js` con los seis puntos de venta de
+Protokimica escritos a mano. Antes de eso ya se habían separado una vez —el
 formulario de felicitaciones ofrecía «Llamada telefónica» donde el resto del
-portal dice «Línea telefónica», así que la misma llamada caía en dos canales
-y el reporte las contaba aparte. `normalizar()` traduce el nombre viejo al
-radicar, en los dos routers.
+portal dice «Línea telefónica»—; `normalizar()` sigue traduciendo el nombre
+viejo al radicar.
+
+- **Cada canal tiene un tipo:** `sede` (mostrador: se asigna a la gente como
+  su punto de venta y acota qué PQRS ve), `institucional` (sus notas crédito
+  siguen la cadena larga) y `general` (WhatsApp, línea telefónica). Antes las
+  sedes se reconocían por empezar con «Punto de venta» y la rama
+  institucional por llamarse «Venta institucional».
+- **La rama de una nota crédito se guarda al crearla**
+  (`nc_solicitudes.institucional`): cambiarle después el tipo a un canal no
+  hace saltar de cadena a las que van en camino.
+- **El prefijo no se cambia nunca** (409): es el código del QR impreso, el
+  comienzo del consecutivo y lo que guarda `users.punto_venta`. Se puede
+  poner una vez a un canal que no tenía. Si de verdad es otra sede, canal
+  nuevo y se desactiva el viejo.
+- **Renombrar** reescribe `pqrs_solicitudes.canal_atencion` y
+  `nc_solicitudes.punto_venta` (`COLUMNAS_CON_CANAL`, con prueba sobre el
+  esquema). **Desactivar** lo saca de los formularios y apaga su QR.
+- Backend: `canales.del_tenant / nombres / prefijo_de / canal_por_codigo /
+  puntos_de_venta / es_institucional`, todas con `(db, tenant_id)`.
+  Frontend: `useCanales()` (`/canales`, o `/public/canales` en el formulario
+  del cliente) y funciones que reciben la lista; `tests/canales.test.mjs`
+  falla si un archivo vuelve a tener la suya.
 
 **El canal decide el prefijo del código de seguimiento** (`PVG0010`), y de
 ese prefijo salen los reportes por sede. Cambiar cómo se escribe un canal
@@ -980,10 +1054,11 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   corre al lunes). Contarlos corridos declaraba vencido lo que no lo estaba.
 - **El % pagado se mide sobre lo APROBADO, no sobre lo planeado.** Lo
   planeado puede no aprobarse nunca; la deuda real es lo aprobado.
-- **La escritura del área importa.** Se compara como texto para decidir
-  permisos (`Servicio al Cliente`, `Administración`, `Tesorería`). Cambiar
-  mayúsculas o tildes rompe permisos en silencio: va con migración de datos
-  y las constantes de `permisos.py` lo verifican al arrancar.
+- **La escritura del área importa.** Las capacidades se otorgan a un área
+  por su nombre (`capacidades_otorgadas.area`), y la visibilidad la compara
+  como texto. Cambiar cómo se escribe un área es renombrarla, y eso va por
+  Administración › Áreas (`areas.renombrar()`), nunca con un UPDATE suelto:
+  uno a mano deja a su gente sin sus capacidades en silencio.
 - **Un mes sin datos no es un cero.** En indicadores y en cumplimiento, la
   ausencia de dato se muestra como "sin dato" y no baja los porcentajes.
 - **Un consecutivo se saca del MÁXIMO, nunca de un `count()`.** El código de

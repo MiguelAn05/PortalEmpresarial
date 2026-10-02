@@ -35,7 +35,8 @@ from app.models.autorizacion import TipoAutorizacion, AutorizacionPQRS
 from app.modules.autorizaciones.schemas import (
     TipoAutorizacionCreate, TipoAutorizacionOut, AutorizacionOut,
 )
-from app.modules.pqrs.permisos import AREA_SERVICIO_CLIENTE, obtener_visible
+from app.core import capacidades
+from app.modules.pqrs.permisos import CAPACIDAD_GESTION, obtener_visible
 from app.core.archivos import guardar_archivo
 from app.core.notificaciones import enviar_avisos
 from app.modules.pqrs.notificaciones import (
@@ -292,12 +293,13 @@ async def responder_autorizacion(
 
     # Con la respuesta ya dada, el caso vuelve a quien reparte. Dejarlo en el
     # área autorizadora sería dejarlo con quien ya hizo su parte: nadie más lo
-    # tiene en su bandeja y el plazo sigue corriendo.
-    if pqrs.estado != "cerrado" and pqrs.area_responsable != AREA_SERVICIO_CLIENTE:
-        detalle.append(
-            f"Área: {pqrs.area_responsable or 'sin asignar'} -> {AREA_SERVICIO_CLIENTE}."
-        )
-        pqrs.area_responsable = AREA_SERVICIO_CLIENTE
+    # tiene en su bandeja y el plazo sigue corriendo. Quien reparte es el
+    # área que tiene `pqrs.cerrar` —Servicio al Cliente en Protokimica—; si
+    # nadie la tiene por área, el caso se queda donde está.
+    reparte = capacidades.area_principal(db, tenant_id, CAPACIDAD_GESTION)
+    if pqrs.estado != "cerrado" and reparte and pqrs.area_responsable != reparte:
+        detalle.append(f"Área: {pqrs.area_responsable or 'sin asignar'} -> {reparte}.")
+        pqrs.area_responsable = reparte
 
     if comentario_respuesta:
         detalle.append(comentario_respuesta.strip())

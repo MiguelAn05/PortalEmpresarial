@@ -4,7 +4,7 @@
  * Vive en un .js y no dentro de los .jsx para que `tests/pqrs.test.mjs` pueda
  * importarlo: Node no lee JSX.
  */
-import { AREAS, normalizarArea } from '../../core/areas.js'
+import { normalizarArea } from '../../core/areas.js'
 
 /**
  * Tope de cada dato corregible. ATADOS a `PQRSEditarDatos` en
@@ -193,18 +193,18 @@ export function cambiosDeDatos(pqrs, form) {
 export const AREA_SIN_ASIGNAR = '__sin_asignar__'
 
 /**
- * Las áreas a ofrecer en el desplegable: el catálogo completo más las que
+ * Las áreas a ofrecer en el desplegable: las de la empresa más las que
  * traigan los datos y ya no estén en él. Sin ese añadido, una PQRS asignada
  * a un área que se retiró del catálogo no tendría con qué filtrarse y solo
  * podría encontrarse mirando la lista entera.
  */
-export function areasParaFiltrar(lista) {
+export function areasParaFiltrar(lista, areas) {
   const fuera = new Set()
   for (const pqrs of lista || []) {
     const area = normalizarArea(pqrs.area_responsable)
-    if (area && !AREAS.includes(area)) fuera.add(area)
+    if (area && !areas.includes(area)) fuera.add(area)
   }
-  return [...AREAS, ...[...fuera].sort()]
+  return [...areas, ...[...fuera].sort()]
 }
 
 /**

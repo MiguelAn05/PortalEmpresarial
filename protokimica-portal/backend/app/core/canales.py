@@ -1,54 +1,39 @@
 """
-Los canales de atención por los que entra una PQRS. Fuente única del backend.
+Los canales de atención de la empresa: por dónde entra una PQRS, cuáles son
+sedes y con qué prefijo numeran sus casos.
 
-Antes vivían repetidos en cuatro archivos —`pqrs/service.py`, `PQRSList.jsx` y
-dos listas dentro de `FormularioPQRS.jsx`— y ya habían empezado a separarse:
-el formulario normal ofrecía «Línea telefónica» y el de felicitaciones
-«Llamada telefónica», así que la misma llamada caía en dos canales distintos y
-el reporte por canal las contaba aparte.
+Antes eran una lista en este archivo y su gemelo `canales.js`, con los seis
+puntos de venta de Protokimica escritos a mano. Ahora cada empresa tiene los
+suyos en la tabla `canales` (ver `models/canal.py` para los tipos y por qué
+el prefijo no se cambia) y los administra en Administración › Canales.
 
-El gemelo de este archivo es `frontend/src/core/canales.js`, y una prueba
-verifica que los dos digan exactamente lo mismo.
-
-**La escritura exacta importa**, igual que con las áreas: el canal se compara
-como texto para decidir el prefijo del código de seguimiento. Si alguien
-cambia una tilde, las PQRS de ese punto de venta dejan de recibir su
-consecutivo propio y pasan a `PK-2026-…` sin que nada avise. Un cambio de
-escritura va con migración de datos.
+Antes de eso ya se habían separado una vez: el formulario normal ofrecía
+«Línea telefónica» y el de felicitaciones «Llamada telefónica», así que la
+misma llamada caía en dos canales y el reporte las contaba aparte. Una lista
+por empresa, servida desde aquí, es lo que evita que vuelva a pasar.
 """
+import re
 
-# El orden es el que se muestra en los formularios.
-CANALES = [
-    "Venta institucional",
-    "WhatsApp",
-    "Punto de venta Centro",
-    "Punto de venta Belén",
-    "Punto de venta Guayabal",
-    "Punto de venta La 65",
-    "Punto de venta Cristo Rey",
-    "Punto de venta Itagüí",
-    "Línea telefónica",
+from sqlalchemy import update
+from sqlalchemy.orm import Session
+
+from app.core.areas import clave_alfabetica
+from app.models.canal import MAX_PREFIJO, TIPOS_CANAL, Canal
+
+# Con lo que arranca una empresa nueva: los canales con que nació el portal en
+# Protokimica. La migración `f3a9d6b28e51` los copió a la tabla.
+# (nombre, prefijo, tipo)
+CANALES_INICIALES = [
+    ("Venta institucional", "VI", "institucional"),
+    ("WhatsApp", None, "general"),
+    ("Punto de venta Centro", "PVC", "sede"),
+    ("Punto de venta Belén", "PVB", "sede"),
+    ("Punto de venta Guayabal", "PVG", "sede"),
+    ("Punto de venta La 65", "PV65", "sede"),
+    ("Punto de venta Cristo Rey", "PVCR", "sede"),
+    ("Punto de venta Itagüí", "PVI", "sede"),
+    ("Línea telefónica", None, "general"),
 ]
-
-# Los canales que llevan consecutivo propio, y con qué prefijo.
-#
-# Un punto de venta necesita su propia numeración para que el reporte por
-# punto tenga sentido: si todos compartieran consecutivo, «llevamos 40 PQRS»
-# no diría nada de ninguna sede en particular. Los canales que no están aquí
-# caen en `PK-{año}-{consecutivo}`.
-#
-# **El prefijo es además el código del QR**: `/q/PVG` abre el formulario ya
-# marcado como Guayabal. Por eso no se cambia a la ligera — un letrero
-# impreso y pegado en una sede no se actualiza solo.
-PREFIJOS_POR_CANAL = {
-    "Punto de venta Centro": "PVC",
-    "Punto de venta Belén": "PVB",
-    "Punto de venta Guayabal": "PVG",
-    "Punto de venta La 65": "PV65",
-    "Punto de venta Cristo Rey": "PVCR",
-    "Punto de venta Itagüí": "PVI",
-    "Venta institucional": "VI",
-}
 
 # Nombres que quedaron en datos ya guardados y a qué canal corresponden hoy.
 # «Llamada telefónica» solo existía en el formulario de felicitaciones: era la
@@ -67,29 +52,51 @@ def normalizar(canal: str | None) -> str | None:
     return EQUIVALENCIAS_HISTORICAS.get(limpio, limpio)
 
 
-def es_valido(canal: str | None) -> bool:
+# ── Los de cada empresa ───────────────────────────────────────
+
+def del_tenant(db: Session, tenant_id: int, incluir_inactivos: bool = False) -> list[Canal]:
+    """Los canales de la empresa, en orden alfabético."""
+    query = db.query(Canal).filter(Canal.tenant_id == tenant_id)
+    if not incluir_inactivos:
+        query = query.filter(Canal.activo.is_(True))
+    return sorted(query.all(), key=lambda c: clave_alfabetica(c.nombre))
+
+
+def nombres(db: Session, tenant_id: int) -> list[str]:
+    """Los activos: lo que se ofrece en los formularios."""
+    return [c.nombre for c in del_tenant(db, tenant_id)]
+
+
+def es_valido(db: Session, tenant_id: int, canal: str | None) -> bool:
     """None es válido: una PQRS interna puede no tener canal."""
-    return canal is None or canal in CANALES
+    return canal is None or canal in nombres(db, tenant_id)
 
 
-def prefijo_de(canal: str | None) -> str | None:
-    """El prefijo del código de seguimiento, o None si el canal no tiene uno."""
-    return PREFIJOS_POR_CANAL.get((canal or "").strip())
+def _por_nombre(db: Session, tenant_id: int, canal: str | None) -> Canal | None:
+    if not canal:
+        return None
+    return db.query(Canal).filter(
+        Canal.tenant_id == tenant_id, Canal.nombre == canal.strip(),
+    ).first()
 
 
-def puntos_de_venta() -> list[str]:
+def prefijo_de(db: Session, tenant_id: int, canal: str | None) -> str | None:
     """
-    Los canales que son un punto de venta físico.
-
-    «Venta institucional» tiene prefijo pero no es una sede: nadie trabaja
-    «en» ella detrás de un mostrador, así que no se le puede asignar a un
-    usuario como su punto de venta. Gemelo de `puntosDeVenta()` en
-    `canales.js`.
+    El prefijo del código de seguimiento, o None si el canal no tiene uno.
+    Vale también para un canal desactivado: sus PQRS viejas siguen
+    llevando su prefijo y hay que poder reconocerlas.
     """
-    return [c for c in CANALES if c.startswith("Punto de venta")]
+    encontrado = _por_nombre(db, tenant_id, canal)
+    return encontrado.prefijo if encontrado else None
 
 
-def canal_por_codigo(codigo: str | None) -> str | None:
+def prefijos(db: Session, tenant_id: int) -> list[str]:
+    """Todos los prefijos de la empresa, activos o no."""
+    return [c.prefijo for c in del_tenant(db, tenant_id, incluir_inactivos=True) if c.prefijo]
+
+
+def canal_por_codigo(db: Session, tenant_id: int, codigo: str | None,
+                     solo_activos: bool = True) -> Canal | None:
     """
     El canal al que apunta un código de QR (`PVG` → «Punto de venta Guayabal»).
 
@@ -98,8 +105,100 @@ def canal_por_codigo(codigo: str | None) -> str | None:
     """
     if not codigo:
         return None
-    buscado = codigo.strip().upper()
-    for canal, prefijo in PREFIJOS_POR_CANAL.items():
-        if prefijo == buscado:
-            return canal
-    return None
+    query = db.query(Canal).filter(
+        Canal.tenant_id == tenant_id, Canal.prefijo == codigo.strip().upper(),
+    )
+    if solo_activos:
+        query = query.filter(Canal.activo.is_(True))
+    return query.first()
+
+
+def puntos_de_venta(db: Session, tenant_id: int, incluir_inactivos: bool = False) -> list[str]:
+    """
+    Los canales que son una sede física: los que se le asignan a un usuario
+    como su punto de venta. «Venta institucional» tiene prefijo pero no es una
+    sede —nadie trabaja «en» ella detrás de un mostrador—, y por eso va con
+    su propio tipo.
+    """
+    return [c.nombre for c in del_tenant(db, tenant_id, incluir_inactivos) if c.tipo == "sede"]
+
+
+def es_institucional(db: Session, tenant_id: int, canal: str | None) -> bool:
+    """¿Este canal sigue la cadena institucional de las notas crédito?"""
+    encontrado = _por_nombre(db, tenant_id, normalizar(canal))
+    return bool(encontrado and encontrado.tipo == "institucional")
+
+
+def sembrar(db: Session, tenant_id: int) -> list[str]:
+    """
+    Le da a una empresa los canales de arranque que le falten. Idempotente;
+    no reactiva uno desactivado. No hace commit.
+    """
+    existentes = {c.nombre for c in del_tenant(db, tenant_id, incluir_inactivos=True)}
+    agregados = []
+    for nombre, prefijo, tipo in CANALES_INICIALES:
+        if nombre not in existentes:
+            db.add(Canal(tenant_id=tenant_id, nombre=nombre, prefijo=prefijo, tipo=tipo))
+            agregados.append(nombre)
+    db.flush()
+    return agregados
+
+
+# ── Reglas para crear y cambiar ───────────────────────────────
+
+_PREFIJO_VALIDO = re.compile(r"^[A-Z0-9]{2,%d}$" % MAX_PREFIJO)
+
+
+def validar_prefijo(prefijo: str | None) -> str | None:
+    """
+    El prefijo limpio, en mayúsculas, o ValueError con lo que hay que
+    corregir. Solo letras y números: va dentro de una URL (`/q/PVG`) y al
+    comienzo de un consecutivo (`PVG0010`).
+    """
+    if prefijo is None or not prefijo.strip():
+        return None
+    limpio = prefijo.strip().upper()
+    if not _PREFIJO_VALIDO.match(limpio):
+        raise ValueError(
+            f"El prefijo «{prefijo}» no sirve: usa de 2 a {MAX_PREFIJO} letras o "
+            "números, sin espacios ni guiones (por ejemplo PVG)."
+        )
+    return limpio
+
+
+def validar_tipo(tipo: str) -> str:
+    if tipo not in TIPOS_CANAL:
+        raise ValueError(f"El tipo tiene que ser uno de: {', '.join(TIPOS_CANAL)}.")
+    return tipo
+
+
+# Toda columna que guarda el NOMBRE de un canal. `users.punto_venta` guarda el
+# PREFIJO, que no cambia, y por eso no está aquí. `tests/test_canales.py`
+# falla si aparece una columna `canal*` que no esté en la lista.
+COLUMNAS_CON_CANAL = [
+    ("pqrs_solicitudes", "canal_atencion"),
+    ("nc_solicitudes", "punto_venta"),
+]
+
+
+def renombrar(db: Session, tenant_id: int, canal: Canal, nuevo: str) -> dict[str, int]:
+    """
+    Cambia el nombre de un canal y de las PQRS y notas crédito que lo llevan.
+    No hace commit: si algo falla, quien llama deshace todo.
+    """
+    from app.core.database import Base  # el esquema completo, ya cargado
+
+    viejo = canal.nombre
+    cambios: dict[str, int] = {}
+    for tabla_nombre, columna in COLUMNAS_CON_CANAL:
+        tabla = Base.metadata.tables[tabla_nombre]
+        resultado = db.execute(
+            update(tabla)
+            .where(tabla.c[columna] == viejo, tabla.c.tenant_id == tenant_id)
+            .values({columna: nuevo})
+        )
+        if resultado.rowcount:
+            cambios[f"{tabla_nombre}.{columna}"] = resultado.rowcount
+    canal.nombre = nuevo
+    db.flush()
+    return cambios

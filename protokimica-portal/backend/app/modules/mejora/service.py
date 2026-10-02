@@ -17,11 +17,13 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core import capacidades
 from app.models.indicadores import Indicador, Medicion
 from app.models.mejora import (
     ESTADO_DESCARTADA, ESTADOS, CambioMejora, ItemCatalogo, Oportunidad,
 )
 from app.modules.mejora import catalogos as cat
+from app.modules.mejora.permisos import CAPACIDAD_SGC
 from app.modules.mejora.fuentes_indicador import CLAVE_GESTION_OMP
 
 INTENTOS_CODIGO = 5
@@ -290,7 +292,7 @@ def tiene_analisis(oportunidad: Oportunidad) -> bool:
 
 # ── El ciclo ─────────────────────────────────────────────────────────
 
-def validar_transicion(oportunidad: Oportunidad, nuevo: str) -> None:
+def validar_transicion(db: Session, oportunidad: Oportunidad, nuevo: str) -> None:
     """
     Deja pasar solo los cambios de estado que tienen sentido.
 
@@ -361,10 +363,11 @@ def validar_transicion(oportunidad: Oportunidad, nuevo: str) -> None:
                         "verificación de eficacia con el resultado del indicador."),
             )
         if oportunidad.validado_sgc_en is None:
+            quien = capacidades.quienes_lo_hacen(db, oportunidad.tenant_id, CAPACIDAD_SGC)
             raise HTTPException(
                 status_code=400,
-                detail=("Falta que Calidad valide el cierre. En el formato del SGC "
-                        "el cierre lo firma alguien: solicítale a Calidad que revise "
+                detail=(f"Falta la validación del SGC. En el formato del SGC el "
+                        f"cierre lo firma alguien: solicítale a {quien} que revise "
                         "la evidencia y la dé por cerrada."),
             )
 
@@ -383,7 +386,7 @@ def cambiar_estado(db: Session, oportunidad: Oportunidad, nuevo: str,
     las decisiones se revisan. Al volver se limpia la fecha y el motivo, que
     ya dejaron de ser ciertos, pero el historial conserva las dos vueltas.
     """
-    validar_transicion(oportunidad, nuevo)
+    validar_transicion(db, oportunidad, nuevo)
 
     anterior = oportunidad.estado
     oportunidad.estado = nuevo
@@ -429,7 +432,7 @@ def validar_cierre_sgc(db: Session, oportunidad: Oportunidad, usuario_id: int,
     if oportunidad.eficaz is None:
         raise HTTPException(
             status_code=400,
-            detail=("Todavía no hay verificación de eficacia. Calidad valida sobre "
+            detail=("Todavía no hay verificación de eficacia. El SGC valida sobre "
                     "un resultado, no sobre una promesa."),
         )
 

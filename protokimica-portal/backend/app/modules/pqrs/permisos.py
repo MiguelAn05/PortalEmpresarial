@@ -2,50 +2,52 @@
 Quién puede cerrar y reclasificar una PQRS.
 
 Cerrar una PQRS y decidir si al final fue una petición, una queja o un
-reclamo es responsabilidad de Servicio al cliente: el tipo que elige el
-cliente al radicar suele estar mal, y esa clasificación es la que alimenta
-los indicadores y los reportes a Calidad.
+reclamo es responsabilidad de quien atiende el servicio al cliente: el tipo
+que elige el cliente al radicar suele estar mal, y esa clasificación es la
+que alimenta los indicadores y los reportes a Calidad.
 
-Se resuelve por ÁREA y no por rol porque "Servicio al cliente" ya existe
-como área y así se administra desde Admin › Usuarios cambiando el área de la
-persona, sin un rol paralelo que pueda contradecirla.
+**Lo decide la capacidad `pqrs.cerrar`, no el nombre de un área.** En
+Protokimica la tiene el área «Servicio al Cliente» (ver
+`core/capacidades.SEMILLA_INICIAL`), pero en otra empresa ese equipo se llama
+distinto, y se configura en Administración › Capacidades sin tocar código.
+Antes era una constante, `AREA_SERVICIO_CLIENTE`.
 """
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import and_, not_, or_
 from sqlalchemy.orm import Query, Session
 
 from app.core import canales
-from app.core.areas import AREA_PUNTOS_DE_VENTA, AREAS
+from app.core import capacidades
+from app.core import areas
+from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.pqrs import PQRSSolicitud
 from app.models.user import User
 
-# Se toma de la lista de areas y no se escribe a mano: si alguien cambia
-# como se escribe el area, esto tiene que moverse con ella o el cierre de
-# PQRS deja de funcionar en silencio.
-AREA_SERVICIO_CLIENTE = "Servicio al Cliente"
-assert AREA_SERVICIO_CLIENTE in AREAS, (
-    f"'{AREA_SERVICIO_CLIENTE}' ya no esta en app/core/areas.py. "
-    "Actualiza esta constante o nadie podra cerrar PQRS."
-)
+CAPACIDAD_GESTION = "pqrs.cerrar"
 
 
-def es_servicio_al_cliente(usuario: User) -> bool:
+def puede_gestionar_pqrs(usuario: User) -> bool:
     """Admin siempre puede: es el rol que destraba cuando algo se atasca."""
-    return usuario.rol == "admin" or usuario.area == AREA_SERVICIO_CLIENTE
+    return capacidades.del_usuario(usuario, CAPACIDAD_GESTION)
 
 
-def solo_servicio_al_cliente(current_user: User = Depends(get_current_user)) -> User:
+def solo_gestion_pqrs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
     """
-    Dependencia para los endpoints que solo puede usar Servicio al cliente.
-    El mensaje dice a quién pedirle el favor, no solo que no se puede.
+    Dependencia para cerrar, reclasificar y repartir. El mensaje dice a
+    quién pedirle el favor —sale de quién tiene la capacidad hoy—, no solo
+    que no se puede.
     """
-    if not es_servicio_al_cliente(current_user):
+    if not puede_gestionar_pqrs(current_user):
+        quien = capacidades.quienes_lo_hacen(db, current_user.tenant_id, CAPACIDAD_GESTION)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                "Solo el área de Servicio al Cliente puede hacer esto. "
-                "Si la PQRS ya está resuelta, pídele a Servicio al Cliente que la cierre."
+                f"Esto lo hace {quien}. "
+                f"Si la PQRS ya está resuelta, pídele a {quien} que la cierre."
             ),
         )
     return current_user
@@ -64,7 +66,7 @@ def puede_cambiar_area(usuario: User) -> bool:
     la PQRS pasa sola al área autorizadora, y al responderla vuelve sola.
     Eso no es reasignar a mano — es el caso siguiendo su curso.
     """
-    return es_servicio_al_cliente(usuario)
+    return puede_gestionar_pqrs(usuario)
 
 
 # ── Qué PQRS ve cada quien ─────────────────────────────────────────────
@@ -91,10 +93,12 @@ def puede_cambiar_area(usuario: User) -> bool:
 # Fuera de su alcance, la PQRS responde 404 y no 403 — igual que Master
 # Planner: no se confirma que exista algo que no te toca.
 
-# `AREA_PUNTOS_DE_VENTA` vive en `core/areas.py`: usuarios también la usa.
+# El área de las sedes es la que tiene la marca `es_de_sedes` en
+# Administración › Áreas (`areas.area_de_sedes`); antes era la constante
+# `AREA_PUNTOS_DE_VENTA`. Las sedes son los canales de tipo `sede`.
 
 
-def puntos_visibles(usuario: User) -> list[str] | None:
+def puntos_visibles(db: Session, usuario: User) -> list[str] | None:
     """
     Los canales de punto de venta a los que está acotada esta persona, o
     `None` si no tiene límite.
@@ -103,15 +107,20 @@ def puntos_visibles(usuario: User) -> list[str] | None:
     el área: gerencia ve todas las áreas por definición, y admin es quien
     destraba.
     """
-    if usuario.rol in ("admin", "gerencia") or usuario.area != AREA_PUNTOS_DE_VENTA:
+    if usuario.rol in ("admin", "gerencia"):
         return None
-    canal = canales.canal_por_codigo(usuario.punto_venta)
-    if canal in canales.puntos_de_venta():
-        return [canal]
-    return canales.puntos_de_venta()
+    if not usuario.area or usuario.area != areas.area_de_sedes(db, usuario.tenant_id):
+        return None
+    # Una sede desactivada sigue contando: quien estaba en ella sigue viendo
+    # sus PQRS, que no dejaron de existir.
+    sedes = canales.puntos_de_venta(db, usuario.tenant_id, incluir_inactivos=True)
+    canal = canales.canal_por_codigo(db, usuario.tenant_id, usuario.punto_venta, solo_activos=False)
+    if canal and canal.nombre in sedes:
+        return [canal.nombre]
+    return sedes
 
 
-def _radicado_con_prefijo(prefijo: str):
+def _radicado_con_prefijo(prefijo: str, todos: list[str]):
     """
     El código empieza por `prefijo` y sigue con el número.
 
@@ -121,7 +130,7 @@ def _radicado_con_prefijo(prefijo: str):
     """
     columna = PQRSSolicitud.codigo_seguimiento
     condiciones = [columna.like(f"{prefijo}%")]
-    for otro in canales.PREFIJOS_POR_CANAL.values():
+    for otro in todos:
         if otro != prefijo and otro.startswith(prefijo):
             condiciones.append(not_(columna.like(f"{otro}%")))
     return and_(*condiciones)
@@ -129,20 +138,24 @@ def _radicado_con_prefijo(prefijo: str):
 
 def filtrar_visibles(query: Query, usuario: User) -> Query:
     """Acota una consulta de `PQRSSolicitud` a lo que esta persona puede ver."""
-    puntos = puntos_visibles(usuario)
+    db = query.session
+    puntos = puntos_visibles(db, usuario)
     if puntos is None:
         return query
 
+    todos = canales.prefijos(db, usuario.tenant_id)
     condiciones = []
     for canal in puntos:
         condiciones.append(PQRSSolicitud.canal_atencion == canal)
-        condiciones.append(_radicado_con_prefijo(canales.prefijo_de(canal)))
+        prefijo = canales.prefijo_de(db, usuario.tenant_id, canal)
+        if prefijo:
+            condiciones.append(_radicado_con_prefijo(prefijo, todos))
     condiciones.append(PQRSSolicitud.asignado_a == usuario.id)
     # El coordinador ve además lo que Servicio al Cliente le pasó al área,
     # aunque haya entrado por otro canal. A una sede no: no hay forma de
     # saber a cuál de las seis le tocaba.
     if len(puntos) > 1:
-        condiciones.append(PQRSSolicitud.area_responsable == AREA_PUNTOS_DE_VENTA)
+        condiciones.append(PQRSSolicitud.area_responsable == usuario.area)
     return query.filter(or_(*condiciones))
 
 

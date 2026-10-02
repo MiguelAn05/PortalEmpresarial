@@ -45,7 +45,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.user import User
+from app.core import capacidades
 from app.core.notificaciones import Aviso, protegido
+from app.modules.pqrs.permisos import CAPACIDAD_GESTION
 
 logger = logging.getLogger("pqrs.n8n")
 
@@ -114,23 +116,25 @@ def _aviso_cliente_creacion(solicitud) -> list[Aviso]:
 
 def _aviso_servicio_cliente(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
     """
-    Avisa SIEMPRE al equipo de Servicio al Cliente cuando entra una PQRS
-    nueva — a diferencia de los avisos de área, esto no depende de a qué
-    área quedó asignada la solicitud (podría quedar asignada a Calidad,
-    Logística, etc., y aun así Servicio al Cliente debe enterarse).
+    Avisa SIEMPRE a quien gestiona las PQRS cuando entra una nueva — a
+    diferencia de los avisos de área, esto no depende de a qué área quedó
+    asignada la solicitud (podría quedar en Calidad o Logística, y aun así
+    quien reparte los casos debe enterarse).
 
-    Requiere que al menos un usuario activo tenga el campo `area` igual
-    a "Servicio al Cliente". Si no hay ninguno configurado así, no se
-    envía nada (no es un error, pero se deja dicho en el log: es la causa
-    más común de "a Servicio al Cliente no le llega nada").
+    Quien gestiona es quien tiene la capacidad `pqrs.cerrar` —el área
+    «Servicio al Cliente» en Protokimica—, la misma que decide quién cierra:
+    antes el aviso buscaba el área por su nombre, y en otra empresa ese
+    nombre no existe. Si nadie la tiene, no se envía nada (no es un error,
+    pero se deja dicho en el log: es la causa más común de «no le llega
+    nada a nadie»).
     """
-    destinatarios = _correos_por_area(db, tenant_id, "Servicio al Cliente")
+    destinatarios = capacidades.correos_de(db, tenant_id, CAPACIDAD_GESTION)
     if not destinatarios:
         logger.warning(
-            "PQRS %s: ningún usuario activo tiene el área 'Servicio al Cliente', "
-            "así que nadie recibirá el aviso de radicación. Se asigna en "
-            "Administración › Usuarios.",
-            solicitud.id,
+            "PQRS %s: nadie activo tiene la capacidad '%s', así que nadie "
+            "recibirá el aviso de radicación. Se otorga en Administración › "
+            "Capacidades.",
+            solicitud.id, CAPACIDAD_GESTION,
         )
         return []
 

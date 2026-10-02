@@ -4,10 +4,11 @@ import {
   crearProyecto, actualizarProyecto,
   listarPresupuesto, agregarItemPresupuesto, eliminarItemPresupuesto,
 } from "../api"
-import { AREAS, ESTADOS_PROYECTO, PRIORIDADES, formatMoneda, isoADateInput } from "../constants"
+import { ESTADOS_PROYECTO, PRIORIDADES, formatMoneda, isoADateInput } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { tieneDatos } from "../../../core/components/tieneDatos"
 import { IconoCerrar, IconoCheck } from '../../../core/components/Iconos.jsx'
+import { useAreas } from '../../../core/areas.js'
 
 const VACIO = {
   nombre: "", objetivo: "", alcance: "", lider_id: "", area: "",
@@ -33,6 +34,7 @@ function aFormulario(proyecto) {
 }
 
 export default function ProyectoFormModal({ proyecto, usuarios = [], onClose }) {
+  const listaAreas = useAreas()
   const queryClient = useQueryClient()
   // El modal se monta de nuevo cada vez que se abre, así que basta con
   // inicializar el estado desde las props — no hace falta sincronizarlo.
@@ -130,7 +132,7 @@ export default function ProyectoFormModal({ proyecto, usuarios = [], onClose }) 
               <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Área responsable</label>
               <select value={form.area} onChange={set('area')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
                 <option value="">Sin definir</option>
-                {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
           </div>
@@ -143,7 +145,7 @@ export default function ProyectoFormModal({ proyecto, usuarios = [], onClose }) 
               Otras áreas que participan
             </label>
             <div className="flex flex-wrap gap-2">
-              {AREAS.filter(a => a !== form.area).map(a => {
+              {listaAreas.filter(a => a !== form.area).map(a => {
                 const activa = form.areas_participantes.includes(a)
                 return (
                   <button

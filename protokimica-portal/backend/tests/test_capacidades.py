@@ -1,18 +1,15 @@
 """
-Base del sistema de permisos por capacidad: la tabla, `tiene()`, y la prueba
-que hace segura la migración de cada módulo.
+Base del sistema de permisos por capacidad: la tabla, `tiene()`, y que los
+módulos le pregunten a ella y no al nombre de un área.
 
-**`notas_credito` ya migró** (ver `modules/notas_credito/permisos.py`) y por
-eso ya no aparece aquí: su comparación contra la constante vieja vivió en
-este archivo hasta el día que se borró esa constante, y quedó su propia
-prueba (`tests/test_notas_credito.py`) verificando el comportamiento nuevo.
-
-Los cuatro que faltan siguen preguntando por su constante de siempre
+**Ya no queda ninguna constante de área decidiendo un permiso.** Mientras
+existieron, este archivo comparaba `tiene()` contra cada una
 (`AREA_SERVICIO_CLIENTE`, `AREA_SGC`, `AREA_APRUEBA_PAGOS`,
-`AREA_REGISTRA_PAGOS`). Lo que se prueba aquí es que, sembrada la tabla,
-`tiene()` responde EXACTAMENTE lo mismo que esas cuatro funciones para
-cualquier combinación de rol y área — la garantía que permitirá borrar cada
-constante, una por una, sin que nadie pierda un permiso en el camino.
+`AREA_REGISTRA_PAGOS`) para cada rol y área: esa comparación pasó, y fue la
+garantía para borrarlas. Lo que se prueba ahora es el comportamiento nuevo:
+con la semilla de arranque cada permiso lo tiene la misma área de siempre, y
+otorgárselo a otra área —lo que antes exigía cambiar código— funciona sin
+tocar nada más.
 """
 import pytest
 
@@ -23,17 +20,20 @@ from app.core.capacidades import (
 from app.models.capacidad import CapacidadOtorgada
 from app.models.user import User
 
-# Las mismas cuatro reglas, leídas de los módulos reales — no reescritas a
-# mano — para que esta prueba se rompa sola si alguna cambia de área y nadie
-# actualizó la semilla.
-from app.modules.mejora.permisos import AREA_SGC, es_sgc
+# Las reglas reales de cada módulo: la prueba pregunta lo mismo que ellos.
+from app.modules.mejora.permisos import es_sgc
 from app.modules.master_planner.permisos import (
-    AREA_APRUEBA_PAGOS, AREA_REGISTRA_PAGOS,
-    puede_aprobar_pagos, puede_registrar_pagos,
+    puede_aprobar_pagos, puede_registrar_pagos, ve_todo,
 )
-from app.modules.pqrs.permisos import (
-    AREA_SERVICIO_CLIENTE, es_servicio_al_cliente,
-)
+from app.modules.pqrs.permisos import puede_gestionar_pqrs
+
+# (capacidad, área que la tiene en la semilla, regla del módulo que la usa)
+REGLAS = [
+    ("pqrs.cerrar",         "Servicio al Cliente", puede_gestionar_pqrs),
+    ("mejora.validar_sgc",  "Calidad",             es_sgc),
+    ("presupuesto.aprobar", "Administración",      puede_aprobar_pagos),
+    ("presupuesto.pagar",   "Tesorería",           puede_registrar_pagos),
+]
 
 
 def _sembrar(portal):
@@ -68,58 +68,85 @@ def test_pedir_una_capacidad_inexistente_revienta(entorno, v):
     db.close()
 
 
-# ── tiene() reproduce las cinco reglas, para cada rol y área de prueba ───
+# ── Cada regla del módulo responde según la tabla ────────────────────────
 
-@pytest.mark.parametrize("clave,area_usuario,capacidad,funcion_vieja", [
-    ("calidad",   "Calidad",   "mejora.validar_sgc",  es_sgc),
-    ("calidad",   "Calidad",   "pqrs.cerrar",         es_servicio_al_cliente),
-    ("logistica", "Logística", "presupuesto.aprobar", puede_aprobar_pagos),
-    ("logistica", "Logística", "presupuesto.pagar",   puede_registrar_pagos),
-])
-def test_tiene_coincide_con_area_ajena(entorno, v, clave, area_usuario, capacidad, funcion_vieja):
-    """Alguien de un área que NO tiene la capacidad: los dos deben decir que no."""
-    portal = entorno
-    _sembrar(portal)
+def _usuario_en_area(portal, area):
+    """Un agente movido al área pedida, con su propia sesión."""
     db = portal.Session()
-    usuario = db.get(User, portal.ids[clave])
-    usuario.area = area_usuario
+    usuario = db.get(User, portal.ids["logistica"])
+    usuario.area = area
     db.commit()
+    return db, usuario
 
-    esperado = funcion_vieja(usuario)
-    obtenido = tiene(db, usuario, capacidad)
+
+@pytest.mark.parametrize("capacidad,area,regla", REGLAS)
+def test_el_area_de_la_semilla_tiene_el_permiso(entorno, v, capacidad, area, regla):
+    db, usuario = _usuario_en_area(entorno, area)
+    v.check(f"{area} -> {capacidad}", regla(usuario) is True and tiene(db, usuario, capacidad))
     db.close()
 
-    nombre = getattr(funcion_vieja, "__name__", "regla")
-    v.check(
-        f"{clave} ({area_usuario}) vs {capacidad}: {nombre}={esperado} tiene()={obtenido}",
-        esperado == obtenido, (esperado, obtenido),
-    )
 
-
-@pytest.mark.parametrize("capacidad,area_regla,funcion_vieja", [
-    ("mejora.validar_sgc",  AREA_SGC,               es_sgc),
-    ("pqrs.cerrar",         AREA_SERVICIO_CLIENTE,  es_servicio_al_cliente),
-    ("presupuesto.aprobar", AREA_APRUEBA_PAGOS,     puede_aprobar_pagos),
-    ("presupuesto.pagar",   AREA_REGISTRA_PAGOS,    puede_registrar_pagos),
-])
-def test_tiene_coincide_con_el_area_dueña(entorno, v, capacidad, area_regla, funcion_vieja):
-    """Alguien del área que SÍ tiene la capacidad: los dos deben decir que sí."""
-    portal = entorno
-    _sembrar(portal)
-    db = portal.Session()
-    usuario = db.get(User, portal.ids["logistica"])   # rol agente, cambia de área
-    usuario.area = area_regla
-    db.commit()
-
-    esperado = funcion_vieja(usuario)
-    obtenido = tiene(db, usuario, capacidad)
+@pytest.mark.parametrize("capacidad,area,regla", REGLAS)
+def test_otra_area_no_lo_tiene(entorno, v, capacidad, area, regla):
+    db, usuario = _usuario_en_area(entorno, "Logística")
+    v.check(f"Logística no tiene {capacidad}", regla(usuario) is False)
     db.close()
 
-    nombre = getattr(funcion_vieja, "__name__", "regla")
-    v.check(
-        f"{area_regla} vs {capacidad}: {nombre}={esperado} tiene()={obtenido}",
-        esperado is True and obtenido is True, (esperado, obtenido),
-    )
+
+@pytest.mark.parametrize("capacidad,area,regla", REGLAS)
+def test_otorgarlo_a_otra_area_funciona_sin_tocar_codigo(entorno, v, capacidad, area, regla):
+    """
+    Lo que justifica todo esto: en otra empresa quien cierra una PQRS no se
+    llama «Servicio al Cliente». Antes había que cambiar una constante y
+    desplegar; ahora se otorga desde Administración.
+    """
+    db = entorno.Session()
+    otorgar_a_area(db, entorno.tenant_id, capacidad, "Mercadeo", entorno.ids["admin"])
+    db.close()
+    db, usuario = _usuario_en_area(entorno, "Mercadeo")
+    v.check(f"Mercadeo ahora tiene {capacidad}", regla(usuario) is True)
+    db.close()
+
+
+@pytest.mark.parametrize("capacidad,area,regla", REGLAS)
+def test_revocarle_el_permiso_al_area_de_siempre_lo_quita(entorno, v, capacidad, area, regla):
+    db = entorno.Session()
+    for o in quienes_tienen(db, entorno.tenant_id, capacidad):
+        revocar(db, entorno.tenant_id, o.id)
+    db.close()
+    db, usuario = _usuario_en_area(entorno, area)
+    v.check(f"{area} ya no tiene {capacidad}", regla(usuario) is False)
+    db.close()
+
+
+def test_quien_aprueba_o_paga_ve_todos_los_proyectos(entorno, v):
+    """La visibilidad del Master Planner también sale de las capacidades."""
+    for area in ("Administración", "Tesorería"):
+        db, usuario = _usuario_en_area(entorno, area)
+        v.check(f"{area} ve todo", ve_todo(usuario) is True)
+        db.close()
+    db, usuario = _usuario_en_area(entorno, "Logística")
+    v.check("Logística no", ve_todo(usuario) is False)
+    db.close()
+
+
+def test_el_mensaje_dice_a_quien_pedirselo(entorno, v):
+    """Un 403 que no dice a quién acudir obliga a preguntar por chat."""
+    entorno.como("logistica")
+    r = entorno.post("/pqrs/1/cerrar", json={})
+    if r.status_code == 403:
+        v.check("nombra el área que lo hace", "Servicio al Cliente" in r.text, r.text[:200])
+
+
+def test_me_trae_las_capacidades(entorno, v):
+    entorno.como("calidad")
+    r = entorno.get("/auth/me")
+    v.check("Calidad trae la validación del SGC",
+            "mejora.validar_sgc" in r.json()["capacidades"], r.json())
+    v.check("y no cerrar PQRS", "pqrs.cerrar" not in r.json()["capacidades"])
+    entorno.como("admin")
+    v.check("admin las trae todas",
+            set(entorno.get("/auth/me").json()["capacidades"]) == set(CAPACIDADES))
 
 
 @pytest.mark.parametrize("capacidad", list(CAPACIDADES))

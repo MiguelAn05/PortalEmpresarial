@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../core/useAuth.js'
-import { AREAS } from '../../core/areas.js'
+import { useAreas } from '../../core/areas.js'
 import {
   IconoAlerta, IconoBuscar, IconoIdea, IconoPersonas, IconoReloj,
 } from '../../core/components/Iconos.jsx'
@@ -86,6 +86,7 @@ function Fila({ omp, onAbrir, usuarioId }) {
 }
 
 export default function Mejora() {
+  const listaAreas = useAreas()
   const { user } = useAuth()
   const [filtros, setFiltros] = useState({ estado: '', area: '', texto: '' })
   const [verCerradas, setVerCerradas] = useState(false)
@@ -195,7 +196,7 @@ export default function Mejora() {
             className="rounded-lg border border-borde-fuerte px-3 py-2 text-sm bg-superficie"
           >
             <option value="">Todas</option>
-            {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+            {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
 

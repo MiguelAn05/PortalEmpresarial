@@ -2,7 +2,8 @@ import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import CalendarioTareas from "../components/CalendarioTareas"
 import { listarTareas, listarEventosOutlook } from "../api"
-import { AREAS, ESTADOS_TAREA, filtrarTareas } from "../constants"
+import { ESTADOS_TAREA, filtrarTareas } from "../constants"
+import { useAreas } from '../../../core/areas.js'
 
 // Se pide una ventana amplia de una sola vez (mes anterior y tres
 // siguientes) en vez de recargar cada vez que alguien pasa de mes: moverse
@@ -38,6 +39,7 @@ function comoTarea(evento) {
 const FILTROS_VACIOS = { busqueda: "", proyecto_id: "", asignado_a: "", area: "", estado: "", prioridad: "", vencimiento: "" }
 
 export default function CalendarioView({ proyectos, usuarios, onSelectTarea }) {
+  const listaAreas = useAreas()
   const [filtros, setFiltros] = useState(FILTROS_VACIOS)
   const [ocultarCompletadas, setOcultarCompletadas] = useState(false)
   const [verOutlook, setVerOutlook] = useState(true)
@@ -101,7 +103,7 @@ export default function CalendarioView({ proyectos, usuarios, onSelectTarea }) {
             <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Área</label>
             <select value={filtros.area} onChange={set('area')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todas</option>
-              {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+              {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>

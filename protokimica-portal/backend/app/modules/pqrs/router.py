@@ -21,7 +21,7 @@ from app.modules.pqrs.schemas import (
     PuntoVentaOut, VisibilidadPQRS,
 )
 from app.modules.pqrs.permisos import (
-    solo_servicio_al_cliente, es_servicio_al_cliente, puede_cambiar_area,
+    solo_gestion_pqrs, puede_gestionar_pqrs, puede_cambiar_area,
     filtrar_visibles, obtener_visible, puntos_visibles,
 )
 from app.modules.pqrs import edicion, pendientes
@@ -138,7 +138,7 @@ async def crear_pqrs(
     # El código de seguimiento se genera con el ID real ya asignado,
     # así el número que ve el cliente coincide con el radicado interno.
     # El prefijo cambia si el canal es un punto de venta específico o
-    # venta institucional (ver PREFIJOS_POR_CANAL en service.py).
+    # venta institucional (ver Administración › Canales).
     asignar_codigo_seguimiento(db, solicitud, tenant_id, canal_atencion)
 
     if area_responsable and area_responsable.strip().lower() == "calidad":
@@ -185,7 +185,10 @@ def listar_pqrs(
 
 
 @router.get("/visibilidad", response_model=VisibilidadPQRS)
-def visibilidad_pqrs(current_user: User = Depends(get_current_user)):
+def visibilidad_pqrs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Qué parte de las PQRS ve quien pregunta.
 
@@ -193,12 +196,13 @@ def visibilidad_pqrs(current_user: User = Depends(get_current_user)):
     avisa que está acotada se lee como «en la empresa solo hay estas cinco».
     Va antes que `/{pqrs_id}`, o el path variable se la come.
     """
-    puntos = puntos_visibles(current_user)
+    puntos = puntos_visibles(db, current_user)
     if puntos is None:
         return VisibilidadPQRS(restringida=False)
     return VisibilidadPQRS(
         restringida=True,
-        puntos=[PuntoVentaOut(canal=c, prefijo=canales.prefijo_de(c)) for c in puntos],
+        puntos=[PuntoVentaOut(canal=c, prefijo=canales.prefijo_de(db, current_user.tenant_id, c))
+                for c in puntos],
     )
 
 
@@ -260,7 +264,7 @@ def obtener_pqrs(
     # 'lectura' y 'gerencia' no escriben nada en el portal. Es la misma regla
     # de solo_lectura_no, que es quien de verdad la impone al guardar.
     escribe = current_user.rol not in ("lectura", "gerencia")
-    servicio_cliente = es_servicio_al_cliente(current_user)
+    servicio_cliente = puede_gestionar_pqrs(current_user)
 
     detalle = PQRSDetailOut.model_validate(solicitud)
     detalle.alcance = AlcancePQRS(
@@ -475,7 +479,7 @@ def confirmar_producto_pqrs(
     producto_codigo: str = Form(...),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    current_user: User = Depends(solo_servicio_al_cliente),
+    current_user: User = Depends(solo_gestion_pqrs),
 ):
     """
     Cambia un producto escrito a mano por el del catálogo.
@@ -565,7 +569,7 @@ def reclasificar_tipo_pqrs(
     motivo: str = Form(...),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    current_user: User = Depends(solo_servicio_al_cliente),
+    current_user: User = Depends(solo_gestion_pqrs),
 ):
     """
     Corrige el tipo de una PQRS. El cliente casi nunca acierta al radicar, y

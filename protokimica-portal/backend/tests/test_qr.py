@@ -52,37 +52,43 @@ def test_el_codigo_va_en_mayusculas(v):
 
 # ── Solo canales de verdad ───────────────────────────────────────────
 
-def test_no_se_genera_un_qr_de_un_canal_inventado(v):
+def test_no_se_genera_un_qr_de_un_canal_inventado(entorno, v):
     """
     Un letrero apuntando a un canal que el servidor no conoce mandaría esas
     PQRS al radicado genérico sin que nadie se entere.
     """
+    db = entorno.Session()
     for malo in ("XXX", "", "  ", "DROP"):
         try:
-            qr.svg(malo)
+            qr.svg(db, entorno.tenant_id, malo)
             v.check(f"'{malo}' se rechaza", False, "no levantó ValueError")
         except ValueError:
             v.check(f"'{malo}' se rechaza", True)
 
 
-def test_todos_los_canales_con_prefijo_tienen_su_qr(v):
+def test_todos_los_canales_con_prefijo_tienen_su_qr(entorno, v):
+    db = entorno.Session()
+
     def probar():
-        for canal, prefijo in canales.PREFIJOS_POR_CANAL.items():
-            contenido = qr.svg(prefijo)
-            v.check(f"{canal} genera su código", contenido.startswith(b"<svg"),
+        for canal in canales.del_tenant(db, entorno.tenant_id):
+            if not canal.prefijo:
+                continue
+            contenido = qr.svg(db, entorno.tenant_id, canal.prefijo)
+            v.check(f"{canal.nombre} genera su código", contenido.startswith(b"<svg"),
                     contenido[:40])
     _con_dominio(probar)
 
 
-def test_la_url_no_se_arma_con_nada_que_venga_de_la_peticion(v):
+def test_la_url_no_se_arma_con_nada_que_venga_de_la_peticion(entorno, v):
     """
     El código se valida contra la lista cerrada antes de entrar a la URL, así
     que este endpoint no sirve para fabricar un QR con el dominio del portal
     que lleve a otra parte.
     """
+    db = entorno.Session()
     for intento in ("PVG/../otro", "PVG?x=1", "https://otrositio.com"):
         try:
-            qr.svg(intento)
+            qr.svg(db, entorno.tenant_id, intento)
             v.check(f"'{intento}' se rechaza", False, "no levantó ValueError")
         except ValueError:
             v.check(f"'{intento}' se rechaza", True)
@@ -127,8 +133,9 @@ def test_la_lista_trae_codigo_canal_y_url(entorno, v):
 
     v.check("responde 200", r.status_code == 200, r.status_code)
     puntos = r.json()
-    v.check("hay uno por canal con prefijo",
-            len(puntos) == len(canales.PREFIJOS_POR_CANAL), len(puntos))
+    db = entorno.Session()
+    con_prefijo = [c for c in canales.del_tenant(db, entorno.tenant_id) if c.prefijo]
+    v.check("hay uno por canal con prefijo", len(puntos) == len(con_prefijo), len(puntos))
 
     guayabal = next((p for p in puntos if p["codigo"] == "PVG"), None)
     v.check("está Guayabal", guayabal is not None, puntos)
@@ -152,7 +159,8 @@ def test_el_codigo_del_qr_lleva_al_canal_y_ese_al_prefijo(entorno, v):
     Es la razón de ser del QR — que el canal no dependa de que el cliente
     acierte en una lista.
     """
-    canal = canales.canal_por_codigo("PVG")
+    db = entorno.Session()
+    canal = canales.canal_por_codigo(db, entorno.tenant_id, "PVG").nombre
     r = entorno.post("/pqrs", data={
         "tipo": "reclamo",
         "descripcion": "El producto llegó con el sello roto.",

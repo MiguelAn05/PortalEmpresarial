@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AREAS } from '../../../core/areas.js'
+import { useAreas } from '../../../core/areas.js'
 import { useAuth } from '../../../core/useAuth.js'
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 import { useCierreSeguro } from '../../../core/components/cierreSeguro.jsx'
@@ -29,6 +29,7 @@ import { mensajeDeError } from '../../../core/errores.js'
  */
 export default function FormOportunidad({ indicador = null, periodo = null,
                                           valorInicial = null, onCerrar, onCreada }) {
+  const listaAreas = useAreas()
   const hoy = new Date()
   const { user } = useAuth()
   const [form, setForm] = useState({
@@ -321,7 +322,7 @@ export default function FormOportunidad({ indicador = null, periodo = null,
                 <label className="etiqueta block mb-1.5">Área a la que se asigna</label>
                 <select value={form.area} onChange={cambiar('area')} className={input}>
                   <option value="">Toda la empresa — la ve todo el mundo</option>
-                  {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                  {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
               </div>
               <div>

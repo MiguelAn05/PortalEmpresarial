@@ -15,7 +15,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
 import { puedeVerModulo } from '../../core/modulos.js'
 import { useAuth } from '../../core/useAuth.js'
-import { CANALES } from '../../core/canales.js'
+import { nombresDe, useCanales } from '../../core/canales.js'
 import { BODEGAS } from '../../core/bodegas.js'
 import {
   IconoAlDia, IconoAlerta, IconoBuscar, IconoCerrar, IconoClip,
@@ -56,6 +56,7 @@ function formatValor(valor) {
 
 // ── Formulario de solicitud ────────────────────────────────────────
 function ModalSolicitar({ motivos, onClose, onCreada }) {
+  const listaCanales = useCanales()
   const VACIO = {
     punto_venta: '',
     factura_afectada: '',
@@ -134,7 +135,7 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
               <select id="nc-punto" name="punto_venta" value={form.punto_venta}
                       onChange={cambiar} className={campo}>
                 <option value="">Seleccionar...</option>
-                {CANALES.map(c => <option key={c} value={c}>{c}</option>)}
+                {nombresDe(listaCanales).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>

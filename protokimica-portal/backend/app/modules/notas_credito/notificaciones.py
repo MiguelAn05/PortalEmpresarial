@@ -102,7 +102,7 @@ def _aviso_por_emitir(db: Session, tenant_id: int, solicitud, aprobada_por: str)
     manda a todos los que tienen el permiso. Una nota crédito aprobada que
     nadie emite deja al cliente esperando, y el silencio es el peor final.
     """
-    prefijo = canales.prefijo_de(solicitud.punto_venta)
+    prefijo = canales.prefijo_de(db, tenant_id, solicitud.punto_venta)
     con_permiso = usuarios_con(db, tenant_id, CAP_REGISTRAR)
     del_punto = [u for u in con_permiso if prefijo and u.punto_venta == prefijo]
 
@@ -204,7 +204,7 @@ def _aviso_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
 
     en_copia = []
     turno_siguiente = flujo.siguiente(
-        solicitud.estado, solicitud.punto_venta, bool(solicitud.bodega),
+        solicitud.estado, solicitud.institucional, bool(solicitud.bodega),
     )
     if turno_siguiente and turno_siguiente != ESTADO_APROBADA:
         capacidad_siguiente = flujo.capacidad_de(turno_siguiente)
@@ -212,7 +212,7 @@ def _aviso_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
                     if c not in destinatarios]
 
     es_el_primer_turno = solicitud.estado == flujo.estado_inicial(
-        solicitud.punto_venta, bool(solicitud.bodega),
+        solicitud.institucional, bool(solicitud.bodega),
     )
     if es_el_primer_turno:
         en_copia += [c for c in _lideres_del_solicitante(db, tenant_id, solicitud)

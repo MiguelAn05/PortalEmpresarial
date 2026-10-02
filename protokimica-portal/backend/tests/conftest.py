@@ -14,6 +14,9 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.core.deps import get_current_user
 from app.main import app
+from app.core.capacidades import precargar, sembrar_capacidades_iniciales
+from app.core.areas import sembrar as sembrar_areas
+from app.core.canales import sembrar as sembrar_canales
 from app.core.modulos import CONTRATABLES, contratar
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -79,6 +82,8 @@ def entorno():
     # Con todo contratado, como Protokimica. Las pruebas de qué pasa sin un
     # módulo lo apagan a propósito (ver test_modulos_contratados.py).
     contratar(db, tenant.id, list(CONTRATABLES))
+    sembrar_areas(db, tenant.id)
+    sembrar_canales(db, tenant.id)
     db.commit()
 
     ids = {}
@@ -91,11 +96,19 @@ def entorno():
         db.commit()
         ids[clave] = u.id
     tenant_id = tenant.id
+    # Quién cierra PQRS, valida el SGC, aprueba y paga: las capacidades de
+    # arranque, las mismas que trae Protokimica (ver core/capacidades.py).
+    sembrar_capacidades_iniciales(db, tenant_id, otorgada_por=ids["admin"])
     db.close()
 
     e = Entorno(None, Session, ids, tenant_id)
     app.dependency_overrides[get_db] = lambda: Session()
-    app.dependency_overrides[get_current_user] = lambda: Session().get(User, e.usuario_actual_id)
+    def usuario_actual():
+        # Como `get_current_user`: el usuario llega con sus capacidades.
+        db_usuario = Session()
+        return precargar(db_usuario, db_usuario.get(User, e.usuario_actual_id))
+
+    app.dependency_overrides[get_current_user] = usuario_actual
 
     with TestClient(app) as client:
         e.client = client

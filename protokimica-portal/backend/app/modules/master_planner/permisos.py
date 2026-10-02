@@ -24,15 +24,16 @@ El precio de esta regla es que **un proyecto sin líder y sin tareas no lo
 ve nadie**. Por eso al crear un proyecto sin líder se pone a quien lo creó:
 si no, desaparecería apenas se guarda (ver el router de proyectos).
 
-`admin` y `gerencia` ven todo sin filtro, y también Administración y
-Tesorería: aprueban y desembolsan la plata de TODOS los proyectos.
+`admin` y `gerencia` ven todo sin filtro, y también quien aprueba o paga
+presupuestos (Administración y Tesorería en Protokimica): aprueban y
+desembolsan la plata de TODOS los proyectos.
 """
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.areas import AREAS as AREAS_EMPRESA
-from app.core import supervision
+from app.core import capacidades, supervision
+from app.core.database import get_db
 from app.core.deps import ROLES_VISION_TOTAL, get_current_user
 from app.models.master_planner import Proyecto, ProyectoArea, Tarea
 from app.models.user import User
@@ -41,22 +42,21 @@ from app.models.user import User
 # ── Aprobación y pago del presupuesto ─────────────────────────
 # Dos manos distintas a propósito: quien autoriza el gasto no es quien lo
 # desembolsa. Es el control básico que pide cualquier auditoría.
-AREA_APRUEBA_PAGOS = "Administración"
-AREA_REGISTRA_PAGOS = "Tesorería"
-
-for _area in (AREA_APRUEBA_PAGOS, AREA_REGISTRA_PAGOS):
-    assert _area in AREAS_EMPRESA, (
-        f"'{_area}' ya no está en app/core/areas.py. Actualiza esta constante "
-        "o nadie podrá aprobar ni registrar pagos."
-    )
+#
+# Lo deciden dos capacidades y no dos nombres de área: en Protokimica las
+# tienen Administración y Tesorería (ver `core/capacidades.SEMILLA_INICIAL`),
+# en otra empresa se configuran en Administración › Capacidades. Antes eran
+# las constantes `AREA_APRUEBA_PAGOS` y `AREA_REGISTRA_PAGOS`.
+CAPACIDAD_APROBAR = "presupuesto.aprobar"
+CAPACIDAD_PAGAR = "presupuesto.pagar"
 
 
 def puede_aprobar_pagos(usuario: User) -> bool:
-    return usuario.rol == "admin" or usuario.area == AREA_APRUEBA_PAGOS
+    return capacidades.del_usuario(usuario, CAPACIDAD_APROBAR)
 
 
 def puede_registrar_pagos(usuario: User) -> bool:
-    return usuario.rol == "admin" or usuario.area == AREA_REGISTRA_PAGOS
+    return capacidades.del_usuario(usuario, CAPACIDAD_PAGAR)
 
 
 def _equipo_de(usuario: User):
@@ -79,14 +79,15 @@ def ve_todo(usuario: User) -> bool:
     """
     Quién ve todos los proyectos sin filtro de área.
 
-    Además de admin y gerencia, entran Administración y Tesorería: aprueban y
-    desembolsan la plata de TODOS los proyectos, así que un filtro por área
-    les impediría hacer su trabajo. Ver el proyecto no les da permiso de
-    editarlo — eso lo sigue decidiendo `solo_lectura_no`.
+    Además de admin y gerencia, entra quien aprueba o paga presupuestos:
+    aprueban y desembolsan la plata de TODOS los proyectos, así que un filtro
+    por área les impediría hacer su trabajo. Ver el proyecto no les da permiso
+    de editarlo — eso lo sigue decidiendo `solo_lectura_no`.
     """
     return (
         usuario.rol in ROLES_VISION_TOTAL
-        or usuario.area in (AREA_APRUEBA_PAGOS, AREA_REGISTRA_PAGOS)
+        or puede_aprobar_pagos(usuario)
+        or puede_registrar_pagos(usuario)
     )
 
 
@@ -204,26 +205,30 @@ def puede_ver_presupuesto(proyecto: Proyecto, usuario: User) -> bool:
     return usuario.rol == "lider" and bool(usuario.area) and proyecto.area == usuario.area
 
 
-def solo_aprueba_pagos(current_user: User = Depends(get_current_user)) -> User:
+def solo_aprueba_pagos(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
     if not puede_aprobar_pagos(current_user):
+        quien = capacidades.quienes_lo_hacen(db, current_user.tenant_id, CAPACIDAD_APROBAR)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                f"Solo el área de {AREA_APRUEBA_PAGOS} puede aprobar el pago de un "
-                "ítem de presupuesto."
-            ),
+            detail=f"El pago de un ítem de presupuesto lo aprueba {quien}.",
         )
     return current_user
 
 
-def solo_registra_pagos(current_user: User = Depends(get_current_user)) -> User:
+def solo_registra_pagos(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
     if not puede_registrar_pagos(current_user):
+        quien = capacidades.quienes_lo_hacen(db, current_user.tenant_id, CAPACIDAD_PAGAR)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                f"Solo el área de {AREA_REGISTRA_PAGOS} puede registrar un pago. "
-                f"Si el ítem ya está aprobado, pídele a {AREA_REGISTRA_PAGOS} que "
-                "registre el desembolso."
+                f"Los pagos los registra {quien}. Si el ítem ya está aprobado, "
+                f"pídele a {quien} que registre el desembolso."
             ),
         )
     return current_user

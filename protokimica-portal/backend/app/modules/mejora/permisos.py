@@ -6,8 +6,9 @@ el área decide qué ves dentro.** Un líder de Logística no tiene por qué ver
 las oportunidades de Calidad, igual que no ve sus indicadores.
 """
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
 
-from app.core.areas import AREAS
+from app.core import capacidades
 from app.core.supervision import areas_visibles, supervisa
 from app.models.user import User
 
@@ -15,15 +16,11 @@ from app.models.user import User
 # validó con el SGC y se puede dar por cerrada»: es un paso de aprobación,
 # no un campo de texto, y por eso queda con nombre y fecha.
 #
-# Va por ÁREA y no por rol, como el cierre de PQRS: Calidad ya existe como
-# área y se administra desde Admin › Usuarios, sin un rol paralelo que pueda
-# contradecirla. Se toma de la lista y no se escribe a mano — si cambia cómo
-# se escribe el área, esto tiene que moverse con ella o nadie podrá validar.
-AREA_SGC = "Calidad"
-assert AREA_SGC in AREAS, (
-    f"'{AREA_SGC}' ya no está en app/core/areas.py. Actualiza esta constante "
-    "o nadie podrá validar el cierre de una oportunidad de mejora."
-)
+# Lo decide la capacidad `mejora.validar_sgc`, no un rol ni el nombre de un
+# área: en Protokimica la tiene Calidad (ver `core/capacidades.SEMILLA_INICIAL`)
+# y en otra empresa se configura en Administración › Capacidades. Antes era la
+# constante `AREA_SGC`.
+CAPACIDAD_SGC = "mejora.validar_sgc"
 
 # Gerencia ve todo el portal sin límite de área, pero no modifica nada: solo
 # lee y comenta. Es la misma regla que en Indicadores y Master Planner.
@@ -71,17 +68,18 @@ def aplicar_filtro_area(query, usuario: User, modelo):
 
 def es_sgc(usuario: User) -> bool:
     """Admin siempre puede: es quien destraba cuando Calidad está de vacaciones."""
-    return usuario.rol == "admin" or usuario.area == AREA_SGC
+    return capacidades.del_usuario(usuario, CAPACIDAD_SGC)
 
 
-def exigir_sgc(usuario: User) -> None:
+def exigir_sgc(db: Session, usuario: User) -> None:
     if not es_sgc(usuario):
+        quien = capacidades.quienes_lo_hacen(db, usuario.tenant_id, CAPACIDAD_SGC)
         raise HTTPException(
             status_code=403,
             detail=(
-                f"Solo el área de {AREA_SGC} valida el cierre de una oportunidad. "
-                "Cuando el plan esté cumplido y verificado, solicítale a Calidad que "
-                "la revise para poderla cerrar."
+                f"La validación del SGC la hace {quien}. Cuando el plan esté "
+                f"cumplido y verificado, solicítale a {quien} que la revise para "
+                "poderla cerrar."
             ),
         )
 

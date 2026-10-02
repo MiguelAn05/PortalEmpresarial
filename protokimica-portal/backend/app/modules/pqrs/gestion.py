@@ -23,14 +23,15 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.areas import AREAS
+from app.core import capacidades
+from app.core import areas
 from app.models.autorizacion import AutorizacionPQRS
 from app.models.pqrs import (
     PQRSAdjuntoSolucion, PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta,
 )
 from app.models.user import User
 from app.modules.pqrs.permisos import (
-    es_servicio_al_cliente, obtener_visible, puede_cambiar_area,
+    CAPACIDAD_GESTION, puede_gestionar_pqrs, obtener_visible, puede_cambiar_area,
 )
 from app.modules.pqrs.notificaciones import (
     avisos_reasignacion, avisos_cierre, avisos_resuelta,
@@ -61,15 +62,15 @@ def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
     """
     if area is not None:
         if not puede_cambiar_area(usuario):
+            quien = capacidades.quienes_lo_hacen(db, usuario.tenant_id, CAPACIDAD_GESTION)
             raise HTTPException(
                 status_code=403,
                 detail=(
-                    "El área la asigna Servicio al Cliente, que es quien "
-                    "reparte los casos. Si este no es de tu área, escríbelo "
-                    "en el comentario y ellos lo mueven."
+                    f"El área la asigna {quien}, que es quien reparte los casos. "
+                    "Si este no es de tu área, escríbelo en el comentario y lo mueven."
                 ),
             )
-        if area not in AREAS:
+        if not areas.es_valida(db, solicitud.tenant_id, area):
             raise HTTPException(
                 status_code=400,
                 detail=f"'{area}' no es un área del portal. Elige una de la lista.",
@@ -110,12 +111,13 @@ def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
 
     # Cerrar es la única transición restringida: dispara la encuesta al
     # cliente y congela la PQRS para los indicadores.
-    if not es_servicio_al_cliente(usuario):
+    if not puede_gestionar_pqrs(usuario):
+        quien = capacidades.quienes_lo_hacen(db, usuario.tenant_id, CAPACIDAD_GESTION)
         raise HTTPException(
             status_code=403,
             detail=(
-                "Solo el área de Servicio al Cliente puede cerrar una PQRS. "
-                "Márcala como 'resuelto' y ellos la revisan y la cierran."
+                f"Una PQRS la cierra {quien}. "
+                "Márcala como 'resuelto' y la revisan y la cierran."
             ),
         )
 

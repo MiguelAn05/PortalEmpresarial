@@ -1,44 +1,53 @@
 /**
- * Las áreas de la empresa. Fuente única del frontend.
+ * Las áreas de la empresa.
  *
- * Antes esta lista estaba repetida en seis archivos y con contenidos
- * distintos entre módulos. Nunca declares una lista de áreas dentro de un
- * componente: impórtala de aquí.
+ * Ya no hay una lista aquí: cada empresa tiene las suyas y las administra en
+ * Administración › Áreas. La pantalla las pide al servidor con `useAreas()`
+ * (`GET /areas`, o `/public/areas` en el formulario del cliente). Antes eran
+ * una lista escrita en este archivo y en `backend/app/core/areas.py`, igual
+ * para cualquier empresa que instalara el portal.
  *
- * El gemelo es `backend/app/core/areas.py`, y una prueba verifica que los dos
- * digan exactamente lo mismo.
+ * Nunca declares una lista de áreas dentro de un componente.
  */
-export const AREAS = [
-  'TICS',
-  'Calidad',
-  'SST',
-  'Facturación',
-  'Ventas Institucionales',
-  'Mercadeo',
-  'Servicio al Cliente',
-  'Infraestructura',
-  'Logística',
-  'Gestión Humana',
-  'Contabilidad',
-  'Producción',
-  'Control Interno',
-  'Aseguramiento',
-  'Abastecimiento',
-  'Comercial',
-  'Administración',
-  'Tesorería',
-  'Puntos de Venta',
-  'Ambiental',
-  'Dirección Técnica',
-  'Investigación y Desarrollo (IDI)',
-  'Salvak',
-]
+import { useQuery } from '@tanstack/react-query'
+import api from './api.js'
 
 /**
- * Nombres viejos que pueden quedar en datos guardados antes de la
- * unificación, y su área actual. Sirve para que un registro histórico no se
- * muestre con un área que ya no existe.
+ * Las áreas activas de la empresa, en el orden de los desplegables. Mientras
+ * llegan es una lista vacía: el desplegable se llena un instante después, y
+ * React Query las guarda para el resto de la sesión.
+ *
+ * `publico` es para el formulario del cliente, que no tiene sesión.
  */
+export function useAreas({ publico = false } = {}) {
+  const { data } = useQuery({
+    queryKey: ['areas', publico ? 'publico' : 'interno'],
+    queryFn: () => api.get(publico ? '/public/areas' : '/areas').then(r => r.data),
+    // Las áreas cambian casi nunca; pedirlas en cada pantalla sería ruido.
+    staleTime: 10 * 60 * 1000,
+  })
+  return data ?? SIN_AREAS
+}
+
+/**
+ * El área donde trabajan las sedes (la marcada en Administración › Áreas), o
+ * null. Quien está en ella lleva su punto de venta.
+ */
+export function useAreaDeSedes() {
+  const { data } = useQuery({
+    queryKey: ['areas', 'de-sedes'],
+    queryFn: () => api.get('/areas/de-sedes').then(r => r.data.area),
+    staleTime: 10 * 60 * 1000,
+  })
+  return data ?? null
+}
+
+// Una sola referencia para «todavía no llegan»: un `[]` nuevo en cada render
+// haría que cualquier `useMemo` que dependa de la lista se recalculara siempre.
+const SIN_AREAS = []
+
+// Nombres viejos que pueden quedar en datos guardados y a qué área corresponden
+// hoy. Gemelo de `EQUIVALENCIAS_HISTORICAS` en `backend/app/core/areas.py`.
 export const EQUIVALENCIAS_HISTORICAS = {
   'TI': 'TICS',
   'Sistemas': 'TICS',
@@ -56,10 +65,10 @@ export function normalizarArea(area) {
 
 /**
  * Las áreas a ofrecer en un desplegable, incluyendo el valor actual aunque
- * ya no esté en la lista. Sin esto, editar un registro viejo le borraría el
- * área en silencio al guardar.
+ * ya no esté en la lista (un área desactivada, un nombre viejo). Sin esto,
+ * editar un registro viejo le borraría el área en silencio al guardar.
  */
-export function areasParaSelect(valorActual) {
-  if (!valorActual || AREAS.includes(valorActual)) return AREAS
-  return [...AREAS, valorActual]
+export function areasParaSelect(areas, valorActual) {
+  if (!valorActual || areas.includes(valorActual)) return areas
+  return [...areas, valorActual]
 }

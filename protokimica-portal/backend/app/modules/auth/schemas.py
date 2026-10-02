@@ -55,6 +55,10 @@ class UserOut(BaseModel):
     # llena `/auth/me`: la pantalla lo usa para no ofrecer en el menú lo que
     # el servidor va a rechazar. None = no se sabe, y la pantalla no esconde.
     modulos_contratados: list[str] | None = None
+    # Qué puede hacer más allá de su rol: cerrar PQRS, validar el SGC, aprobar
+    # o pagar presupuestos… (ver core/capacidades.py). También solo en
+    # `/auth/me`: la pantalla esconde los botones que el servidor rechazaría.
+    capacidades: list[str] | None = None
 
     class Config:
         from_attributes = True

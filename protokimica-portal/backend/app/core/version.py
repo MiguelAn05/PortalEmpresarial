@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.44.1"
-FECHA = "2026-09-28"
+VERSION = "0.47.0"
+FECHA = "2026-10-01"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,56 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.47.0",
+        "fecha": "2026-10-01",
+        "titulo": "Los canales y las sedes se administran desde el portal",
+        "cambios": [
+            ("nuevo", "Administración › Canales: abrir una sede nueva con su QR, "
+                      "agregar un canal como WhatsApp o una línea, cambiarles el "
+                      "nombre y desactivar los que ya no se usan."),
+            ("mejora", "Una sede nueva tiene su propio consecutivo de PQRS y su "
+                       "código QR desde el momento en que se crea."),
+            ("mejora", "El área donde trabajan las sedes se elige en "
+                       "Administración › Áreas, y ya se le puede cambiar el nombre."),
+            ("mejora", "Cambiarle el tipo a un canal no mueve las notas crédito "
+                       "que ya van en camino: siguen el trámite con el que nacieron."),
+        ],
+    },
+    {
+        "version": "0.46.0",
+        "fecha": "2026-10-01",
+        "titulo": "Las áreas se administran desde el portal",
+        "cambios": [
+            ("nuevo", "Administración › Áreas: crear un área nueva, cambiarle el "
+                      "nombre y desactivar las que ya no se usan, sin esperar a que "
+                      "alguien actualice el portal."),
+            ("mejora", "Las áreas salen en orden alfabético en todas las listas del "
+                       "portal, para encontrar la tuya sin recorrerlas todas."),
+            ("mejora", "Cambiarle el nombre a un área lo cambia en todo: personas, "
+                       "PQRS, proyectos, indicadores y permisos. Al terminar dice "
+                       "cuántos registros se actualizaron."),
+            ("mejora", "Un área desactivada deja de ofrecerse en los formularios, "
+                       "pero nada de lo que ya la tenía la pierde."),
+        ],
+    },
+    {
+        "version": "0.45.0",
+        "fecha": "2026-10-01",
+        "titulo": "Quién cierra, valida, aprueba y paga se elige desde Administración",
+        "cambios": [
+            ("mejora", "Quién cierra y reclasifica PQRS, quién da el visto bueno "
+                       "del SGC a una oportunidad de mejora, y quién aprueba y "
+                       "paga el presupuesto de un proyecto ya se elige en "
+                       "Administración › Capacidades. Antes estaba fijo y "
+                       "cambiarlo pedía tocar el portal por dentro."),
+            ("mejora", "Se le puede dar uno de esos permisos a otra área o a una "
+                       "persona en particular, por ejemplo mientras alguien está "
+                       "de vacaciones, sin cambiarle el área."),
+            ("mejora", "Cuando algo no se puede hacer, el aviso dice a quién "
+                       "pedírselo según quién tiene ese permiso hoy."),
+        ],
+    },
     {
         "version": "0.44.1",
         "fecha": "2026-09-28",

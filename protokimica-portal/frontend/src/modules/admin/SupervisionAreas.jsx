@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AREAS } from '../../core/areas.js'
+import { useAreas } from '../../core/areas.js'
 import { IconoCerrar, IconoPersonas } from '../../core/components/Iconos.jsx'
 
 /**
@@ -15,6 +15,7 @@ import { IconoCerrar, IconoPersonas } from '../../core/components/Iconos.jsx'
  * trabajo de administrar esto.
  */
 export default function SupervisionAreas({ usuario, onGuardar, guardando }) {
+  const listaAreas = useAreas()
   const actuales = usuario.areas_supervisadas ?? []
   const [abierto, setAbierto] = useState(false)
   const [marcadas, setMarcadas] = useState(actuales)
@@ -72,7 +73,7 @@ export default function SupervisionAreas({ usuario, onGuardar, guardando }) {
                   : <span className="text-texto-3">No supervisa otras áreas.</span>}
               </p>
               <div className="max-h-64 overflow-y-auto space-y-1">
-                {AREAS.map(area => {
+                {listaAreas.map(area => {
                   const esLaSuya = area === usuario.area
                   return (
                     <label key={area}

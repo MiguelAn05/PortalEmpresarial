@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.modules.pqrs.schemas import EncuestaCreate
 
+from app.core import areas
 from app.core.tenant_publico import contratado_en_publico, tenant_publico
 from app.core import canales
 from app.core.database import get_db
@@ -49,17 +50,40 @@ router = APIRouter(
 # No hay nada que proteger, y el código de canal se valida contra la lista
 # cerrada, así que de aquí no sale un QR que apunte a otra parte.
 
+
+@router.get("/areas", response_model=list[str])
+def areas_publicas(db: Session = Depends(get_db)):
+    """
+    Las áreas para «Área relacionada» del formulario. Son las de la empresa,
+    no una lista del navegador: si Administración agrega o desactiva una, el
+    formulario del cliente lo refleja sin desplegar.
+    """
+    return areas.nombres(db, tenant_publico(db).id)
+
+
+@router.get("/canales")
+def canales_publicos(db: Session = Depends(get_db)):
+    """
+    Los canales para el formulario del cliente, con su prefijo: así `/q/PVG`
+    sabe qué sede marcar. Solo los activos.
+    """
+    return [
+        {"nombre": c.nombre, "prefijo": c.prefijo, "tipo": c.tipo}
+        for c in canales.del_tenant(db, tenant_publico(db).id)
+    ]
+
+
 @router.get("/qr", tags=["Público — QR"])
-def listar_qr():
+def listar_qr(db: Session = Depends(get_db)):
     """Los canales que tienen QR, con su código y la URL que lleva dentro."""
-    return qr.listar()
+    return qr.listar(db, tenant_publico(db).id)
 
 
 @router.get("/qr/{codigo}.svg", tags=["Público — QR"])
-def qr_svg(codigo: str):
+def qr_svg(codigo: str, db: Session = Depends(get_db)):
     """El QR de un punto de venta, en vectorial: se imprime a cualquier tamaño."""
     try:
-        contenido = qr.svg(codigo)
+        contenido = qr.svg(db, tenant_publico(db).id, codigo)
     except ValueError:
         raise HTTPException(
             status_code=404,
@@ -78,10 +102,10 @@ def qr_svg(codigo: str):
 
 
 @router.get("/qr/{codigo}.png", tags=["Público — QR"])
-def qr_png(codigo: str):
+def qr_png(codigo: str, db: Session = Depends(get_db)):
     """El mismo QR en PNG, para meterlo en un diseño o en un documento."""
     try:
-        contenido = qr.png(codigo)
+        contenido = qr.png(db, tenant_publico(db).id, codigo)
     except ValueError:
         raise HTTPException(
             status_code=404,
@@ -257,7 +281,7 @@ async def radicar_pqrs_publica(
     # El código se genera con el ID real ya asignado por la base de datos,
     # así coincide siempre con el número interno "PQRS #<id>". El prefijo
     # cambia solo si el canal es un punto de venta específico o venta
-    # institucional (ver PREFIJOS_POR_CANAL en service.py).
+    # institucional (ver Administración › Canales).
     codigo = asignar_codigo_seguimiento(db, solicitud, tenant.id, canal_atencion)
 
     db.add(PQRSSeguimiento(

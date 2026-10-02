@@ -6,7 +6,7 @@
  * mezclada entre veinte que no tocan, convierte un chequeo de treinta
  * segundos en una búsqueda.
  *
- * Qué tocaba cada día lo decide el SERVIDOR (`toca_hoy`, `registrada_hoy` y
+ *  Qué tocaba cada día lo decide el SERVIDOR (`toca_hoy`, `registrada_hoy` y
  * `frecuencia_texto` llegan resueltos). Aquí no se calcula ninguna fecha: la
  * regla de días hábiles y festivos vive en un solo sitio, y si la pantalla la
  * repitiera, un festivo nuevo dejaría el portal diciendo dos cosas.

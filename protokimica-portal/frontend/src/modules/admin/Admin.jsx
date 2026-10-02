@@ -2,29 +2,30 @@ import { useState } from 'react'
 import CodigosQR from './CodigosQR.jsx'
 import SupervisionAreas from './SupervisionAreas.jsx'
 import Capacidades from './Capacidades.jsx'
+import Areas from './Areas.jsx'
+import Canales from './Canales.jsx'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/useAuth.js'
 import api from '../../core/api.js'
-import { AREAS, areasParaSelect } from '../../core/areas.js'
-import { prefijoDe, puntosDeVenta } from '../../core/canales.js'
+import { areasParaSelect, useAreaDeSedes, useAreas } from '../../core/areas.js'
+import { puntosDeVenta, useCanales } from '../../core/canales.js'
 import { AREAS_CON_BODEGA, BODEGAS } from '../../core/bodegas.js'
 import {
   IconoBuscar, IconoCandado, IconoEditar, IconoLlave, IconoPapelera, IconoPersonas,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 
-// Las áreas viven en un solo sitio: src/core/areas.js
 
 // El punto de venta solo existe dentro de esta área, y la escritura tiene que
 // ser exactamente la de areas.js y pqrs/permisos.py.
-const AREA_PUNTOS_DE_VENTA = 'Puntos de Venta'
 
 /**
- * En qué sede trabaja alguien de «Puntos de Venta». Acota las PQRS que ve a
+ * En qué sede trabaja alguien del área de las sedes. Acota las PQRS que ve a
  * las de su punto; «Todos los puntos» es el coordinador. Fuera del área no se
  * muestra: no significa nada y el servidor lo descarta.
  */
 function SelectPuntoVenta({ valor, onChange, className }) {
+  const sedes = puntosDeVenta(useCanales())
   return (
     <select
       value={valor || ''}
@@ -33,8 +34,8 @@ function SelectPuntoVenta({ valor, onChange, className }) {
       className={className}
     >
       <option value="">Todos los puntos</option>
-      {puntosDeVenta().map(canal => (
-        <option key={canal} value={prefijoDe(canal)}>{canal.replace('Punto de venta ', '')}</option>
+      {sedes.map(sede => (
+        <option key={sede.prefijo} value={sede.prefijo}>{sede.nombre}</option>
       ))}
     </select>
   )
@@ -60,6 +61,7 @@ function SelectBodega({ valor, onChange, className }) {
 }
 
 function TiposAutorizacion() {
+  const listaAreas = useAreas()
   const queryClient = useQueryClient()
   const [form, setForm] = useState({ nombre: '', descripcion: '', area_autorizadora: '' })
   const [error, setError] = useState('')
@@ -129,7 +131,7 @@ function TiposAutorizacion() {
               className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento"
             >
               <option value="">Seleccionar área...</option>
-              {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+              {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>
@@ -294,6 +296,8 @@ function ModalEditarUsuario({ usuario, guardando, onGuardar, onCerrar }) {
 }
 
 function GestionUsuarios() {
+  const listaAreas = useAreas()
+  const areaDeSedes = useAreaDeSedes()
   const queryClient = useQueryClient()
   const { user: usuarioActual } = useAuth()
   const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'agente', area: '', punto_venta: null })
@@ -407,12 +411,12 @@ function GestionUsuarios() {
               <select name="area" value={form.area} onChange={handleChange}
                 className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm focus:outline-none focus:ring-2 focus:ring-acento">
                 <option value="">Sin área</option>
-                {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
           </div>
 
-          {form.area === AREA_PUNTOS_DE_VENTA && (
+          {areaDeSedes && form.area === areaDeSedes && (
             <div>
               <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">
                 Punto de venta
@@ -518,7 +522,7 @@ function GestionUsuarios() {
                 className="text-xs border border-borde rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-acento"
               >
                 <option value="">Sin área</option>
-                {areasParaSelect(u.area).map(a => <option key={a} value={a}>{a}</option>)}
+                {areasParaSelect(listaAreas, u.area).map(a => <option key={a} value={a}>{a}</option>)}
               </select>
 
               <SupervisionAreas
@@ -529,7 +533,7 @@ function GestionUsuarios() {
                 })}
               />
 
-              {u.area === AREA_PUNTOS_DE_VENTA && (
+              {areaDeSedes && u.area === areaDeSedes && (
                 <SelectPuntoVenta
                   valor={u.punto_venta}
                   onChange={(punto) => mutActualizar.mutate({ id: u.id, cambios: { punto_venta: punto } })}
@@ -664,6 +668,8 @@ export default function Admin() {
 
       <div className="space-y-5">
         <GestionUsuarios />
+        <Areas />
+        <Canales />
         <TiposAutorizacion />
         <Capacidades />
         <CodigosQR />

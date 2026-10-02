@@ -380,20 +380,20 @@ def test_mi_turno_trae_solo_lo_que_le_toca_a_cada_uno(entorno, v):
 
 def test_la_cadena_declara_los_pasos_de_cada_rama(v):
     v.check("punto de venta: Comercial decide y el punto emite",
-            flujo.cadena(PUNTO) == ("en_comercial", "aprobada"),
-            flujo.cadena(PUNTO))
+            flujo.cadena(False) == ("en_comercial", "aprobada"),
+            flujo.cadena(False))
     v.check("y Contabilidad no tiene turno ahí",
-            "en_contabilidad" not in flujo.cadena(PUNTO) and "solicitada" not in flujo.cadena(PUNTO),
-            flujo.cadena(PUNTO))
+            "en_contabilidad" not in flujo.cadena(False) and "solicitada" not in flujo.cadena(False),
+            flujo.cadena(False))
     v.check("las dos ramas arrancan en Comercial",
             flujo.estado_inicial(PUNTO) == flujo.estado_inicial(INSTITUCIONAL) == "en_comercial",
             (flujo.estado_inicial(PUNTO), flujo.estado_inicial(INSTITUCIONAL)))
     v.check("institucional sin producto: comercial, DIAN y emitir",
-            flujo.cadena(INSTITUCIONAL) == ("en_comercial", "en_contabilidad", "aprobada"),
-            flujo.cadena(INSTITUCIONAL))
+            flujo.cadena(True) == ("en_comercial", "en_contabilidad", "aprobada"),
+            flujo.cadena(True))
     v.check("con producto, la bodega va primero",
-            flujo.cadena(INSTITUCIONAL, True)[0] == "en_bodega",
-            flujo.cadena(INSTITUCIONAL, True))
+            flujo.cadena(True, True)[0] == "en_bodega",
+            flujo.cadena(True, True))
     v.check("el último paso de la cadena no tiene siguiente",
             flujo.siguiente("aprobada", INSTITUCIONAL, True) is None)
     v.check("un estado ajeno a la cadena no inventa un paso",
@@ -406,7 +406,7 @@ def test_cada_turno_tiene_quien_lo_atienda(v):
     sabría por qué: no hay error, simplemente no aparece en la bandeja de
     nadie.
     """
-    for rama in (flujo.cadena(PUNTO), flujo.cadena(INSTITUCIONAL, True)):
+    for rama in (flujo.cadena(False), flujo.cadena(True, True)):
         for paso in rama:
             v.check(f"«{paso}» tiene capacidad", flujo.capacidad_de(paso) is not None, paso)
             v.check(f"«{paso}» se dice en palabras",

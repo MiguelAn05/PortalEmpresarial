@@ -7,6 +7,9 @@ Uso (con el contenedor backend corriendo):
 """
 from app.core.database import SessionLocal
 from app.core.security import hash_password
+from app.core.capacidades import sembrar_capacidades_iniciales
+from app.core.areas import sembrar as sembrar_areas
+from app.core.canales import sembrar as sembrar_canales
 from app.core.modulos import CONTRATABLES, contratar
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -28,6 +31,8 @@ def run():
         # Protokimica usa todos los módulos. Para otra empresa se contratan
         # uno por uno con `python -m app.scripts.modulos`.
         activados = contratar(db, tenant.id, list(CONTRATABLES))
+        sembrar_areas(db, tenant.id)
+        sembrar_canales(db, tenant.id)
         db.commit()
         if activados:
             print(f"✅ Módulos contratados: {', '.join(activados)}")
@@ -54,6 +59,11 @@ def run():
             print("   ⚠️  Cambia esta contraseña apenas puedas entrar.")
         else:
             print("ℹ️  Usuario admin ya existía.")
+
+        # Quién cierra PQRS, valida el SGC, aprueba y paga. Sin esto nadie
+        # salvo el admin podría hacerlo. Idempotente: no devuelve lo revocado.
+        sembrar_capacidades_iniciales(db, tenant.id, otorgada_por=admin.id)
+        print("✅ Capacidades de arranque al día.")
 
     finally:
         db.close()

@@ -15,7 +15,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
-import { AREAS } from '../../core/areas.js'
+import { useAreas } from '../../core/areas.js'
 import { IconoCerrar, IconoLlave } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 
@@ -29,6 +29,7 @@ function formatFecha(fecha) {
 // Una fila de "otorgar", plegada por defecto: la mayoría de las veces no se
 // está tocando esto, así que no necesita ocupar espacio permanente.
 function FormOtorgar({ capacidad, usuarios, onCerrar, onOtorgado }) {
+  const listaAreas = useAreas()
   const [modo, setModo] = useState('area')   // 'area' | 'persona'
   const [area, setArea] = useState('')
   const [usuarioId, setUsuarioId] = useState('')
@@ -65,7 +66,7 @@ function FormOtorgar({ capacidad, usuarios, onCerrar, onOtorgado }) {
           className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento"
         >
           <option value="">Seleccionar área...</option>
-          {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+          {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
         </select>
       ) : (
         <select

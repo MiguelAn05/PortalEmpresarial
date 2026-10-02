@@ -15,13 +15,8 @@ import { mensajeDeError } from "../../../core/errores.js"
 import {
   IconoAlerta, IconoCerrar, IconoClip,
 } from '../../../core/components/Iconos.jsx'
-import {
-  ESTADOS_TAREA, PRIORIDADES, AREAS, ALERTAS,
-  alertaVencimiento, colorAvance, formatFecha, formatFechaHora,
-  isoADatetimeLocal, datetimeLocalAIso,
-  puedeEditar, puedeReportarAvance, puedeComentar,
-  MAX_ENTREGABLE, MAX_HORAS, textoAplazamientos, textoHoras,
-} from "../constants"
+import { ESTADOS_TAREA, PRIORIDADES, ALERTAS, alertaVencimiento, colorAvance, formatFecha, formatFechaHora, isoADatetimeLocal, datetimeLocalAIso, puedeEditar, puedeReportarAvance, puedeComentar, MAX_ENTREGABLE, MAX_HORAS, textoAplazamientos, textoHoras } from "../constants"
+import { useAreas } from '../../../core/areas.js'
 
 // Qué campos del formulario se confirman antes de guardar y cómo leer su
 // valor original para poder compararlos.
@@ -117,6 +112,7 @@ function Respuestas({ avance, puedeResponder, onResponder, guardando }) {
  * se refresque primero.
  */
 export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
+  const listaAreas = useAreas()
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const editable = puedeEditar(user)
@@ -420,7 +416,7 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                   <div className="grid grid-cols-2 gap-3">
                     <select value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} className="rounded-lg border border-borde px-3 py-2 text-sm">
                       <option value="">Área</option>
-                      {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                      {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
                     </select>
                     <select value={form.prioridad} onChange={(e) => setForm({ ...form, prioridad: e.target.value })} className="rounded-lg border border-borde px-3 py-2 text-sm">
                       {Object.entries(PRIORIDADES).map(([v, cfg]) => <option key={v} value={v}>{cfg.label}</option>)}

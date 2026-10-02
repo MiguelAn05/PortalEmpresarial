@@ -2,8 +2,8 @@ import { useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../../core/api.js'
 import { LOGO, LOGO_ALT, NOMBRE_EMPRESA } from '../../core/marca.js'
-import { AREAS } from '../../core/areas.js'
-import { CANALES, canalPorCodigo } from '../../core/canales.js'
+import { useAreas } from '../../core/areas.js'
+import { canalPorCodigo, nombresDe, useCanales } from '../../core/canales.js'
 import AvisoDatos from '../../core/components/AvisoDatos.jsx'
 import {
   IconoAlerta, IconoBuscar, IconoCheck, IconoCopiar, IconoFelicitacion,
@@ -45,8 +45,6 @@ const DEPARTAMENTOS = [
 // estaban aqui en dos listas, y la de felicitaciones decia «Llamada
 // telefonica» donde esta decia «Linea telefonica»: la misma llamada caia en
 // dos canales y el reporte las contaba aparte.
-const CANALES_ATENCION = CANALES
-const CANALES_ATENCION_FELICITACION = CANALES
 
 const PRESENTACIONES = ['Unidad', 'Kilo', 'Gramo', 'Litro', 'Mililitro']
 
@@ -591,13 +589,15 @@ function BarraPasos({ pasoActual, totalPasos, labels }) {
 
 // ── Componente principal ───────────────────────────────────────────
 export default function FormularioPQRS() {
+  const listaAreas = useAreas({ publico: true })
   // De dónde entró el cliente. Si llegó por el QR de un punto de venta
   // (`/q/PVG`), el canal viene del letrero que tiene enfrente en vez de una
   // lista donde tendría que acertar. Importa porque el canal decide el
   // prefijo de su código de seguimiento y de ahí salen los reportes por
   // sede: si se equivoca, el número queda mal para siempre.
   const { codigo: codigoQR } = useParams()
-  const canalDelQR = canalPorCodigo(codigoQR)
+  const listaCanales = useCanales({ publico: true })
+  const canalDelQR = canalPorCodigo(listaCanales, codigoQR)
 
   const [paso, setPaso] = useState(1)
   const [form, setForm] = useState({
@@ -610,12 +610,16 @@ export default function FormularioPQRS() {
     ciudad: '',
     departamento: '',
     factura_numero: '',
-    // Precargado desde el QR del punto de venta, si vino por ahi.
-    canal_atencion: canalDelQR ?? '',
+    // Lo que el cliente elige a mano. Si llegó por el QR, el canal efectivo
+    // es el de la sede (ver `canalElegido`): los canales llegan del servidor
+    // un instante después de abrir, y por eso no se puede fijar aquí.
+    canal_atencion: '',
     area_responsable: '',
     descripcion: '',
     comentario: '',
   })
+  // Lo elegido a mano, o si no, la sede del QR por el que entró.
+  const canalElegido = form.canal_atencion || canalDelQR || ''
   // Uno o varios, cada uno con su lote y cantidades. Arranca con uno.
   const [productos, setProductos] = useState(() => [productoVacio()])
   const cambiarProducto = (clave, cambios) => {
@@ -662,10 +666,10 @@ export default function FormularioPQRS() {
       if (!form.departamento)          { setError('El departamento es obligatorio.'); return false }
     }
     if (paso === 3 && esFelicitacion) {
-      if (!form.canal_atencion)       { setError("Seleccione el canal de atención."); return false }
+      if (!canalElegido)       { setError("Seleccione el canal de atención."); return false }
     }
     if (paso === 3 && esQueja) {
-      if (!form.canal_atencion)       { setError("Seleccione el canal de atención."); return false }
+      if (!canalElegido)       { setError("Seleccione el canal de atención."); return false }
       if (!form.descripcion.trim())   { setError("Describa lo ocurrido."); return false }
     }
     if (paso === 3 && requiereProducto) {
@@ -707,7 +711,7 @@ export default function FormularioPQRS() {
       formData.append('cliente_telefono', form.cliente_telefono)
       formData.append('ciudad', form.ciudad)
       formData.append('departamento', form.departamento)
-      formData.append('canal_atencion', form.canal_atencion)
+      formData.append('canal_atencion', canalElegido)
 
       if (esFelicitacion) {
         // El backend exige 'descripcion'; el comentario opcional la reemplaza.
@@ -742,8 +746,9 @@ export default function FormularioPQRS() {
       tipo: '', empresa: '', nit_cedula: '', cliente_nombre: '',
       cliente_email: '', cliente_telefono: '', ciudad: '', departamento: '',
       factura_numero: '',
-      // Se conserva el canal del QR: quien radica otra sigue en la misma sede.
-      canal_atencion: canalDelQR ?? '',
+      // El canal del QR se conserva solo (ver `canalElegido`): quien radica
+      // otra sigue en la misma sede.
+      canal_atencion: '',
       area_responsable: '',
       descripcion: '', comentario: '',
     })
@@ -930,12 +935,12 @@ export default function FormularioPQRS() {
                   </label>
                   <select
                     name="canal_atencion"
-                    value={form.canal_atencion}
+                    value={canalElegido}
                     onChange={handleChange}
                     className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                   >
                     <option value="">Seleccione...</option>
-                    {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
+                    {nombresDe(listaCanales).map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               </div>
@@ -944,7 +949,7 @@ export default function FormularioPQRS() {
                 <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Área relacionada</label>
                 <select name="area_responsable" value={form.area_responsable} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition">
                   <option value="">No sé / No aplica</option>
-                  {AREAS.map(a => (
+                  {listaAreas.map(a => (
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>
@@ -966,12 +971,12 @@ export default function FormularioPQRS() {
                 </label>
                 <select
                   name="canal_atencion"
-                  value={form.canal_atencion}
+                  value={canalElegido}
                   onChange={handleChange}
                   className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                 >
                   <option value="">Seleccione...</option>
-                  {CANALES_ATENCION.map(c => <option key={c} value={c}>{c}</option>)}
+                  {nombresDe(listaCanales).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 
@@ -1015,12 +1020,12 @@ export default function FormularioPQRS() {
                 </label>
                 <select
                   name="canal_atencion"
-                  value={form.canal_atencion}
+                  value={canalElegido}
                   onChange={handleChange}
                   className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition"
                 >
                   <option value="">Seleccione...</option>
-                  {CANALES_ATENCION_FELICITACION.map(c => <option key={c} value={c}>{c}</option>)}
+                  {nombresDe(listaCanales).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 

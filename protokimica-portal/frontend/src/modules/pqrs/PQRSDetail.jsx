@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/useAuth.js'
 import api from '../../core/api.js'
-import { AREAS } from '../../core/areas.js'
+import { useAreas } from '../../core/areas.js'
 import {
   IconoAlDia, IconoAlerta, IconoBuscar, IconoCandado, IconoClip,
   IconoComentario, IconoEditar, IconoEmpresa, IconoEscalar, IconoEstrella,
@@ -55,7 +55,6 @@ const EVENTOS = {
   cambio_producto:         { Icono: IconoRecibo,    label: 'Productos'              },
 }
 
-// Las áreas viven en un solo sitio: src/core/areas.js
 
 function Badge({ map, value }) {
   const item = map[value] || { label: value, color: 'bg-superficie-2 text-texto-2' }
@@ -169,6 +168,7 @@ function ConfirmarCierre({ pqrs, guardando, onConfirmar, onCancelar }) {
  * pantalla no repite las reglas de permisos: las pregunta.
  */
 function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
+  const listaAreas = useAreas()
   const [area, setArea]             = useState('')
   const [estado, setEstado]         = useState('')
   const [comentario, setComentario] = useState('')
@@ -252,7 +252,7 @@ function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
               className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento"
             >
               <option value="">Sin cambio — {pqrs.area_responsable || 'sin asignar'}</option>
-              {AREAS.filter(a => a !== pqrs.area_responsable).map(a => (
+              {listaAreas.filter(a => a !== pqrs.area_responsable).map(a => (
                 <option key={a} value={a}>{a}</option>
               ))}
             </select>
@@ -718,6 +718,7 @@ function EncuestaSection({ encuesta }) {
 
 // ── Pantalla principal ─────────────────────────────────────────────
 export default function PQRSDetail() {
+  const listaAreas = useAreas()
   const { id }      = useParams()
   const navigate    = useNavigate()
   const queryClient = useQueryClient()
@@ -852,7 +853,7 @@ export default function PQRSDetail() {
                 title="Área causante del problema (uso interno)"
               >
                 <option value="" className="text-texto">Área causante: sin definir</option>
-                {AREAS.map(a => <option key={a} value={a} className="text-texto">Causante: {a}</option>)}
+                {listaAreas.map(a => <option key={a} value={a} className="text-texto">Causante: {a}</option>)}
               </select>
             ) : (
               pqrs.area_causante && (

@@ -112,7 +112,7 @@ def crear_item_catalogo(
     _: User = Depends(solo_lectura_no),
 ):
     """Calidad agrega un proceso o una fuente sin esperar un despliegue."""
-    permisos.exigir_sgc(usuario)
+    permisos.exigir_sgc(db, usuario)
 
     if payload.tipo not in cat.TIPOS:
         raise HTTPException(
@@ -150,7 +150,7 @@ def actualizar_item_catalogo(
     Renombrar o desactivar. No hay borrado: las acciones viejas siguen
     apuntando a su proceso y el reporte tiene que poder decir de cuál eran.
     """
-    permisos.exigir_sgc(usuario)
+    permisos.exigir_sgc(db, usuario)
 
     item = (
         db.query(ItemCatalogo)
@@ -383,7 +383,7 @@ def validar_sgc(
     si el indicador mejoró, y el SGC dice si la evidencia alcanza. Un solo
     botón dejaba que el mismo que hizo el trabajo lo diera por bueno.
     """
-    permisos.exigir_sgc(usuario)
+    permisos.exigir_sgc(db, usuario)
     oportunidad = _buscar(db, omp_id, tenant_id, usuario)
     return service.validar_cierre_sgc(db, oportunidad, usuario.id, payload.nota)
 

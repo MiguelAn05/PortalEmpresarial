@@ -127,7 +127,7 @@ console.log('\n== En el mostrador Contabilidad ya no tiene turno ==')
 // la decision comercial ya estaba tomada y ante la DIAN no hay nada que
 // verificar en una venta de mostrador.
 check('la cadena del mostrador son dos pasos',
-  /if not es_institucional\(punto_venta\):\s*\n\s*return \(ESTADO_EN_COMERCIAL, ESTADO_APROBADA\)/
+  /if not institucional:\s*\n\s*return \(ESTADO_EN_COMERCIAL, ESTADO_APROBADA\)/
     .test(PY_FLUJO))
 check('el filtro de Contabilidad cubre solo el turno de la DIAN',
   /"contabilidad":\s*\(ESTADO_EN_CONTABILIDAD,\)/.test(PY_FLUJO))

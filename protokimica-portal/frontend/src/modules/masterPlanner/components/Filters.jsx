@@ -1,7 +1,8 @@
-import { ESTADOS_TAREA, PRIORIDADES, AREAS } from "../constants"
+import { ESTADOS_TAREA, PRIORIDADES } from "../constants"
 import {
   IconoCronograma, IconoProyectos, IconoTabla,
 } from '../../../core/components/Iconos.jsx'
+import { useAreas } from '../../../core/areas.js'
 
 const VISTAS = [
   { id: 'kanban',     label: 'Kanban',     Icono: IconoProyectos  },
@@ -17,6 +18,7 @@ export default function Filters({
   filtros, onChange, vista, onChangeVista,
   proyectos = null, usuarios = [], totalVisible, totalGeneral,
 }) {
+  const listaAreas = useAreas()
   const set = (campo) => (e) => onChange({ ...filtros, [campo]: e.target.value })
   const hayFiltros = Object.values(filtros).some(v => v !== "")
 
@@ -57,7 +59,7 @@ export default function Filters({
           <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Área</label>
           <select value={filtros.area} onChange={set('area')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
             <option value="">Todas</option>
-            {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+            {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
 

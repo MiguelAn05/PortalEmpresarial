@@ -1,10 +1,11 @@
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { crearTarea } from "../api"
-import { AREAS, MAX_ENTREGABLE, MAX_HORAS, PRIORIDADES, datetimeLocalAIso } from "../constants"
+import { MAX_ENTREGABLE, MAX_HORAS, PRIORIDADES, datetimeLocalAIso } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { tieneDatos } from "../../../core/components/tieneDatos"
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
+import { useAreas } from '../../../core/areas.js'
 
 const VACIO = {
   titulo: "", descripcion: "", area: "", asignado_a: "",
@@ -13,6 +14,7 @@ const VACIO = {
 }
 
 export default function TareaFormModal({ proyectos = [], usuarios = [], proyectoIdInicial = null, onClose }) {
+  const listaAreas = useAreas()
   const queryClient = useQueryClient()
   // Si se abre desde dentro de un proyecto, ese proyecto ya viene fijo.
   const [proyectoId, setProyectoId] = useState(proyectoIdInicial ?? proyectos[0]?.id ?? "")
@@ -83,7 +85,7 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], proyecto
                   <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Área</label>
                   <select value={form.area} onChange={set('area')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
                     <option value="">Sin definir</option>
-                    {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                    {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
                 <div>

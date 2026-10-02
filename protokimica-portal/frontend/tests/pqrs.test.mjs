@@ -8,7 +8,8 @@ import {
   ESTADOS_CON_PLAZO, plazoCorriendo, estadoDelPlazo, estaVencida,
   FOCOS, cumpleFoco, contarPorFoco,
 } from '../src/modules/pqrs/constants.js'
-import { AREAS } from '../src/core/areas.js'
+// Las areas son de cada empresa y llegan del servidor; aqui, unas de ejemplo.
+const AREAS = ['TICS', 'Calidad', 'Servicio al Cliente']
 
 const PY = readFileSync(new URL('../../backend/app/modules/pqrs/schemas.py', import.meta.url), 'utf8')
   .replaceAll('\r', '')  // schemas.py viene con CRLF de Windows
@@ -111,8 +112,8 @@ const opciones = areasParaFiltrar([
   { area_responsable: 'Calidad' },
   { area_responsable: 'Área que ya no existe' },
   { area_responsable: null },
-])
-check('ofrece el catálogo completo', AREAS.every(a => opciones.includes(a)))
+], AREAS)
+check('ofrece todas las de la empresa', AREAS.every(a => opciones.includes(a)))
 check('más un área retirada que aún aparece en los datos',
   opciones.includes('Área que ya no existe'), opciones)
 check('sin repetir las del catálogo',

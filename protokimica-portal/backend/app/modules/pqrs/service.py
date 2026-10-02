@@ -113,12 +113,6 @@ def calcular_prioridad(tipo: str) -> str:
     return PRIORIDAD_POR_TIPO.get(tipo, "media")
 
 
-# Los canales y sus prefijos viven en `core/canales.py`, que es la fuente
-# única y tiene su gemelo en el frontend. Aquí solo se reexporta para no
-# romper lo que ya lo importaba desde este módulo.
-PREFIJOS_POR_CANAL = canales.PREFIJOS_POR_CANAL
-
-
 def generar_codigo_seguimiento(db, tenant_id: int, canal_atencion: str | None = None) -> str:
     """
     Genera el código de seguimiento con un consecutivo INDEPENDIENTE
@@ -149,7 +143,7 @@ def generar_codigo_seguimiento(db, tenant_id: int, canal_atencion: str | None = 
     """
     from app.models.pqrs import PQRSSolicitud  # import local para evitar ciclos
 
-    prefijo_especial = PREFIJOS_POR_CANAL.get((canal_atencion or "").strip())
+    prefijo_especial = canales.prefijo_de(db, tenant_id, canal_atencion)
     prefijo = prefijo_especial or f"PK-{datetime.now().year}-"
 
     codigos = (

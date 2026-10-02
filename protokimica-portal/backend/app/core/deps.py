@@ -8,6 +8,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
+from app.core import capacidades
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.models.user import User
@@ -49,7 +50,9 @@ def get_current_user(
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None or not user.activo:
         raise credentials_exception
-    return user
+    # Qué puede hacer más allá de su rol (cerrar PQRS, aprobar pagos…): una
+    # consulta aquí y ninguna más en la petición. Ver core/capacidades.py.
+    return capacidades.precargar(db, user)
 
 
 def get_current_tenant_id(current_user: User = Depends(get_current_user)) -> int:

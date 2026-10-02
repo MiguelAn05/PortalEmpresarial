@@ -144,6 +144,12 @@ class SolicitudNotaCredito(Base):
     # escrito a mano, «Itagüí», «itagui» y «Almacén Itagüí» son tres sitios
     # distintos y el informe por almacén deja de servir.
     punto_venta = Column(String(100), nullable=False)
+    # ¿Sigue la cadena institucional (Comercial → Contabilidad ante la DIAN)?
+    # Se decide UNA vez, al crearla, por el tipo del canal (ver
+    # `core/canales.es_institucional`): si un administrador le cambia después
+    # el tipo a un canal, las solicitudes en camino no saltan de cadena a
+    # mitad del trámite. Antes se comparaba el nombre con «Venta institucional».
+    institucional = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # La factura sobre la que se pide la nota crédito, y la que la reemplaza
     # cuando el cliente volvió a comprar bien. La segunda es opcional: no

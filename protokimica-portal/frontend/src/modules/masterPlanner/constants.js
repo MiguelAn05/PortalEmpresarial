@@ -1,3 +1,5 @@
+import { tieneCapacidad } from '../../core/capacidades.js'
+
 // Estados reales de una Tarea en el backend (mp_tareas.estado).
 // Antes el mock usaba "Planeación/En ejecución/En riesgo/Pausado/Finalizado"
 // como si fueran estados de tablero; ahora el riesgo se documenta como texto
@@ -49,8 +51,7 @@ export const PRIORIDADES = {
   critica: { label: 'Crítica', color: 'bg-negativo-bg text-negativo' },
 }
 
-// Las áreas viven en un solo sitio: src/core/areas.js
-export { AREAS } from '../../core/areas.js'
+// Las áreas son de cada empresa: `useAreas()` de src/core/areas.js.
 
 export const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -118,15 +119,14 @@ export function puedeReportarAvance(usuario) {
 }
 
 // ── Aprobación y pago del presupuesto ─────────────────────────
-export const AREA_APRUEBA_PAGOS = 'Administración'
-export const AREA_REGISTRA_PAGOS = 'Tesorería'
-
+// Dos capacidades, no dos nombres de área: en Protokimica las tienen
+// Administración y Tesorería, en otra empresa quien se configure.
 export function puedeAprobarPagos(usuario) {
-  return usuario?.rol === 'admin' || usuario?.area === AREA_APRUEBA_PAGOS
+  return tieneCapacidad(usuario, 'presupuesto.aprobar')
 }
 
 export function puedeRegistrarPagos(usuario) {
-  return usuario?.rol === 'admin' || usuario?.area === AREA_REGISTRA_PAGOS
+  return tieneCapacidad(usuario, 'presupuesto.pagar')
 }
 
 /** Estado de un ítem en el recorrido planeado → aprobado → pagado. */

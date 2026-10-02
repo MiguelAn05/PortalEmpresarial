@@ -151,7 +151,7 @@ def puede_ver(db: Session, usuario: User, solicitud) -> bool:
         return False
     if CAP_APROBAR_COMERCIAL in suyas:
         return True
-    if not flujo.es_institucional(solicitud.punto_venta):
+    if not solicitud.institucional:
         return False
     if CAP_VERIFICAR_DIAN in suyas:
         return True
@@ -173,7 +173,7 @@ def filtrar_visibles(query, db: Session, usuario: User):
 
     condiciones = [SolicitudNotaCredito.solicitado_por == usuario.id]
     suyas = _capacidades_de(db, usuario)
-    institucional = SolicitudNotaCredito.punto_venta == flujo.CANAL_INSTITUCIONAL
+    institucional = SolicitudNotaCredito.institucional.is_(True)
 
     if CAP_APROBAR_COMERCIAL in suyas:
         # Comercial abre TODAS las cadenas, así que no se le acota a las

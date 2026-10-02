@@ -4,8 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
 import { puedeVerModulo } from '../../core/modulos.js'
 import { useAuth } from '../../core/useAuth.js'
-import { AREAS } from '../../core/areas.js'
-import { CANALES, canalesConPrefijo } from '../../core/canales.js'
+import { useAreas } from '../../core/areas.js'
+import { canalesConPrefijo, nombresDe, useCanales } from '../../core/canales.js'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
 import {
   IconoBuscar, IconoCerrar, IconoClip, IconoEmpresa, IconoFiltro, IconoPapelera, IconoPQRS,
@@ -41,10 +41,6 @@ const PRIORIDADES = {
   alta:    { label: 'Alta',    color: 'text-alerta'   },
   critica: { label: 'Crítica', color: 'text-negativo' },
 }
-
-// Sale de core/canales.js, gemelo de core/canales.py: se usa para filtrar
-// por punto de venta a partir del prefijo del radicado.
-const PUNTOS_VENTA = canalesConPrefijo()
 
 // Compara el prefijo exacto del radicado (evita que "PVC" matchee "PVCR0010")
 function coincidePuntoVenta(codigo, prefijo) {
@@ -85,10 +81,7 @@ function SLALabel({ pqrs }) {
   )
 }
 
-const CANALES_ATENCION = CANALES
-const CANALES_ATENCION_FELICITACION = CANALES
 
-const AREAS_PQRS = AREAS
 
 /**
  * Un archivo elegido antes de enviar: se ve cuál es y se puede quitar.
@@ -146,6 +139,8 @@ function ArchivoElegido({ etiqueta, acepta, ayuda, archivo, onCambio }) {
 // así que arranca marcado. Si no, radicaría sin canal, el caso saldría
 // `PK-…` y desaparecería de su propia lista al guardarlo.
 function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
+  const listaAreas = useAreas()
+  const listaCanales = useCanales()
   const FORM_VACIO = {
     tipo: 'queja',
     empresa: '',
@@ -237,7 +232,7 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
               <label className={labelCls}>Área responsable</label>
               <select name="area_responsable" value={form.area_responsable} onChange={handleChange} className={inputCls}>
                 <option value="">Sin asignar</option>
-                {AREAS_PQRS.map(a => <option key={a} value={a}>{a}</option>)}
+                {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
           </div>
@@ -289,7 +284,7 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
             <label className={labelCls}>Canal de atención</label>
             <select name="canal_atencion" value={form.canal_atencion} onChange={handleChange} className={inputCls}>
               <option value="">Selecciona...</option>
-              {(esFelicitacion ? CANALES_ATENCION_FELICITACION : CANALES_ATENCION).map(c => <option key={c} value={c}>{c}</option>)}
+              {nombresDe(listaCanales).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
@@ -655,6 +650,8 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
 
 // ── Pantalla principal ─────────────────────────────────────────────
 export default function PQRSList() {
+  const listaAreas = useAreas()
+  const listaCanales = useCanales()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -697,12 +694,12 @@ export default function PQRSList() {
   })
   const puntosVisibles = visibilidad?.restringida
     ? visibilidad.puntos.map(({ canal, prefijo }) => ({ prefijo, label: canal }))
-    : PUNTOS_VENTA
+    : canalesConPrefijo(listaCanales)
   const unaSolaSede = visibilidad?.restringida && visibilidad.puntos.length === 1
 
   const refetch = () => queryClient.invalidateQueries({ queryKey: ['pqrs'] })
 
-  const areasDisponibles = useMemo(() => areasParaFiltrar(pqrsList), [pqrsList])
+  const areasDisponibles = useMemo(() => areasParaFiltrar(pqrsList, listaAreas), [pqrsList, listaAreas])
 
   // Búsqueda + filtros adicionales, todo en client-side sobre lo ya traído.
   // El foco de las tarjetas NO entra aquí: esta es la base sobre la que se

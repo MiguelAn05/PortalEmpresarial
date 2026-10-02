@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { crearIndicador, actualizarIndicador, obtenerCatalogo, eliminarIndicador } from "../api"
 import { UNIDADES, TIPOS_CAPTURA, DIRECCIONES, formatValor } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
-import { AREAS } from "../../../core/areas.js"
+import { useAreas } from '../../../core/areas.js'
 import { tieneDatos } from "../../../core/components/tieneDatos"
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../../core/errores.js'
@@ -35,6 +35,7 @@ function aFormulario(ind) {
  * implica cada opción, en vez de asumir que quien lo llena sabe de métricas.
  */
 export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGuardado }) {
+  const listaAreas = useAreas()
   const queryClient = useQueryClient()
   const [form, setForm] = useState(() => aFormulario(indicador))
   const [error, setError] = useState(null)
@@ -234,7 +235,7 @@ export default function FormIndicador({ indicador, usuarios = [], onCerrar, onGu
                   <select value={form.area} onChange={set('area')}
                     className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
                     <option value="">Sin área</option>
-                    {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                    {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
                 <div>

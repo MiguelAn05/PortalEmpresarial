@@ -134,7 +134,7 @@ async def crear_solicitud(
     # Lista cerrada: escrito a mano, «Itagüí», «itagui» y «Almacén Itagüí»
     # son tres sitios distintos y el informe por almacén deja de servir.
     punto_venta = canales.normalizar(punto_venta)
-    if punto_venta not in canales.CANALES:
+    if not punto_venta or not canales.es_valido(db, tenant_id, punto_venta):
         raise HTTPException(
             status_code=400,
             detail=f"'{punto_venta}' no es un canal del portal. Elige uno de la lista.",
@@ -165,7 +165,7 @@ async def crear_solicitud(
     # De qué cadena es: el canal decide la rama y el motivo decide si hay que
     # pasar por bodega. Las dos cosas se resuelven aquí, una sola vez, y de
     # ahí sale el primer turno.
-    institucional = flujo.es_institucional(punto_venta)
+    institucional = canales.es_institucional(db, tenant_id, punto_venta)
     pasa_por_bodega = institucional and service.requiere_bodega(db, tenant_id, motivo_id)
 
     bodega = bodegas.normalizar(bodega)
@@ -204,6 +204,7 @@ async def crear_solicitud(
     solicitud = SolicitudNotaCredito(
         tenant_id=tenant_id,
         punto_venta=punto_venta,
+        institucional=institucional,
         factura_afectada=factura_afectada,
         factura_reemplaza=(factura_reemplaza or "").strip() or None,
         valor=valor_decimal,
@@ -212,7 +213,7 @@ async def crear_solicitud(
         observaciones=observaciones,
         adjunto=ruta_adjunto,
         solicitado_por=current_user.id,
-        estado=flujo.estado_inicial(punto_venta, pasa_por_bodega),
+        estado=flujo.estado_inicial(institucional, pasa_por_bodega),
     )
     db.add(solicitud)
     db.commit()
@@ -330,7 +331,7 @@ def obtener_solicitud(
     detalle.que_hacer = flujo.QUE_HACER.get(solicitud.estado, "")
     detalle.etapa_siguiente = flujo.etiqueta(siguiente) if (
         siguiente := flujo.siguiente(
-            solicitud.estado, solicitud.punto_venta, bool(solicitud.bodega),
+            solicitud.estado, solicitud.institucional, bool(solicitud.bodega),
         )
     ) else None
     detalle.historial = [
@@ -401,7 +402,7 @@ def responder_solicitud(
         solicitud.estado = ESTADO_DEVUELTA
     else:
         solicitud.estado = flujo.siguiente(
-            etapa, solicitud.punto_venta, bool(solicitud.bodega),
+            etapa, solicitud.institucional, bool(solicitud.bodega),
         ) or ESTADO_APROBADA
 
     # La última firma queda a la mano de la pantalla; todas las demás, en el
@@ -485,7 +486,7 @@ def reenviar_solicitud(
             detail=f"Esta solicitud está '{flujo.etiqueta(solicitud.estado)}', no devuelta.",
         )
 
-    solicitud.estado = flujo.estado_inicial(solicitud.punto_venta, bool(solicitud.bodega))
+    solicitud.estado = flujo.estado_inicial(solicitud.institucional, bool(solicitud.bodega))
     service.anotar(db, solicitud, ESTADO_DEVUELTA, "reenviada", current_user,
                    payload.comentario)
     db.commit()

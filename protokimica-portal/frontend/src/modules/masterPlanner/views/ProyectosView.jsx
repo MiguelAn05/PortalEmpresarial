@@ -2,15 +2,15 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import ProyectoCard from "../components/ProyectoCard"
 import { listarProyectos, archivarProyecto, eliminarProyecto } from "../api"
-import {
-  ESTADOS_PROYECTO, AREAS, puedeEditar, perteneceAlArea, parametrosListaProyectos,
-} from "../constants"
+import { ESTADOS_PROYECTO, puedeEditar, perteneceAlArea, parametrosListaProyectos } from "../constants"
 import { useAuth } from "../../../core/useAuth.js"
 import { mensajeDeError } from '../../../core/errores.js'
+import { useAreas } from '../../../core/areas.js'
 
 const FILTROS_VACIOS = { busqueda: "", estado: "", area: "" }
 
 export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEditarProyecto }) {
+  const listaAreas = useAreas()
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const editable = puedeEditar(user)
@@ -81,7 +81,7 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
             <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Área</label>
             <select value={filtros.area} onChange={set('area')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todas</option>
-              {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+              {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
         </div>

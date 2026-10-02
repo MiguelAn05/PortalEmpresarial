@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { tieneCapacidad } from '../../../core/capacidades.js'
 import { useAuth } from '../../../core/useAuth.js'
 import {
   IconoAlDia, IconoAlerta, IconoCerrar, IconoCheck, IconoHistorial,
@@ -601,9 +602,10 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
   const [error, setError] = useState('')
 
   const puedeGestionar = user?.rol === 'admin' || user?.rol === 'lider'
-  // Quién valida el cierre se decide por ÁREA, igual que en el servidor.
-  // Esto solo esconde un botón; el permiso de verdad lo impone la API.
-  const esSGC = user?.rol === 'admin' || user?.area === 'Calidad'
+  // Quién valida el cierre lo decide la capacidad `mejora.validar_sgc` que
+  // manda el servidor (Calidad en Protokimica). Esto solo esconde un botón;
+  // el permiso de verdad lo impone la API.
+  const esSGC = tieneCapacidad(user, 'mejora.validar_sgc')
 
   const { data: omp, isLoading } = useQuery({
     queryKey: ['omp', ompId],
