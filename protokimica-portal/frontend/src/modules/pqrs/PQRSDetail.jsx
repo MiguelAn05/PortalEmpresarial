@@ -10,7 +10,7 @@ import {
   IconoEtiqueta, IconoRecargar, IconoRechazo, IconoRecibo, IconoReloj, IconoUsuario,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
-import { nombrePrincipal, plazoCorriendo } from './constants.js'
+import { nombrePrincipal, plazoCorriendo, tiempoEnArea } from './constants.js'
 import { BotonEditar, ModalEditarDatos, PanelAdjuntos } from './EdicionDatos.jsx'
 import { ListaProductos } from './ProductosPQRS.jsx'
 
@@ -834,6 +834,11 @@ export default function PQRSDetail() {
                 <strong className="text-white">
                   {pqrs.area_responsable || 'Sin asignar'}
                 </strong>
+                {tiempoEnArea(pqrs) && (
+                  <span className={`cifra ml-2 ${pqrs.area_vencida ? 'font-semibold text-white bg-negativo px-1.5 py-0.5 rounded-md' : ''}`}>
+                    · {tiempoEnArea(pqrs).texto}
+                  </span>
+                )}
               </span>
             </div>
           </div>

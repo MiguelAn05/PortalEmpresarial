@@ -100,7 +100,12 @@ def test_el_resumen_se_puede_pedir_columna_por_columna(entorno, v):
     """
     columnas = {c.key for c in PQRSSolicitud.__table__.columns}
     for campo in PQRSResumenOut.model_fields:
-        v.check(f"{campo} es una columna de la tabla", campo in columnas, sorted(columnas))
+        # Una propiedad calculada desde columnas también vale —«cuánto lleva
+        # en el área» sale de `area_desde`—: el router solo carga columnas, y
+        # la propiedad no hace consultas. Una relación sí las haría, una por fila.
+        es_propiedad = isinstance(getattr(PQRSSolicitud, campo, None), property)
+        v.check(f"{campo} es una columna de la tabla o una propiedad calculada",
+                campo in columnas or es_propiedad, sorted(columnas))
 
 
 def test_los_filtros_del_servidor_siguen_funcionando(entorno, v):

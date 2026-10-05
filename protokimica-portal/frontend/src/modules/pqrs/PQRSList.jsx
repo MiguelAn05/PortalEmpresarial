@@ -13,7 +13,7 @@ import {
 import { mensajeDeError } from '../../core/errores.js'
 import {
   AREA_SIN_ASIGNAR, DEPARTAMENTOS, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES,
-  areasParaFiltrar, coincideAreaAsignada, contarPorFoco, cumpleFoco, estadoDelPlazo,
+  areasParaFiltrar, coincideAreaAsignada, tiempoEnArea, contarPorFoco, cumpleFoco, estadoDelPlazo,
   faltaEnProductos, nombrePrincipal, productoVacio, productosParaEnviar,
 } from './constants.js'
 
@@ -72,6 +72,13 @@ const TONO_PLAZO = {
  * `estadoDelPlazo()` del `constants.js` del módulo, que es gemelo de la del
  * servidor y tiene prueba.
  */
+/** Cuánto lleva en su área: máximo 3 días hábiles. Ver `tiempoEnArea`. */
+function TiempoEnArea({ pqrs }) {
+  const tiempo = tiempoEnArea(pqrs)
+  if (!tiempo) return null
+  return <span className={`block cifra text-xs ${TONO_PLAZO[tiempo.tono]}`}>{tiempo.texto}</span>
+}
+
 function SLALabel({ pqrs }) {
   const plazo = estadoDelPlazo(pqrs)
   if (!plazo) return <span className="text-xs text-texto-3">—</span>
@@ -543,6 +550,7 @@ function ModalDetalle({ pqrs, onClose, onUpdated }) {
             <div>
               <span className="text-xs text-texto-2 block">Área</span>
               <span className="font-medium">{pqrs.area_responsable || '—'}</span>
+              <TiempoEnArea pqrs={pqrs} />
             </div>
             <div>
               <span className="text-xs text-texto-2 block">SLA</span>
@@ -1021,7 +1029,10 @@ export default function PQRSList() {
                       )
                     })()}
                   </td>
-                  <td className="px-4 py-3 text-sm text-texto-2">{pqrs.area_responsable || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-texto-2">
+                    {pqrs.area_responsable || '—'}
+                    <TiempoEnArea pqrs={pqrs} />
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-semibold ${PRIORIDADES[pqrs.prioridad]?.color}`}>
                       ● {PRIORIDADES[pqrs.prioridad]?.label}

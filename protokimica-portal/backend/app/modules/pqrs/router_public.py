@@ -17,6 +17,7 @@ from app.core import areas
 from app.core.tenant_publico import contratado_en_publico, tenant_publico
 from app.core import canales
 from app.core.database import get_db
+from app.core.fechas import con_zona
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
 from app.modules.pqrs import qr
 from app.modules.pqrs import productos as pqrs_productos
@@ -35,6 +36,7 @@ from app.modules.pqrs.service import (
     validar_largos,
 )
 from app.modules.pqrs.notificaciones import avisos_creacion
+from app.modules.pqrs import tiempo_en_area
 
 router = APIRouter(
     prefix="/public", tags=["Público — PQRS"],
@@ -283,6 +285,8 @@ async def radicar_pqrs_publica(
     # cambia solo si el canal es un punto de venta específico o venta
     # institucional (ver Administración › Canales).
     codigo = asignar_codigo_seguimiento(db, solicitud, tenant.id, canal_atencion)
+    # Si el cliente eligió área, esa área empieza a contar sus 3 días hábiles.
+    tiempo_en_area.registrar_cambio(db, solicitud, None, None, con_zona(solicitud.fecha_creacion))
 
     db.add(PQRSSeguimiento(
         pqrs_id=solicitud.id,

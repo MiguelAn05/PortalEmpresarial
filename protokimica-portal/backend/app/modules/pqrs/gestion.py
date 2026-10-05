@@ -30,6 +30,7 @@ from app.models.pqrs import (
     PQRSAdjuntoSolucion, PQRSSolicitud, PQRSSeguimiento, PQRSEncuesta,
 )
 from app.models.user import User
+from app.modules.pqrs import tiempo_en_area
 from app.modules.pqrs.permisos import (
     CAPACIDAD_GESTION, puede_gestionar_pqrs, obtener_visible, puede_cambiar_area,
 )
@@ -237,6 +238,10 @@ def aplicar_gestion(
             # con el plazo de la primera vez, antes de que el cliente
             # llegara siquiera a ver la solución nueva.
             solicitud.fecha_resuelto = None
+
+    # El reloj de los 3 días hábiles en el área: arranca en cero si cambió el
+    # área, y se detiene si la PQRS dejó de estar abierta.
+    tiempo_en_area.registrar_cambio(db, solicitud, area_anterior, estado_anterior)
 
     # El comentario de quien gestiona va UNA vez y al final. Lo de arriba lo
     # redacta el servidor a partir de lo que cambió, así que no hay que

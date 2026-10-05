@@ -259,6 +259,23 @@ export function estadoDelPlazo(pqrs, ahora = new Date()) {
   return { tono: 'neutro', texto: `Vence en ${dias}d` }
 }
 
+/**
+ * Cuánto lleva la PQRS en su área actual, en palabras. Regla de negocio:
+ * máximo 3 días hábiles por área (ver `backend/app/modules/pqrs/tiempo_en_area.py`).
+ *
+ * No calcula nada: los días hábiles y si ya se pasó llegan del servidor
+ * (`dias_en_area`, `area_vencida`), que es quien sabe de festivos. Sin
+ * `area_desde` no hay reloj corriendo —sin área, o ya respondida— y no se
+ * muestra nada.
+ */
+export function tiempoEnArea(pqrs) {
+  if (!pqrs?.area_desde) return null
+  const dias = pqrs.dias_en_area ?? 0
+  const cuanto = dias === 0 ? 'Llegó hoy al área' : `${dias} ${dias === 1 ? 'día hábil' : 'días hábiles'} en el área`
+  if (pqrs.area_vencida) return { tono: 'negativo', texto: `${cuanto}: se pasó del máximo` }
+  return { tono: 'neutro', texto: cuanto }
+}
+
 /** Para el conteo del encabezado: las que de verdad están vencidas hoy. */
 export function estaVencida(pqrs, ahora = new Date()) {
   return estadoDelPlazo(pqrs, ahora)?.texto === 'Vencida'

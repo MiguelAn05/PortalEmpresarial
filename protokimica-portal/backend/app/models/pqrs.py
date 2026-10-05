@@ -1,6 +1,16 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
+from app.core.dias_habiles import contar_habiles, limite_en_habiles
+from app.core.fechas import con_zona
+
+# Regla de negocio: un área no puede tener una PQRS más de 3 días hábiles.
+# Aplica a TODAS, también a Servicio al Cliente, y el conteo arranca de cero
+# cada vez que el caso llega a un área —incluida la que firma una
+# autorización—. Ver `modules/pqrs/tiempo_en_area.py`.
+MAX_DIAS_HABILES_EN_AREA = 3
 
 
 class PQRSSolicitud(Base):
@@ -38,6 +48,12 @@ class PQRSSolicitud(Base):
     fecha_limite_sla = Column(DateTime(timezone=True), nullable=True)
     fecha_cierre = Column(DateTime(timezone=True), nullable=True)
 
+    # Desde cuándo la tiene su área actual. Vacío cuando no corre el reloj:
+    # sin área, o ya respondida (resuelta o cerrada). Lo mantiene
+    # `tiempo_en_area.registrar_cambio()`, nunca se escribe a mano; los
+    # tramos que ya terminaron quedan en `pqrs_pasos_area`.
+    area_desde = Column(DateTime(timezone=True), nullable=True)
+
     # Qué se le dijo al cliente al marcarla "resuelto": es lo que antes solo
     # vivía en la cabeza de quien atendió, y el cliente nunca llegaba a leer
     # —el correo de cierre solo traía la encuesta—. Obligatoria al entrar a
@@ -61,6 +77,28 @@ class PQRSSolicitud(Base):
         'PQRSProducto', back_populates='pqrs', cascade='all, delete-orphan',
         order_by='PQRSProducto.orden',
     )
+
+    # ── Cuánto lleva en su área (lo calcula el servidor, no la pantalla) ──
+
+    @property
+    def area_limite(self) -> datetime | None:
+        """Hasta cuándo puede tenerla su área actual."""
+        desde = con_zona(self.area_desde)
+        return limite_en_habiles(desde, MAX_DIAS_HABILES_EN_AREA) if desde else None
+
+    @property
+    def dias_en_area(self) -> int | None:
+        """Días hábiles que lleva en su área actual, sin contar el día en que llegó."""
+        desde = con_zona(self.area_desde)
+        if not desde:
+            return None
+        return contar_habiles(desde.date(), datetime.now(timezone.utc).date())
+
+    @property
+    def area_vencida(self) -> bool:
+        """¿Su área actual ya se pasó de los días que tenía?"""
+        limite = self.area_limite
+        return bool(limite and datetime.now(timezone.utc) > limite)
 
     @property
     def producto_por_confirmar(self) -> bool:
@@ -190,3 +228,26 @@ class PQRSEncuesta(Base):
     @property
     def respondida(self) -> bool:
         return self.respondida_en is not None
+
+
+class PQRSPasoArea(Base):
+    """
+    Un tramo terminado de una PQRS en un área: quién la tuvo, desde cuándo,
+    hasta cuándo y si se pasó de los días.
+
+    Es lo que permite medir después —un indicador, un informe de «qué área se
+    demora más»— sin reconstruirlo del historial de texto. El tramo que está
+    corriendo no está aquí: es el `area_responsable` y el `area_desde` de la
+    PQRS, y se guarda aquí cuando termina.
+    """
+    __tablename__ = "pqrs_pasos_area"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    pqrs_id = Column(Integer, ForeignKey("pqrs_solicitudes.id", ondelete="CASCADE"),
+                     nullable=False, index=True)
+    area = Column(String(100), nullable=False, index=True)
+    desde = Column(DateTime(timezone=True), nullable=False)
+    hasta = Column(DateTime(timezone=True), nullable=False)
+    dias_habiles = Column(Integer, nullable=False)
+    excedio = Column(Boolean, nullable=False, default=False)

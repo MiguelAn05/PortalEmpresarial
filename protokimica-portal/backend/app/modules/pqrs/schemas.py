@@ -82,6 +82,14 @@ class PQRSResumenOut(BaseModel):
     fecha_creacion: datetime
     fecha_limite_sla: datetime | None = None
 
+    # Cuánto lleva su área actual con el caso: máximo 3 días hábiles. Lo
+    # calcula el servidor (propiedades de `PQRSSolicitud`); la pantalla solo
+    # lo pinta. Vacíos cuando no corre: sin área, o ya respondida.
+    area_desde: datetime | None = None
+    area_limite: datetime | None = None
+    dias_en_area: int | None = None
+    area_vencida: bool = False
+
 
 class PQRSOut(BaseModel):
     id: int
@@ -122,6 +130,14 @@ class PQRSOut(BaseModel):
     fecha_creacion: datetime
     fecha_limite_sla: datetime | None = None
     fecha_cierre: datetime | None = None
+
+    # Cuánto lleva su área actual con el caso: máximo 3 días hábiles. Lo
+    # calcula el servidor (propiedades de `PQRSSolicitud`); la pantalla solo
+    # lo pinta. Vacíos cuando no corre: sin área, o ya respondida.
+    area_desde: datetime | None = None
+    area_limite: datetime | None = None
+    dias_en_area: int | None = None
+    area_vencida: bool = False
 
     # Qué se le dijo al cliente al marcar "resuelto", y desde cuándo. Ver
     # `pqrs/cierre_automatico.py` para el plazo que sale de `fecha_resuelto`.

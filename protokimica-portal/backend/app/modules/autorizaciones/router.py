@@ -39,6 +39,7 @@ from app.core import capacidades
 from app.modules.pqrs.permisos import CAPACIDAD_GESTION, obtener_visible
 from app.core.archivos import guardar_archivo
 from app.core.notificaciones import enviar_avisos
+from app.modules.pqrs import tiempo_en_area
 from app.modules.pqrs.notificaciones import (
     avisos_autorizacion_pendiente, avisos_autorizacion_respondida,
 )
@@ -201,6 +202,8 @@ async def solicitar_autorizacion(
     # juntos, así aparece en la bandeja de quien puede resolverla.
     area_anterior = pqrs.area_responsable
     pqrs.area_responsable = tipo.area_autorizadora
+    # Mientras se firma, los 3 días hábiles son del área que autoriza.
+    tiempo_en_area.registrar_cambio(db, pqrs, area_anterior, pqrs.estado)
 
     detalle = [f"Se solicitó autorización: {tipo.nombre}."]
     if tipo.area_autorizadora != area_anterior:
@@ -299,7 +302,10 @@ async def responder_autorizacion(
     reparte = capacidades.area_principal(db, tenant_id, CAPACIDAD_GESTION)
     if pqrs.estado != "cerrado" and reparte and pqrs.area_responsable != reparte:
         detalle.append(f"Área: {pqrs.area_responsable or 'sin asignar'} -> {reparte}.")
+        area_que_firmo = pqrs.area_responsable
         pqrs.area_responsable = reparte
+        # Vuelve a quien reparte con el reloj en cero.
+        tiempo_en_area.registrar_cambio(db, pqrs, area_que_firmo, pqrs.estado)
 
     if comentario_respuesta:
         detalle.append(comentario_respuesta.strip())

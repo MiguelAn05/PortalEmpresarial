@@ -6,7 +6,7 @@ import {
   LIMITES_RADICACION, MAX_PRODUCTOS, productoVacio, productosParaEnviar, faltaEnProductos,
   AREA_SIN_ASIGNAR, areasParaFiltrar, coincideAreaAsignada,
   ESTADOS_CON_PLAZO, plazoCorriendo, estadoDelPlazo, estaVencida,
-  FOCOS, cumpleFoco, contarPorFoco,
+  FOCOS, cumpleFoco, contarPorFoco, tiempoEnArea,
 } from '../src/modules/pqrs/constants.js'
 // Las areas son de cada empresa y llegan del servidor; aqui, unas de ejemplo.
 const AREAS = ['TICS', 'Calidad', 'Servicio al Cliente']
@@ -191,6 +191,18 @@ check('un foco que no existe no esconde nada',
   cumpleFoco(LISTA[0], 'inventado', AHORA) === true)
 check('una lista vacia no revienta', contarPorFoco([], AHORA).abiertas === 0)
 check('y sin lista tampoco', contarPorFoco(undefined, AHORA).null === 0)
+
+console.log('\n== Cuanto lleva en su area (maximo 3 dias habiles) ==')
+// La cuenta la hace el servidor, que sabe de festivos; aqui solo se dice.
+check('sin reloj corriendo no se muestra nada', tiempoEnArea({ area_desde: null }) === null)
+check('recien llegada', tiempoEnArea({ area_desde: 'x', dias_en_area: 0 }).texto === 'Llegó hoy al área')
+check('en singular', tiempoEnArea({ area_desde: 'x', dias_en_area: 1 }).texto === '1 día hábil en el área')
+check('dentro del maximo va en neutro', tiempoEnArea({ area_desde: 'x', dias_en_area: 2 }).tono === 'neutro')
+const pasada = tiempoEnArea({ area_desde: 'x', dias_en_area: 5, area_vencida: true })
+check('pasada va en rojo', pasada.tono === 'negativo')
+check('y lo dice en palabras, no solo con color', pasada.texto.includes('se pasó'), pasada)
+check('no decide por su cuenta: con 9 dias sin la marca del servidor no se pinta vencida',
+  tiempoEnArea({ area_desde: 'x', dias_en_area: 9, area_vencida: false }).tono === 'neutro')
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

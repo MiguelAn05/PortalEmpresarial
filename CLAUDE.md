@@ -339,6 +339,35 @@ tipo es `institucional`—: no se le asigna a nadie. Una sede desactivada sigue
 contando para quien estaba en ella: sus PQRS no dejaron de existir. Salir del área borra el punto, para que no reaparezca
 acotando a alguien el día que vuelva.
 
+**PQRS — cada área la tiene máximo 3 días hábiles.** Regla de negocio de
+Protokimica, aparte del plazo legal: el plazo de la Ley 1755 es de la PQRS
+completa, y si un área se demora una semana las demás llegan sin tiempo. La
+regla vive en `modules/pqrs/tiempo_en_area.py` (`MAX_DIAS_HABILES_EN_AREA` en
+`models/pqrs.py`):
+
+- **Aplica a todas**, también a Servicio al Cliente, y **arranca de cero
+  cada vez que el caso llega a un área**, aunque ya la hubiera tenido.
+- **Pedir una autorización le pasa el reloj al área que firma** (el caso ya
+  viajaba a su bandeja), y al responderla vuelve a quien reparte en cero.
+- **Corre solo con la PQRS abierta** (`ESTADOS_ABIERTOS`): resuelta ya
+  respondió. Si el cliente la rechaza, el área que la retoma empieza de cero.
+- El tramo actual es `area_responsable` + `area_desde` de la PQRS; **los que
+  terminan quedan en `pqrs_pasos_area`** (área, desde, hasta, días hábiles,
+  si se pasó). De ahí salen los informes e indicadores que vengan después,
+  sin reconstruir el historial de texto.
+- **Todo lo que cambie el área o el estado llama a
+  `tiempo_en_area.registrar_cambio()`** después de cambiarlos: hoy son
+  radicar (los dos routers), gestionar, pedir y responder una autorización, y
+  el cierre automático / la reapertura del cliente. Uno nuevo que no lo llame
+  deja el reloj contando para el área equivocada.
+- Lo calcula el servidor (`dias_en_area`, `area_vencida`, `area_limite`
+  como propiedades del modelo) y la pantalla solo lo dice con
+  `tiempoEnArea()` de `pqrs/constants.js`. Misma convención que el plazo
+  legal: arranca el día hábil siguiente y vence al cierre del tercero.
+- **El aviso es diario** (`n8n/pqrs-tiempo-en-area.json`, 7:15 a. m.) contra
+  `GET /pqrs/vencidas-en-area`: agrupado por área con los correos de su
+  gente; un área sin nadie activo va a quien reparte (`pqrs.cerrar`).
+
 **PQRS — corregir datos y adjuntos:** quien gestiona el caso
 (`alcance.puede_editar_datos`) corrige los datos del cliente y de la factura
 (`PATCH /pqrs/{id}/datos`; el lote y las cantidades, en cada producto) y cambia o quita la foto del producto, la factura

@@ -54,6 +54,7 @@ aparece `... is not registered`.
 | Archivo | Qué hace | Cuándo corre |
 |---|---|---|
 | `pqrs-por-vencer.json` | Avisa a cada responsable de sus PQRS a punto de vencer el plazo de ley | Diario, 7:00 a.m. |
+| `pqrs-tiempo-en-area.json` | Avisa a cada área de las PQRS que tiene hace más de 3 días hábiles (o que hoy cumplen el último); las de áreas sin nadie activo van a quien reparte | Lunes a viernes, 7:15 a.m. |
 | `indicadores-pendientes.json` | Recuerda a cada quien los indicadores que le faltan del mes | Días 2, 3 y 4, 8:00 a.m. |
 | `tareas-vencidas.json` | Resumen de tareas vencidas de cada persona | Lunes, 7:00 a.m. |
 

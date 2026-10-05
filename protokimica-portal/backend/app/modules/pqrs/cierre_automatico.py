@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 from app.core.dias_habiles import limite_en_habiles
 from app.models.pqrs import PQRSEncuesta, PQRSSeguimiento, PQRSSolicitud
 from app.core.notificaciones import Aviso
+from app.modules.pqrs import tiempo_en_area
 from app.modules.pqrs.notificaciones import (
     DIAS_ESPERA_CLIENTE, avisos_cierre, avisos_cliente_rechazo,
 )
@@ -45,7 +46,9 @@ def plazo_confirmacion(fecha_resuelto: datetime) -> datetime:
 
 def _cerrar(db: Session, solicitud: PQRSSolicitud, comentario: str) -> None:
     """Lo que comparten las tres formas de cerrar: la propia, la del cliente y la automática."""
+    estado_anterior = solicitud.estado
     solicitud.estado = "cerrado"
+    tiempo_en_area.registrar_cambio(db, solicitud, solicitud.area_responsable, estado_anterior)
     solicitud.fecha_cierre = datetime.now(timezone.utc)
     if not solicitud.encuesta:
         db.add(PQRSEncuesta(pqrs_id=solicitud.id))
@@ -74,8 +77,11 @@ def rechazar_solucion(db: Session, solicitud: PQRSSolicitud,
     para que el trabajo de cierre automático no la toque mientras se está
     retomando.
     """
+    estado_anterior = solicitud.estado
     solicitud.estado = "en_proceso"
     solicitud.fecha_resuelto = None
+    # Se reabre: el área que la retoma empieza sus 3 días hábiles de cero.
+    tiempo_en_area.registrar_cambio(db, solicitud, solicitud.area_responsable, estado_anterior)
     db.add(PQRSSeguimiento(
         pqrs_id=solicitud.id,
         usuario_id=None,

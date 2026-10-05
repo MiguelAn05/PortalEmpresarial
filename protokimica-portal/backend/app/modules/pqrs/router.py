@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, load_only
 from app.core.modulos import contratado
 from app.core import canales
 from app.core.database import get_db
+from app.core.fechas import con_zona
 from app.core.deps import get_current_user, get_current_tenant_id, solo_lectura_no
 from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
@@ -24,7 +25,7 @@ from app.modules.pqrs.permisos import (
     solo_gestion_pqrs, puede_gestionar_pqrs, puede_cambiar_area,
     filtrar_visibles, obtener_visible, puntos_visibles,
 )
-from app.modules.pqrs import edicion, pendientes
+from app.modules.pqrs import edicion, pendientes, tiempo_en_area
 from app.modules.pqrs import productos as pqrs_productos
 from app.modules.pqrs.cierre_automatico import cerrar_vencidas, plazo_confirmacion
 from app.modules.pqrs.gestion import aplicar_gestion
@@ -141,6 +142,9 @@ async def crear_pqrs(
     # venta institucional (ver Administración › Canales).
     asignar_codigo_seguimiento(db, solicitud, tenant_id, canal_atencion)
 
+    # Si nace con área, esa área empieza a contar sus 3 días hábiles.
+    tiempo_en_area.registrar_cambio(db, solicitud, None, None, con_zona(solicitud.fecha_creacion))
+
     if area_responsable and area_responsable.strip().lower() == "calidad":
         solicitud.radicado_calidad = generar_radicado_calidad(db, tenant_id)
 
@@ -173,7 +177,10 @@ def listar_pqrs(
     # prueba lo verifica. Sin esto, cada fila arrastra la descripción entera
     # —hasta cuatro mil caracteres— para no mostrarla.
     query = db.query(PQRSSolicitud).options(
-        load_only(*(getattr(PQRSSolicitud, campo) for campo in PQRSResumenOut.model_fields))
+        # Solo las columnas: los campos calculados (cuánto lleva en el área)
+        # salen de `area_desde`, que es una de ellas.
+        load_only(*(getattr(PQRSSolicitud, campo) for campo in PQRSResumenOut.model_fields
+                    if campo in PQRSSolicitud.__table__.c))
     ).filter(PQRSSolicitud.tenant_id == tenant_id)
     # Un punto de venta solo ve las de su sede. Ver `permisos.filtrar_visibles`.
     query = filtrar_visibles(query, current_user)
@@ -221,6 +228,24 @@ def pqrs_por_vencer(
     que /{pqrs_id}, o el path variable se la come.
     """
     return pendientes.por_vencer(db, tenant_id, dias)
+
+
+@router.get("/vencidas-en-area")
+def pqrs_vencidas_en_area(
+    dias: int = 0,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(get_current_user),
+):
+    """
+    Las PQRS que su área ya tiene más de 3 días hábiles (con `dias` > 0,
+    también las que están por cumplirlos), agrupadas por área y con los
+    correos de esa área. Ver `tiempo_en_area.vencidas_en_area`.
+
+    Lo consume el aviso diario de n8n. Va antes que `/{pqrs_id}`, o el path
+    variable se la come.
+    """
+    return tiempo_en_area.vencidas_en_area(db, tenant_id, dias)
 
 
 @router.post("/cerrar-vencidas")
