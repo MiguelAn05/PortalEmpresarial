@@ -310,6 +310,47 @@ casi nunca acierta al radicar y esa clasificación alimenta los indicadores.
 Al reclasificar se recalcula el SLA **desde la radicación** y la prioridad se
 ajusta al tipo nuevo salvo que alguien la haya cambiado a mano.
 
+**PQRS — nace con quien reparte; el área no se pide.** Ni el formulario
+público ni el interno preguntan el área: el cliente y el vendedor no tienen
+con qué criterio escogerla, adivinaban, y el caso arrancaba en un área que no
+le tocaba con su reloj corriendo (o, vacía, en la bandeja de nadie). Toda PQRS
+nace con el área de `pqrs.cerrar` (`permisos.area_de_entrada()`, Servicio al
+Cliente) y lo que mande un formulario cacheado en `area_responsable` **se
+acepta y se ignora**. Por eso al radicar ya no hay aviso de área (sería el
+mismo correo dos veces a Servicio al Cliente), y el radicado de Calidad sale
+solo al asignarle el caso a Calidad. **Al cliente no se le dice qué área lo
+tiene**: ni la consulta ni la respuesta de radicar llevan `area_responsable`
+(`tests/areaAlRadicar.test.mjs`). Lo interno —área asignada y área causante—
+no cambia.
+
+**PQRS — una autorización se puede DEVOLVER.** Además de `aprobada` y
+`rechazada`, el área que firma responde `devuelta`: «no me corresponde» o
+«falta información». No es un «no» y se cuenta aparte; antes la única salida
+era rechazar para sacársela de encima, o dejarla quieta. Vuelve a Servicio al
+Cliente como las otras dos, **con comentario obligatorio** (400 sin él), y la
+PQRS queda libre para pedir otra autorización bien dirigida.
+
+**PQRS — la causa: «Asociado a» + área causante.** El catálogo de causas
+que Calidad llevaba en Excel (Mala entrega, Calidad del producto, Toma de
+pedido…) es tabla por empresa (`pqrs_asociados`, se siembra sola al pedirla,
+se edita en Administración y no se borra: se desactiva). La PQRS guarda
+`asociado_id`, no el nombre. Reglas, en `modules/pqrs/asociados.py`:
+
+- **La marca quien reparte** (`pqrs.cerrar`), en `PATCH /pqrs/{id}/causa`,
+  que mueve las dos juntas y deja en el historial el valor anterior.
+- **Obligatoria para cerrar A MANO** (`gestion._validar`). El cliente al
+  confirmar y el cierre automático no se frenan por esto: esas se clasifican
+  **después de cerradas** (la causa es lo único que se edita con la PQRS
+  cerrada) y la lista tiene el filtro «Sin causa».
+- **El asociado PROPONE el área causante** (`area_sugerida`), nunca la
+  impone: `areaPropuesta()` solo pisa un área vacía o la que había puesto el
+  asociado anterior. `aplica_a` (`sede`/`institucional`) pone primero la
+  variante del canal por el que entró la PQRS.
+- **«En proceso» y «Anulada» no son causas** y no están en el catálogo: la
+  primera es dejarlo vacío, la segunda no es un motivo.
+- El `codigo` NO es único (el formato repite `ME` y `N`): la identidad es el
+  id. Es también la base para enrutar las PQRS automáticamente más adelante.
+
 **PQRS — cada punto de venta ve las suyas:** todo el portal ve todas las
 PQRS, **menos el área de las sedes** (la marcada con `es_de_sedes` en
 Administración › Áreas; en Protokimica, `Puntos de Venta`). A una sede le

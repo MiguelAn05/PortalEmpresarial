@@ -11,6 +11,7 @@ Es el mismo trato que ya recibe el tipo, que el cliente casi nunca acierta.
 """
 from app.models.catalogo import ProductoCatalogo
 from app.models.pqrs import PQRSSolicitud
+from tests.ayudas_causa import con_causa
 
 CANAL = "Venta institucional"   # tal como lo escribe core/canales.py
 
@@ -126,6 +127,7 @@ def test_no_se_cierra_con_el_producto_sin_confirmar(entorno, v):
     entorno.como("admin")
     pqrs_id = _radicar(entorno, producto_nombre="hipoclorito el de 20 litros").json()["id"]
 
+    con_causa(entorno, pqrs_id)
     r = entorno.patch(f"/pqrs/{pqrs_id}/estado", data={"estado": "cerrado"})
 
     v.check("no deja cerrar", r.status_code == 400, r.status_code)
@@ -160,6 +162,7 @@ def test_una_vez_confirmado_ya_cierra(entorno, v):
     pqrs_id = _radicar(entorno, producto_nombre="el blanqueador ese").json()["id"]
     _confirmar(entorno, pqrs_id, codigo)
 
+    con_causa(entorno, pqrs_id)
     r = entorno.patch(f"/pqrs/{pqrs_id}/estado", data={"estado": "cerrado"})
 
     v.check("cierra", r.status_code == 200, r.text[:200])
@@ -238,6 +241,7 @@ def test_una_pqrs_cerrada_ya_no_cambia_de_producto(entorno, v):
     codigo = _producto(entorno)
     pqrs_id = _radicar(entorno, producto_codigo=codigo,
                        producto_nombre="Hipoclorito de Sodio 13% x 20L").json()["id"]
+    con_causa(entorno, pqrs_id)
     entorno.patch(f"/pqrs/{pqrs_id}/estado", data={"estado": "cerrado"})
 
     r = _confirmar(entorno, pqrs_id, codigo)

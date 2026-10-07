@@ -30,6 +30,7 @@ logging.getLogger("pqrs.n8n").setLevel(logging.INFO)
 logging.getLogger("outlook").setLevel(logging.INFO)
 from app.modules.auth.router import router as auth_router
 from app.modules.pqrs.router import router as pqrs_router
+from app.modules.pqrs.router_asociados import router as pqrs_asociados_router
 from app.modules.pqrs.router_public import router as pqrs_public_router
 from app.modules.autorizaciones.router import router as autorizaciones_router
 from app.modules.master_planner.router import router as master_planner_router
@@ -132,6 +133,8 @@ def version_historial(_=Depends(get_current_user)):
 
 # ─── Módulos ───────────────────────────────────────────────
 app.include_router(auth_router)
+# Antes que el de PQRS: si no, `/pqrs/{pqrs_id}` se come `/pqrs/asociados`.
+app.include_router(pqrs_asociados_router)
 app.include_router(pqrs_router)
 app.include_router(pqrs_public_router)
 app.include_router(autorizaciones_router)

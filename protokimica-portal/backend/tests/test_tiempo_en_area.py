@@ -42,16 +42,16 @@ def _leer(entorno, pid):
 
 # ── Arranca, vuelve a cero, se detiene ───────────────────────
 
-def test_radicar_con_area_arranca_el_reloj(entorno, v):
+def test_radicar_arranca_el_reloj_de_quien_reparte(entorno, v):
+    """Toda PQRS nace con Servicio al Cliente, y su reloj empieza ahí."""
     r = entorno.post("/pqrs", data={"tipo": "queja", "descripcion": "Atención lenta.",
-                                    "cliente_nombre": "C", "area_responsable": "Servicio al Cliente"})
+                                    "cliente_nombre": "C"})
     v.check("radica", r.status_code == 201, r.text[:200])
-    v.check("Servicio al Cliente también cuenta", r.json()["area_desde"] is not None, r.json())
+    v.check("nace con Servicio al Cliente",
+            r.json()["area_responsable"] == "Servicio al Cliente", r.json())
+    v.check("y su reloj corre", r.json()["area_desde"] is not None, r.json())
     v.check("con 0 días", r.json()["dias_en_area"] == 0, r.json())
     v.check("y sin vencer", r.json()["area_vencida"] is False)
-
-    r = entorno.post("/pqrs", data={"tipo": "queja", "descripcion": "Sin área.", "cliente_nombre": "C"})
-    v.check("sin área no corre", r.json()["area_desde"] is None, r.json())
 
 
 def test_cambiar_de_area_guarda_el_tramo_y_arranca_de_cero(entorno, v):

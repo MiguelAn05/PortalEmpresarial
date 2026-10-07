@@ -173,3 +173,18 @@ def obtener_visible(db: Session, tenant_id: int, pqrs_id: int, usuario: User) ->
     if not solicitud:
         raise HTTPException(status_code=404, detail="PQRS no encontrada.")
     return solicitud
+
+
+def area_de_entrada(db: Session, tenant_id: int) -> str | None:
+    """
+    El área con la que NACE toda PQRS: la de quien reparte (`pqrs.cerrar`,
+    Servicio al Cliente en Protokimica).
+
+    Los formularios pedían el área, y ni el cliente ni el vendedor tienen
+    con qué criterio escogerla: adivinaban, y el caso arrancaba en un área
+    que no le tocaba con su reloj de 3 días corriendo. Y si la dejaban vacía,
+    la PQRS no estaba en la bandeja de nadie y su reloj no corría para nadie.
+    Quien decide a dónde va es quien reparte, así que el caso empieza ahí.
+    None si nadie tiene la capacidad por área: nace sin asignar, como antes.
+    """
+    return capacidades.area_principal(db, tenant_id, CAPACIDAD_GESTION)

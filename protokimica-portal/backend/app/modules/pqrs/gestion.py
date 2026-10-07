@@ -139,6 +139,23 @@ def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
             ),
         )
 
+    # La causa es lo que alimenta los informes y las OMP: cerrar sin ella es
+    # una PQRS que no cuenta para nada. Las que cierra el cliente o el cierre
+    # automático no pasan por aquí; esas se clasifican después de cerradas.
+    # Ver `pqrs/asociados.py`.
+    falta = [nombre for nombre, valor in (
+        ("«Asociado a»", solicitud.asociado_id),
+        ("el área causante", solicitud.area_causante),
+    ) if not valor]
+    if falta:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Antes de cerrar falta marcar {' y '.join(falta)} en «Causa "
+                "de la PQRS». De ahí salen los informes y las OMP."
+            ),
+        )
+
     # El cliente escribió el producto porque no lo encontró en el buscador.
     # Se corrige ANTES de cerrar, igual que el tipo: después ya no se puede,
     # y un nombre suelto vuelve inservible el informe por producto — que es

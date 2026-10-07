@@ -4,6 +4,8 @@ import SupervisionAreas from './SupervisionAreas.jsx'
 import Capacidades from './Capacidades.jsx'
 import Areas from './Areas.jsx'
 import Canales from './Canales.jsx'
+import Asociados from './Asociados.jsx'
+import { estaContratado } from '../../core/modulos.js'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/useAuth.js'
 import api from '../../core/api.js'
@@ -670,6 +672,8 @@ export default function Admin() {
         <GestionUsuarios />
         <Areas />
         <Canales />
+        {/* Solo con PQRS contratado: sin él, el endpoint responde 403. */}
+        {estaContratado(user, 'pqrs') && <Asociados />}
         <TiposAutorizacion />
         <Capacidades />
         <CodigosQR />

@@ -18,14 +18,16 @@ from app.models.user import User
 from app.models.pqrs import PQRSSolicitud, PQRSSeguimiento
 from app.modules.pqrs.schemas import (
     AlcancePQRS, PQRSOut, PQRSDetailOut, PQRSResumenOut, PQRSAsignar,
-    PQRSAsignarArea, PQRSAreaCausante, PQRSEditarDatos, ProductoCorregir, ProductoIn,
+    PQRSAsignarArea, PQRSCausa, PQRSEditarDatos, ProductoCorregir, ProductoIn,
     PuntoVentaOut, VisibilidadPQRS,
 )
 from app.modules.pqrs.permisos import (
     solo_gestion_pqrs, puede_gestionar_pqrs, puede_cambiar_area,
-    filtrar_visibles, obtener_visible, puntos_visibles,
+    filtrar_visibles, obtener_visible, puntos_visibles, area_de_entrada,
 )
-from app.modules.pqrs import edicion, pendientes, tiempo_en_area
+from app.modules.pqrs import asociados, edicion, pendientes, tiempo_en_area
+from app.modules.pqrs.permisos import CAPACIDAD_GESTION
+from app.core import areas, capacidades
 from app.modules.pqrs import productos as pqrs_productos
 from app.modules.pqrs.cierre_automatico import cerrar_vencidas, plazo_confirmacion
 from app.modules.pqrs.gestion import aplicar_gestion
@@ -35,7 +37,7 @@ from app.core.archivos import (
 from app.core.notificaciones import disparar_webhook_n8n, enviar_avisos
 from app.modules.pqrs.service import (
     calcular_fecha_limite_sla, calcular_prioridad,
-    asignar_codigo_seguimiento, generar_radicado_calidad,
+    asignar_codigo_seguimiento,
     validar_largos, SLA_DIAS_POR_TIPO,
 )
 from app.modules.pqrs.notificaciones import avisos_creacion
@@ -53,6 +55,9 @@ async def crear_pqrs(
     # Tipo y descripción
     tipo: str = Form(...),
     descripcion: str = Form(...),
+    # Ya no lo manda la pantalla y se IGNORA: la PQRS nace con quien reparte
+    # (`permisos.area_de_entrada`). Se sigue aceptando para no romperle el
+    # envío a una pestaña abierta con la versión anterior.
     area_responsable: str = Form(None),
     # Datos del cliente — mismos campos que el formulario público
     empresa: str = Form(None),
@@ -125,7 +130,7 @@ async def crear_pqrs(
         adjunto_factura=ruta_factura,
         adjunto_video=ruta_video,
         descripcion=descripcion,
-        area_responsable=area_responsable,
+        area_responsable=area_de_entrada(db, tenant_id),
         estado="recibido",
         prioridad=calcular_prioridad(tipo),
         fecha_limite_sla=calcular_fecha_limite_sla(tipo),
@@ -142,11 +147,10 @@ async def crear_pqrs(
     # venta institucional (ver Administración › Canales).
     asignar_codigo_seguimiento(db, solicitud, tenant_id, canal_atencion)
 
-    # Si nace con área, esa área empieza a contar sus 3 días hábiles.
+    # Quien reparte empieza a contar sus 3 días hábiles desde la radicación.
+    # El radicado de Calidad ya no sale de aquí: se genera cuando el caso
+    # se le asigna a Calidad (`gestion.aplicar_gestion`).
     tiempo_en_area.registrar_cambio(db, solicitud, None, None, con_zona(solicitud.fecha_creacion))
-
-    if area_responsable and area_responsable.strip().lower() == "calidad":
-        solicitud.radicado_calidad = generar_radicado_calidad(db, tenant_id)
 
     db.add(PQRSSeguimiento(
         pqrs_id=solicitud.id,
@@ -298,6 +302,7 @@ def obtener_pqrs(
         puede_cerrar=escribe and servicio_cliente,
         puede_reclasificar=escribe and servicio_cliente,
         puede_editar_datos=escribe and solicitud.estado != "cerrado",
+        puede_marcar_causa=escribe and servicio_cliente,
     )
     if solicitud.estado == "resuelto" and solicitud.fecha_resuelto:
         detalle.plazo_confirmacion = plazo_confirmacion(solicitud.fecha_resuelto)
@@ -418,31 +423,67 @@ def asignar_area(
     return solicitud
 
 
-@router.patch("/{pqrs_id}/area-causante", response_model=PQRSOut)
-def asignar_area_causante(
+@router.patch("/{pqrs_id}/causa", response_model=PQRSOut)
+def marcar_causa(
     pqrs_id: int,
-    payload: PQRSAreaCausante,
+    payload: PQRSCausa,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
     _: User = Depends(solo_lectura_no),
 ):
     """
-    Marca qué área fue la CAUSANTE del problema (ej: 'Producción fue el
-    culpable'). Es distinto de area_responsable (que gestiona el caso día
-    a día) — este campo es de uso interno, no lo llena el cliente, y sirve
-    para sacar reportes de cuántas PQRS son causadas por cada área.
+    La causa de la PQRS: «Asociado a» y el área CAUSANTE. Es distinta del
+    área responsable (quien gestiona el caso): esta dice de dónde salió el
+    problema, y de ella salen los informes y las OMP. Ver `pqrs/asociados.py`.
+
+    La marca quien reparte (`pqrs.cerrar`), y se puede con la PQRS cerrada:
+    las que cierra el cliente o el cierre automático no pasan por quien
+    reparte, y si no se pudieran clasificar después quedarían sin causa para
+    siempre.
     """
+    if not puede_gestionar_pqrs(current_user):
+        quien = capacidades.quienes_lo_hacen(db, tenant_id, CAPACIDAD_GESTION)
+        raise HTTPException(
+            status_code=403,
+            detail=(f"La causa de una PQRS la marca {quien}. Si sabes cuál fue, "
+                    "escríbelo en un comentario y la clasifican."),
+        )
     solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
 
-    solicitud.area_causante = payload.area_causante
+    asociado = None
+    if payload.asociado_id is not None:
+        asociado = asociados.obtener(db, tenant_id, payload.asociado_id)
+        if not asociado:
+            raise HTTPException(status_code=404, detail="Ese «Asociado a» no existe. Elige uno de la lista.")
+        # Uno desactivado se conserva donde ya estaba, pero no se pone nuevo.
+        if not asociado.activo and asociado.id != solicitud.asociado_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"«{asociado.nombre}» está desactivado. Elige otro de la lista.",
+            )
 
-    db.add(PQRSSeguimiento(
-        pqrs_id=solicitud.id,
-        usuario_id=current_user.id,
-        tipo_evento="area_causante",
-        comentario=f"Área causante marcada como: {payload.area_causante}.",
-    ))
+    area = (payload.area_causante or "").strip() or None
+    if area and area != solicitud.area_causante and not areas.es_valida(db, tenant_id, area):
+        raise HTTPException(status_code=400, detail=f"'{area}' no es un área del portal. Elige una de la lista.")
+
+    cambios = []
+    if (asociado.id if asociado else None) != solicitud.asociado_id:
+        cambios.append(f"Asociado a: {asociados.etiqueta(solicitud.asociado)} -> "
+                       f"{asociados.etiqueta(asociado)}.")
+        solicitud.asociado_id = asociado.id if asociado else None
+    if area != solicitud.area_causante:
+        cambios.append(f"Área causante: {solicitud.area_causante or 'sin definir'} -> "
+                       f"{area or 'sin definir'}.")
+        solicitud.area_causante = area
+
+    if cambios:
+        db.add(PQRSSeguimiento(
+            pqrs_id=solicitud.id,
+            usuario_id=current_user.id,
+            tipo_evento="causa",
+            comentario=" ".join(cambios),
+        ))
     db.commit()
     db.refresh(solicitud)
     return solicitud

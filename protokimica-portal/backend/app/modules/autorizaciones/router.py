@@ -2,7 +2,8 @@
 Módulo de autorizaciones.
 - Admin y Líderes pueden crear tipos de autorización
 - Agentes pueden solicitar autorización para una PQRS
-- Quien pertenece al área autorizadora aprueba o rechaza (por área, no por cargo)
+- Quien pertenece al área autorizadora aprueba, rechaza o DEVUELVE (por
+  área, no por cargo)
 - Una PQRS con autorización pendiente queda bloqueada
 
 **Pedir una autorización mueve la PQRS al área autorizadora, y responderla la
@@ -15,6 +16,15 @@ Ese movimiento lo hace el flujo, no una persona, y por eso no pasa por
 `pqrs.permisos.puede_cambiar_area`: reasignar a mano sigue siendo de Servicio
 al Cliente. Y por eso mismo vuelve a Servicio al Cliente al responderse — es
 quien reparte, y quien decide qué sigue después del sí o del no.
+
+**Devolver no es rechazar.** Rechazar es un «no» del área que firma: el caso
+es suyo y la respuesta es negativa. Devolver es «esto no me tocaba» —la PQRS
+estaba mal dirigida, el tipo de autorización no aplica a esta área, o falta
+información para decidir—. Antes solo había sí o no, así que una PQRS mal
+dirigida se quedaba quieta en la bandeja de quien no podía hacer nada con
+ella, o se rechazaba para sacársela de encima y el informe contaba un «no»
+que nadie dio. Vuelve a quien reparte, como las otras dos, y exige comentario:
+una devolución muda obliga a una llamada para saber qué pasó.
 """
 from datetime import datetime, timezone
 
@@ -43,6 +53,10 @@ from app.modules.pqrs import tiempo_en_area
 from app.modules.pqrs.notificaciones import (
     avisos_autorizacion_pendiente, avisos_autorizacion_respondida,
 )
+
+# aprobada: el área firmó que sí. rechazada: firmó que no. devuelta: no le
+# correspondía o le falta información — no es un «no», y se cuenta aparte.
+DECISIONES = ("aprobada", "rechazada", "devuelta")
 
 router = APIRouter(
     prefix="/autorizaciones", tags=["Autorizaciones"],
@@ -250,14 +264,27 @@ async def responder_autorizacion(
     current_user: User = Depends(solo_lectura_no),
 ):
     """
-    Aprueba o rechaza una autorización, y devuelve la PQRS a Servicio al Cliente.
+    Aprueba, rechaza o devuelve una autorización, y la PQRS vuelve a quien
+    reparte (Servicio al Cliente en Protokimica).
 
     La responde quien pertenece al ÁREA autorizadora, sin importar su cargo,
     más admin. Los roles "lectura" y "gerencia" no escriben nada en el portal
     y aquí tampoco: eso lo corta solo_lectura_no.
     """
-    if decision not in ("aprobada", "rechazada"):
-        raise HTTPException(status_code=400, detail="La decisión debe ser 'aprobada' o 'rechazada'.")
+    if decision not in DECISIONES:
+        raise HTTPException(
+            status_code=400,
+            detail="La decisión debe ser 'aprobada', 'rechazada' o 'devuelta'.",
+        )
+    comentario_respuesta = (comentario_respuesta or "").strip() or None
+    if decision == "devuelta" and not comentario_respuesta:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Para devolver la autorización escribe por qué: si no le "
+                "corresponde a tu área, o qué información falta."
+            ),
+        )
 
     autorizacion = db.query(AutorizacionPQRS).filter(
         AutorizacionPQRS.id == autorizacion_id,
@@ -293,6 +320,12 @@ async def responder_autorizacion(
     autorizacion.fecha_respuesta = datetime.now(timezone.utc)
 
     detalle = [f"Autorización '{autorizacion.tipo.nombre}' {decision}."]
+    if decision == "devuelta":
+        detalle = [
+            f"Autorización '{autorizacion.tipo.nombre}' devuelta por "
+            f"{autorizacion.tipo.area_autorizadora}: no le corresponde o falta "
+            "información."
+        ]
 
     # Con la respuesta ya dada, el caso vuelve a quien reparte. Dejarlo en el
     # área autorizadora sería dejarlo con quien ya hizo su parte: nadie más lo
@@ -308,7 +341,7 @@ async def responder_autorizacion(
         tiempo_en_area.registrar_cambio(db, pqrs, area_que_firmo, pqrs.estado)
 
     if comentario_respuesta:
-        detalle.append(comentario_respuesta.strip())
+        detalle.append(comentario_respuesta)
 
     db.add(PQRSSeguimiento(
         pqrs_id=pqrs_id,

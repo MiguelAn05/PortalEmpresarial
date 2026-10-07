@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, func
+from sqlalchemy import (
+    Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func,
+)
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.core.dias_habiles import contar_habiles, limite_en_habiles
@@ -11,6 +13,11 @@ from app.core.fechas import con_zona
 # cada vez que el caso llega a un área —incluida la que firma una
 # autorización—. Ver `modules/pqrs/tiempo_en_area.py`.
 MAX_DIAS_HABILES_EN_AREA = 3
+
+# Atados a `ASOCIADO_*` de `frontend/src/modules/pqrs/constants.js`.
+MAX_CODIGO_ASOCIADO = 20
+MAX_NOMBRE_ASOCIADO = 150
+MAX_GRUPO_ASOCIADO = 60
 
 
 class PQRSSolicitud(Base):
@@ -40,6 +47,11 @@ class PQRSSolicitud(Base):
     descripcion = Column(Text, nullable=False)
     area_responsable = Column(String(100), nullable=True)  # área que GESTIONA el caso (asignación operativa)
     area_causante = Column(String(100), nullable=True)  # área CAUSANTE del problema, para indicadores — solo editable internamente
+    # «Asociado a»: la causa de la PQRS en el catálogo de la empresa (Mala
+    # entrega, Calidad del producto…). Junto con el área causante es «la
+    # causa», la marca quien reparte y es obligatoria para cerrar a mano.
+    # Ver `modules/pqrs/asociados.py`.
+    asociado_id = Column(Integer, ForeignKey('pqrs_asociados.id'), nullable=True, index=True)
     asignado_a = Column(Integer, ForeignKey('users.id'), nullable=True)
     estado = Column(String(20), nullable=False, default='recibido')
     prioridad = Column(String(20), nullable=False, default='media')
@@ -68,6 +80,7 @@ class PQRSSolicitud(Base):
     fecha_resuelto = Column(DateTime(timezone=True), nullable=True)
 
     asignado = relationship('User', foreign_keys=[asignado_a])
+    asociado = relationship('PQRSAsociado')
     seguimientos = relationship('PQRSSeguimiento', back_populates='pqrs', cascade='all, delete-orphan')
     encuesta = relationship('PQRSEncuesta', back_populates='pqrs', uselist=False, cascade='all, delete-orphan')
     adjuntos_solucion = relationship(
@@ -108,6 +121,49 @@ class PQRSSolicitud(Base):
         columnas que dicen lo mismo terminan diciendo cosas distintas.
         """
         return any(p.por_confirmar for p in self.productos)
+
+
+class PQRSAsociado(Base):
+    """
+    «Asociado a»: el catálogo de causas de una PQRS (Mala entrega, Calidad
+    del producto, Toma de pedido…). Es la lista con la que Calidad ya sacaba
+    sus informes en Excel, y de la que salen las OMP y la ruta del caso.
+
+    **Es tabla y no una lista en el código** porque la cambia la empresa sin
+    desplegar, igual que las áreas y los canales. Se siembra sola la primera
+    vez que se pide (`asociados.del_tenant`). No se borra: se desactiva, y
+    las PQRS que ya lo tenían lo conservan.
+
+    El `codigo` (`ME`, `TP-PV`…) NO es único: el formato oficial repite `ME`
+    para la mala entrega del CEDI y la del punto de venta, y `N` para tres
+    novedades del cliente. La identidad es el id; lo único es el nombre.
+    """
+    __tablename__ = 'pqrs_asociados'
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'nombre', name='uq_pqrs_asociado_tenant_nombre'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete='CASCADE'),
+                       nullable=False, index=True)
+    codigo = Column(String(MAX_CODIGO_ASOCIADO), nullable=False)
+    nombre = Column(String(MAX_NOMBRE_ASOCIADO), nullable=False)
+    # Para agrupar la lista y que no sean veinte opciones seguidas.
+    grupo = Column(String(MAX_GRUPO_ASOCIADO), nullable=False)
+    # El área causante que se propone al elegirlo. Solo se PROPONE: quien
+    # clasifica la cambia si en ese caso fue otra.
+    area_sugerida = Column(String(100), nullable=True)
+    # «(S) Servicio (puede volverse OMP)»: una marca del catálogo, no del
+    # nombre, para que renombrarlo no apague la regla.
+    sugiere_omp = Column(Boolean, nullable=False, default=False, server_default='false')
+    # Si es la variante de un tipo de canal (`sede` o `institucional`):
+    # «Mala Entrega (Pventa)», «Novedad del cliente (VInst)». La pantalla la
+    # pone primero cuando la PQRS entró por ese tipo de canal. Vacío: aplica
+    # a cualquiera.
+    aplica_a = Column(String(20), nullable=True)
+    orden = Column(Integer, nullable=False, default=0, server_default='0')
+    activo = Column(Boolean, nullable=False, default=True, server_default='true')
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class PQRSProducto(Base):

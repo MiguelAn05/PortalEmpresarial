@@ -7,12 +7,13 @@ import { useAreas } from '../../core/areas.js'
 import {
   IconoAlDia, IconoAlerta, IconoBuscar, IconoCandado, IconoClip,
   IconoComentario, IconoEditar, IconoEmpresa, IconoEscalar, IconoEstrella,
-  IconoEtiqueta, IconoRecargar, IconoRechazo, IconoRecibo, IconoReloj, IconoUsuario,
+  IconoEtiqueta, IconoFlecha, IconoRecargar, IconoRechazo, IconoRecibo, IconoReloj, IconoUsuario,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 import { nombrePrincipal, plazoCorriendo, tiempoEnArea } from './constants.js'
 import { BotonEditar, ModalEditarDatos, PanelAdjuntos } from './EdicionDatos.jsx'
 import { ListaProductos } from './ProductosPQRS.jsx'
+import CausaPQRS from './CausaPQRS.jsx'
 
 // El color de un badge es una escala de gravedad, no un arcoíris: morado,
 // naranja y teal elegidos al azar obligan a mirar la palabra igual, así que
@@ -388,6 +389,15 @@ function PanelGestion({ pqrs, alcance, hayPendiente, invalidar }) {
 }
 
 // ── Panel de autorizaciones ────────────────────────────────────────
+// «Devuelta» se cuenta aparte de «Rechazada»: el área no dijo que no, dijo
+// que no le correspondía o que le faltaba información.
+const ETIQUETA_AUTORIZACION = {
+  pendiente: 'Pendiente',
+  aprobada:  'Aprobada',
+  rechazada: 'Rechazada',
+  devuelta:  'Devuelta',
+}
+
 function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, hayPendiente, invalidar }) {
   const [tipoId, setTipoId]         = useState('')
   const [comentario, setComentario] = useState('')
@@ -455,6 +465,7 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
             <div key={aut.id} className={`rounded-xl p-4 border ${
               aut.estado === 'pendiente'  ? 'bg-alerta-bg border-ambar/30' :
               aut.estado === 'aprobada'   ? 'bg-positivo-bg border-positivo/25'  :
+              aut.estado === 'devuelta'   ? 'bg-superficie-2 border-borde-fuerte' :
                                             'bg-negativo-bg border-negativo/25'
             }`}>
               <div className="flex items-start justify-between gap-2 mb-2">
@@ -465,10 +476,10 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
                   aut.estado === 'pendiente'  ? 'bg-alerta-bg text-alerta' :
                   aut.estado === 'aprobada'   ? 'bg-positivo-bg text-positivo'  :
+                  aut.estado === 'devuelta'   ? 'bg-white text-texto-2 border border-borde' :
                                                 'bg-negativo-bg text-negativo'
                 }`}>
-                  {aut.estado === 'pendiente' ? 'Pendiente' :
-                   aut.estado === 'aprobada' ? 'Aprobada' : 'Rechazada'}
+                  {ETIQUETA_AUTORIZACION[aut.estado] || aut.estado}
                 </span>
               </div>
 
@@ -513,7 +524,7 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
                       comentario: e.target.value,
                       adjunto: respuesta.id === aut.id ? respuesta.adjunto : null,
                     })}
-                    placeholder="Comentario de la decisión (opcional)..."
+                    placeholder="Comentario de la decisión (obligatorio para devolver)..."
                     rows={2}
                     className="w-full px-3 py-2 rounded-lg border border-borde text-xs text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none"
                   />
@@ -554,6 +565,31 @@ function PanelAutorizaciones({ pqrsId, pqrsEstado, user, tipos, autorizaciones, 
                       <IconoRechazo tam={15} /> Rechazar
                     </button>
                   </div>
+                  {/* Devolver no es rechazar: es «esto no le toca a mi área»
+                      o «falta información para decidir». La PQRS vuelve a
+                      Servicio al Cliente para que la redirija, en vez de
+                      quedarse quieta aquí o rechazarse por salir de ella.
+                      Exige comentario — una devolución muda obliga a una
+                      llamada. */}
+                  {(() => {
+                    const comentarioDevolucion = respuesta.id === aut.id ? respuesta.comentario.trim() : ''
+                    return (
+                      <button
+                        onClick={() => mutResponder.mutate({
+                          autId: aut.id,
+                          decision: 'devuelta',
+                          comentario: comentarioDevolucion,
+                          adjunto: respuesta.id === aut.id ? respuesta.adjunto : null,
+                        })}
+                        disabled={mutResponder.isPending || !comentarioDevolucion}
+                        title={comentarioDevolucion ? '' : 'Escribe primero por qué la devuelves'}
+                        className="w-full inline-flex items-center justify-center gap-1.5 border border-borde-fuerte bg-white text-texto font-semibold py-2 rounded-lg text-xs transition hover:bg-superficie-2 disabled:opacity-50"
+                      >
+                        <IconoFlecha tam={15} className="rotate-180" />
+                        Devolver: no le corresponde a mi área o falta información
+                      </button>
+                    )
+                  })()}
                 </div>
               )}
             </div>
@@ -718,7 +754,6 @@ function EncuestaSection({ encuesta }) {
 
 // ── Pantalla principal ─────────────────────────────────────────────
 export default function PQRSDetail() {
-  const listaAreas = useAreas()
   const { id }      = useParams()
   const navigate    = useNavigate()
   const queryClient = useQueryClient()
@@ -749,14 +784,6 @@ export default function PQRSDetail() {
     queryClient.invalidateQueries({ queryKey: ['pqrs', id] })
     queryClient.invalidateQueries({ queryKey: ['pqrs'] })
   }
-
-  const mutAreaCausante = useMutation({
-    mutationFn: (area_causante) => api.patch(`/pqrs/${id}/area-causante`, { area_causante }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pqrs', id] })
-      queryClient.invalidateQueries({ queryKey: ['pqrs'] })
-    },
-  })
 
   if (isLoading) return (
     <div className="flex items-center justify-center py-20 text-texto-2 text-sm">Cargando...</div>
@@ -847,24 +874,6 @@ export default function PQRSDetail() {
             <div className="mt-1">
               <SLALabel pqrs={pqrs} />
             </div>
-            {/* Área causante — distinta del área que gestiona el caso.
-                Solo de uso interno, para poder sacar reportes de "qué área
-                fue la responsable del problema" más adelante en Indicadores. */}
-            {puedeEditar ? (
-              <select
-                value={pqrs.area_causante || ''}
-                onChange={(e) => mutAreaCausante.mutate(e.target.value)}
-                className="mt-2 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg px-2 py-1 border border-white/20 focus:outline-none cursor-pointer transition"
-                title="Área causante del problema (uso interno)"
-              >
-                <option value="" className="text-texto">Área causante: sin definir</option>
-                {listaAreas.map(a => <option key={a} value={a} className="text-texto">Causante: {a}</option>)}
-              </select>
-            ) : (
-              pqrs.area_causante && (
-                <div className="mt-2 text-xs text-white/60">Causante: {pqrs.area_causante}</div>
-              )
-            )}
           </div>
         </div>
       </div>
@@ -960,6 +969,11 @@ export default function PQRSDetail() {
             <h3 className="font-semibold text-acento-fuerte mb-3 text-sm">Descripción del caso</h3>
             <p className="text-sm text-texto leading-relaxed whitespace-pre-wrap">{pqrs.descripcion}</p>
           </div>
+
+          {/* La causa va antes de gestionar: es lo que falta para poder
+              cerrar. Se puede marcar también con la PQRS cerrada, porque las
+              que cierra el cliente al confirmar no pasan por quien reparte. */}
+          <CausaPQRS pqrs={pqrs} puedeMarcar={Boolean(alcance?.puede_marcar_causa)} />
 
           {/* Gestionar: área, estado, comentario y evidencia en un solo guardado. */}
           {puedeEditar && pqrs.estado !== 'cerrado' && (

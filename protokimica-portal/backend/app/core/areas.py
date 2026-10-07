@@ -169,6 +169,7 @@ COLUMNAS_CON_AREA = [
     ("tipos_autorizacion", "area_autorizadora", None),
     ("pqrs_solicitudes", "area_responsable", None),
     ("pqrs_solicitudes", "area_causante", None),
+    ("pqrs_asociados", "area_sugerida", None),
     ("pqrs_pasos_area", "area", None),
     ("mp_proyectos", "area", None),
     ("mp_proyecto_areas", "area", ("proyecto_id", "mp_proyectos")),

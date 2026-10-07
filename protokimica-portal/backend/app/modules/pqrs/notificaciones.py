@@ -244,11 +244,10 @@ def _aviso_cliente_cierre(solicitud, motivo_cierre: str) -> list[Aviso]:
 
 # ── Lo que usan los routers ──────────────────────────────────────────
 
-def _aviso_area_creacion(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
-    # El área se lee aquí dentro, no en el argumento de `_protegido`: un
-    # argumento se evalúa ANTES de entrar a la función que lo protege, así
-    # que leerlo afuera dejaba justo ese acceso sin red.
-    return _aviso_area(db, tenant_id, solicitud, solicitud.area_responsable, "creacion")
+# Al radicar ya no hay aviso de ÁREA: toda PQRS nace con quien reparte
+# (`permisos.area_de_entrada`), que ya recibe `_aviso_servicio_cliente`.
+# Mandar los dos eran dos correos a la misma gente por la misma solicitud.
+# Las demás áreas se enteran cuando se les asigna (`avisos_reasignacion`).
 
 
 def avisos_creacion(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
@@ -256,7 +255,6 @@ def avisos_creacion(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
     return [
         *protegido(_aviso_cliente_creacion, solicitud),
         *protegido(_aviso_servicio_cliente, db, tenant_id, solicitud),
-        *protegido(_aviso_area_creacion, db, tenant_id, solicitud),
     ]
 
 

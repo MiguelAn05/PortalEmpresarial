@@ -3,6 +3,7 @@ Reclasificacion del tipo de una PQRS y cierre restringido a Servicio al
 cliente, contra la API real.
 """
 from datetime import datetime, timedelta, timezone
+from tests.ayudas_causa import con_causa
 
 from app.models.pqrs import PQRSSolicitud
 from app.models.user import User
@@ -51,6 +52,7 @@ def test_solo_servicio_al_cliente_cierra(entorno, v):
 
     # Alguien de otra area no puede cerrar
     portal.como("logistica")
+    con_causa(portal, pid)
     r = portal.patch(f"/pqrs/{pid}/estado", data={"estado": "cerrado"})
     v.check("Logistica no puede cerrar -> 403", r.status_code == 403, r.text[:120])
     v.check("el mensaje dice a quien pedirle",
@@ -63,6 +65,7 @@ def test_solo_servicio_al_cliente_cierra(entorno, v):
 
     # Servicio al cliente si cierra
     portal.como("calidad")
+    con_causa(portal, pid)
     r = portal.patch(f"/pqrs/{pid}/estado", data={"estado": "cerrado"})
     v.check("Servicio al cliente cierra -> 200", r.status_code == 200, r.text[:150])
     v.check("queda con fecha de cierre", r.json()["fecha_cierre"] is not None, r.json())
@@ -70,6 +73,7 @@ def test_solo_servicio_al_cliente_cierra(entorno, v):
     # Admin tambien, siempre
     pid2 = _crear_pqrs(portal)
     portal.como("admin")
+    con_causa(portal, pid2)
     v.check("admin tambien puede cerrar",
             portal.patch(f"/pqrs/{pid2}/estado", data={"estado": "cerrado"}).status_code == 200)
 
@@ -152,6 +156,7 @@ def test_no_se_reclasifica_una_pqrs_cerrada(entorno, v):
     _con_area(portal, "calidad", "Servicio al Cliente")
     pid = _crear_pqrs(portal)
     portal.como("calidad")
+    con_causa(portal, pid)
     portal.patch(f"/pqrs/{pid}/estado", data={"estado": "cerrado"})
 
     r = portal.patch(f"/pqrs/{pid}/tipo", data={"tipo": "queja", "motivo": "tarde"})

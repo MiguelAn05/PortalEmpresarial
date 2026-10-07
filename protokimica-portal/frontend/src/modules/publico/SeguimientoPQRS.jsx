@@ -154,10 +154,6 @@ export default function SeguimientoPQRS() {
                   <span className="font-medium text-texto">{TIPOS[pqrs.tipo] || pqrs.tipo}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-texto-2 block font-semibold uppercase tracking-wide">Área</span>
-                  <span className="font-medium text-texto">{pqrs.area_responsable || 'Por asignar'}</span>
-                </div>
-                <div>
                   <span className="text-xs text-texto-2 block font-semibold uppercase tracking-wide">Radicada</span>
                   <span className="font-medium text-texto">{formatFecha(pqrs.fecha_creacion)}</span>
                 </div>

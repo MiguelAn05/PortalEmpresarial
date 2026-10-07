@@ -5,6 +5,9 @@ import api from '../../core/api.js'
 import { puedeVerModulo } from '../../core/modulos.js'
 import { useAuth } from '../../core/useAuth.js'
 import { useAreas } from '../../core/areas.js'
+import {
+  SIN_CAUSA, agruparAsociados, coincideAsociado, etiquetaAsociado, useAsociados,
+} from './asociados.js'
 import { canalesConPrefijo, nombresDe, useCanales } from '../../core/canales.js'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
 import {
@@ -146,7 +149,6 @@ function ArchivoElegido({ etiqueta, acepta, ayuda, archivo, onCambio }) {
 // así que arranca marcado. Si no, radicaría sin canal, el caso saldría
 // `PK-…` y desaparecería de su propia lista al guardarlo.
 function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
-  const listaAreas = useAreas()
   const listaCanales = useCanales()
   const FORM_VACIO = {
     tipo: 'queja',
@@ -159,7 +161,6 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
     departamento: '',
     canal_atencion: canalInicial,
     factura_numero: '',
-    area_responsable: '',
     descripcion: '',
   }
   const [form, setForm] = useState(FORM_VACIO)
@@ -223,7 +224,9 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
 
         <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
 
-          {/* Tipo y área */}
+          {/* Tipo. El área no se pide: quien radica no tiene con qué saber
+              cuál le toca. La PQRS nace con quien reparte (Servicio al
+              Cliente) y ahí se asigna. */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Tipo *</label>
@@ -233,13 +236,6 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
                 <option value="reclamo">Reclamo</option>
                 <option value="sugerencia">Sugerencia</option>
                 <option value="felicitacion">Felicitación</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Área responsable</label>
-              <select name="area_responsable" value={form.area_responsable} onChange={handleChange} className={inputCls}>
-                <option value="">Sin asignar</option>
-                {listaAreas.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
           </div>
@@ -682,6 +678,10 @@ export default function PQRSList() {
   const [filtroFechaHasta, setFiltroFechaHasta]       = useState('')
   const [filtroPuntoVenta, setFiltroPuntoVenta]       = useState('')
   const [filtroAreaAsignada, setFiltroAreaAsignada]   = useState('')
+  // «Asociado a», o SIN_CAUSA para encontrar las que faltan por clasificar
+  // (sobre todo las que cerró el cliente sin pasar por Servicio al Cliente).
+  const [filtroAsociado, setFiltroAsociado]           = useState('')
+  const listaAsociados = useAsociados()
 
   const { data: pqrsList = [], isLoading, isError } = useQuery({
     queryKey: ['pqrs', filtroEstado, filtroTipo],
@@ -734,6 +734,8 @@ export default function PQRSList() {
     if (filtroPuntoVenta && !coincidePuntoVenta(p.codigo_seguimiento, filtroPuntoVenta)) return false
 
     if (!coincideAreaAsignada(p, filtroAreaAsignada)) return false
+
+    if (!coincideAsociado(p, filtroAsociado)) return false
 
     return true
   })
@@ -850,12 +852,12 @@ export default function PQRSList() {
       {(() => {
         // La tarjeta cuenta como filtro activo: si no, «Limpiar filtros» la
         // dejaría puesta y la lista seguiría recortada después de limpiar.
-        const hayFiltrosActivos = foco || filtroEstado || filtroTipo || filtroFechaDesde || filtroFechaHasta || filtroPuntoVenta || filtroAreaAsignada
+        const hayFiltrosActivos = foco || filtroEstado || filtroTipo || filtroFechaDesde || filtroFechaHasta || filtroPuntoVenta || filtroAreaAsignada || filtroAsociado
         const limpiarTodo = () => {
           setFoco(null)
           setFiltroEstado(''); setFiltroTipo('')
           setFiltroFechaDesde(''); setFiltroFechaHasta('')
-          setFiltroPuntoVenta(''); setFiltroAreaAsignada('')
+          setFiltroPuntoVenta(''); setFiltroAreaAsignada(''); setFiltroAsociado('')
         }
         return (
           <div className="mb-4">
@@ -941,6 +943,25 @@ export default function PQRSList() {
                     <option value={AREA_SIN_ASIGNAR}>Sin asignar</option>
                     {areasDisponibles.map(a => (
                       <option key={a} value={a}>{a}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Asociado a</label>
+                  <select
+                    value={filtroAsociado}
+                    onChange={(e) => setFiltroAsociado(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
+                  >
+                    <option value="">Todos</option>
+                    <option value={SIN_CAUSA}>Sin causa (falta clasificar)</option>
+                    {agruparAsociados(listaAsociados).map(({ grupo, items }) => (
+                      <optgroup key={grupo} label={grupo}>
+                        {items.map(a => (
+                          <option key={a.id} value={a.id}>{etiquetaAsociado(a)}</option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>

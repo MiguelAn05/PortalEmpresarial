@@ -2,7 +2,6 @@ import { useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../../core/api.js'
 import { LOGO, LOGO_ALT, NOMBRE_EMPRESA } from '../../core/marca.js'
-import { useAreas } from '../../core/areas.js'
 import { canalPorCodigo, nombresDe, useCanales } from '../../core/canales.js'
 import AvisoDatos from '../../core/components/AvisoDatos.jsx'
 import {
@@ -589,7 +588,6 @@ function BarraPasos({ pasoActual, totalPasos, labels }) {
 
 // ── Componente principal ───────────────────────────────────────────
 export default function FormularioPQRS() {
-  const listaAreas = useAreas({ publico: true })
   // De dónde entró el cliente. Si llegó por el QR de un punto de venta
   // (`/q/PVG`), el canal viene del letrero que tiene enfrente en vez de una
   // lista donde tendría que acertar. Importa porque el canal decide el
@@ -614,7 +612,6 @@ export default function FormularioPQRS() {
     // es el de la sede (ver `canalElegido`): los canales llegan del servidor
     // un instante después de abrir, y por eso no se puede fijar aquí.
     canal_atencion: '',
-    area_responsable: '',
     descripcion: '',
     comentario: '',
   })
@@ -749,7 +746,6 @@ export default function FormularioPQRS() {
       // El canal del QR se conserva solo (ver `canalElegido`): quien radica
       // otra sigue en la misma sede.
       canal_atencion: '',
-      area_responsable: '',
       descripcion: '', comentario: '',
     })
     setProductos([productoVacio()])
@@ -943,16 +939,6 @@ export default function FormularioPQRS() {
                     {nombresDe(listaCanales).map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Área relacionada</label>
-                <select name="area_responsable" value={form.area_responsable} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition">
-                  <option value="">No sé / No aplica</option>
-                  {listaAreas.map(a => (
-                    <option key={a} value={a}>{a}</option>
-                  ))}
-                </select>
               </div>
             </div>
           )}

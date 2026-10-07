@@ -26,8 +26,24 @@ class PQRSAsignarArea(BaseModel):
     comentario: str | None = None
 
 
-class PQRSAreaCausante(BaseModel):
-    area_causante: str
+class PQRSCausa(BaseModel):
+    """
+    La causa de la PQRS: a qué está asociada y qué área la causó. Van juntas
+    porque se deciden juntas —el asociado PROPONE el área— y así queda un
+    solo movimiento en el historial. None deja vacío el campo.
+    """
+    asociado_id: int | None = None
+    area_causante: str | None = None
+
+
+class AsociadoResumenOut(BaseModel):
+    id: int
+    codigo: str
+    nombre: str
+    sugiere_omp: bool = False
+
+    class Config:
+        from_attributes = True
 
 
 class SeguimientoOut(BaseModel):
@@ -78,6 +94,10 @@ class PQRSResumenOut(BaseModel):
     area_responsable: str | None = None
     estado: str
     prioridad: str
+    # Para el filtro «Asociado a» y «Sin causa». Solo el id: el nombre lo
+    # pone la pantalla con el catálogo, que ya tiene, en vez de una consulta
+    # más por fila.
+    asociado_id: int | None = None
 
     fecha_creacion: datetime
     fecha_limite_sla: datetime | None = None
@@ -122,6 +142,9 @@ class PQRSOut(BaseModel):
     descripcion: str
     area_responsable: str | None = None
     area_causante: str | None = None
+    # «Asociado a». Con el área causante es la causa; ver `pqrs/asociados.py`.
+    asociado_id: int | None = None
+    asociado: AsociadoResumenOut | None = None
     asignado_a: int | None = None
 
     estado: str
@@ -196,6 +219,10 @@ class AlcancePQRS(BaseModel):
     # quien gestiona el caso —quien llama al cliente es quien descubre que el
     # correo estaba mal—, y no con la PQRS cerrada. Ver `pqrs/edicion.py`.
     puede_editar_datos: bool = False
+    # Marcar la causa (asociado y área causante). Es de quien reparte, como
+    # reclasificar, y a diferencia de lo demás se puede con la PQRS cerrada:
+    # las que cierra el cliente o el cierre automático se clasifican después.
+    puede_marcar_causa: bool = False
 
 
 class PQRSDetailOut(PQRSOut):

@@ -24,7 +24,7 @@ class TipoAutorizacion(Base):
 class AutorizacionPQRS(Base):
     """
     Solicitud de autorización para una PQRS específica.
-    Bloquea la PQRS hasta que sea aprobada o rechazada.
+    Bloquea la PQRS hasta que sea aprobada, rechazada o devuelta.
     """
     __tablename__ = "autorizaciones_pqrs"
 
@@ -32,7 +32,9 @@ class AutorizacionPQRS(Base):
     pqrs_id = Column(Integer, ForeignKey("pqrs_solicitudes.id"), nullable=False, index=True)
     tipo_id = Column(Integer, ForeignKey("tipos_autorizacion.id"), nullable=False)
 
-    # pendiente | aprobada | rechazada
+    # pendiente | aprobada | rechazada | devuelta
+    # «devuelta»: el área que firma dice que no le corresponde o que le falta
+    # información. No es un «no» y no se cuenta como rechazo.
     estado = Column(String(20), nullable=False, default="pendiente")
 
     solicitado_por = Column(Integer, ForeignKey("users.id"), nullable=False)

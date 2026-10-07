@@ -37,6 +37,7 @@ from app.modules.pqrs.service import (
 )
 from app.modules.pqrs.notificaciones import avisos_creacion
 from app.modules.pqrs import tiempo_en_area
+from app.modules.pqrs.permisos import area_de_entrada
 
 router = APIRouter(
     prefix="/public", tags=["Público — PQRS"],
@@ -133,7 +134,6 @@ class PQRSPublicaOut(BaseModel):
     estado: str
     prioridad: str
     cliente_nombre: str
-    area_responsable: str | None
     fecha_creacion: datetime
     fecha_limite_sla: datetime | None
     mensaje: str
@@ -164,13 +164,17 @@ class PQRSConsultaOut(BaseModel):
     consultable cuando quiera. El plazo se vigila por dentro y ANTES de que
     venza (ver `/pqrs/por-vencer`). Igual que con el comentario del
     seguimiento: no es que llegue vacío, es que no existe.
+
+    **Tampoco lleva el área que tiene el caso.** Es organización interna: al
+    cliente no le dice nada que su solicitud esté en Logística o en Calidad,
+    y sí lo pone a preguntar por qué la tiene «esa» área. Lo que le sirve es
+    el estado y el historial.
     """
     codigo_seguimiento: str
     tipo: str
     estado: str
     prioridad: str
     empresa: str | None
-    area_responsable: str | None
     fecha_creacion: datetime
     fecha_cierre: datetime | None
     historial: list[SeguimientoPublicoOut]
@@ -186,6 +190,10 @@ async def radicar_pqrs_publica(
     # Tipo y descripción
     tipo: str = Form(...),
     descripcion: str = Form(...),
+    # Ya no lo pide el formulario y se IGNORA: el cliente no tiene con qué
+    # saber qué área le toca. La PQRS nace con quien reparte
+    # (`permisos.area_de_entrada`). Se sigue aceptando porque un formulario
+    # cacheado en el celular todavía lo manda, y no puede quedarse sin radicar.
     area_responsable: str = Form(None),
     # Datos del cliente
     empresa: str = Form(None),
@@ -269,7 +277,7 @@ async def radicar_pqrs_publica(
         adjunto_factura=ruta_factura,
         adjunto_video=ruta_video,
         descripcion=descripcion,
-        area_responsable=area_responsable,
+        area_responsable=area_de_entrada(db, tenant.id),
         estado="recibido",
         prioridad=calcular_prioridad(tipo),
         fecha_limite_sla=calcular_fecha_limite_sla(tipo),
@@ -285,7 +293,7 @@ async def radicar_pqrs_publica(
     # cambia solo si el canal es un punto de venta específico o venta
     # institucional (ver Administración › Canales).
     codigo = asignar_codigo_seguimiento(db, solicitud, tenant.id, canal_atencion)
-    # Si el cliente eligió área, esa área empieza a contar sus 3 días hábiles.
+    # Quien reparte empieza a contar sus 3 días hábiles desde la radicación.
     tiempo_en_area.registrar_cambio(db, solicitud, None, None, con_zona(solicitud.fecha_creacion))
 
     db.add(PQRSSeguimiento(
@@ -307,7 +315,6 @@ async def radicar_pqrs_publica(
         estado=solicitud.estado,
         prioridad=solicitud.prioridad,
         cliente_nombre=solicitud.cliente_nombre,
-        area_responsable=solicitud.area_responsable,
         fecha_creacion=solicitud.fecha_creacion,
         fecha_limite_sla=solicitud.fecha_limite_sla,
         mensaje=f"Solicitud radicada exitosamente. Tu código es {codigo}.",
@@ -340,7 +347,6 @@ def consultar_pqrs_publica(codigo: str, db: Session = Depends(get_db)):
         estado=solicitud.estado,
         prioridad=solicitud.prioridad,
         empresa=solicitud.empresa,
-        area_responsable=solicitud.area_responsable,
         fecha_creacion=solicitud.fecha_creacion,
         fecha_cierre=solicitud.fecha_cierre,
         historial=historial_publico,

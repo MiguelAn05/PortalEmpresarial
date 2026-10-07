@@ -8,6 +8,7 @@ contar los tres. Antes solo cabía uno y los demás terminaban escondidos en
 la descripción.
 """
 import json
+from tests.ayudas_causa import con_causa
 
 from app.models.catalogo import ProductoCatalogo
 
@@ -111,6 +112,7 @@ def test_el_formato_viejo_de_un_producto_sigue_sirviendo(entorno, v):
 
 def test_no_cierra_si_falta_confirmar_alguno(entorno, v):
     pid = _radicar(entorno, TRES).json()["id"]
+    con_causa(entorno, pid)
     r = entorno.patch(f"/pqrs/{pid}/estado", data={"estado": "cerrado"})
     v.check("no deja", r.status_code == 400, r.text[:300])
     v.check("nombra el pendiente", "el desengrasante verde" in r.json()["detail"], r.json())
@@ -128,6 +130,7 @@ def test_confirmar_uno_no_toca_los_demas(entorno, v):
     v.check("conserva su lote", productos[1]["lote"] == "L-2", productos[1])
     v.check("los otros intactos", productos[0]["producto_nombre"] == "Hipoclorito 13%")
     v.check("ya no hay pendientes", r.json()["producto_por_confirmar"] is False)
+    con_causa(entorno, datos['id'])
     r = entorno.patch(f"/pqrs/{datos['id']}/estado", data={"estado": "cerrado"})
     v.check("y ahora sí cierra", r.status_code == 200, r.text[:300])
 
@@ -180,6 +183,7 @@ def test_un_producto_de_otra_pqrs_es_404(entorno, v):
 
 def test_cerrada_no_se_tocan_los_productos(entorno, v):
     datos = _radicar(entorno, [TRES[0]]).json()
+    con_causa(entorno, datos['id'])
     entorno.patch(f"/pqrs/{datos['id']}/estado", data={"estado": "cerrado"})
     pid, prod = datos["id"], datos["productos"][0]["id"]
     v.check("no agrega", entorno.post(f"/pqrs/{pid}/productos",

@@ -18,6 +18,7 @@ Lo que se defiende:
     antes — Servicio al Cliente conserva esa salida.
 """
 from datetime import datetime, timedelta, timezone
+from tests.ayudas_causa import con_causa
 
 from app.core.dias_habiles import limite_en_habiles
 from app.models.pqrs import PQRSAdjuntoSolucion, PQRSSolicitud
@@ -160,6 +161,7 @@ def test_cerrar_directo_no_exige_solucion(entorno, v):
     pid = _crear_pqrs(portal)
 
     portal.como("calidad")
+    con_causa(portal, pid)
     r = portal.patch(f"/pqrs/{pid}/gestion", data={"estado": "cerrado"})
     v.check("cierra sin solución", r.status_code == 200, r.text[:200])
 

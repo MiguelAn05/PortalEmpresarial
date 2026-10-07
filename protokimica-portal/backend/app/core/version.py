@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.48.0"
-FECHA = "2026-10-05"
+VERSION = "0.49.0"
+FECHA = "2026-10-07"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,30 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.49.0",
+        "fecha": "2026-10-07",
+        "titulo": "Cada PQRS con su causa, y autorizaciones que se pueden devolver",
+        "cambios": [
+            ("nuevo", "Cada PQRS tiene «Asociado a» (Mala entrega, Calidad del producto, "
+                      "Toma de pedido…) junto al área causante, en la tarjeta «Causa de "
+                      "la PQRS». Se busca por sigla o palabra, y propone el área causante."),
+            ("mejora", "No se puede cerrar una PQRS a mano sin su causa. Las que cerró el "
+                       "cliente se pueden clasificar después, y la lista tiene el filtro "
+                       "«Sin causa» para encontrarlas."),
+            ("nuevo", "En Administración se editan los «Asociado a» y el área que "
+                      "propone cada uno."),
+            ("nuevo", "Además de aprobar o rechazar, el área que recibe una "
+                      "autorización la puede devolver cuando no le corresponde o "
+                      "le falta información. La PQRS vuelve a Servicio al Cliente "
+                      "para que la redirija, y hay que escribir el porqué."),
+            ("mejora", "Los formularios de PQRS, el del cliente y el interno, ya no "
+                       "piden el área. Toda PQRS entra a Servicio al Cliente, que es "
+                       "quien la asigna."),
+            ("mejora", "En la consulta de su PQRS, el cliente ya no ve qué área "
+                       "tiene su caso: ve el estado y el historial."),
+        ],
+    },
     {
         "version": "0.48.0",
         "fecha": "2026-10-05",
