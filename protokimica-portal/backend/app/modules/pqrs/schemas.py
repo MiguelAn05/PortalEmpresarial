@@ -51,6 +51,9 @@ class SeguimientoOut(BaseModel):
     tipo_evento: str
     comentario: str | None
     adjunto_evidencia: str | None = None
+    # A qué estado pasó, cuando el evento es un cambio de estado. De aquí
+    # salen las fechas de la línea de vida del detalle (`lineaDeVida`).
+    estado_nuevo: str | None = None
     fecha: datetime
     usuario_id: int | None
     usuario_nombre: str | None = None

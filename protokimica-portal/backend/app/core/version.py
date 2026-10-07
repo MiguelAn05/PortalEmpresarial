@@ -37,8 +37,14 @@ HISTORIAL = [
     {
         "version": "0.49.0",
         "fecha": "2026-10-07",
-        "titulo": "Informe de PQRS, causa de cada PQRS y autorizaciones que se devuelven",
+        "titulo": "PQRS rediseñado, con informe, causa y autorizaciones que se devuelven",
         "cambios": [
+            ("mejora", "PQRS tiene nueva cara: la lista se filtra por vista (abiertas, de mi "
+                       "área, cerradas) y muestra cuánto plazo le queda a cada una; el "
+                       "detalle muestra el recorrido del caso de principio a fin y un "
+                       "historial que se filtra por movimientos, comentarios o adjuntos."),
+            ("nuevo", "Tarjetas nuevas en la lista: las que vencen esta semana y las que "
+                      "llevan más de 3 días hábiles en la misma área."),
             ("nuevo", "Botón «Generar informe» en PQRS: cuántas entraron en el mes, de qué "
                       "tipo, por qué causa, por dónde y quién las radicó, cuántas se "
                       "respondieron a tiempo y cuánto se demora cada área, con gráficas. "

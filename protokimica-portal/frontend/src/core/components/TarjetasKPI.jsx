@@ -29,10 +29,29 @@ const COLUMNAS = {
  * genera la pregunta de qué hace. Sin `onClick` se pinta un `<article>`, sin
  * cursor de mano y sin foco de teclado, exactamente como antes.
  */
-export default function TarjetasKPI({ tarjetas }) {
+// Con `conPrincipal`, la primera tarjeta es más ancha: es la cifra que se
+// lee primero (en PQRS, las abiertas) y las demás la desglosan.
+const COLUMNAS_PRINCIPAL = {
+  3: 'md:grid-cols-[1.8fr_1fr_1fr]',
+  4: 'md:grid-cols-[1.8fr_1fr_1fr_1fr]',
+}
+
+// El punto del rótulo dice qué clase de cifra es antes de leerla. Es opcional
+// y nunca va solo: la etiqueta sigue diciendo lo mismo con palabras.
+const PUNTOS = {
+  negativo: 'bg-negativo-vivo',
+  alerta: 'bg-ambar',
+  positivo: 'bg-positivo-vivo',
+  neutro: 'bg-texto-3',
+}
+
+export default function TarjetasKPI({ tarjetas, conPrincipal = false }) {
+  const columnas = (conPrincipal && COLUMNAS_PRINCIPAL[tarjetas.length])
+    || COLUMNAS[tarjetas.length] || 'md:grid-cols-4'
   return (
-    <div className={`grid grid-cols-2 gap-4 ${COLUMNAS[tarjetas.length] ?? 'md:grid-cols-4'}`}>
-      {tarjetas.map(({ label, value, nota, alerta, onClick, activa }) => {
+    <div className={`grid grid-cols-2 gap-4 ${columnas}`}>
+      {tarjetas.map(({ label, value, nota, alerta, onClick, activa, punto }, i) => {
+        const principal = conPrincipal && i === 0
         const Caja = onClick ? 'button' : 'article'
         const interactiva = onClick
           ? 'text-left w-full cursor-pointer hover:border-borde-fuerte'
@@ -52,8 +71,11 @@ export default function TarjetasKPI({ tarjetas }) {
               transition-shadow duration-150 ease-suave hover:shadow-md
               ${marcada} ${interactiva}`}
           >
-            <div className="etiqueta truncate">{label}</div>
-            <div className={`cifra text-[28px] leading-none font-semibold tracking-tight mt-2
+            <div className="etiqueta truncate flex items-center gap-1.5">
+              {punto && <span aria-hidden="true" className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${PUNTOS[punto]}`} />}
+              {label}
+            </div>
+            <div className={`cifra ${principal ? 'text-[34px]' : 'text-[28px]'} leading-none font-semibold tracking-tight mt-2
               ${alerta ? 'text-negativo' : 'text-texto'}`}>
               {value}
             </div>

@@ -10,6 +10,7 @@ import {
   DEPARTAMENTOS, LIMITES_DATOS, aplicaProducto, cambiosDeDatos,
   datosEditables,
 } from './constants.js'
+import { Tarjeta } from './piezas.jsx'
 
 const inputCls = 'w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 bg-white focus:outline-none focus:ring-2 focus:ring-acento'
 const labelCls = 'block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1'
@@ -343,13 +344,15 @@ export function PanelAdjuntos({ pqrs, puedeEditar, onCambio }) {
   if (campos.length === 0) return null
 
   return (
-    <div className="bg-white rounded-xl border border-borde p-5 shadow-sm">
-      <h3 className="font-semibold text-acento-fuerte mb-4 text-sm">Evidencias adjuntas</h3>
+    <Tarjeta
+      titulo="Evidencias"
+      accion={<span className="cifra text-xs text-texto-3">{campos.filter(c => pqrs[COLUMNA[c]]).length}</span>}
+    >
       <div className="space-y-4">
         {campos.map(campo => (
           <Adjunto key={campo} pqrs={pqrs} campo={campo} puedeEditar={puedeEditar} onCambio={onCambio} />
         ))}
       </div>
-    </div>
+    </Tarjeta>
   )
 }

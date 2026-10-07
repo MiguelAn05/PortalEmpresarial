@@ -249,10 +249,19 @@ export function plazoCorriendo(pqrs) {
  *
  * `ahora` se inyecta para poder probarlo sin depender del reloj.
  */
-export function estadoDelPlazo(pqrs, ahora = new Date()) {
+/** Días corridos que le quedan al plazo (negativo: ya venció). Null si no corre. */
+export function diasParaVencer(pqrs, ahora = new Date()) {
   if (!plazoCorriendo(pqrs)) return null
+  return Math.ceil((new Date(pqrs.fecha_limite_sla) - ahora) / (1000 * 60 * 60 * 24))
+}
 
-  const dias = Math.ceil((new Date(pqrs.fecha_limite_sla) - ahora) / (1000 * 60 * 60 * 24))
+// «Vencen esta semana»: siete días corridos o menos.
+export const DIAS_POR_VENCER = 7
+
+export function estadoDelPlazo(pqrs, ahora = new Date()) {
+  const dias = diasParaVencer(pqrs, ahora)
+  if (dias === null) return null
+
   if (dias < 0) return { tono: 'negativo', texto: 'Vencida' }
   if (dias === 0) return { tono: 'negativo', texto: 'Vence hoy' }
   if (dias <= 2) return { tono: 'alerta', texto: `Vence en ${dias}d` }
@@ -300,7 +309,7 @@ export function estaVencida(pqrs, ahora = new Date()) {
 export const FOCOS = [
   {
     clave: null,
-    label: 'Total',
+    label: 'Todas',
     cumple: () => true,
   },
   {
@@ -309,17 +318,30 @@ export const FOCOS = [
     cumple: (pqrs) => pqrs?.estado !== 'cerrado',
   },
   {
-    clave: 'prioridad',
-    label: 'Alta prioridad',
-    cumple: (pqrs) => ['alta', 'critica'].includes(pqrs?.prioridad),
-  },
-  {
     clave: 'vencidas',
-    label: 'Vencidas SLA',
+    label: 'Plazo vencido',
     // La misma regla de la columna de SLA: una resuelta o una cerrada no
     // vence. Si aquí se escribiera aparte, la tarjeta contaría una cosa y la
     // columna diría otra sobre la misma PQRS.
     cumple: (pqrs, ahora) => estaVencida(pqrs, ahora),
+  },
+  {
+    clave: 'por_vencer',
+    label: 'Vencen esta semana',
+    // Todavía en término, pero se les acaba en siete días o menos: es lo que
+    // hay que mover HOY para no tener que explicar mañana una vencida.
+    cumple: (pqrs, ahora) => {
+      const dias = diasParaVencer(pqrs, ahora)
+      return dias !== null && dias >= 0 && dias <= DIAS_POR_VENCER
+    },
+  },
+  {
+    clave: 'area_vencida',
+    label: 'Pasadas en su área',
+    // Más de 3 días hábiles en la misma área. Reemplaza a «Sin asignar»:
+    // desde la 0.49 toda PQRS nace con quien reparte, así que «sin área» ya
+    // no es la señal; la señal es el área que se quedó con el caso.
+    cumple: (pqrs) => ESTADOS_CON_PLAZO.includes(pqrs?.estado) && Boolean(pqrs?.area_vencida),
   },
 ]
 
@@ -337,4 +359,156 @@ export function contarPorFoco(lista, ahora = new Date()) {
   return Object.fromEntries(
     FOCOS.map(f => [String(f.clave), (lista || []).filter(p => f.cumple(p, ahora)).length]),
   )
+}
+
+/**
+ * Cuánto del plazo ya se gastó, de 0 a 1, para la barrita de la columna de
+ * SLA. Null si el plazo ya no corre. Es una proporción de tiempo, no una
+ * regla: quién está vencido lo sigue diciendo `estadoDelPlazo`.
+ */
+export function avancePlazo(pqrs, ahora = new Date()) {
+  if (!plazoCorriendo(pqrs) || !pqrs?.fecha_creacion) return null
+  const inicio = new Date(pqrs.fecha_creacion).getTime()
+  const fin = new Date(pqrs.fecha_limite_sla).getTime()
+  if (!(fin > inicio)) return 1
+  return Math.min(1, Math.max(0, (ahora.getTime() - inicio) / (fin - inicio)))
+}
+
+/**
+ * Las vistas de la lista: qué PARTE se está mirando. Las tarjetas (`FOCOS`)
+ * recortan dentro de la vista, no la reemplazan.
+ *
+ * «De mi área» es la pregunta de todos los días —«qué tengo yo»— y solo se
+ * ofrece a quien tiene área. Abiertas es la de arranque: lo cerrado se
+ * consulta, no se trabaja.
+ */
+export const VISTAS = [
+  { clave: 'abiertas', label: 'Abiertas', cumple: (p) => p?.estado !== 'cerrado' },
+  {
+    clave: 'mi_area', label: 'De mi área',
+    cumple: (p, { area } = {}) => p?.estado !== 'cerrado' && Boolean(area) && p?.area_responsable === area,
+  },
+  { clave: 'cerradas', label: 'Cerradas', cumple: (p) => p?.estado === 'cerrado' },
+  { clave: 'todas', label: 'Todas', cumple: () => true },
+]
+
+export function cumpleVista(pqrs, clave, contexto = {}) {
+  const vista = VISTAS.find(v => v.clave === clave)
+  return vista ? vista.cumple(pqrs, contexto) : true
+}
+
+// En qué punto del recorrido queda cada estado.
+const RANGO_ESTADO = { recibido: 0, asignado: 1, en_proceso: 1, resuelto: 3, cerrado: 4 }
+
+const plural = (n, palabra) => `${n} ${palabra}${n === 1 ? '' : 's'}`
+
+/**
+ * La línea de vida del caso: Recibida → En gestión → (Autorizaciones) →
+ * Resuelta → Cerrada. Cada paso dice si ya pasó (`hecho`), si es donde está
+ * ahora (`actual`) o si falta (`pendiente`), y cuándo pasó.
+ *
+ * Las fechas salen del historial (`estado_nuevo`) y de las columnas de la
+ * PQRS: nada se inventa. El paso de autorizaciones solo aparece si hubo
+ * alguna; un paso vacío en cada PQRS haría creer que siempre hay que pedirla.
+ */
+export function lineaDeVida(pqrs, autorizaciones = []) {
+  if (!pqrs) return []
+  const seguimientos = [...(pqrs.seguimientos || [])].sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+  const primera = (estados) => seguimientos.find(s => estados.includes(s.estado_nuevo))?.fecha || null
+  const rango = RANGO_ESTADO[pqrs.estado] ?? 0
+  const cuenta = (estado) => autorizaciones.filter(a => a.estado === estado).length
+  const pendientes = cuenta('pendiente')
+
+  const pasos = [
+    { clave: 'recibida', titulo: 'Recibida', fecha: pqrs.fecha_creacion, hecho: true },
+    { clave: 'gestion', titulo: 'En gestión', fecha: primera(['asignado', 'en_proceso']), hecho: rango >= 1 },
+  ]
+  if (autorizaciones.length) {
+    pasos.push({
+      clave: 'autorizaciones',
+      titulo: autorizaciones.length === 1 ? '1 autorización' : `${autorizaciones.length} autorizaciones`,
+      detalle: [
+        cuenta('aprobada') && plural(cuenta('aprobada'), 'aprobada'),
+        cuenta('rechazada') && plural(cuenta('rechazada'), 'rechazada'),
+        cuenta('devuelta') && plural(cuenta('devuelta'), 'devuelta'),
+        pendientes && plural(pendientes, 'pendiente'),
+      ].filter(Boolean).join(' · '),
+      hecho: pendientes === 0,
+    })
+  }
+  pasos.push(
+    { clave: 'resuelta', titulo: 'Resuelta', fecha: pqrs.fecha_resuelto || primera(['resuelto']), hecho: rango >= 3 },
+    { clave: 'cerrada', titulo: 'Cerrada', fecha: pqrs.fecha_cierre, hecho: rango >= 4 },
+  )
+
+  // Dónde está ahora: la autorización que se espera, o el primer paso que falta.
+  const actual = pendientes ? 'autorizaciones' : (pasos.find(p => !p.hecho)?.clave ?? null)
+  return pasos.map(p => ({
+    ...p,
+    fecha: p.hecho || p.clave === actual ? p.fecha : null,
+    estado: p.clave === actual ? 'actual' : p.hecho ? 'hecho' : 'pendiente',
+    detalle: p.detalle || (p.clave === 'cerrada' && actual === 'cerrada' ? 'Esperando al cliente' : null),
+  }))
+}
+
+/**
+ * Los filtros del historial. Un caso con autorizaciones junta treinta
+ * eventos, y quien entra a ver «cuándo se resolvió» no tiene por qué leer
+ * todos los comentarios para llegar ahí.
+ */
+const EVENTOS_DE_MOVIMIENTO = new Set([
+  'cambio_estado', 'asignacion', 'asignacion_area', 'autorizacion_solicitada',
+  'autorizacion_respondida', 'reclasificacion', 'causa',
+])
+export const FILTROS_HISTORIAL = [
+  { clave: 'todo', label: 'Todo', cumple: () => true },
+  { clave: 'movimientos', label: 'Movimientos', cumple: (s) => EVENTOS_DE_MOVIMIENTO.has(s.tipo_evento) },
+  { clave: 'comentarios', label: 'Comentarios', cumple: (s) => s.tipo_evento === 'comentario' },
+  { clave: 'adjuntos', label: 'Adjuntos', cumple: (s) => Boolean(s.adjunto_evidencia) || s.tipo_evento === 'cambio_adjunto' },
+]
+
+/** El historial filtrado, del más reciente al más antiguo. */
+export function filtrarHistorial(seguimientos, clave = 'todo') {
+  const filtro = FILTROS_HISTORIAL.find(f => f.clave === clave) || FILTROS_HISTORIAL[0]
+  return [...(seguimientos || [])]
+    .filter(filtro.cumple)
+    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha) || b.id - a.id)
+}
+
+/** «Ana María Vargas» → «AV», para el círculo de quien firma. */
+export function iniciales(nombre) {
+  const partes = (nombre || '').trim().split(/\s+/).filter(Boolean)
+  if (!partes.length) return '?'
+  const letras = partes.length === 1 ? partes[0].slice(0, 2) : partes[0][0] + partes[partes.length - 1][0]
+  return letras.toUpperCase()
+}
+
+
+/**
+ * Cómo se llama y con qué gravedad se pinta cada tipo, estado y prioridad.
+ * Una sola vez para la lista, el detalle y los filtros (las insignias están
+ * en `piezas.jsx`). El tono es una escala de gravedad, no un color por
+ * categoría.
+ */
+export const TIPOS = {
+  peticion:     { label: 'Petición',     tono: 'neutro'   },
+  queja:        { label: 'Queja',        tono: 'alerta'   },
+  reclamo:      { label: 'Reclamo',      tono: 'negativo' },
+  sugerencia:   { label: 'Sugerencia',   tono: 'info'     },
+  felicitacion: { label: 'Felicitación', tono: 'positivo' },
+}
+
+export const ESTADOS = {
+  recibido:   { label: 'Recibido',   tono: 'info'     },
+  asignado:   { label: 'Asignado',   tono: 'info'     },
+  en_proceso: { label: 'En proceso', tono: 'alerta'   },
+  resuelto:   { label: 'Resuelto',   tono: 'positivo' },
+  cerrado:    { label: 'Cerrado',    tono: 'neutro'   },
+}
+
+export const PRIORIDADES = {
+  baja:    { label: 'Prioridad baja',    tono: 'neutro'   },
+  media:   { label: 'Prioridad media',   tono: 'neutro'   },
+  alta:    { label: 'Prioridad alta',    tono: 'alerta'   },
+  critica: { label: 'Prioridad crítica', tono: 'negativo' },
 }

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
 import { puedeVerModulo } from '../../core/modulos.js'
@@ -10,40 +10,19 @@ import {
 } from './asociados.js'
 import { canalesConPrefijo, nombresDe, useCanales } from '../../core/canales.js'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
+import { EsqueletoFilas } from '../../core/components/Cargando.jsx'
 import {
-  IconoBuscar, IconoCerrar, IconoClip, IconoEmpresa, IconoFiltro, IconoIndicadores, IconoPapelera, IconoPQRS,
+  IconoBuscar, IconoCerrar, IconoChevron, IconoClip, IconoEmpresa, IconoFiltro,
+  IconoIndicadores, IconoPapelera, IconoPQRS, IconoRecibo,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 import {
-  AREA_SIN_ASIGNAR, DEPARTAMENTOS, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES,
-  areasParaFiltrar, coincideAreaAsignada, tiempoEnArea, contarPorFoco, cumpleFoco, estadoDelPlazo,
-  faltaEnProductos, nombrePrincipal, productoVacio, productosParaEnviar,
+  AREA_SIN_ASIGNAR, DEPARTAMENTOS, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES, VISTAS,
+  areasParaFiltrar, avancePlazo, coincideAreaAsignada, contarPorFoco, cumpleFoco, cumpleVista,
+  estadoDelPlazo, faltaEnProductos, nombrePrincipal, productoVacio, productosParaEnviar, tiempoEnArea,
+  ESTADOS, PRIORIDADES, TIPOS,
 } from './constants.js'
-
-// Un estado se llama y se pinta igual en la lista, en el filtro y en el
-// detalle. El color sube con la gravedad; no es un color por categoría.
-const TIPOS = {
-  peticion:     { label: 'Petición',     color: 'bg-superficie-2 text-texto-2' },
-  queja:        { label: 'Queja',        color: 'bg-alerta-bg text-alerta'     },
-  reclamo:      { label: 'Reclamo',      color: 'bg-negativo-bg text-negativo' },
-  sugerencia:   { label: 'Sugerencia',   color: 'bg-info-bg text-info'         },
-  felicitacion: { label: 'Felicitación', color: 'bg-positivo-bg text-positivo' },
-}
-
-const ESTADOS = {
-  recibido:   { label: 'Recibido',   color: 'bg-superficie-2 text-texto-2' },
-  asignado:   { label: 'Asignado',   color: 'bg-info-bg text-info'         },
-  en_proceso: { label: 'En proceso', color: 'bg-alerta-bg text-alerta'     },
-  resuelto:   { label: 'Resuelto',   color: 'bg-positivo-bg text-positivo' },
-  cerrado:    { label: 'Cerrado',    color: 'bg-superficie-2 text-texto-2' },
-}
-
-const PRIORIDADES = {
-  baja:    { label: 'Baja',    color: 'text-positivo' },
-  media:   { label: 'Media',   color: 'text-texto-2'  },
-  alta:    { label: 'Alta',    color: 'text-alerta'   },
-  critica: { label: 'Crítica', color: 'text-negativo' },
-}
+import { InsigniaDe } from './piezas.jsx'
 
 // Compara el prefijo exacto del radicado (evita que "PVC" matchee "PVCR0010")
 function coincidePuntoVenta(codigo, prefijo) {
@@ -51,47 +30,39 @@ function coincidePuntoVenta(codigo, prefijo) {
   return new RegExp(`^${prefijo}\\d+$`).test(codigo)
 }
 
-function Badge({ map, value }) {
-  const item = map[value] || { label: value, color: 'bg-superficie-2 text-texto-2' }
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${item.color}`}>
-      {item.label}
-    </span>
-  )
-}
-
-const TONO_PLAZO = {
+const TONO_TEXTO = {
   negativo: 'text-negativo font-semibold',
   alerta: 'text-alerta font-semibold',
   neutro: 'text-texto-2',
 }
+const TONO_BARRA = {
+  negativo: 'bg-negativo-vivo',
+  alerta: 'bg-ambar',
+  neutro: 'bg-positivo-vivo',
+}
 
 /**
- * Cuánto le queda de plazo, o una raya cuando ya no hay plazo que contar.
- *
- * Recibe la PQRS entera y no solo la fecha: **el estado es parte de la
- * cuenta.** Con la fecha sola, una PQRS cerrada hace meses seguía contra el
- * reloj del calendario y aparecía «Vencida» para siempre. La regla vive en
- * `estadoDelPlazo()` del `constants.js` del módulo, que es gemelo de la del
- * servidor y tiene prueba.
+ * La columna de plazo: cuánto le queda, en palabras, y una barrita con cuánto
+ * del plazo ya se gastó. Recibe la PQRS entera porque **el estado es parte
+ * de la cuenta**: una resuelta o una cerrada ya no corren contra el reloj, y
+ * por eso no tienen barra. La regla vive en `estadoDelPlazo()`, gemela de la
+ * del servidor y con prueba.
  */
-/** Cuánto lleva en su área: máximo 3 días hábiles. Ver `tiempoEnArea`. */
-function TiempoEnArea({ pqrs }) {
-  const tiempo = tiempoEnArea(pqrs)
-  if (!tiempo) return null
-  return <span className={`block cifra text-xs ${TONO_PLAZO[tiempo.tono]}`}>{tiempo.texto}</span>
-}
-
-function SLALabel({ pqrs }) {
+function Plazo({ pqrs }) {
   const plazo = estadoDelPlazo(pqrs)
-  if (!plazo) return <span className="text-xs text-texto-3">—</span>
-
+  if (!plazo) {
+    return <span className="text-xs text-texto-3">{pqrs.estado === 'resuelto' ? 'Respondida' : '—'}</span>
+  }
+  const avance = avancePlazo(pqrs) ?? 0
   return (
-    <span className={`cifra text-xs ${TONO_PLAZO[plazo.tono]}`}>{plazo.texto}</span>
+    <div>
+      <span className={`cifra text-xs ${TONO_TEXTO[plazo.tono]}`}>{plazo.texto}</span>
+      <span className="block w-16 h-1 mt-1.5 rounded-full bg-superficie-2 overflow-hidden" aria-hidden="true">
+        <span className={`block h-full rounded-full ${TONO_BARRA[plazo.tono]}`} style={{ width: `${Math.round(avance * 100)}%` }} />
+      </span>
+    </div>
   )
 }
-
-
 
 /**
  * Un archivo elegido antes de enviar: se ve cuál es y se puede quitar.
@@ -431,264 +402,43 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
   )
 }
 
-
-// Cerrar manda la encuesta de inmediato: elegir "Cerrado" sin querer y
-// guardar no debe tener el mismo costo que cualquier otro cambio de estado.
-function ConfirmarCierre({ pqrs, guardando, onConfirmar, onCancelar }) {
-  return (
-    <div
-      className="fixed inset-0 bg-texto/50 flex items-center justify-center z-[60] p-4"
-      onClick={onCancelar}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl shadow-lg w-full max-w-md"
-      >
-        <div className="px-6 py-4 border-b border-borde">
-          <h3 className="text-base font-bold text-acento-fuerte">¿Cerrar esta PQRS?</h3>
-          {pqrs.codigo_seguimiento && (
-            <p className="cifra text-xs text-texto-3 mt-0.5">{pqrs.codigo_seguimiento}</p>
-          )}
-        </div>
-        <div className="px-6 py-5">
-          <div className="rounded-xl border border-borde bg-superficie-2 p-3">
-            <p className="text-sm text-texto">
-              Se le manda la encuesta de satisfacción al cliente de inmediato.
-            </p>
-            <p className="text-sm text-texto-2 mt-1">
-              Si la cierras por error, puedes volver a abrirla desde aquí —
-              pero el correo ya se habrá enviado.
-            </p>
-          </div>
-        </div>
-        <div className="flex justify-end gap-3 px-6 py-4 bg-superficie-2 border-t border-borde">
-          <button
-            onClick={onCancelar}
-            className="px-4 py-2 rounded-lg border border-borde text-sm font-semibold text-texto-2 hover:bg-white transition"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirmar}
-            autoFocus
-            disabled={guardando}
-            className="px-4 py-2 rounded-lg bg-acento-fuerte hover:bg-acento text-white text-sm font-bold transition disabled:opacity-50"
-          >
-            {guardando ? 'Cerrando...' : 'Sí, cerrar'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Modal detalle / cambiar estado ─────────────────────────────────
-function ModalDetalle({ pqrs, onClose, onUpdated }) {
-  const [nuevoEstado, setNuevoEstado] = useState(pqrs.estado)
-  const [comentario, setComentario] = useState('')
-  const [solucion, setSolucion] = useState('')
-  const [adjuntosSolucion, setAdjuntosSolucion] = useState([])
-  const [error, setError] = useState('')
-  const [confirmandoCierre, setConfirmandoCierre] = useState(false)
-
-  // El endpoint recibe multipart, no JSON: mandarlo como objeto respondía 422
-  // y el modal se quedaba sin guardar nada. Es la misma puerta que usa el
-  // detalle, así el cambio queda igual desde los dos lados.
-  const mutation = useMutation({
-    mutationFn: () => {
-      const datos = new FormData()
-      datos.append('estado', nuevoEstado)
-      if (comentario.trim()) datos.append('comentario', comentario.trim())
-      if (nuevoEstado === 'resuelto') {
-        datos.append('solucion', solucion.trim())
-        adjuntosSolucion.forEach((archivo) => datos.append('adjuntos_solucion', archivo))
-      }
-      return api.patch(`/pqrs/${pqrs.id}/gestion`, datos)
-    },
-    onSuccess: () => { onUpdated(); onClose() },
-    // Antes esto no tenía onError: si el servidor rechazaba el cambio (por
-    // ejemplo, un 403 porque quien lo intenta no es de Servicio al Cliente),
-    // el modal se quedaba tal cual, sin decir nada — y eso se lee igual que
-    // "no me deja cambiar el estado".
-    onError: (err) => setError(mensajeDeError(err, 'No se pudo guardar el cambio.')),
-  })
-
-  const esResuelto = nuevoEstado === 'resuelto'
-  const listo = !esResuelto || solucion.trim() !== ''
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-borde">
-          <div>
-            <h2 className="font-bold text-acento-fuerte text-lg">
-              {pqrs.codigo_seguimiento || `PQRS #${pqrs.id}`}
-            </h2>
-            <p className="text-xs text-texto-2">{pqrs.cliente_nombre}</p>
-          </div>
-          <button onClick={onClose} aria-label="Cerrar" className="w-8 h-8 flex items-center justify-center rounded-lg text-texto-3 hover:bg-superficie-2 hover:text-texto transition-colors duration-150"><IconoCerrar tam={16} /></button>
-        </div>
-
-        <div className="p-6 space-y-4">
-          <div className="flex gap-2 flex-wrap">
-            <Badge map={TIPOS} value={pqrs.tipo} />
-            <Badge map={ESTADOS} value={pqrs.estado} />
-            <span className={`text-xs font-semibold ${PRIORIDADES[pqrs.prioridad]?.color}`}>
-              ● {PRIORIDADES[pqrs.prioridad]?.label}
-            </span>
-          </div>
-
-          <div className="bg-fondo rounded-lg p-4 text-sm text-texto">
-            {pqrs.descripcion}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-xs text-texto-2 block">Área</span>
-              <span className="font-medium">{pqrs.area_responsable || '—'}</span>
-              <TiempoEnArea pqrs={pqrs} />
-            </div>
-            <div>
-              <span className="text-xs text-texto-2 block">SLA</span>
-              <SLALabel pqrs={pqrs} />
-            </div>
-            {pqrs.cliente_email && (
-              <div>
-                <span className="text-xs text-texto-2 block">Email cliente</span>
-                <span className="font-medium">{pqrs.cliente_email}</span>
-              </div>
-            )}
-            {pqrs.cliente_telefono && (
-              <div>
-                <span className="text-xs text-texto-2 block">Teléfono</span>
-                <span className="font-medium">{pqrs.cliente_telefono}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="border-t border-borde pt-4">
-            <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-2">
-              Cambiar estado
-            </label>
-            <select
-              value={nuevoEstado}
-              onChange={(e) => setNuevoEstado(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento mb-3"
-            >
-              {Object.entries(ESTADOS).map(([key, { label }]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-            <textarea
-              value={comentario}
-              onChange={(e) => setComentario(e.target.value)}
-              placeholder="Comentario del cambio de estado (opcional)..."
-              rows={3}
-              className="w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none"
-            />
-
-            {esResuelto && (
-              <div className="mt-3 bg-superficie-2 rounded-lg p-3">
-                <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1">
-                  Solución <span className="text-negativo">· obligatorio</span>
-                </label>
-                <p className="text-xs text-texto-2 mb-2">
-                  Esto se le envía al cliente pidiéndole que confirme si quedó bien.
-                </p>
-                <textarea
-                  value={solucion}
-                  onChange={(e) => setSolucion(e.target.value)}
-                  rows={3}
-                  placeholder="Qué se hizo para solucionar el caso..."
-                  className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento resize-none mb-2"
-                />
-                <input
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.webp,.pdf"
-                  multiple
-                  onChange={(e) => setAdjuntosSolucion(Array.from(e.target.files || []))}
-                  className="w-full text-xs text-texto-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde"
-                />
-                {adjuntosSolucion.length > 0 && (
-                  <p className="text-xs text-texto-2 mt-1">
-                    {adjuntosSolucion.length} archivo(s): {adjuntosSolucion.map((f) => f.name).join(', ')}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {error && (
-            <p role="alert" className="text-sm text-negativo">{error}</p>
-          )}
-        </div>
-
-        <div className="px-6 py-4 border-t border-borde flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-borde text-sm font-semibold text-texto-2 hover:bg-fondo transition"
-          >
-            Cerrar
-          </button>
-          <button
-            onClick={() => nuevoEstado === 'cerrado' ? setConfirmandoCierre(true) : mutation.mutate()}
-            disabled={mutation.isPending || nuevoEstado === pqrs.estado || !listo}
-            className="px-4 py-2 rounded-lg bg-acento-fuerte hover:bg-acento text-white text-sm font-bold transition disabled:opacity-50"
-          >
-            {mutation.isPending ? 'Guardando...' : 'Guardar cambio'}
-          </button>
-        </div>
-      </div>
-
-      {confirmandoCierre && (
-        <ConfirmarCierre
-          pqrs={pqrs}
-          guardando={mutation.isPending}
-          onConfirmar={() => { setConfirmandoCierre(false); mutation.mutate() }}
-          onCancelar={() => setConfirmandoCierre(false)}
-        />
-      )}
-    </div>
-  )
-}
-
 // ── Pantalla principal ─────────────────────────────────────────────
+const claseSelect = 'h-9 px-3 rounded-lg border border-borde-fuerte text-sm text-texto bg-superficie focus:outline-none focus:ring-2 focus:ring-acento'
+const claseCampo = 'w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento'
+
 export default function PQRSList() {
   const listaAreas = useAreas()
   const listaCanales = useCanales()
+  const listaAsociados = useAsociados()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { user } = useAuth()
   const verNotasCredito = puedeVerModulo(user, 'notas_credito')
-  const [filtroEstado, setFiltroEstado] = useState('')
-  const [filtroTipo, setFiltroTipo]     = useState('')
-  const [busqueda, setBusqueda]         = useState('')
-  const [modalCrear, setModalCrear]     = useState(false)
-  const [seleccionada, setSeleccionada] = useState(null)
 
-  // Cuál tarjeta del encabezado está seleccionada. `null` es «Total», que
-  // no filtra nada. Va aparte de los filtros del panel porque dos de estos
-  // conjuntos no se pueden expresar ahí: «Abiertas» es todo menos cerrado, y
-  // «Vencidas» es una cuenta contra el reloj, no un campo.
+  // Qué PARTE se mira (Abiertas, De mi área, Cerradas, Todas) y, dentro de
+  // ella, qué tarjeta recorta. Son dos cosas: «vencidas de mi área» es una
+  // pregunta legítima.
+  const [vista, setVista] = useState('abiertas')
   const [foco, setFoco] = useState(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroArea, setFiltroArea] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState('')
+  const [modalCrear, setModalCrear] = useState(false)
 
-  // Filtros adicionales (client-side, sobre lo ya traído del servidor)
+  // Lo que se pide menos va en el panel: estado, sede, causa y fechas.
   const [panelFiltrosAbierto, setPanelFiltrosAbierto] = useState(false)
-  const [filtroFechaDesde, setFiltroFechaDesde]       = useState('')
-  const [filtroFechaHasta, setFiltroFechaHasta]       = useState('')
-  const [filtroPuntoVenta, setFiltroPuntoVenta]       = useState('')
-  const [filtroAreaAsignada, setFiltroAreaAsignada]   = useState('')
-  // «Asociado a», o SIN_CAUSA para encontrar las que faltan por clasificar
-  // (sobre todo las que cerró el cliente sin pasar por Servicio al Cliente).
-  const [filtroAsociado, setFiltroAsociado]           = useState('')
-  const listaAsociados = useAsociados()
+  const [filtroEstado, setFiltroEstado] = useState('')
+  const [filtroPuntoVenta, setFiltroPuntoVenta] = useState('')
+  const [filtroAsociado, setFiltroAsociado] = useState('')
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState('')
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState('')
 
   const { data: pqrsList = [], isLoading, isError } = useQuery({
     queryKey: ['pqrs', filtroEstado, filtroTipo],
     queryFn: async () => {
       const params = {}
       if (filtroEstado) params.estado = filtroEstado
-      if (filtroTipo)   params.tipo   = filtroTipo
+      if (filtroTipo) params.tipo = filtroTipo
       const { data } = await api.get('/pqrs', { params })
       return data
     },
@@ -706,91 +456,81 @@ export default function PQRSList() {
   const unaSolaSede = visibilidad?.restringida && visibilidad.puntos.length === 1
 
   const refetch = () => queryClient.invalidateQueries({ queryKey: ['pqrs'] })
-
   const areasDisponibles = useMemo(() => areasParaFiltrar(pqrsList, listaAreas), [pqrsList, listaAreas])
+  const vistas = VISTAS.filter(v => v.clave !== 'mi_area' || user?.area)
+  const contextoVista = { area: user?.area }
 
-  // Búsqueda + filtros adicionales, todo en client-side sobre lo ya traído.
-  // El foco de las tarjetas NO entra aquí: esta es la base sobre la que se
-  // cuentan, para que la cifra de una tarjeta sea exactamente lo que muestra
-  // al pulsarla. Contándolas sobre la lista completa, filtrar por Guayabal y
-  // pulsar «4 vencidas» daba una sola fila — y el 4 quedaba desmentido por
-  // la pantalla.
+  // La base: búsqueda y filtros, sin vista ni tarjeta. Sobre ella se cuenta
+  // la tarjeta principal («Abiertas de N radicadas»).
   const base = pqrsList.filter((p) => {
     const q = busqueda.trim().toLowerCase()
     if (q) {
-      const coincideBusqueda = [p.codigo_seguimiento, p.radicado_calidad, p.cliente_nombre, p.empresa, p.nit_cedula]
-        .filter(Boolean)
-        .some(campo => campo.toLowerCase().includes(q))
-      if (!coincideBusqueda) return false
+      const coincide = [p.codigo_seguimiento, p.radicado_calidad, p.cliente_nombre, p.empresa, p.nit_cedula]
+        .filter(Boolean).some(campo => campo.toLowerCase().includes(q))
+      if (!coincide) return false
     }
-
     if (filtroFechaDesde && new Date(p.fecha_creacion) < new Date(filtroFechaDesde)) return false
     if (filtroFechaHasta) {
       const hasta = new Date(filtroFechaHasta)
       hasta.setHours(23, 59, 59, 999) // incluir todo el día seleccionado
       if (new Date(p.fecha_creacion) > hasta) return false
     }
-
     if (filtroPuntoVenta && !coincidePuntoVenta(p.codigo_seguimiento, filtroPuntoVenta)) return false
-
-    if (!coincideAreaAsignada(p, filtroAreaAsignada)) return false
-
+    if (!coincideAreaAsignada(p, filtroArea)) return false
     if (!coincideAsociado(p, filtroAsociado)) return false
-
     return true
   })
 
-  // Las cifras de las tarjetas salen de las MISMAS funciones que filtran la
-  // lista (`FOCOS` en constants.js). Escritas aparte, el día que una regla
-  // cambie la tarjeta diría un número y la lista mostraría otro.
-  const conteos = contarPorFoco(base)
+  // Las cifras de las tarjetas salen de las MISMAS funciones que filtran
+  // (`FOCOS`), y se cuentan sobre la vista: la tarjeta dice exactamente lo
+  // que muestra al pulsarla.
+  const enVista = base.filter(p => cumpleVista(p, vista, contextoVista))
+  const conteos = contarPorFoco(enVista)
+  const abiertasTotal = base.filter(p => p.estado !== 'cerrado').length
+  const cerradasTotal = base.length - abiertasTotal
+  const lista = enVista.filter(p => cumpleFoco(p, foco))
 
-  // El foco se cruza con los demás filtros, no los reemplaza: «vencidas» y
-  // «de Guayabal» a la vez es una pregunta legítima.
-  const pqrsFiltrada = base.filter(p => cumpleFoco(p, foco))
+  const filtrosDelPanel = [filtroEstado, filtroPuntoVenta, filtroAsociado, filtroFechaDesde, filtroFechaHasta].filter(Boolean).length
+  const hayFiltros = Boolean(foco || busqueda || filtroArea || filtroTipo || filtrosDelPanel)
+  const limpiarTodo = () => {
+    setFoco(null); setBusqueda(''); setFiltroArea(''); setFiltroTipo('')
+    setFiltroEstado(''); setFiltroPuntoVenta(''); setFiltroAsociado('')
+    setFiltroFechaDesde(''); setFiltroFechaHasta('')
+  }
+  // Una tarjeta de plazo sobre las cerradas siempre da cero: pulsarla vuelve
+  // a las abiertas, que es donde esa pregunta tiene respuesta.
+  const enfocar = (clave) => {
+    if (foco === clave) { setFoco(null); return }
+    if (vista === 'cerradas') setVista('abiertas')
+    setFoco(clave)
+  }
+  const nombreVista = vistas.find(v => v.clave === vista)?.label.toLowerCase()
 
   return (
     <div>
-      {/* Las notas crédito no son PQRS —van en su propia tabla, sin plazo de
-          ley ni encuesta al cliente— pero se piden desde aquí, que es donde la
-          gente ya entra. Sin esta pestaña no habría cómo llegar a ellas. */}
-      {/* Sin el módulo contratado no hay pestañas: una sola no es una elección. */}
-      {verNotasCredito && (
-        <div className="flex items-center gap-2 mb-5">
-          <span className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-acento-suave text-acento">
-            PQRS
-          </span>
-          <Link
-            to="/notas-credito"
-            className="px-3 py-1.5 rounded-lg text-sm font-semibold text-texto-2 hover:bg-superficie-2 transition"
-          >
-            Notas crédito
-          </Link>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      {/* Encabezado */}
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
         <div>
-          <h1 className="text-xl font-bold text-acento-fuerte">
-            PQRS — Peticiones, Quejas, Reclamos, Sugerencias y Felicitaciones
-          </h1>
-          <p className="text-sm text-texto-2 mt-1">
-            Gestión de solicitudes 
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-texto">PQRS</h1>
+          <p className="text-sm text-texto-2 mt-1">Peticiones, quejas, reclamos, sugerencias y felicitaciones</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => navigate('/pqrs/informe')}
-            className="flex items-center gap-2 border border-borde-fuerte bg-white hover:bg-superficie-2 text-acento-fuerte font-semibold px-4 py-2.5 rounded-lg text-sm transition"
-          >
-            <IconoIndicadores tam={16} /> Generar informe
+          {/* Las notas crédito no son PQRS —van en su propia tabla, sin plazo
+              de ley ni encuesta— pero se piden desde aquí, que es donde la
+              gente ya entra. Sin el módulo contratado, el botón no aparece. */}
+          {verNotasCredito && (
+            <button onClick={() => navigate('/notas-credito')}
+                    className="inline-flex items-center gap-2 h-9 px-3.5 rounded-lg border border-borde-fuerte bg-superficie text-sm font-semibold text-texto hover:bg-superficie-2 transition">
+              <IconoRecibo tam={15} /> Notas crédito
+            </button>
+          )}
+          <button onClick={() => navigate('/pqrs/informe')}
+                  className="inline-flex items-center gap-2 h-9 px-3.5 rounded-lg border border-borde-fuerte bg-superficie text-sm font-semibold text-texto hover:bg-superficie-2 transition">
+            <IconoIndicadores tam={15} /> Generar informe
           </button>
-          <button
-            onClick={() => setModalCrear(true)}
-            className="flex items-center gap-2 bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold px-4 py-2.5 rounded-lg text-sm transition"
-          >
-            + Registrar PQRS
+          <button onClick={() => setModalCrear(true)}
+                  className="inline-flex items-center gap-2 h-9 px-3.5 rounded-lg bg-acento-fuerte hover:bg-acento text-white text-sm font-semibold shadow-sm transition">
+            <span aria-hidden="true" className="text-base leading-none">+</span> Registrar PQRS
           </button>
         </div>
       </div>
@@ -801,299 +541,243 @@ export default function PQRSList() {
         <div className="flex items-start gap-2 bg-info-bg border border-info/25 rounded-xl px-4 py-3 mb-5">
           <IconoEmpresa tam={16} className="text-info mt-0.5" />
           <p className="text-sm text-texto">
-            {unaSolaSede ? (
-              <>Estás viendo las PQRS de <strong>{visibilidad.puntos[0].canal}</strong></>
-            ) : (
-              <>Estás viendo las PQRS de <strong>los puntos de venta</strong></>
-            )}
+            {unaSolaSede
+              ? <>Estás viendo las PQRS de <strong>{visibilidad.puntos[0].canal}</strong></>
+              : <>Estás viendo las PQRS de <strong>los puntos de venta</strong></>}
             <span className="text-texto-2"> y las que te asignen. Las del resto de la empresa las atiende Servicio al Cliente.</span>
           </p>
         </div>
       )}
 
-      {/* Tarjetas de resumen — las mismas de Master Planner e Inicio, y
-          aquí además filtran: de «hay 4 vencidas» a «estas son». Pulsar la
-          que ya está activa la suelta, que es cómo se vuelve atrás sin
-          buscar dónde se apagó. */}
-      <div className="mb-6">
-        <TarjetasKPI tarjetas={[
-          { label: 'Total', value: conteos.null,
-            nota: `${conteos.abiertas} sin cerrar`,
-            activa: foco === null, onClick: () => setFoco(null) },
-          { label: 'Abiertas', value: conteos.abiertas,
-            nota: conteos.abiertas > 0 ? 'esperan respuesta' : 'ninguna pendiente',
-            activa: foco === 'abiertas',
-            onClick: () => setFoco(foco === 'abiertas' ? null : 'abiertas') },
-          { label: 'Alta prioridad', value: conteos.prioridad,
-            nota: conteos.prioridad > 0 ? 'atender primero' : 'ninguna',
-            activa: foco === 'prioridad',
-            onClick: () => setFoco(foco === 'prioridad' ? null : 'prioridad') },
-          { label: 'Vencidas SLA', value: conteos.vencidas,
+      {/* Las tarjetas filtran: de «hay 4 vencidas» a «estas son». Pulsar la
+          que ya está activa la suelta. */}
+      <div className="mb-5">
+        <TarjetasKPI conPrincipal tarjetas={[
+          { label: 'Abiertas', value: abiertasTotal,
+            nota: `de ${base.length} radicadas${cerradasTotal ? ` · ${cerradasTotal} cerradas` : ''}`,
+            activa: vista === 'abiertas' && !foco,
+            onClick: () => { setVista('abiertas'); setFoco(null) } },
+          { label: 'Plazo vencido', value: conteos.vencidas, punto: 'negativo',
             alerta: conteos.vencidas > 0,
-            nota: conteos.vencidas > 0 ? 'fuera del plazo de ley' : 'todas dentro del plazo',
-            activa: foco === 'vencidas',
-            onClick: () => setFoco(foco === 'vencidas' ? null : 'vencidas') },
+            nota: conteos.vencidas > 0 ? 'fuera del plazo de ley' : 'todas en término',
+            activa: foco === 'vencidas', onClick: () => enfocar('vencidas') },
+          { label: 'Vencen esta semana', value: conteos.por_vencer, punto: 'alerta',
+            nota: conteos.por_vencer > 0 ? 'responder antes de que venzan' : 'ninguna por vencer',
+            activa: foco === 'por_vencer', onClick: () => enfocar('por_vencer') },
+          { label: 'Pasadas en su área', value: conteos.area_vencida, punto: 'neutro',
+            nota: conteos.area_vencida > 0 ? 'más de 3 días hábiles en un área' : 'todas las áreas al día',
+            activa: foco === 'area_vencida', onClick: () => enfocar('area_vencida') },
         ]} />
       </div>
 
-      {/* Buscador por radicado */}
-      <div className="relative mb-4">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-texto-3"><IconoBuscar tam={16} /></span>
-        <input
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por radicado (PK-2026-0001), cliente, NIT o empresa..."
-          className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 bg-white focus:outline-none focus:ring-2 focus:ring-acento transition"
-        />
-        {busqueda && (
-          <button
-            onClick={() => setBusqueda('')}
-            aria-label="Limpiar la búsqueda"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-texto-3 hover:text-texto-2"
-          >
-            <IconoCerrar tam={14} />
+      {/* Barra de herramientas: la vista, la búsqueda y lo que más se filtra. */}
+      <div className="flex flex-wrap items-center gap-2.5 mb-3">
+        <div role="group" aria-label="Vista" className="flex gap-0.5 bg-superficie-2 rounded-lg p-0.5">
+          {vistas.map(v => (
+            <button key={v.clave} type="button" aria-pressed={vista === v.clave}
+                    onClick={() => setVista(v.clave)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                      vista === v.clave ? 'bg-superficie text-texto shadow-sm' : 'text-texto-2 hover:text-texto'
+                    }`}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 h-9 px-3 rounded-lg border border-borde-fuerte bg-superficie flex-1 min-w-[15rem] max-w-md focus-within:ring-2 focus-within:ring-acento">
+          <IconoBuscar tam={15} className="text-texto-3" />
+          <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+                 placeholder="Radicado, cliente, NIT o empresa…" aria-label="Buscar PQRS"
+                 className="w-full text-sm text-texto placeholder-texto-3 bg-transparent focus:outline-none" />
+          {busqueda && (
+            <button onClick={() => setBusqueda('')} aria-label="Borrar la búsqueda" className="text-texto-3 hover:text-texto">
+              <IconoCerrar tam={13} />
+            </button>
+          )}
+        </div>
+
+        <select value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)} aria-label="Área" className={claseSelect}>
+          <option value="">Todas las áreas</option>
+          <option value={AREA_SIN_ASIGNAR}>Sin asignar</option>
+          {areasDisponibles.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+
+        <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} aria-label="Tipo" className={claseSelect}>
+          <option value="">Todos los tipos</option>
+          {Object.entries(TIPOS).map(([clave, { label }]) => <option key={clave} value={clave}>{label}</option>)}
+        </select>
+
+        <button type="button" onClick={() => setPanelFiltrosAbierto(v => !v)} aria-expanded={panelFiltrosAbierto}
+                className={`inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-sm font-semibold transition ${
+                  panelFiltrosAbierto || filtrosDelPanel ? 'border-acento text-acento bg-acento-suave' : 'border-borde-fuerte text-texto-2 bg-superficie hover:bg-superficie-2'
+                }`}>
+          <IconoFiltro tam={15} /> Más filtros
+          {filtrosDelPanel > 0 && <span className="cifra text-xs bg-acento text-white rounded-full px-1.5">{filtrosDelPanel}</span>}
+        </button>
+
+        {/* «Limpiar» apaga también la tarjeta: un recorte que no se sabe cómo
+            quitar se lee como PQRS que faltan. */}
+        {hayFiltros && (
+          <button type="button" onClick={limpiarTodo}
+                  className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-sm text-texto-2 hover:bg-superficie-2 transition">
+            <IconoCerrar tam={13} /> Limpiar
           </button>
         )}
+
+        <span className="ml-auto cifra text-xs text-texto-3">
+          {lista.length} {lista.length === 1 ? 'resultado' : 'resultados'}
+        </span>
       </div>
 
-      {/* Filtros */}
-      {(() => {
-        // La tarjeta cuenta como filtro activo: si no, «Limpiar filtros» la
-        // dejaría puesta y la lista seguiría recortada después de limpiar.
-        const hayFiltrosActivos = foco || filtroEstado || filtroTipo || filtroFechaDesde || filtroFechaHasta || filtroPuntoVenta || filtroAreaAsignada || filtroAsociado
-        const limpiarTodo = () => {
-          setFoco(null)
-          setFiltroEstado(''); setFiltroTipo('')
-          setFiltroFechaDesde(''); setFiltroFechaHasta('')
-          setFiltroPuntoVenta(''); setFiltroAreaAsignada(''); setFiltroAsociado('')
-        }
-        return (
-          <div className="mb-4">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPanelFiltrosAbierto(v => !v)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition ${
-                  panelFiltrosAbierto || hayFiltrosActivos
-                    ? 'border-acento text-acento bg-fondo'
-                    : 'border-borde text-texto-2 bg-white hover:bg-fondo'
-                }`}
-              >
-                <IconoFiltro tam={15} /> Filtros {hayFiltrosActivos && <span className="w-1.5 h-1.5 rounded-full bg-acento" />}
-                <span className="text-xs">{panelFiltrosAbierto ? '▲' : '▼'}</span>
-              </button>
-
-              {hayFiltrosActivos && (
-                <button
-                  onClick={limpiarTodo}
-                  className="px-3 py-2 rounded-lg border border-borde text-sm text-texto-2 bg-white hover:bg-fondo transition"
-                >
-                  <IconoCerrar tam={13} /> Limpiar filtros
-                </button>
-              )}
-            </div>
-
-            {panelFiltrosAbierto && (
-              <div className="mt-3 p-4 bg-white rounded-xl border border-borde grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Estado</label>
-                  <select
-                    value={filtroEstado}
-                    onChange={(e) => setFiltroEstado(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
-                  >
-                    <option value="">Todos los estados</option>
-                    {Object.entries(ESTADOS).map(([key, { label }]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Tipo</label>
-                  <select
-                    value={filtroTipo}
-                    onChange={(e) => setFiltroTipo(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
-                  >
-                    <option value="">Todos los tipos</option>
-                    {Object.entries(TIPOS).map(([key, { label }]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Una sede solo ve la suya: un filtro de una sola opción
-                    solo genera la pregunta de dónde están las demás. */}
-                {!unaSolaSede && (
-                  <div>
-                    <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Punto de venta</label>
-                    <select
-                      value={filtroPuntoVenta}
-                      onChange={(e) => setFiltroPuntoVenta(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
-                    >
-                      <option value="">Todos</option>
-                      {puntosVisibles.map(({ prefijo, label }) => (
-                        <option key={prefijo} value={prefijo}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Área asignada</label>
-                  <select
-                    value={filtroAreaAsignada}
-                    onChange={(e) => setFiltroAreaAsignada(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
-                  >
-                    <option value="">Todas</option>
-                    <option value={AREA_SIN_ASIGNAR}>Sin asignar</option>
-                    {areasDisponibles.map(a => (
-                      <option key={a} value={a}>{a}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Asociado a</label>
-                  <select
-                    value={filtroAsociado}
-                    onChange={(e) => setFiltroAsociado(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
-                  >
-                    <option value="">Todos</option>
-                    <option value={SIN_CAUSA}>Sin causa (falta clasificar)</option>
-                    {agruparAsociados(listaAsociados).map(({ grupo, items }) => (
-                      <optgroup key={grupo} label={grupo}>
-                        {items.map(a => (
-                          <option key={a.id} value={a.id}>{etiquetaAsociado(a)}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Fecha desde</label>
-                  <input
-                    type="date"
-                    value={filtroFechaDesde}
-                    onChange={(e) => setFiltroFechaDesde(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-texto-2 uppercase tracking-wide mb-1.5">Fecha hasta</label>
-                  <input
-                    type="date"
-                    value={filtroFechaHasta}
-                    onChange={(e) => setFiltroFechaHasta(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento"
-                  />
-                </div>
-              </div>
-            )}
+      {panelFiltrosAbierto && (
+        <div className="mb-3 p-4 bg-superficie rounded-xl border border-borde shadow-sm grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div>
+            <label htmlFor="filtro-estado" className="etiqueta block mb-1.5">Estado</label>
+            <select id="filtro-estado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className={claseCampo}>
+              <option value="">Todos los estados</option>
+              {Object.entries(ESTADOS).map(([clave, { label }]) => <option key={clave} value={clave}>{label}</option>)}
+            </select>
           </div>
-        )
-      })()}
+          {/* Una sede solo ve la suya: un filtro de una sola opción solo
+              genera la pregunta de dónde están las demás. */}
+          {!unaSolaSede && (
+            <div>
+              <label htmlFor="filtro-punto" className="etiqueta block mb-1.5">Punto de venta</label>
+              <select id="filtro-punto" value={filtroPuntoVenta} onChange={(e) => setFiltroPuntoVenta(e.target.value)} className={claseCampo}>
+                <option value="">Todos</option>
+                {puntosVisibles.map(({ prefijo, label }) => <option key={prefijo} value={prefijo}>{label}</option>)}
+              </select>
+            </div>
+          )}
+          {/* «Sin causa» encuentra las que faltan por clasificar, sobre todo
+              las que cerró el cliente sin pasar por Servicio al Cliente. */}
+          <div>
+            <label htmlFor="filtro-asociado" className="etiqueta block mb-1.5">Asociado a</label>
+            <select id="filtro-asociado" value={filtroAsociado} onChange={(e) => setFiltroAsociado(e.target.value)} className={claseCampo}>
+              <option value="">Todos</option>
+              <option value={SIN_CAUSA}>Sin causa (falta clasificar)</option>
+              {agruparAsociados(listaAsociados).map(({ grupo, items }) => (
+                <optgroup key={grupo} label={grupo}>
+                  {items.map(a => <option key={a.id} value={a.id}>{etiquetaAsociado(a)}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="filtro-desde" className="etiqueta block mb-1.5">Radicada desde</label>
+            <input id="filtro-desde" type="date" value={filtroFechaDesde} onChange={(e) => setFiltroFechaDesde(e.target.value)} className={claseCampo} />
+          </div>
+          <div>
+            <label htmlFor="filtro-hasta" className="etiqueta block mb-1.5">Hasta</label>
+            <input id="filtro-hasta" type="date" value={filtroFechaHasta} onChange={(e) => setFiltroFechaHasta(e.target.value)} className={claseCampo} />
+          </div>
+        </div>
+      )}
 
       {/* Tabla */}
-      <div className="bg-white rounded-xl border border-borde overflow-hidden">
+      <div className="bg-superficie rounded-xl border border-borde shadow-sm overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center py-16 text-texto-2 text-sm">
-            Cargando solicitudes...
-          </div>
+          <EsqueletoFilas filas={6} />
         ) : isError ? (
           <div className="flex items-center justify-center py-16 text-negativo text-sm">
-            Error al cargar las PQRS. Verifica tu conexión.
+            No se pudieron cargar las PQRS. Revisa tu conexión y recarga la página.
           </div>
         ) : pqrsList.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-texto-2">
             <IconoPQRS tam={26} className="mb-3 text-texto-3" />
             <span className="text-sm font-medium">No hay PQRS registradas</span>
-            <span className="text-xs mt-1">Crea la primera con el botón "Registrar PQRS"</span>
+            <span className="text-xs mt-1">Crea la primera con el botón «Registrar PQRS».</span>
           </div>
-        ) : pqrsFiltrada.length === 0 ? (
+        ) : lista.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-texto-2">
             <IconoBuscar tam={26} className="mb-3 text-texto-3" />
-            <span className="text-sm font-medium">Sin resultados para "{busqueda}"</span>
-            <span className="text-xs mt-1">Verifica el radicado o intenta con otro término</span>
+            <span className="text-sm font-medium">Ninguna PQRS coincide</span>
+            <span className="text-xs mt-1">
+              {busqueda ? `Nada con «${busqueda}» en ${nombreVista}. ` : ''}
+              Prueba con otra vista o limpia los filtros.
+            </span>
           </div>
         ) : (
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="bg-fondo border-b border-borde">
-                {['Radicado', 'Tipo', 'Cliente', 'Área', 'Prioridad', 'SLA', 'Estado', ''].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-texto-2 uppercase tracking-wide">
-                    {h}
-                  </th>
-                ))}
+              <tr className="bg-superficie-2 border-b border-borde">
+                <th className="etiqueta text-left px-4 py-2.5 w-36">Radicado</th>
+                <th className="etiqueta text-left px-4 py-2.5">Cliente</th>
+                <th className="etiqueta text-left px-4 py-2.5 w-52">Área · en cola</th>
+                <th className="etiqueta text-left px-4 py-2.5 w-36">Plazo</th>
+                <th className="etiqueta text-left px-4 py-2.5 w-32">Estado</th>
+                <th className="w-8" aria-hidden="true" />
               </tr>
             </thead>
-            <tbody>
-              {pqrsFiltrada.map((pqrs) => (
-                <tr
-                  key={pqrs.id}
-                  className="border-b border-borde hover:bg-superficie-2 transition cursor-pointer"
-                  onClick={() => navigate(`/pqrs/${pqrs.id}`)}
-                >
-                  <td className="px-4 py-3 text-xs text-acento font-mono font-semibold">
-                    {pqrs.codigo_seguimiento || `#${pqrs.id}`}
-                  </td>
-                  <td className="px-4 py-3"><Badge map={TIPOS} value={pqrs.tipo} /></td>
-                  {/* La empresa arriba —así se reconoce el cliente de un
-                      vistazo— y el contacto debajo. Una persona natural sale
-                      con su nombre y su correo. Ver `nombrePrincipal`. */}
-                  <td className="px-4 py-3">
-                    {(() => {
-                      const { titulo, subtitulo } = nombrePrincipal(pqrs)
-                      const segunda = subtitulo || pqrs.cliente_email
-                      return (
-                        <>
-                          <div className="text-sm font-semibold text-texto">{titulo}</div>
-                          {segunda && <div className="text-xs text-texto-2">{segunda}</div>}
-                        </>
-                      )
-                    })()}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-texto-2">
-                    {pqrs.area_responsable || '—'}
-                    <TiempoEnArea pqrs={pqrs} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-semibold ${PRIORIDADES[pqrs.prioridad]?.color}`}>
-                      ● {PRIORIDADES[pqrs.prioridad]?.label}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3"><SLALabel pqrs={pqrs} /></td>
-                  <td className="px-4 py-3"><Badge map={ESTADOS} value={pqrs.estado} /></td>
-                  <td className="px-4 py-3">
-                    <button className="text-xs text-acento font-semibold hover:underline">
-                      Ver
-                    </button>
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-borde">
+              {lista.map((pqrs) => {
+                const { titulo, subtitulo } = nombrePrincipal(pqrs)
+                const segunda = subtitulo || pqrs.cliente_email
+                const tiempo = tiempoEnArea(pqrs)
+                const urgente = ['alta', 'critica'].includes(pqrs.prioridad)
+                const abrir = () => navigate(`/pqrs/${pqrs.id}`)
+                return (
+                  <tr key={pqrs.id} onClick={abrir} tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter') abrir() }}
+                      className="group cursor-pointer hover:bg-superficie-2 focus:bg-superficie-2 focus:outline-none transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="font-mono text-xs text-texto-2">{pqrs.codigo_seguimiento || `#${pqrs.id}`}</div>
+                      <div className="text-xs text-texto-3 mt-0.5">
+                        {TIPOS[pqrs.tipo]?.label || pqrs.tipo}
+                        {urgente && (
+                          <span className={pqrs.prioridad === 'critica' ? 'text-negativo font-semibold' : 'text-alerta font-semibold'}>
+                            {' · '}{PRIORIDADES[pqrs.prioridad].label.replace('Prioridad ', '')}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    {/* La empresa arriba —así se reconoce el cliente de un
+                        vistazo— y el contacto debajo. Ver `nombrePrincipal`. */}
+                    <td className="px-4 py-3 min-w-0">
+                      <div className="font-medium text-texto truncate max-w-xs">{titulo}</div>
+                      {segunda && <div className="text-xs text-texto-3 truncate max-w-xs">{segunda}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className={pqrs.area_responsable ? 'text-texto-2' : 'text-texto-3'}>{pqrs.area_responsable || 'Sin asignar'}</div>
+                      {tiempo && (
+                        <div className={`cifra text-xs mt-0.5 ${pqrs.area_vencida ? 'text-negativo font-semibold' : 'text-texto-3'}`}>
+                          {tiempo.texto}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3"><Plazo pqrs={pqrs} /></td>
+                    <td className="px-4 py-3"><InsigniaDe mapa={ESTADOS} valor={pqrs.estado} /></td>
+                    <td className="pr-3 text-texto-3">
+                      <IconoChevron tam={15} className="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-focus:opacity-100 transition" />
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}
+        {!isLoading && lista.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-borde text-xs text-texto-3">
+            <span className="cifra">
+              {lista.length === enVista.length
+                ? `${lista.length} ${nombreVista}`
+                : `${lista.length} de ${enVista.length} ${nombreVista}`}
+            </span>
+            {vista === 'abiertas' && cerradasTotal > 0 && (
+              <button type="button" onClick={() => { setVista('cerradas'); setFoco(null) }}
+                      className="font-semibold text-acento hover:underline">
+                Ver las {cerradasTotal} cerradas →
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Modales */}
       {modalCrear && (
         <ModalCrear
           onClose={() => setModalCrear(false)}
           onCreated={refetch}
           canalInicial={unaSolaSede ? visibilidad.puntos[0].canal : ''}
-        />
-      )}
-      {seleccionada && (
-        <ModalDetalle
-          pqrs={seleccionada}
-          onClose={() => setSeleccionada(null)}
-          onUpdated={refetch}
         />
       )}
     </div>

@@ -7,6 +7,7 @@ import {
   AREA_SIN_ASIGNAR, areasParaFiltrar, coincideAreaAsignada,
   ESTADOS_CON_PLAZO, plazoCorriendo, estadoDelPlazo, estaVencida,
   FOCOS, cumpleFoco, contarPorFoco, tiempoEnArea,
+  VISTAS, cumpleVista, avancePlazo, lineaDeVida, filtrarHistorial, iniciales,
 } from '../src/modules/pqrs/constants.js'
 // Las areas son de cada empresa y llegan del servidor; aqui, unas de ejemplo.
 const AREAS = ['TICS', 'Calidad', 'Servicio al Cliente']
@@ -164,17 +165,19 @@ console.log('\n== Las tarjetas del encabezado filtran ==')
 // se podian reconstruir alli: «Abiertas» no es un estado y «Vencidas» no es
 // un campo, es una cuenta contra el reloj.
 const LISTA = [
-  { id: 1, estado: 'cerrado',   prioridad: 'alta',    fecha_limite_sla: enDias(-9) },
+  { id: 1, estado: 'cerrado',   prioridad: 'alta',    fecha_limite_sla: enDias(-9), area_vencida: true },
   { id: 2, estado: 'recibido',  prioridad: 'critica', fecha_limite_sla: enDias(-2) },
-  { id: 3, estado: 'en_proceso',prioridad: 'media',   fecha_limite_sla: enDias(5) },
+  { id: 3, estado: 'en_proceso',prioridad: 'media',   fecha_limite_sla: enDias(5), area_vencida: true },
   { id: 4, estado: 'resuelto',  prioridad: 'baja',    fecha_limite_sla: enDias(-1) },
+  { id: 5, estado: 'asignado',  prioridad: 'media',   fecha_limite_sla: enDias(20) },
 ]
 const cuenta = contarPorFoco(LISTA, AHORA)
 
-check('Total las cuenta todas', cuenta.null === 4, cuenta)
-check('Abiertas es todo menos cerrado', cuenta.abiertas === 3, cuenta)
-check('Alta prioridad junta alta y critica', cuenta.prioridad === 2, cuenta)
+check('Todas las cuenta todas', cuenta.null === 5, cuenta)
+check('Abiertas es todo menos cerrado', cuenta.abiertas === 4, cuenta)
 check('Vencidas no incluye la cerrada ni la resuelta', cuenta.vencidas === 1, cuenta)
+check('Vencen esta semana: en termino y con 7 dias o menos', cuenta.por_vencer === 1, cuenta)
+check('Pasadas en su area: solo las que corren (no la cerrada)', cuenta.area_vencida === 1, cuenta)
 
 console.log('\n== La cifra de la tarjeta es lo que muestra al pulsarla ==')
 // Si el conteo y el filtro se escribieran aparte, el dia que una regla cambie
@@ -203,6 +206,69 @@ check('pasada va en rojo', pasada.tono === 'negativo')
 check('y lo dice en palabras, no solo con color', pasada.texto.includes('se pasó'), pasada)
 check('no decide por su cuenta: con 9 dias sin la marca del servidor no se pinta vencida',
   tiempoEnArea({ area_desde: 'x', dias_en_area: 9, area_vencida: false }).tono === 'neutro')
+
+console.log('\n== Las vistas de la lista ==')
+check('Abiertas deja fuera las cerradas', LISTA.filter(p => cumpleVista(p, 'abiertas')).length === 4)
+check('Cerradas es solo la cerrada', LISTA.filter(p => cumpleVista(p, 'cerradas')).length === 1)
+check('De mi area: solo las abiertas de mi area',
+  cumpleVista({ estado: 'en_proceso', area_responsable: 'Calidad' }, 'mi_area', { area: 'Calidad' })
+  && !cumpleVista({ estado: 'cerrado', area_responsable: 'Calidad' }, 'mi_area', { area: 'Calidad' })
+  && !cumpleVista({ estado: 'en_proceso', area_responsable: 'TICS' }, 'mi_area', { area: 'Calidad' }))
+check('sin area propia, De mi area no muestra nada',
+  !cumpleVista({ estado: 'en_proceso', area_responsable: null }, 'mi_area', { area: null }))
+check('Todas es la ultima y no recorta', VISTAS[VISTAS.length - 1].clave === 'todas'
+  && LISTA.every(p => cumpleVista(p, 'todas')))
+
+console.log('\n== La barrita del plazo ==')
+const radicada = (dias) => new Date(AHORA.getTime() - dias * 86400000).toISOString()
+check('a mitad de plazo, mitad de barra',
+  Math.abs(avancePlazo({ estado: 'en_proceso', fecha_creacion: radicada(5), fecha_limite_sla: enDias(5) }, AHORA) - 0.5) < 0.01)
+check('vencida, barra llena', avancePlazo({ estado: 'recibido', fecha_creacion: radicada(9), fecha_limite_sla: enDias(-1) }, AHORA) === 1)
+check('resuelta no tiene barra', avancePlazo({ estado: 'resuelto', fecha_creacion: radicada(9), fecha_limite_sla: enDias(1) }, AHORA) === null)
+
+console.log('\n== La linea de vida del caso ==')
+const caso = (extra) => ({
+  estado: 'en_proceso', fecha_creacion: '2026-09-25T15:09:00',
+  seguimientos: [
+    { id: 1, fecha: '2026-09-25T15:09:00', estado_nuevo: 'recibido' },
+    { id: 2, fecha: '2026-09-25T15:36:00', estado_nuevo: 'en_proceso' },
+  ],
+  ...extra,
+})
+const claves = (pasos) => pasos.map(p => `${p.clave}:${p.estado}`).join(' ')
+check('en proceso: la gestion es lo actual y no hay paso de autorizaciones',
+  claves(lineaDeVida(caso())) === 'recibida:hecho gestion:hecho resuelta:actual cerrada:pendiente',
+  claves(lineaDeVida(caso())))
+check('la fecha de gestion sale del historial',
+  lineaDeVida(caso())[1].fecha === '2026-09-25T15:36:00')
+const conAut = lineaDeVida(caso(), [{ estado: 'aprobada' }, { estado: 'pendiente' }])
+check('una autorizacion pendiente es donde esta ahora',
+  conAut.find(p => p.clave === 'autorizaciones').estado === 'actual', claves(conAut))
+check('y dice cuantas van', conAut.find(p => p.clave === 'autorizaciones').detalle === '1 aprobada · 1 pendiente',
+  conAut.find(p => p.clave === 'autorizaciones').detalle)
+const resuelta = lineaDeVida(caso({ estado: 'resuelto', fecha_resuelto: '2026-09-30T13:00:00' }))
+check('resuelta: falta que el cliente confirme', resuelta[3].estado === 'actual' && resuelta[3].detalle === 'Esperando al cliente',
+  resuelta[3])
+const cerrada = lineaDeVida(caso({ estado: 'cerrado', fecha_resuelto: '2026-09-30', fecha_cierre: '2026-10-06' }))
+check('cerrada: todo hecho', cerrada.every(p => p.estado === 'hecho'), claves(cerrada))
+check('un paso que falta no muestra fecha', lineaDeVida(caso())[3].fecha === null)
+
+console.log('\n== Filtros del historial ==')
+const HIST = [
+  { id: 1, fecha: '2026-09-25T10:00:00', tipo_evento: 'cambio_estado', estado_nuevo: 'recibido' },
+  { id: 2, fecha: '2026-09-26T10:00:00', tipo_evento: 'comentario', adjunto_evidencia: '/uploads/x.pdf' },
+  { id: 3, fecha: '2026-09-27T10:00:00', tipo_evento: 'autorizacion_respondida' },
+]
+check('todo, del mas reciente al mas antiguo', filtrarHistorial(HIST).map(s => s.id).join() === '3,2,1')
+check('movimientos', filtrarHistorial(HIST, 'movimientos').map(s => s.id).join() === '3,1')
+check('comentarios', filtrarHistorial(HIST, 'comentarios').map(s => s.id).join() === '2')
+check('adjuntos', filtrarHistorial(HIST, 'adjuntos').map(s => s.id).join() === '2')
+check('un filtro que no existe muestra todo', filtrarHistorial(HIST, 'x').length === 3)
+
+console.log('\n== Iniciales de quien firma ==')
+check('nombre y apellido', iniciales('Ana María Vargas') === 'AV')
+check('un solo nombre', iniciales('Calidad') === 'CA')
+check('vacio no revienta', iniciales('') === '?')
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

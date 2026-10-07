@@ -370,6 +370,18 @@ informe»). Lo calcula `modules/pqrs/informe.py` y la pantalla
   menú y la cabecera del `Layout` también), y `index.css` fija A4, fondo
   blanco, colores de las barras y `evitar-corte` para no partir una tarjeta.
 
+**PQRS — cómo está armada la pantalla.** Los nombres y tonos de tipos,
+estados y prioridades viven UNA vez en `TIPOS`/`ESTADOS`/`PRIORIDADES` de
+`pqrs/constants.js`, y las piezas (`Insignia`, `Tarjeta`, `Dato`) en
+`pqrs/piezas.jsx`; antes la lista y el detalle llevaban cada una su copia.
+La lista separa **vista** (`VISTAS`: abiertas, de mi área, cerradas, todas)
+de **tarjeta** (`FOCOS`: vencidas, vencen esta semana, pasadas en su área),
+que recorta dentro de la vista y se cuenta sobre ella. «Sin asignar» dejó de
+ser tarjeta: toda PQRS nace con quien reparte. El detalle muestra la línea de
+vida (`lineaDeVida()`, con las fechas del historial vía `estado_nuevo`) y el
+historial se filtra con `FILTROS_HISTORIAL`; todo con prueba en
+`tests/pqrs.test.mjs`.
+
 **PQRS — cada punto de venta ve las suyas:** todo el portal ve todas las
 PQRS, **menos el área de las sedes** (la marcada con `es_de_sedes` en
 Administración › Áreas; en Protokimica, `Puntos de Venta`). A una sede le
