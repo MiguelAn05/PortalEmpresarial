@@ -37,8 +37,12 @@ HISTORIAL = [
     {
         "version": "0.49.0",
         "fecha": "2026-10-07",
-        "titulo": "Cada PQRS con su causa, y autorizaciones que se pueden devolver",
+        "titulo": "Informe de PQRS, causa de cada PQRS y autorizaciones que se devuelven",
         "cambios": [
+            ("nuevo", "Botón «Generar informe» en PQRS: cuántas entraron en el mes, de qué "
+                      "tipo, por qué causa, por dónde y quién las radicó, cuántas se "
+                      "respondieron a tiempo y cuánto se demora cada área, con gráficas. "
+                      "Se descarga en PDF."),
             ("nuevo", "Cada PQRS tiene «Asociado a» (Mala entrega, Calidad del producto, "
                       "Toma de pedido…) junto al área causante, en la tarjeta «Causa de "
                       "la PQRS». Se busca por sigla o palabra, y propone el área causante."),

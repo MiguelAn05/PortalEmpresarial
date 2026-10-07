@@ -11,7 +11,7 @@ import {
 import { canalesConPrefijo, nombresDe, useCanales } from '../../core/canales.js'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
 import {
-  IconoBuscar, IconoCerrar, IconoClip, IconoEmpresa, IconoFiltro, IconoPapelera, IconoPQRS,
+  IconoBuscar, IconoCerrar, IconoClip, IconoEmpresa, IconoFiltro, IconoIndicadores, IconoPapelera, IconoPQRS,
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 import {
@@ -779,12 +779,20 @@ export default function PQRSList() {
             Gestión de solicitudes 
           </p>
         </div>
-        <button
-          onClick={() => setModalCrear(true)}
-          className="flex items-center gap-2 bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold px-4 py-2.5 rounded-lg text-sm transition"
-        >
-          + Registrar PQRS
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => navigate('/pqrs/informe')}
+            className="flex items-center gap-2 border border-borde-fuerte bg-white hover:bg-superficie-2 text-acento-fuerte font-semibold px-4 py-2.5 rounded-lg text-sm transition"
+          >
+            <IconoIndicadores tam={16} /> Generar informe
+          </button>
+          <button
+            onClick={() => setModalCrear(true)}
+            className="flex items-center gap-2 bg-ambar hover:bg-ambar-claro text-acento-fuerte font-bold px-4 py-2.5 rounded-lg text-sm transition"
+          >
+            + Registrar PQRS
+          </button>
+        </div>
       </div>
 
       {/* Una lista acotada que no avisa que está acotada se lee como «en la

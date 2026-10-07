@@ -3,6 +3,8 @@ Endpoints del módulo PQRS.
 Todos quedan aislados bajo /pqrs y filtrados siempre por tenant_id del usuario
 logueado, para que cada empresa solo vea sus propias solicitudes.
 """
+from datetime import date
+
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form, HTTPException,
     UploadFile, status,
@@ -25,7 +27,7 @@ from app.modules.pqrs.permisos import (
     solo_gestion_pqrs, puede_gestionar_pqrs, puede_cambiar_area,
     filtrar_visibles, obtener_visible, puntos_visibles, area_de_entrada,
 )
-from app.modules.pqrs import asociados, edicion, pendientes, tiempo_en_area
+from app.modules.pqrs import asociados, edicion, informe, pendientes, tiempo_en_area
 from app.modules.pqrs.permisos import CAPACIDAD_GESTION
 from app.core import areas, capacidades
 from app.modules.pqrs import productos as pqrs_productos
@@ -250,6 +252,23 @@ def pqrs_vencidas_en_area(
     variable se la come.
     """
     return tiempo_en_area.vencidas_en_area(db, tenant_id, dias)
+
+
+@router.get("/informe")
+def informe_pqrs(
+    desde: date | None = None,
+    hasta: date | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    El informe gerencial del periodo (por defecto, el mes en curso): tipos,
+    causas, canales, quién radica, tiempos de respuesta y de cada área. Lo
+    calcula `pqrs/informe.py` sobre lo que esta persona puede ver.
+
+    Va antes que `/{pqrs_id}`, o el path variable se la come.
+    """
+    return informe.construir(db, current_user, desde, hasta)
 
 
 @router.post("/cerrar-vencidas")

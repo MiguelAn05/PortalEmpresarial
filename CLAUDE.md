@@ -351,6 +351,25 @@ se edita en Administración y no se borra: se desactiva). La PQRS guarda
 - El `codigo` NO es único (el formato repite `ME` y `N`): la identidad es el
   id. Es también la base para enrutar las PQRS automáticamente más adelante.
 
+**PQRS — el informe gerencial** (`/pqrs/informe`, botón «Generar
+informe»). Lo calcula `modules/pqrs/informe.py` y la pantalla
+(`InformePQRS.jsx`) solo lo dibuja:
+
+- **El periodo es por fecha de RADICACIÓN en la hora de la empresa**: el día
+  empieza a medianoche en Colombia, no en UTC. Se compara contra el periodo
+  anterior del mismo largo.
+- **Cada quien ve el informe de lo que puede ver** (`filtrar_visibles`): un
+  informe que mostrara más que la lista sería la forma de saltarse la regla
+  de los puntos de venta.
+- **La causa se mide sobre las que TIENEN causa**, y las sin clasificar se
+  dicen aparte; si no, «sin clasificar» se comería los porcentajes.
+- **«Quién la radicó»** sale del primer evento del historial: el cliente por
+  el formulario web, o el ÁREA de quien la registró por dentro.
+- **El PDF es la hoja de imprimir del navegador** (`window.print()`): nada
+  que instalar en el servidor. Lo que no es informe lleva `print:hidden` (el
+  menú y la cabecera del `Layout` también), y `index.css` fija A4, fondo
+  blanco, colores de las barras y `evitar-corte` para no partir una tarjeta.
+
 **PQRS — cada punto de venta ve las suyas:** todo el portal ve todas las
 PQRS, **menos el área de las sedes** (la marcada con `es_de_sedes` en
 Administración › Áreas; en Protokimica, `Puntos de Venta`). A una sede le

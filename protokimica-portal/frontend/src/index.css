@@ -239,3 +239,21 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/**
+ * Imprimir — el PDF del informe de PQRS sale de la hoja de imprimir del
+ * navegador. Lo que no es informe (menú, cabecera, controles) lleva
+ * `print:hidden`; aquí va lo que es de la hoja: tamaño, márgenes, fondo
+ * blanco, colores de las barras (el navegador los quita por defecto para
+ * ahorrar tinta) y que una tarjeta no quede partida entre dos páginas.
+ */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html, body { background: white !important; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+@utility evitar-corte {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}

@@ -6,6 +6,7 @@ import Layout from './core/components/Layout.jsx'
 import Inicio from './modules/inicio/Inicio.jsx'
 import PQRSList from './modules/pqrs/PQRSList.jsx'
 import PQRSDetail from './modules/pqrs/PQRSDetail.jsx'
+import InformePQRS from './modules/pqrs/InformePQRS.jsx'
 import NotasCredito from './modules/notas_credito/NotasCredito.jsx'
 import FormularioPQRS from './modules/publico/FormularioPQRS.jsx'
 import SeguimientoPQRS from './modules/publico/SeguimientoPQRS.jsx'
@@ -68,6 +69,8 @@ export default function App() {
       }>
         <Route index element={<Inicio />} />
         <Route path="pqrs"     element={<PQRSList />} />
+        {/* Antes que /pqrs/:id: «informe» no es el id de una PQRS. */}
+        <Route path="pqrs/informe" element={<InformePQRS />} />
         <Route path="pqrs/:id" element={<PQRSDetail />} />
         {/* Va aparte de /pqrs/:id porque no es una PQRS: comparte pestaña con
             ellas, no tabla. Ver models/nota_credito.py. */}

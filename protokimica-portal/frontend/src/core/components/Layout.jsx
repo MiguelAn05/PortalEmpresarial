@@ -183,7 +183,7 @@ export default function Layout() {
       <aside
         inert={!esEscritorio && !abierto ? '' : undefined}
         className={`
-          fixed inset-y-0 left-0 z-40
+          fixed inset-y-0 left-0 z-40 print:hidden
           md:sticky md:inset-y-auto md:top-0 md:h-screen md:z-auto
           flex flex-col bg-nav flex-shrink-0
           transition-[width,transform] duration-200 ease-suave
@@ -279,7 +279,7 @@ export default function Layout() {
       {/* ── CONTENIDO ── */}
       <div className="flex flex-col flex-1 min-w-0">
 
-        <header className="sticky top-0 z-20 h-[60px] bg-superficie border-b border-borde
+        <header className="print:hidden sticky top-0 z-20 h-[60px] bg-superficie border-b border-borde
           flex items-center px-4 sm:px-5 gap-3 flex-shrink-0">
           <button
             onClick={alternarMenu}
@@ -327,10 +327,10 @@ export default function Layout() {
         {/* Arriba del todo y sin tapar nada: quien navega ya está viendo el
             portal, y un overlay le quitaría lo que estaba leyendo para no
             mostrarle nada a cambio. */}
-        <BarraDeCarga />
+        <div className="print:hidden"><BarraDeCarga /></div>
 
-        <main className="flex-1 p-4 sm:p-6">
-          <AvisoVersionNueva />
+        <main className="flex-1 p-4 sm:p-6 print:p-0">
+          <div className="print:hidden"><AvisoVersionNueva /></div>
           <Outlet />
         </main>
       </div>
