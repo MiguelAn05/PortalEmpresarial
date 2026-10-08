@@ -39,6 +39,8 @@ from app.core.deps import (
     get_current_user, get_current_tenant_id, require_role, solo_lectura_no,
 )
 from app.modules.autorizaciones.permisos import puede_responder
+from app.modules.autorizaciones.service import registrar_solicitud
+from app.modules.pqrs import flujo
 from app.models.user import User
 from app.models.pqrs import PQRSSeguimiento
 from app.models.autorizacion import TipoAutorizacion, AutorizacionPQRS
@@ -176,8 +178,6 @@ async def solicitar_autorizacion(
         raise HTTPException(status_code=403, detail="Sin permisos.")
 
     pqrs = obtener_visible(db, tenant_id, pqrs_id, current_user)
-    if pqrs.estado == "cerrado":
-        raise HTTPException(status_code=400, detail="No se puede solicitar autorización en una PQRS cerrada.")
 
     tipo = db.query(TipoAutorizacion).filter(
         TipoAutorizacion.id == tipo_id,
@@ -189,52 +189,17 @@ async def solicitar_autorizacion(
             detail="Ese tipo de autorización no existe. Revisa la lista o pídele a un administrador que lo cree.",
         )
 
-    # Verificar que no haya una autorización pendiente del mismo tipo
-    existente = db.query(AutorizacionPQRS).filter(
-        AutorizacionPQRS.pqrs_id == pqrs_id,
-        AutorizacionPQRS.tipo_id == tipo_id,
-        AutorizacionPQRS.estado == "pendiente",
-    ).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="Ya existe una autorización pendiente de ese tipo.")
-
     ruta_adjunto = None
     if adjunto is not None and adjunto.filename:
         ruta_adjunto = await guardar_archivo(adjunto, "autorizaciones")
 
-    autorizacion = AutorizacionPQRS(
-        pqrs_id=pqrs_id,
-        tipo_id=tipo_id,
-        estado="pendiente",
-        solicitado_por=current_user.id,
-        comentario_solicitud=comentario_solicitud,
-        adjunto_solicitud=ruta_adjunto,
+    autorizacion = registrar_solicitud(
+        db, pqrs, tipo, current_user.id,
+        comentario=comentario_solicitud, ruta_adjunto=ruta_adjunto,
     )
-    db.add(autorizacion)
-
-    # La PQRS pasa al área que tiene que firmar: la pregunta y el caso viajan
-    # juntos, así aparece en la bandeja de quien puede resolverla.
-    area_anterior = pqrs.area_responsable
-    pqrs.area_responsable = tipo.area_autorizadora
-    # Mientras se firma, los 3 días hábiles son del área que autoriza.
-    tiempo_en_area.registrar_cambio(db, pqrs, area_anterior, pqrs.estado)
-
-    detalle = [f"Se solicitó autorización: {tipo.nombre}."]
-    if tipo.area_autorizadora != area_anterior:
-        detalle.append(
-            f"Área: {area_anterior or 'sin asignar'} -> {tipo.area_autorizadora} "
-            "mientras se responde."
-        )
-    if comentario_solicitud:
-        detalle.append(comentario_solicitud.strip())
-
-    db.add(PQRSSeguimiento(
-        pqrs_id=pqrs_id,
-        usuario_id=current_user.id,
-        tipo_evento="autorizacion_solicitada",
-        comentario=" ".join(detalle),
-        adjunto_evidencia=ruta_adjunto,
-    ))
+    # Pedida a mano con un flujo andando, entra a la cadena como un paso más:
+    # si no, al responderla el flujo no sabría que existe.
+    flujo.al_pedir_a_mano(db, pqrs, autorizacion, current_user.id)
     db.commit()
     db.refresh(autorizacion)
 
@@ -327,18 +292,35 @@ async def responder_autorizacion(
             "información."
         ]
 
-    # Con la respuesta ya dada, el caso vuelve a quien reparte. Dejarlo en el
-    # área autorizadora sería dejarlo con quien ya hizo su parte: nadie más lo
-    # tiene en su bandeja y el plazo sigue corriendo. Quien reparte es el
-    # área que tiene `pqrs.cerrar` —Servicio al Cliente en Protokimica—; si
-    # nadie la tiene por área, el caso se queda donde está.
-    reparte = capacidades.area_principal(db, tenant_id, CAPACIDAD_GESTION)
-    if pqrs.estado != "cerrado" and reparte and pqrs.area_responsable != reparte:
-        detalle.append(f"Área: {pqrs.area_responsable or 'sin asignar'} -> {reparte}.")
-        area_que_firmo = pqrs.area_responsable
-        pqrs.area_responsable = reparte
-        # Vuelve a quien reparte con el reloj en cero.
-        tiempo_en_area.registrar_cambio(db, pqrs, area_que_firmo, pqrs.estado)
+    # Si la autorización es un paso del flujo, se marca y se sabe qué sigue
+    # (todavía sin pedirlo: primero queda el renglón de esta respuesta).
+    resultado = flujo.registrar_respuesta(db, pqrs, autorizacion, decision)
+    sigue = resultado["sigue"] if pqrs.estado != "cerrado" else None
+
+    if sigue:
+        # El flujo sigue: el caso pasa DIRECTO a la siguiente área, sin
+        # volver a Servicio al Cliente en cada paso. Eso es lo que evita que
+        # alguien tenga que acordarse de a quién le toca.
+        detalle.append(f"El flujo sigue con: {sigue.tipo.nombre}.")
+    else:
+        # Con la respuesta ya dada, el caso vuelve a quien reparte. Dejarlo en
+        # el área autorizadora sería dejarlo con quien ya hizo su parte: nadie
+        # más lo tiene en su bandeja y el plazo sigue corriendo. Quien reparte
+        # es el área que tiene `pqrs.cerrar` —Servicio al Cliente en
+        # Protokimica—; si nadie la tiene por área, el caso se queda donde está.
+        if resultado["en_flujo"]:
+            detalle.append(
+                "Flujo completo: ya respondieron todos los conceptos."
+                if resultado["estado"] == "completa"
+                else "El flujo quedó detenido: Servicio al Cliente decide si se vuelve a pedir, se sigue o se termina."
+            )
+        reparte = capacidades.area_principal(db, tenant_id, CAPACIDAD_GESTION)
+        if pqrs.estado != "cerrado" and reparte and pqrs.area_responsable != reparte:
+            detalle.append(f"Área: {pqrs.area_responsable or 'sin asignar'} -> {reparte}.")
+            area_que_firmo = pqrs.area_responsable
+            pqrs.area_responsable = reparte
+            # Vuelve a quien reparte con el reloj en cero.
+            tiempo_en_area.registrar_cambio(db, pqrs, area_que_firmo, pqrs.estado)
 
     if comentario_respuesta:
         detalle.append(comentario_respuesta)
@@ -350,16 +332,30 @@ async def responder_autorizacion(
         comentario=" ".join(detalle),
         adjunto_evidencia=ruta_adjunto,
     ))
+    db.flush()
+
+    siguiente = flujo.pedir_siguiente(db, pqrs, current_user.id) if sigue else None
     db.commit()
     db.refresh(autorizacion)
 
-    # Al área a la que vuelve el caso hay que decirle que ya hay respuesta: es
-    # la que tiene que hacer algo con el sí o con el no.
-    background.add_task(enviar_avisos, avisos_autorizacion_respondida(
-        db, tenant_id, pqrs, pqrs.area_responsable,
-        autorizacion.tipo.nombre, decision, current_user.nombre,
-        comentario=comentario_respuesta,
-        tiene_adjunto=bool(ruta_adjunto),
-    ))
+    if siguiente:
+        # Se avisa a la siguiente área que le toca. A Servicio al Cliente no
+        # se le escribe en cada paso: se le avisa cuando el flujo termina o se
+        # detiene, que es cuando tiene algo que hacer.
+        paso, _nueva = siguiente
+        background.add_task(enviar_avisos, avisos_autorizacion_pendiente(
+            db, tenant_id, pqrs, paso.tipo.area_autorizadora,
+            paso.tipo.nombre, current_user.nombre,
+            comentario=f"Viene de «{autorizacion.tipo.nombre}», aprobada por {current_user.nombre}.",
+        ))
+    else:
+        # Al área a la que vuelve el caso hay que decirle que ya hay
+        # respuesta: es la que tiene que hacer algo con el sí o con el no.
+        background.add_task(enviar_avisos, avisos_autorizacion_respondida(
+            db, tenant_id, pqrs, pqrs.area_responsable,
+            autorizacion.tipo.nombre, decision, current_user.nombre,
+            comentario=comentario_respuesta,
+            tiene_adjunto=bool(ruta_adjunto),
+        ))
 
     return autorizacion

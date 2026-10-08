@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.49.0"
+VERSION = "0.50.0"
 FECHA = "2026-10-08"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,24 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.50.0",
+        "fecha": "2026-10-08",
+        "titulo": "Las PQRS piden sus conceptos solas",
+        "cambios": [
+            ("nuevo", "Flujo de conceptos en cada PQRS: Servicio al Cliente elige la bodega "
+                      "de despacho, el portal propone los conceptos según el canal y la "
+                      "causa (bodega, técnico, Analista Financiera, Analista Contable, "
+                      "Cartera) y al iniciarlo pide el primero."),
+            ("nuevo", "Cuando un área aprueba su concepto, el portal pide el siguiente solo "
+                      "y le avisa a esa área: ya nadie tiene que acordarse de a quién sigue."),
+            ("mejora", "Si un concepto se rechaza o se devuelve, el flujo se detiene y vuelve "
+                       "a Servicio al Cliente, que decide si lo vuelve a pedir, sigue con el "
+                       "siguiente o termina."),
+            ("nuevo", "En Administración se editan los flujos por canal, las bodegas de "
+                      "despacho y el concepto técnico de cada causa, sin pedirle nada a TIC's."),
+        ],
+    },
     {
         "version": "0.49.0",
         "fecha": "2026-10-08",

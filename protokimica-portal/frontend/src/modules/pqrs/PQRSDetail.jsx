@@ -30,6 +30,7 @@ import {
 import { BotonEditar, ModalEditarDatos, PanelAdjuntos } from './EdicionDatos.jsx'
 import { ListaProductos } from './ProductosPQRS.jsx'
 import CausaPQRS from './CausaPQRS.jsx'
+import FlujoPQRS from './FlujoPQRS.jsx'
 import { Dato, Insignia, InsigniaDe, Tarjeta } from './piezas.jsx'
 
 const EVENTOS = {
@@ -907,6 +908,9 @@ export default function PQRSDetail() {
 
           {/* La causa va antes de gestionar: es lo que falta para poder cerrar. */}
           <CausaPQRS pqrs={pqrs} puedeMarcar={Boolean(alcance?.puede_marcar_causa)} />
+
+          {/* El flujo va después de la causa: de ella sale el concepto técnico. */}
+          <FlujoPQRS pqrs={pqrs} tipos={tipos} />
 
           {gestionable && (
             <PanelGestion pqrs={pqrs} alcance={alcance} hayPendiente={hayPendiente} invalidar={invalidarAutorizaciones} />

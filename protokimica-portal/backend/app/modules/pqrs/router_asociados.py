@@ -22,6 +22,7 @@ from app.models.pqrs import (
     MAX_CODIGO_ASOCIADO, MAX_GRUPO_ASOCIADO, MAX_NOMBRE_ASOCIADO,
     PQRSAsociado, PQRSSolicitud,
 )
+from app.models.autorizacion import TipoAutorizacion
 from app.models.user import User
 from app.modules.pqrs import asociados
 
@@ -39,6 +40,8 @@ class AsociadoOut(BaseModel):
     area_sugerida: str | None = None
     aplica_a: str | None = None
     sugiere_omp: bool = False
+    # El concepto técnico que pide el flujo para esta causa. Ver `pqrs/flujo.py`.
+    concepto_tecnico_id: int | None = None
 
     class Config:
         from_attributes = True
@@ -58,9 +61,12 @@ class AsociadoCrear(BaseModel):
     area_sugerida: str | None = None
     aplica_a: str | None = None
     sugiere_omp: bool = False
+    concepto_tecnico_id: int | None = None
 
 
 class AsociadoCambiar(BaseModel):
+    # 0 quita el concepto técnico; None lo deja como está.
+    concepto_tecnico_id: int | None = None
     codigo: str | None = Field(default=None, min_length=1, max_length=MAX_CODIGO_ASOCIADO)
     nombre: str | None = Field(default=None, min_length=2, max_length=MAX_NOMBRE_ASOCIADO)
     grupo: str | None = Field(default=None, min_length=2, max_length=MAX_GRUPO_ASOCIADO)
@@ -90,6 +96,18 @@ def _validar_aplica_a(aplica_a: str | None) -> str | None:
             detail="El tipo de canal es 'sede', 'institucional' o vacío (aplica a cualquiera).",
         )
     return aplica_a
+
+
+def _concepto(db: Session, tenant_id: int, tipo_id: int) -> int | None:
+    """El concepto técnico de una causa: 0 lo quita."""
+    if not tipo_id:
+        return None
+    tipo = db.query(TipoAutorizacion).filter(
+        TipoAutorizacion.id == tipo_id, TipoAutorizacion.tenant_id == tenant_id,
+    ).first()
+    if not tipo:
+        raise HTTPException(status_code=400, detail="Ese tipo de autorización no existe. Elígelo de la lista.")
+    return tipo.id
 
 
 def _nombre_libre(db: Session, tenant_id: int, nombre: str, excluir_id: int | None = None) -> None:
@@ -150,6 +168,7 @@ def crear(
         area_sugerida=_validar_area(db, tenant_id, payload.area_sugerida),
         aplica_a=_validar_aplica_a(payload.aplica_a),
         sugiere_omp=payload.sugiere_omp,
+        concepto_tecnico_id=_concepto(db, tenant_id, payload.concepto_tecnico_id or 0),
         orden=(ultimo or 0) + 1,
     )
     db.add(asociado)
@@ -190,6 +209,8 @@ def cambiar(
         asociado.sugiere_omp = payload.sugiere_omp
     if payload.activo is not None:
         asociado.activo = payload.activo
+    if payload.concepto_tecnico_id is not None:
+        asociado.concepto_tecnico_id = _concepto(db, tenant_id, payload.concepto_tecnico_id)
 
     db.commit()
     db.refresh(asociado)

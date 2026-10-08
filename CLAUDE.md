@@ -396,6 +396,31 @@ Estas PQRS terminan en nota crédito, pero **no se juntan con el módulo de
 Notas crédito**: PQRS es cuando el producto ya salió de la empresa; nota
 crédito, cuando no alcanzó a salir.
 
+**PQRS — el flujo de conceptos (pasos 2 y 3), desde la 0.50.** Vive en
+`modules/pqrs/flujo.py` (la regla), `router_flujo.py` (los endpoints) y
+`FlujoPQRS.jsx` / `admin/FlujosPQRS.jsx` (las pantallas):
+
+- **Plantillas por tipo de canal** (`pqrs_flujos` + `pqrs_flujo_pasos`),
+  editables en Administración. Un paso es un concepto fijo, el de la
+  **bodega de despacho** (`pqrs_bodegas_despacho`: CD y La 65 → Logística,
+  Guayabal → Producción; NO son las bodegas de Notas crédito, que es a donde
+  vuelve el producto) o el **técnico de la causa**
+  (`pqrs_asociados.concepto_tecnico_id`). Se siembran solas la primera vez
+  (`flujo.sembrar`), buscando los tipos de autorización por nombre.
+- **La propuesta se resuelve para cada PQRS** y dice lo que falta (la
+  bodega, la causa); un concepto no se repite aunque salga por dos pasos.
+- **Al iniciar, la plantilla se COPIA** a `pqrs_cadena_pasos`: cambiar la
+  plantilla no le mueve los pasos a las que van en camino.
+- **Al aprobar, se pide el siguiente solo** (`registrar_respuesta` y luego
+  `pedir_siguiente`, en ese orden para que el historial se lea bien) y el
+  caso pasa DIRECTO a la siguiente área. **Al rechazar o devolver, se
+  detiene** y vuelve a quien reparte, que reanuda (repitiendo o no), cambia
+  lo que falta o termina. Solo quien reparte (`pqrs.cerrar`) lo mueve.
+- **Pedir una autorización a mano con un flujo andando la mete en la
+  cadena** (`al_pedir_a_mano`): si no, al responderla nadie pediría el
+  siguiente. Pedir una autorización vive en `autorizaciones/service.py`,
+  que usan el endpoint y el flujo: una sola copia de la regla.
+
 **PQRS — cómo está armada la pantalla.** Los nombres y tonos de tipos,
 estados y prioridades viven UNA vez en `TIPOS`/`ESTADOS`/`PRIORIDADES` de
 `pqrs/constants.js`, y las piezas (`Insignia`, `Tarjeta`, `Dato`) en

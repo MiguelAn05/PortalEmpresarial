@@ -25,9 +25,9 @@ const APLICA_A = {
 }
 
 const campo = 'rounded-lg border border-borde px-3 py-1.5 text-sm'
-const VACIO = { codigo: '', nombre: '', grupo: '', area_sugerida: '', aplica_a: '', sugiere_omp: false }
+const VACIO = { codigo: '', nombre: '', grupo: '', area_sugerida: '', aplica_a: '', sugiere_omp: false, concepto_tecnico_id: '' }
 
-function Formulario({ valores, onCambio, areas, grupos, idBase }) {
+function Formulario({ valores, onCambio, areas, grupos, tipos, idBase }) {
   const poner = (clave) => (e) => onCambio({ ...valores, [clave]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
   return (
     <div className="flex flex-wrap gap-2">
@@ -53,6 +53,13 @@ function Formulario({ valores, onCambio, areas, grupos, idBase }) {
               className={`${campo} w-44`}>
         {Object.entries(APLICA_A).map(([v, etiqueta]) => <option key={v} value={v}>{etiqueta}</option>)}
       </select>
+      {/* El concepto que pide el flujo de la PQRS cuando la causa es esta. */}
+      <select value={valores.concepto_tecnico_id} onChange={poner('concepto_tecnico_id')} aria-label="Concepto técnico"
+              title="El concepto técnico que pide el flujo de la PQRS para esta causa"
+              className={`${campo} w-60`}>
+        <option value="">Sin concepto técnico</option>
+        {tipos.map(t => <option key={t.id} value={t.id}>{t.nombre} — {t.area_autorizadora}</option>)}
+      </select>
       <label className="inline-flex items-center gap-1.5 text-xs text-texto-2">
         <input type="checkbox" checked={valores.sugiere_omp} onChange={poner('sugiere_omp')} />
         Puede volverse OMP
@@ -63,11 +70,12 @@ function Formulario({ valores, onCambio, areas, grupos, idBase }) {
 
 const completo = (v) => v.codigo.trim() && v.nombre.trim().length >= 2 && v.grupo.trim().length >= 2
 
-function Fila({ asociado, areas, grupos, ocupado, onCambiar }) {
+function Fila({ asociado, areas, grupos, tipos, ocupado, onCambiar }) {
   const [editando, setEditando] = useState(false)
   const inicial = {
     codigo: asociado.codigo, nombre: asociado.nombre, grupo: asociado.grupo,
     area_sugerida: asociado.area_sugerida || '', aplica_a: asociado.aplica_a || '',
+    concepto_tecnico_id: asociado.concepto_tecnico_id ? String(asociado.concepto_tecnico_id) : '',
     sugiere_omp: asociado.sugiere_omp,
   }
   const [valores, setValores] = useState(inicial)
@@ -75,10 +83,10 @@ function Fila({ asociado, areas, grupos, ocupado, onCambiar }) {
   if (editando) {
     return (
       <div className="px-5 py-3 space-y-2">
-        <Formulario valores={valores} onCambio={setValores} areas={areas} grupos={grupos} idBase={`asociado-${asociado.id}`} />
+        <Formulario valores={valores} onCambio={setValores} areas={areas} grupos={grupos} tipos={tipos} idBase={`asociado-${asociado.id}`} />
         <div className="flex gap-2">
           <button type="button" disabled={ocupado || !completo(valores)}
-                  onClick={() => onCambiar(valores, () => setEditando(false))}
+                  onClick={() => onCambiar({ ...valores, concepto_tecnico_id: Number(valores.concepto_tecnico_id) || 0 }, () => setEditando(false))}
                   className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-acento-fuerte text-white disabled:opacity-40">
             Guardar
           </button>
@@ -107,6 +115,7 @@ function Fila({ asociado, areas, grupos, ocupado, onCambiar }) {
           {asociado.area_sugerida ? `Propone ${asociado.area_sugerida}` : 'Sin área sugerida'}
           {asociado.aplica_a && ` · ${APLICA_A[asociado.aplica_a]}`}
           {asociado.sugiere_omp && ' · puede volverse OMP'}
+          {asociado.concepto_tecnico_id && ` · pide ${tipos.find(t => t.id === asociado.concepto_tecnico_id)?.nombre || 'un concepto técnico'}`}
           {` · ${asociado.pqrs} PQRS`}
           {!asociado.activo && ' · desactivado: no se ofrece'}
         </div>
@@ -128,6 +137,10 @@ function Fila({ asociado, areas, grupos, ocupado, onCambiar }) {
 export default function Asociados() {
   const queryClient = useQueryClient()
   const areas = useAreas()
+  const { data: tipos = [] } = useQuery({
+    queryKey: ['tipos-autorizacion'],
+    queryFn: () => api.get('/autorizaciones/tipos').then(r => r.data),
+  })
   const [nuevo, setNuevo] = useState(VACIO)
   const [aviso, setAviso] = useState(null)
 
@@ -139,7 +152,10 @@ export default function Asociados() {
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ['pqrs', 'asociados'] })
 
   const crear = useMutation({
-    mutationFn: () => api.post('/pqrs/asociados', { ...nuevo, area_sugerida: nuevo.area_sugerida || null, aplica_a: nuevo.aplica_a || null }),
+    mutationFn: () => api.post('/pqrs/asociados', {
+      ...nuevo, area_sugerida: nuevo.area_sugerida || null, aplica_a: nuevo.aplica_a || null,
+      concepto_tecnico_id: Number(nuevo.concepto_tecnico_id) || null,
+    }),
     onSuccess: ({ data }) => {
       setNuevo(VACIO)
       setAviso({ tono: 'positivo', texto: `Se creó «${data.nombre}».` })
@@ -175,7 +191,7 @@ export default function Asociados() {
 
       <form className="px-5 py-3 border-b border-borde space-y-2"
             onSubmit={e => { e.preventDefault(); if (completo(nuevo)) crear.mutate() }}>
-        <Formulario valores={nuevo} onCambio={setNuevo} areas={areas} grupos={grupos} idBase="asociado-nuevo" />
+        <Formulario valores={nuevo} onCambio={setNuevo} areas={areas} grupos={grupos} tipos={tipos} idBase="asociado-nuevo" />
         <button type="submit" disabled={!completo(nuevo) || ocupado}
                 className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-acento-fuerte text-white disabled:opacity-40">
           Crear
@@ -195,7 +211,7 @@ export default function Asociados() {
           <div className="px-5 py-8 text-center text-sm text-texto-2">Cargando...</div>
         ) : (
           lista.map(a => (
-            <Fila key={`${a.id}-${a.nombre}-${a.area_sugerida}-${a.activo}`} asociado={a} areas={areas}
+            <Fila key={`${a.id}-${a.nombre}-${a.area_sugerida}-${a.activo}-${a.concepto_tecnico_id}`} asociado={a} areas={areas} tipos={tipos}
                   grupos={grupos} ocupado={ocupado} onCambiar={onCambiar(a)} />
           ))
         )}

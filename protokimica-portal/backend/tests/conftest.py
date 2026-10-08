@@ -53,6 +53,7 @@ class Entorno:
     def get(self, *a, **k): return self.client.get(*a, **k)
     def post(self, *a, **k): return self.client.post(*a, **k)
     def patch(self, *a, **k): return self.client.patch(*a, **k)
+    def put(self, *a, **k): return self.client.put(*a, **k)
     def delete(self, *a, **k): return self.client.delete(*a, **k)
 
 

@@ -52,6 +52,9 @@ class PQRSSolicitud(Base):
     # causa», la marca quien reparte y es obligatoria para cerrar a mano.
     # Ver `modules/pqrs/asociados.py`.
     asociado_id = Column(Integer, ForeignKey('pqrs_asociados.id'), nullable=True, index=True)
+    # Desde qué bodega salió el producto. Decide el primer concepto del flujo
+    # (Logística o Producción). Ver `modules/pqrs/flujo.py`.
+    bodega_despacho_id = Column(Integer, ForeignKey('pqrs_bodegas_despacho.id'), nullable=True)
     asignado_a = Column(Integer, ForeignKey('users.id'), nullable=True)
     estado = Column(String(20), nullable=False, default='recibido')
     prioridad = Column(String(20), nullable=False, default='media')
@@ -81,6 +84,12 @@ class PQRSSolicitud(Base):
 
     asignado = relationship('User', foreign_keys=[asignado_a])
     asociado = relationship('PQRSAsociado')
+    bodega_despacho = relationship('PQRSBodegaDespacho')
+    # La cadena de conceptos de esta PQRS, en orden. Ver `pqrs/flujo.py`.
+    cadena = relationship(
+        'PQRSCadenaPaso', back_populates='pqrs', cascade='all, delete-orphan',
+        order_by='PQRSCadenaPaso.orden',
+    )
     seguimientos = relationship('PQRSSeguimiento', back_populates='pqrs', cascade='all, delete-orphan')
     encuesta = relationship('PQRSEncuesta', back_populates='pqrs', uselist=False, cascade='all, delete-orphan')
     adjuntos_solucion = relationship(
@@ -161,6 +170,9 @@ class PQRSAsociado(Base):
     # pone primero cuando la PQRS entró por ese tipo de canal. Vacío: aplica
     # a cualquiera.
     aplica_a = Column(String(20), nullable=True)
+    # El concepto técnico que pide el flujo cuando la PQRS es de esta causa
+    # (Calidad del producto → Área Técnica). Vacío: la causa no pide uno.
+    concepto_tecnico_id = Column(Integer, ForeignKey('tipos_autorizacion.id'), nullable=True)
     orden = Column(Integer, nullable=False, default=0, server_default='0')
     activo = Column(Boolean, nullable=False, default=True, server_default='true')
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
@@ -307,3 +319,99 @@ class PQRSPasoArea(Base):
     hasta = Column(DateTime(timezone=True), nullable=False)
     dias_habiles = Column(Integer, nullable=False)
     excedio = Column(Boolean, nullable=False, default=False)
+
+
+
+# ── El flujo de conceptos ──────────────────────────────────────────────
+# Ver `modules/pqrs/flujo.py`: por qué es una cadena de conceptos y no una
+# ruta de áreas, y cómo avanza sola.
+
+# Las clases de paso de un flujo. `concepto` es un tipo de autorización fijo;
+# los otros dos se resuelven con los datos de cada PQRS.
+CLASES_PASO = ("concepto", "bodega", "tecnico")
+
+# Cómo va cada paso de la cadena de una PQRS.
+ESTADOS_PASO = ("pendiente", "en_curso", "aprobado", "rechazado", "devuelto")
+
+
+class PQRSBodegaDespacho(Base):
+    """
+    Desde dónde salió el producto, y qué área da el concepto por eso.
+
+    **No es la bodega de Notas crédito** (`core/bodegas.py`), aunque haya
+    nombres repetidos: aquella es donde ENTRA lo que se devuelve; esta, de
+    donde SALIÓ el despacho. En Protokimica el CD y La 65 son de Logística y
+    Guayabal de Producción. Es tabla porque cambia sin desplegar.
+    """
+    __tablename__ = 'pqrs_bodegas_despacho'
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'nombre', name='uq_pqrs_bodega_despacho_nombre'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    nombre = Column(String(MAX_NOMBRE_ASOCIADO), nullable=False)
+    # El concepto que se pide cuando el producto salió de aquí.
+    tipo_autorizacion_id = Column(Integer, ForeignKey('tipos_autorizacion.id'), nullable=True)
+    activo = Column(Boolean, nullable=False, default=True, server_default='true')
+    orden = Column(Integer, nullable=False, default=0, server_default='0')
+
+
+class PQRSFlujo(Base):
+    """
+    Una plantilla de conceptos: qué se pide, en qué orden, para las PQRS de
+    un tipo de canal. Se edita en Administración sin desplegar.
+    """
+    __tablename__ = 'pqrs_flujos'
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    nombre = Column(String(MAX_NOMBRE_ASOCIADO), nullable=False)
+    # `sede`, `institucional`, `general`, o vacío: cualquier canal.
+    aplica_a = Column(String(20), nullable=True)
+    activo = Column(Boolean, nullable=False, default=True, server_default='true')
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    pasos = relationship(
+        'PQRSFlujoPaso', back_populates='flujo', cascade='all, delete-orphan',
+        order_by='PQRSFlujoPaso.orden',
+    )
+
+
+class PQRSFlujoPaso(Base):
+    __tablename__ = 'pqrs_flujo_pasos'
+
+    id = Column(Integer, primary_key=True, index=True)
+    flujo_id = Column(Integer, ForeignKey('pqrs_flujos.id', ondelete='CASCADE'), nullable=False, index=True)
+    orden = Column(Integer, nullable=False, default=0)
+    clase = Column(String(20), nullable=False, default='concepto')
+    # Solo para `concepto`: los otros se resuelven por bodega y por causa.
+    tipo_autorizacion_id = Column(Integer, ForeignKey('tipos_autorizacion.id'), nullable=True)
+
+    flujo = relationship('PQRSFlujo', back_populates='pasos')
+
+
+class PQRSCadenaPaso(Base):
+    """
+    Un paso de la cadena de conceptos de UNA PQRS, ya resuelto a un tipo de
+    autorización concreto. Se copian de la plantilla al iniciar: cambiar la
+    plantilla después no le mueve los pasos a las PQRS que ya van en camino.
+    """
+    __tablename__ = 'pqrs_cadena_pasos'
+
+    id = Column(Integer, primary_key=True, index=True)
+    pqrs_id = Column(Integer, ForeignKey('pqrs_solicitudes.id', ondelete='CASCADE'), nullable=False, index=True)
+    orden = Column(Integer, nullable=False, default=0)
+    tipo_autorizacion_id = Column(Integer, ForeignKey('tipos_autorizacion.id'), nullable=False)
+    # De dónde salió: `concepto`, `bodega`, `tecnico` (de la plantilla) o
+    # `agregado` (lo puso Servicio al Cliente a mano).
+    origen = Column(String(20), nullable=False, default='concepto')
+    estado = Column(String(20), nullable=False, default='pendiente')
+    autorizacion_id = Column(Integer, ForeignKey('autorizaciones_pqrs.id'), nullable=True)
+    # Quien inició o agregó el paso: a su nombre se pide la autorización
+    # cuando el flujo la pide solo.
+    creado_por = Column(Integer, ForeignKey('users.id'), nullable=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    pqrs = relationship('PQRSSolicitud', back_populates='cadena')
+    tipo = relationship('TipoAutorizacion')
