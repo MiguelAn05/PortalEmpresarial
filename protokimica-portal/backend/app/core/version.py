@@ -19,7 +19,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
 VERSION = "0.49.0"
-FECHA = "2026-10-07"
+FECHA = "2026-10-08"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -36,7 +36,7 @@ TIPOS_DE_CAMBIO = {
 HISTORIAL = [
     {
         "version": "0.49.0",
-        "fecha": "2026-10-07",
+        "fecha": "2026-10-08",
         "titulo": "PQRS rediseñado, con informe, causa y autorizaciones que se devuelven",
         "cambios": [
             ("mejora", "PQRS tiene nueva cara: la lista se filtra por vista (abiertas, de mi "
