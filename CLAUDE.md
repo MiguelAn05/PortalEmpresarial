@@ -370,6 +370,19 @@ informe»). Lo calcula `modules/pqrs/informe.py` y la pantalla
   menú y la cabecera del `Layout` también), y `index.css` fija A4, fondo
   blanco, colores de las barras y `evitar-corte` para no partir una tarjeta.
 
+**PQRS — automatizar el recorrido: primero, ver el real.** El plan tiene
+tres pasos: (1) reconstruir por dónde han pasado las PQRS, (2) que Servicio
+al Cliente y los líderes decidan la ruta oficial por tipo y «Asociado a», y
+(3) que el portal sugiera el siguiente paso. El (1) es
+`python -m app.scripts.analizar_flujo_pqrs` (solo lee; `--desde`, `--json`),
+con la lógica en `modules/pqrs/flujo_historico.py`: los movimientos salen
+del comentario que redacta el propio portal («Área: X -> Y.», o el viejo
+«Área asignada: Y.»), lo que no se puede leer **se cuenta y no se adivina**,
+y un recorrido solo se marca «candidato a ruta» si lo sigue al menos la
+mitad de su grupo con 3 casos o más. **Los datos dicen cómo se hace hoy,
+errores incluidos: la ruta la deciden personas.** Si se cambia cómo se
+escribe un movimiento de área, hay que enseñárselo a `_MOVIMIENTO`.
+
 **PQRS — cómo está armada la pantalla.** Los nombres y tonos de tipos,
 estados y prioridades viven UNA vez en `TIPOS`/`ESTADOS`/`PRIORIDADES` de
 `pqrs/constants.js`, y las piezas (`Insignia`, `Tarjeta`, `Dato`) en
