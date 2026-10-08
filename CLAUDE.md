@@ -377,11 +377,24 @@ al Cliente y los líderes decidan la ruta oficial por tipo y «Asociado a», y
 `python -m app.scripts.analizar_flujo_pqrs` (solo lee; `--desde`, `--json`),
 con la lógica en `modules/pqrs/flujo_historico.py`: los movimientos salen
 del comentario que redacta el propio portal («Área: X -> Y.», o el viejo
-«Área asignada: Y.»), lo que no se puede leer **se cuenta y no se adivina**,
-y un recorrido solo se marca «candidato a ruta» si lo sigue al menos la
-mitad de su grupo con 3 casos o más. **Los datos dicen cómo se hace hoy,
-errores incluidos: la ruta la deciden personas.** Si se cambia cómo se
-escribe un movimiento de área, hay que enseñárselo a `_MOVIMIENTO`.
+«Área asignada: Y.»), lo que no se puede leer **se cuenta y no se adivina**.
+**Los datos dicen cómo se hace hoy, errores incluidos:
+la ruta la deciden personas.** Si se cambia cómo se escribe un movimiento de
+área, hay que enseñárselo a `_MOVIMIENTO`.
+
+Lo que enseñó la primera corrida en zeus (56 PQRS): **el flujo no es una
+ruta de áreas sino una CADENA DE CONCEPTOS** (autorizaciones) con Servicio
+al Cliente en el centro —cada concepto sale de ahí y vuelve ahí, así que
+ir y volver de Servicio al Cliente NO es un error y no se cuenta como tal
+(`areas_repetidas`)—. Las reclamaciones de venta institucional piden casi
+siempre un concepto técnico y luego Analista Financiera, Analista Contable y
+Cartera, en orden variable; por eso ninguna ruta exacta se repite. De ahí la
+**plantilla candidata** de cada grupo (tipo, canal, «Asociado a»): los
+conceptos que pide al menos la mitad de sus PQRS, ordenados por su posición
+promedio. Ese es el paso 3: que el portal pida el siguiente concepto solo.
+Estas PQRS terminan en nota crédito, pero **no se juntan con el módulo de
+Notas crédito**: PQRS es cuando el producto ya salió de la empresa; nota
+crédito, cuando no alcanzó a salir.
 
 **PQRS — cómo está armada la pantalla.** Los nombres y tonos de tipos,
 estados y prioridades viven UNA vez en `TIPOS`/`ESTADOS`/`PRIORIDADES` de

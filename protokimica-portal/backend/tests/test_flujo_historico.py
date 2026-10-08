@@ -11,7 +11,12 @@ from datetime import datetime, timedelta, timezone
 
 from app.models.pqrs import PQRSSeguimiento, PQRSSolicitud
 from app.modules.pqrs import asociados
-from app.modules.pqrs.flujo_historico import SIN_AREA, analizar, recorrido
+from types import SimpleNamespace
+
+from app.models.autorizacion import AutorizacionPQRS, TipoAutorizacion
+from app.modules.pqrs.flujo_historico import (
+    SIN_AREA, _tipo_de_canal, analizar, areas_repetidas, plantilla, recorrido,
+)
 
 INICIO = datetime(2026, 9, 1, 15, 0, tzinfo=timezone.utc)
 
@@ -127,7 +132,8 @@ def test_propone_una_ruta_solo_cuando_ya_es_la_norma(entorno, v):
     v.check("quejas: ninguno pasa de un tercio, no hay patrón", queja["patron"]["hay_patron"] is False,
             queja["patron"])
 
-    v.check("las idas y vueltas se cuentan", r["resumen"]["idas_y_vueltas"] == 3, r["resumen"])
+    v.check("ir y volver de Servicio al Cliente NO es repetir área",
+            r["resumen"]["con_repetidas"] == 0, r["resumen"])
     v.check("Servicio al Cliente aparece en todas",
             next(a for a in r["areas"] if a["area"] == sc)["pqrs"] == 7, r["areas"])
     v.check("la transición más común: a Logística (3 reclamos + 1 queja)",
@@ -167,3 +173,87 @@ def test_sin_pqrs_no_revienta(entorno, v):
     r = analizar(db, entorno.tenant_id)
     db.close()
     v.check("resumen en cero", r["resumen"]["pqrs"] == 0 and r["recorridos"] == [], r["resumen"])
+
+
+# ── Lo que se automatizaría: la plantilla de conceptos ───────────────────
+
+def test_repetir_area_no_cuenta_al_centro(v):
+    sc = "Servicio al Cliente"
+    v.check("Comercial dos veces sí es repetir",
+            areas_repetidas([sc, "Comercial", sc, "Contabilidad", sc, "Comercial"], sc) == ["Comercial"])
+    v.check("ir y volver del centro no", areas_repetidas([sc, "Comercial", sc, "Contabilidad", sc], sc) == [])
+
+
+def test_plantilla_ordena_por_posicion_promedio(v):
+    a, b, c = "Analista Financiera", "Analista Contable", "Cartera"
+    p = plantilla([[a, b, c], [a, c, b], [b, a], [a], []])
+    v.check("hay plantilla", p["hay_plantilla"], p)
+    v.check("en el orden en que suelen pedirse, aunque ninguna cadena se repita",
+            [x["concepto"] for x in p["pasos"]] == [a, b, c], p["pasos"])
+    v.check("con cuántas la piden (sobre las que piden alguno)",
+            [x["pct"] for x in p["pasos"]] == [100.0, 75.0, 50.0] and p["sobre"] == 4, p)
+
+
+def test_plantilla_deja_fuera_lo_poco_frecuente_y_los_reintentos(v):
+    a, b, raro = "Analista Financiera", "Cartera", "Abastecimiento"
+    p = plantilla([[a, a, b], [a, b], [a, b, raro], [a]])
+    v.check("pedir dos veces lo mismo no es otro paso", [x["concepto"] for x in p["pasos"]] == [a, b], p)
+    v.check("lo que pide una de cuatro no entra", raro not in [x["concepto"] for x in p["pasos"]])
+
+
+def test_sin_suficientes_casos_no_hay_plantilla(v):
+    p = plantilla([["A"], ["A"], [], []])
+    v.check("dos con conceptos no deciden nada", p["hay_plantilla"] is False and "pocas" in p["motivo"], p)
+
+
+def test_el_canal_sale_del_nombre_o_del_prefijo_exacto(v):
+    canales_por_nombre = {"Venta institucional": SimpleNamespace(tipo="institucional")}
+    prefijos = [("PVCR", "sede"), ("PVC", "sede"), ("VI", "institucional")]
+    def tipo(canal, codigo):
+        return _tipo_de_canal(SimpleNamespace(canal_atencion=canal, codigo_seguimiento=codigo),
+                              canales_por_nombre, prefijos)
+    v.check("por el nombre del canal", tipo("Venta institucional", None) == "institucional")
+    v.check("sin canal, por el prefijo del radicado", tipo(None, "VI0012") == "institucional")
+    v.check("el prefijo es exacto: PK no es de nadie", tipo(None, "PK-2026-0001") is None)
+
+
+def test_la_cadena_de_conceptos_de_cada_pqrs(entorno, v):
+    db = entorno.Session()
+    fin = TipoAutorizacion(tenant_id=entorno.tenant_id, nombre="Concepto  Analista Financiera",
+                           area_autorizadora="Comercial")
+    con = TipoAutorizacion(tenant_id=entorno.tenant_id, nombre="Concepto Analista Contable",
+                           area_autorizadora="Contabilidad")
+    db.add_all([fin, con])
+    db.flush()
+    pids = []
+    for _ in range(3):
+        p = PQRSSolicitud(tenant_id=entorno.tenant_id, tipo="reclamo", cliente_nombre="C", descripcion="x",
+                          estado="cerrado", prioridad="media", origen_publico="interno",
+                          area_responsable="Servicio al Cliente", fecha_creacion=INICIO)
+        db.add(p)
+        db.flush()
+        pids.append(p.id)
+        usuario = entorno.ids["admin"]
+        db.add_all([
+            AutorizacionPQRS(pqrs_id=p.id, tipo_id=fin.id, estado="rechazada", solicitado_por=usuario,
+                             fecha_solicitud=INICIO),
+            AutorizacionPQRS(pqrs_id=p.id, tipo_id=fin.id, estado="aprobada", solicitado_por=usuario,
+                             fecha_solicitud=INICIO + timedelta(hours=1)),
+            AutorizacionPQRS(pqrs_id=p.id, tipo_id=con.id, estado="aprobada", solicitado_por=usuario,
+                             fecha_solicitud=INICIO + timedelta(hours=2)),
+        ])
+    db.commit()
+    r = analizar(db, entorno.tenant_id)
+    db.close()
+
+    caso = next(c for c in r["casos"] if c["id"] == pids[0])
+    v.check("la cadena en el orden en que se pidió, sin espacios de más",
+            caso["conceptos"] == ["Concepto Analista Financiera", "Concepto Analista Financiera",
+                                  "Concepto Analista Contable"], caso["conceptos"])
+    reclamo = next(g for g in r["por_tipo"] if g["grupo"] == "Reclamo")
+    v.check("y la plantilla del grupo",
+            [x["concepto"] for x in reclamo["plantilla"]["pasos"]]
+            == ["Concepto Analista Financiera", "Concepto Analista Contable"], reclamo["plantilla"])
+    financiera = next(a for a in r["autorizaciones"] if a["tipo"] == "Concepto Analista Financiera")
+    v.check("se cuenta cuántas veces se volvió a pedir tras un rechazo",
+            financiera["repedido"] == 3 and financiera["pqrs"] == 3, financiera)
