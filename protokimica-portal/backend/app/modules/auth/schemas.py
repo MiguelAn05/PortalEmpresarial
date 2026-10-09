@@ -45,9 +45,6 @@ class UserOut(BaseModel):
     area: str | None
     # Prefijo del punto de venta (`PVG`…). Ver `models/user.py`.
     punto_venta: str | None = None
-    # Bodega que maneja («Guayabal», «La 65»). Solo significa algo con la
-    # capacidad notas_credito.confirmar_producto. Ver core/bodegas.py.
-    bodega: str | None = None
     # Áreas que supervisa ADEMÁS de la suya. Ver core/supervision.py.
     areas_supervisadas: AreasSupervisadas = []
     tenant_id: int
@@ -71,9 +68,6 @@ class UsuarioCreate(BaseModel):
     rol: str = "agente"
     area: str | None = None
     punto_venta: str | None = None
-    # Bodega que maneja («Guayabal», «La 65»). Solo significa algo con la
-    # capacidad notas_credito.confirmar_producto. Ver core/bodegas.py.
-    bodega: str | None = None
     # Áreas que supervisa ADEMÁS de la suya. Ver core/supervision.py.
     areas_supervisadas: AreasSupervisadas = []
 
@@ -91,9 +85,6 @@ class UsuarioUpdate(BaseModel):
     # si el campo llegó (`model_fields_set`), no si trae valor. Quitarle el
     # punto a alguien es justamente convertirlo en coordinador.
     punto_venta: str | None = None
-    # Igual que `punto_venta`: se mira si llegó, no si trae valor. Null es
-    # «responde por todas las bodegas», no «sin cambios».
-    bodega: str | None = None
     # Igual que `punto_venta`: se mira si el campo llegó, no si trae valor.
     # Mandar una lista vacía es quitarle toda la supervisión; no mandarlo, dejarla como está.
     areas_supervisadas: list[str] | None = None
@@ -113,9 +104,6 @@ class UsuarioOut(BaseModel):
     rol: str
     area: str | None
     punto_venta: str | None = None
-    # Bodega que maneja («Guayabal», «La 65»). Solo significa algo con la
-    # capacidad notas_credito.confirmar_producto. Ver core/bodegas.py.
-    bodega: str | None = None
     # Áreas que supervisa ADEMÁS de la suya. Ver core/supervision.py.
     areas_supervisadas: AreasSupervisadas = []
     activo: bool

@@ -29,9 +29,10 @@ Servicio al Cliente NO participa. Esto es un trámite entre el punto de venta
 y quien tenga la capacidad; meterlos sería darles una bandeja más que
 revisar sin que tengan nada que decidir en ella.
 """
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, true
 from sqlalchemy.orm import Session
 
+from app.core import bodegas
 from app.core.capacidades import CAPACIDADES, quienes_tienen, tiene
 from app.models.nota_credito import ESTADO_EN_BODEGA, SolicitudNotaCredito
 from app.models.user import User
@@ -94,11 +95,11 @@ def puede_atender(db: Session, usuario: User, solicitud) -> bool:
     capacidad = flujo.capacidad_de(solicitud.estado)
     if capacidad is None:
         return False   # estado final, o en manos del solicitante
-    if not tiene(db, usuario, capacidad):
-        return False
     if solicitud.estado == ESTADO_EN_BODEGA:
-        return flujo.atiende_la_bodega(usuario, solicitud.bodega)
-    return True
+        # El responsable de la bodega confirma aunque no tenga el permiso por
+        # área: haberlo nombrado responsable ya es el permiso.
+        return flujo.atiende_la_bodega(db, usuario, solicitud.bodega, tiene(db, usuario, capacidad))
+    return tiene(db, usuario, capacidad)
 
 
 def es_el_solicitante(usuario: User, solicitud) -> bool:
@@ -145,6 +146,9 @@ def puede_ver(db: Session, usuario: User, solicitud) -> bool:
     """
     if ve_todas(db, usuario) or es_el_solicitante(usuario, solicitud):
         return True
+    # Quien responde por una bodega ve lo que entra a ella.
+    if solicitud.institucional and solicitud.bodega and solicitud.bodega in bodegas.de_usuario(db, usuario):
+        return True
 
     suyas = _capacidades_de(db, usuario)
     if not suyas:
@@ -156,7 +160,7 @@ def puede_ver(db: Session, usuario: User, solicitud) -> bool:
     if CAP_VERIFICAR_DIAN in suyas:
         return True
     if CAP_CONFIRMAR_PRODUCTO in suyas:
-        return flujo.atiende_la_bodega(usuario, solicitud.bodega)
+        return flujo.atiende_la_bodega(db, usuario, solicitud.bodega)
     return False
 
 
@@ -174,6 +178,9 @@ def filtrar_visibles(query, db: Session, usuario: User):
     condiciones = [SolicitudNotaCredito.solicitado_por == usuario.id]
     suyas = _capacidades_de(db, usuario)
     institucional = SolicitudNotaCredito.institucional.is_(True)
+    mis_bodegas = bodegas.de_usuario(db, usuario)
+    if mis_bodegas:
+        condiciones.append(and_(institucional, SolicitudNotaCredito.bodega.in_(mis_bodegas)))
 
     if CAP_APROBAR_COMERCIAL in suyas:
         # Comercial abre TODAS las cadenas, así que no se le acota a las
@@ -182,14 +189,15 @@ def filtrar_visibles(query, db: Session, usuario: User):
     if CAP_VERIFICAR_DIAN in suyas:
         condiciones.append(institucional)
     elif CAP_CONFIRMAR_PRODUCTO in suyas:
-        # Sin bodega marcada responde por las dos, igual que el coordinador
-        # sin punto de venta ve los seis puntos.
-        if usuario.bodega:
-            condiciones.append(and_(
-                institucional, SolicitudNotaCredito.bodega == usuario.bodega,
-            ))
-        else:
-            condiciones.append(institucional)
+        # Con el permiso de confirmar producto: lo de las bodegas que todavía
+        # no tienen responsables (y lo que no pasa por bodega). Las que sí los
+        # tienen son de ellos, y ya entraron arriba si es una de las suyas.
+        con_responsables = [b.nombre for b in bodegas.del_tenant(db, usuario.tenant_id, incluir_inactivas=True)
+                            if b.responsables]
+        condiciones.append(and_(institucional, or_(
+            SolicitudNotaCredito.bodega.is_(None),
+            SolicitudNotaCredito.bodega.notin_(con_responsables) if con_responsables else true(),
+        )))
 
     return query.filter(or_(*condiciones))
 

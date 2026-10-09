@@ -36,6 +36,8 @@ from app.core.database import Base
 COLUMNAS_PROPIAS = {
     ("usuario_areas_supervisadas", "usuario_id"),
     ("capacidades_otorgadas", "usuario_id"),
+    # Ser responsable de una bodega es configuración: se va con la persona.
+    ("bodega_responsables", "usuario_id"),
 }
 
 # Cómo se nombra cada tabla en el mensaje. Una que no esté aquí sale con su

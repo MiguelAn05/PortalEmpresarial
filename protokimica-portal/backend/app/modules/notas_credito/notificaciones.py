@@ -13,7 +13,7 @@ donde arreglar el próximo webhook con un salto de línea al final.
 """
 from sqlalchemy.orm import Session
 
-from app.core import canales
+from app.core import bodegas, canales
 from app.core.capacidades import correos_de, usuarios_con
 from app.core.config import settings
 from app.models.nota_credito import ESTADO_APROBADA, ESTADO_EN_BODEGA
@@ -195,8 +195,10 @@ def _aviso_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
 
     candidatos = usuarios_con(db, tenant_id, capacidad)
     if solicitud.estado == ESTADO_EN_BODEGA:
-        de_la_bodega = [u for u in candidatos if flujo.atiende_la_bodega(u, solicitud.bodega)]
-        candidatos = de_la_bodega or candidatos
+        # Primero a los responsables de ESA bodega. Si no tiene, a todos los
+        # que pueden confirmar: una solicitud parada porque su destinatario
+        # no existe es peor que un correo de más.
+        candidatos = bodegas.responsables(db, tenant_id, solicitud.bodega) or candidatos
 
     destinatarios = sorted({u.email for u in candidatos if u.email})
     if not destinatarios:

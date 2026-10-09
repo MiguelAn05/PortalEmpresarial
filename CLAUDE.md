@@ -402,9 +402,9 @@ crédito, cuando no alcanzó a salir.
 
 - **Plantillas por tipo de canal** (`pqrs_flujos` + `pqrs_flujo_pasos`),
   editables en Administración. Un paso es un concepto fijo, el de la
-  **bodega de despacho** (`pqrs_bodegas_despacho`: CD y La 65 → Logística,
-  Guayabal → Producción; NO son las bodegas de Notas crédito, que es a donde
-  vuelve el producto) o el **técnico de la causa**
+  **bodega de despacho** (la lista común de bodegas; su concepto vive en
+  `pqrs_conceptos_bodega`: CD y La 65 → Logística, Guayabal → Producción) o
+  el **técnico de la causa**
   (`pqrs_asociados.concepto_tecnico_id`). Se siembran solas la primera vez
   (`flujo.sembrar`), buscando los tipos de autorización por nombre.
 - **La propuesta se resuelve para cada PQRS** y dice lo que falta (la
@@ -1459,12 +1459,31 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   preguntándolo cada vez la respuesta dependería de quién radica. Lo
   administra Contabilidad desde el portal, sin desplegar.
 
-  **La bodega no es el punto de venta, aunque Guayabal y La 65 se llamen
-  igual en los dos catálogos.** `core/bodegas.py` (gemelo en
-  `frontend/src/core/bodegas.js`, con prueba que los ata) y `users.bodega`:
-  quien tiene bodega marcada atiende la suya, quien no la tiene responde por
-  las dos — igual que el coordinador sin punto de venta ve los seis. Lo ajeno
-  responde **404**.
+  **Las bodegas son UNA lista para todo el portal, con sus responsables**
+  (desde la 0.51; tablas `bodegas` + `bodega_responsables`, `core/bodegas.py`,
+  Administración › Bodegas). Antes eran dos que no se conocían: la de Notas
+  crédito, fija en el código (Guayabal, La 65, sin el CD) con el responsable
+  marcado en cada usuario (`users.bodega`, ya no existe), y la de despacho de
+  PQRS. **La bodega no es el punto de venta**, aunque Guayabal y La 65 se
+  llamen igual en los dos catálogos.
+  - En una nota crédito institucional la bodega se pregunta cuando el motivo
+    tiene que ver con producto (`nc_motivos.requiere_bodega`, que incluye
+    «Otro» por decisión del usuario); los puntos de venta no la llevan. Es
+    **de dónde salió el producto**, y su responsable confirma que está bien
+    antes de Comercial.
+  - **Quién confirma** (`bodegas.puede_confirmar`): los responsables de esa
+    bodega, aunque su área no tenga el permiso —nombrarlo responsable ya lo
+    es—. Si la bodega no tiene responsables, quien tenga
+    `notas_credito.confirmar_producto`, para que nada se quede quieto. Un
+    coordinador de varias se nombra en cada una. Lo ajeno responde **404**.
+  - Notas crédito guarda el NOMBRE (`nc_solicitudes.bodega`): renombrar pasa
+    por `bodegas.renombrar()`, que reescribe `COLUMNAS_CON_BODEGA`
+    (`tests/test_bodegas.py` recorre el esquema). PQRS guarda el id.
+  - **Solo se borra la que nadie usa** (`bodegas.usos`: las columnas por
+    nombre más toda llave a `bodegas.id`, sacada del esquema); si no, 409 y
+    se ofrece desactivar. La pantalla pregunta antes de borrar.
+  - Ser responsable es configuración del usuario: no le impide borrarlo
+    (`rastros.COLUMNAS_PROPIAS`).
 
   **Devolver no es rechazar.** Rechazar cierra el caso; devolver lo deja vivo
   en manos de quien lo pidió, con el comentario de qué corregir (obligatorio:

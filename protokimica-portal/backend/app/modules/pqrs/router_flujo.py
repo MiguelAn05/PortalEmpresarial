@@ -8,20 +8,21 @@ La lógica y el porqué están en `pqrs/flujo.py`.
 - **Las plantillas y las bodegas** las cambia `admin`.
 
 Va con prefijo `/pqrs` y se registra ANTES que el router de PQRS: si no,
-`/pqrs/{pqrs_id}` se come `/pqrs/flujos` y responde 422.
+`/pqrs/{pqrs_id}` se come `/pqrs/flujos` y responde 422. Las bodegas son la
+lista común (`core/bodegas.py`); aquí solo se elige el concepto de cada una.
 """
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core import capacidades
+from app.core import bodegas, capacidades
 from app.core.database import get_db
 from app.core.deps import get_current_tenant_id, get_current_user, require_role, solo_lectura_no
 from app.core.modulos import contratado
 from app.core.notificaciones import enviar_avisos
 from app.models.autorizacion import TipoAutorizacion
 from app.models.pqrs import (
-    CLASES_PASO, MAX_NOMBRE_ASOCIADO, PQRSBodegaDespacho, PQRSFlujo, PQRSFlujoPaso,
+    CLASES_PASO, MAX_NOMBRE_ASOCIADO, PQRSFlujo, PQRSFlujoPaso,
 )
 from app.models.user import User
 from app.modules.pqrs import flujo
@@ -183,12 +184,6 @@ class Plantilla(BaseModel):
     pasos: list[PasoPlantilla] = Field(default_factory=list, max_length=20)
 
 
-class BodegaIn(BaseModel):
-    nombre: str = Field(min_length=1, max_length=MAX_NOMBRE_ASOCIADO)
-    tipo_autorizacion_id: int | None = None
-    activo: bool = True
-
-
 def _tipo(db: Session, tenant_id: int, tipo_id: int | None) -> TipoAutorizacion | None:
     if tipo_id is None:
         return None
@@ -278,55 +273,44 @@ def cambiar_plantilla(
     return _plantilla_out(db, plantilla)
 
 
-@router.get("/bodegas-despacho")
-def listar_bodegas(
+class ConceptoBodega(BaseModel):
+    tipo_autorizacion_id: int | None = None
+
+
+@router.get("/conceptos-bodega")
+def listar_conceptos_bodega(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(require_role("admin")),
 ):
+    """
+    Cada bodega de la lista común con el concepto que pide el flujo de PQRS.
+    Las bodegas se crean, renombran y borran en Administración › Bodegas;
+    aquí solo se elige su concepto.
+    """
     flujo.sembrar(db, tenant_id)
-    bodegas = db.query(PQRSBodegaDespacho).filter(PQRSBodegaDespacho.tenant_id == tenant_id) \
-        .order_by(PQRSBodegaDespacho.orden, PQRSBodegaDespacho.nombre).all()
-    return [{"id": b.id, "nombre": b.nombre, "tipo_autorizacion_id": b.tipo_autorizacion_id, "activo": b.activo}
-            for b in bodegas]
-
-
-@router.post("/bodegas-despacho", status_code=201)
-def crear_bodega(
-    payload: BodegaIn,
-    db: Session = Depends(get_db),
-    tenant_id: int = Depends(get_current_tenant_id),
-    _: User = Depends(require_role("admin")),
-):
-    flujo.sembrar(db, tenant_id)
-    nombre = " ".join(payload.nombre.split())
-    if db.query(PQRSBodegaDespacho.id).filter(PQRSBodegaDespacho.tenant_id == tenant_id,
-                                              PQRSBodegaDespacho.nombre == nombre).first():
-        raise HTTPException(status_code=409, detail=f"Ya existe la bodega «{nombre}».")
-    tipo = _tipo(db, tenant_id, payload.tipo_autorizacion_id)
-    ultima = db.query(PQRSBodegaDespacho).filter(PQRSBodegaDespacho.tenant_id == tenant_id).count()
-    bodega = PQRSBodegaDespacho(tenant_id=tenant_id, nombre=nombre, orden=ultima,
-                                tipo_autorizacion_id=tipo.id if tipo else None, activo=payload.activo)
-    db.add(bodega)
+    salida = []
+    for b in bodegas.del_tenant(db, tenant_id, incluir_inactivas=True):
+        concepto = flujo._concepto_de(db, b.id)
+        salida.append({"bodega_id": b.id, "nombre": b.nombre, "activo": b.activo,
+                       "tipo_autorizacion_id": concepto.tipo_autorizacion_id if concepto else None})
     db.commit()
-    return {"id": bodega.id, "nombre": bodega.nombre, "tipo_autorizacion_id": bodega.tipo_autorizacion_id, "activo": bodega.activo}
+    return salida
 
 
-@router.put("/bodegas-despacho/{bodega_id}")
-def cambiar_bodega(
+@router.put("/conceptos-bodega/{bodega_id}")
+def cambiar_concepto_bodega(
     bodega_id: int,
-    payload: BodegaIn,
+    payload: ConceptoBodega,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(require_role("admin")),
 ):
-    bodega = db.query(PQRSBodegaDespacho).filter(PQRSBodegaDespacho.id == bodega_id,
-                                                 PQRSBodegaDespacho.tenant_id == tenant_id).first()
+    bodega = bodegas.obtener(db, tenant_id, bodega_id)
     if not bodega:
         raise HTTPException(status_code=404, detail="Esa bodega no existe.")
     tipo = _tipo(db, tenant_id, payload.tipo_autorizacion_id)
-    bodega.nombre = " ".join(payload.nombre.split())
-    bodega.tipo_autorizacion_id = tipo.id if tipo else None
-    bodega.activo = payload.activo
+    flujo.concepto_de_bodega(db, tenant_id, bodega, tipo.id if tipo else None)
     db.commit()
-    return {"id": bodega.id, "nombre": bodega.nombre, "tipo_autorizacion_id": bodega.tipo_autorizacion_id, "activo": bodega.activo}
+    return {"bodega_id": bodega.id, "nombre": bodega.nombre, "activo": bodega.activo,
+            "tipo_autorizacion_id": tipo.id if tipo else None}

@@ -52,9 +52,10 @@ class PQRSSolicitud(Base):
     # causa», la marca quien reparte y es obligatoria para cerrar a mano.
     # Ver `modules/pqrs/asociados.py`.
     asociado_id = Column(Integer, ForeignKey('pqrs_asociados.id'), nullable=True, index=True)
-    # Desde qué bodega salió el producto. Decide el primer concepto del flujo
-    # (Logística o Producción). Ver `modules/pqrs/flujo.py`.
-    bodega_despacho_id = Column(Integer, ForeignKey('pqrs_bodegas_despacho.id'), nullable=True)
+    # Desde qué bodega salió el producto (la lista común, `models/bodega.py`).
+    # Decide el primer concepto del flujo: Logística o Producción. Ver
+    # `modules/pqrs/flujo.py`.
+    bodega_despacho_id = Column(Integer, ForeignKey('bodegas.id'), nullable=True)
     asignado_a = Column(Integer, ForeignKey('users.id'), nullable=True)
     estado = Column(String(20), nullable=False, default='recibido')
     prioridad = Column(String(20), nullable=False, default='media')
@@ -84,7 +85,7 @@ class PQRSSolicitud(Base):
 
     asignado = relationship('User', foreign_keys=[asignado_a])
     asociado = relationship('PQRSAsociado')
-    bodega_despacho = relationship('PQRSBodegaDespacho')
+    bodega_despacho = relationship('Bodega')
     # La cadena de conceptos de esta PQRS, en orden. Ver `pqrs/flujo.py`.
     cadena = relationship(
         'PQRSCadenaPaso', back_populates='pqrs', cascade='all, delete-orphan',
@@ -334,27 +335,22 @@ CLASES_PASO = ("concepto", "bodega", "tecnico")
 ESTADOS_PASO = ("pendiente", "en_curso", "aprobado", "rechazado", "devuelto")
 
 
-class PQRSBodegaDespacho(Base):
+class PQRSConceptoBodega(Base):
     """
-    Desde dónde salió el producto, y qué área da el concepto por eso.
-
-    **No es la bodega de Notas crédito** (`core/bodegas.py`), aunque haya
-    nombres repetidos: aquella es donde ENTRA lo que se devuelve; esta, de
-    donde SALIÓ el despacho. En Protokimica el CD y La 65 son de Logística y
-    Guayabal de Producción. Es tabla porque cambia sin desplegar.
+    Qué concepto pide el flujo de una PQRS cuando el producto salió de esta
+    bodega: en Protokimica, el CD y La 65 piden a Logística y Guayabal a
+    Producción. La bodega es la lista común del portal (`models/bodega.py`);
+    esto es solo lo que PQRS le pone encima, y por eso vive aquí.
     """
-    __tablename__ = 'pqrs_bodegas_despacho'
+    __tablename__ = 'pqrs_conceptos_bodega'
     __table_args__ = (
-        UniqueConstraint('tenant_id', 'nombre', name='uq_pqrs_bodega_despacho_nombre'),
+        UniqueConstraint('bodega_id', name='uq_pqrs_concepto_bodega'),
     )
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
-    nombre = Column(String(MAX_NOMBRE_ASOCIADO), nullable=False)
-    # El concepto que se pide cuando el producto salió de aquí.
+    bodega_id = Column(Integer, ForeignKey('bodegas.id', ondelete='CASCADE'), nullable=False)
     tipo_autorizacion_id = Column(Integer, ForeignKey('tipos_autorizacion.id'), nullable=True)
-    activo = Column(Boolean, nullable=False, default=True, server_default='true')
-    orden = Column(Integer, nullable=False, default=0, server_default='0')
 
 
 class PQRSFlujo(Base):

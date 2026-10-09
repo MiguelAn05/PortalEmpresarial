@@ -96,7 +96,7 @@ ETIQUETA_ESTADO = {
 # la pantalla: un aviso que dice «tienes algo pendiente» sin decir qué hay
 # que hacer se archiva sin abrir.
 QUE_HACER = {
-    ESTADO_EN_BODEGA:       "Confirma si el producto llegó a la bodega y en qué estado.",
+    ESTADO_EN_BODEGA:       "Confirma que el producto está en la bodega y en buen estado.",
     ESTADO_EN_COMERCIAL:    "Aprueba o rechaza la nota crédito.",
     ESTADO_EN_CONTABILIDAD: "Verifica ante la DIAN si la factura tiene saldo a favor.",
     ESTADO_APROBADA:        "Emite la nota crédito y registra su número.",
@@ -191,17 +191,17 @@ def capacidad_de(estado: str) -> str | None:
     return CAPACIDAD_POR_ESTADO.get(estado)
 
 
-def atiende_la_bodega(usuario: User, bodega: str | None) -> bool:
+def atiende_la_bodega(db, usuario: User, bodega: str | None, tiene_capacidad: bool = True) -> bool:
     """
     ¿A esta persona le toca esta bodega?
 
-    Misma regla que el punto de venta en PQRS: quien tiene bodega marcada
-    atiende la suya, y quien no la tiene atiende todas — es el coordinador
-    que responde por las dos, y dejarlo por fuera lo obligaría a inventarse
-    una bodega falsa para poder trabajar.
+    Sus responsables, si la bodega los tiene (se eligen en Administración ›
+    Bodegas); si no tiene ninguno, quien tenga el permiso de confirmar
+    producto. La regla vive en `core.bodegas.puede_confirmar`, que es la
+    misma para todo el portal. Antes se miraba `users.bodega`, marcada en
+    cada usuario, y quien no la tenía respondía por todas.
     """
-    suya = bodegas.normalizar(usuario.bodega)
-    return suya is None or suya == bodegas.normalizar(bodega)
+    return bodegas.puede_confirmar(db, usuario, bodega, tiene_capacidad)
 
 
 def etiqueta(estado: str) -> str:

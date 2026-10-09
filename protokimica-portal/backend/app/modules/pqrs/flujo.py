@@ -35,10 +35,11 @@ import unicodedata
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.core import canales
+from app.core import bodegas, canales
 from app.models.autorizacion import AutorizacionPQRS, TipoAutorizacion
+from app.models.bodega import Bodega
 from app.models.pqrs import (
-    PQRSBodegaDespacho, PQRSCadenaPaso, PQRSFlujo, PQRSFlujoPaso,
+    PQRSCadenaPaso, PQRSConceptoBodega, PQRSFlujo, PQRSFlujoPaso,
     PQRSSeguimiento, PQRSSolicitud,
 )
 from app.modules.autorizaciones.service import registrar_solicitud
@@ -62,6 +63,21 @@ def _buscar_tipo(tipos: list[TipoAutorizacion], *palabras: str) -> TipoAutorizac
     return None
 
 
+def _concepto_de(db: Session, bodega_id: int) -> PQRSConceptoBodega | None:
+    """Qué concepto pide el flujo cuando el producto salió de esa bodega."""
+    return db.query(PQRSConceptoBodega).filter(PQRSConceptoBodega.bodega_id == bodega_id).first()
+
+
+def concepto_de_bodega(db: Session, tenant_id: int, bodega: Bodega, tipo_id: int | None) -> PQRSConceptoBodega:
+    """Para Administración: cambia (o quita, con None) el concepto de una bodega."""
+    concepto = _concepto_de(db, bodega.id)
+    if not concepto:
+        concepto = PQRSConceptoBodega(tenant_id=tenant_id, bodega_id=bodega.id)
+        db.add(concepto)
+    concepto.tipo_autorizacion_id = tipo_id
+    return concepto
+
+
 # ── Siembra ────────────────────────────────────────────────────────────
 
 def sembrar(db: Session, tenant_id: int) -> None:
@@ -81,10 +97,14 @@ def sembrar(db: Session, tenant_id: int) -> None:
     contable = _buscar_tipo(tipos, "analista contable")
     cartera = _buscar_tipo(tipos, "cartera")
 
-    if not db.query(PQRSBodegaDespacho.id).filter(PQRSBodegaDespacho.tenant_id == tenant_id).first():
-        for orden, (nombre, tipo) in enumerate([("CD", logistica), ("La 65", logistica), ("Guayabal", produccion)]):
-            db.add(PQRSBodegaDespacho(tenant_id=tenant_id, nombre=nombre, orden=orden,
-                                      tipo_autorizacion_id=tipo.id if tipo else None))
+    # El concepto de cada bodega de la lista común: el CD y La 65 son de
+    # Logística, Guayabal de Producción. Una bodega que no conozca se queda
+    # sin concepto, y se elige en Administración.
+    por_bodega = {"cd": logistica, "la 65": logistica, "guayabal": produccion}
+    for bodega in bodegas.del_tenant(db, tenant_id, incluir_inactivas=True):
+        tipo = por_bodega.get(_clave(bodega.nombre))
+        if tipo and not _concepto_de(db, bodega.id):
+            db.add(PQRSConceptoBodega(tenant_id=tenant_id, bodega_id=bodega.id, tipo_autorizacion_id=tipo.id))
 
     def plantilla(nombre, aplica_a, fijos):
         flujo = PQRSFlujo(tenant_id=tenant_id, nombre=nombre, aplica_a=aplica_a)
@@ -161,8 +181,10 @@ def propuesta(db: Session, pqrs: PQRSSolicitud) -> dict:
             bodega = pqrs.bodega_despacho
             if not bodega:
                 faltan.append({"clase": "bodega", "mensaje": "Elige la bodega de despacho para saber si va a Logística o a Producción."})
-            elif bodega.tipo_autorizacion_id:
-                agregar("bodega", db.get(TipoAutorizacion, bodega.tipo_autorizacion_id))
+            else:
+                concepto = _concepto_de(db, bodega.id)
+                if concepto and concepto.tipo_autorizacion_id:
+                    agregar("bodega", db.get(TipoAutorizacion, concepto.tipo_autorizacion_id))
         elif paso.clase == "tecnico":
             asociado = pqrs.asociado
             if not asociado:
@@ -335,9 +357,7 @@ def elegir_bodega(db: Session, pqrs: PQRSSolicitud, bodega_id: int | None) -> No
     if bodega_id is None:
         pqrs.bodega_despacho_id = None
         return
-    bodega = db.query(PQRSBodegaDespacho).filter(
-        PQRSBodegaDespacho.id == bodega_id, PQRSBodegaDespacho.tenant_id == pqrs.tenant_id,
-    ).first()
+    bodega = bodegas.obtener(db, pqrs.tenant_id, bodega_id)
     if not bodega:
         raise HTTPException(status_code=404, detail="Esa bodega no existe. Elígela de la lista.")
     if pqrs.bodega_despacho_id != bodega.id:
@@ -407,16 +427,14 @@ def resumen(db: Session, pqrs: PQRSSolicitud, puede_gestionar: bool) -> dict:
             "respondida_por": aut.autorizador_nombre if aut else None,
         })
     sembrar(db, pqrs.tenant_id)
-    bodegas = db.query(PQRSBodegaDespacho).filter(
-        PQRSBodegaDespacho.tenant_id == pqrs.tenant_id, PQRSBodegaDespacho.activo.is_(True),
-    ).order_by(PQRSBodegaDespacho.orden, PQRSBodegaDespacho.nombre).all()
+    activas = bodegas.del_tenant(db, pqrs.tenant_id)
     return {
         "estado": estado,
         "pasos": pasos,
         # La propuesta solo hace falta cuando no hay nada andando.
         "propuesta": propuesta(db, pqrs) if estado in ("sin_flujo", "completa") else None,
         "bodega_despacho_id": pqrs.bodega_despacho_id,
-        "bodegas": [{"id": b.id, "nombre": b.nombre} for b in bodegas],
+        "bodegas": [{"id": b.id, "nombre": b.nombre} for b in activas],
         "puede_gestionar": puede_gestionar and pqrs.estado != "cerrado",
     }
 

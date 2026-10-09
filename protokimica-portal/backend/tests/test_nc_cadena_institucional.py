@@ -20,7 +20,9 @@ Lo que se defiende aquí:
   había aprobado sería darla por buena sobre unos datos que cambiaron;
 - **sin producto no hay bodega**, y la rama del punto de venta no se movió.
 """
+from app.core import bodegas
 from app.core.capacidades import otorgar_a_area
+from app.models.bodega import BodegaResponsable
 from app.models.nota_credito import MotivoNotaCredito, SolicitudNotaCredito
 from app.models.user import User
 from app.modules.notas_credito import flujo
@@ -49,10 +51,15 @@ def _montar_la_cadena(entorno):
 
 
 def _usuario(entorno, clave, area, bodega=None, rol="lider"):
+    """`bodega` puede ser un nombre o una lista: lo nombra responsable de ellas."""
     db = entorno.Session()
     u = User(tenant_id=entorno.tenant_id, nombre=clave.title(), email=f"{clave}@p.com",
-             password_hash="x", rol=rol, area=area, bodega=bodega, activo=True)
+             password_hash="x", rol=rol, area=area, activo=True)
     db.add(u)
+    db.flush()
+    for nombre in ([bodega] if isinstance(bodega, str) else bodega or []):
+        b = next(b for b in bodegas.del_tenant(db, entorno.tenant_id) if b.nombre == nombre)
+        db.add(BodegaResponsable(bodega_id=b.id, usuario_id=u.id))
     db.commit()
     entorno.ids[clave] = u.id
     db.close()
@@ -222,12 +229,36 @@ def test_la_otra_bodega_no_confirma_lo_ajeno(entorno, v):
             _estado(entorno, sid) == "en_bodega", _estado(entorno, sid))
 
 
-def test_quien_no_tiene_bodega_marcada_responde_por_las_dos(entorno, v):
-    """El coordinador que cubre las dos: sin esto tendría que inventarse una."""
+def test_el_coordinador_de_las_dos_es_responsable_de_las_dos(entorno, v):
+    """
+    Desde que los responsables se eligen en la bodega, el coordinador que
+    cubre varias se nombra en cada una. Quien solo tiene el permiso por área
+    ya no confirma lo de una bodega que tiene su propio responsable.
+    """
     sid = _escenario(entorno, bodega=LA_65)
-    _usuario(entorno, "jefelog", "Logística")   # sin bodega
+    _usuario(entorno, "jefelog", "Logística", bodega=[GUAYABAL, LA_65])
+    _usuario(entorno, "auxlog", "Logística")   # con el permiso, sin bodega
+    entorno.como("auxlog")
+    v.check("con solo el permiso, no confirma lo de La 65", _responder(entorno, sid, "aprobar").status_code == 404)
     entorno.como("jefelog")
-    v.check("puede confirmar", _responder(entorno, sid, "aprobar").status_code == 200)
+    v.check("el responsable de las dos sí", _responder(entorno, sid, "aprobar").status_code == 200)
+
+
+def test_una_bodega_sin_responsables_la_confirma_quien_tenga_el_permiso(entorno, v):
+    """Una bodega recién creada no puede dejar solicitudes sin nadie que las atienda."""
+    sid = _escenario(entorno, bodega="CD")   # el CD no tiene responsables en el escenario
+    _usuario(entorno, "auxlog", "Logística")
+    entorno.como("auxlog")
+    v.check("quien tiene el permiso confirma", _responder(entorno, sid, "aprobar").status_code == 200)
+
+
+def test_el_responsable_confirma_aunque_su_area_no_tenga_el_permiso(entorno, v):
+    """Nombrarlo responsable de la bodega ya es el permiso."""
+    sid = _escenario(entorno, bodega=GUAYABAL)
+    _usuario(entorno, "bodeguero", "Abastecimiento", bodega=GUAYABAL)
+    entorno.como("bodeguero")
+    v.check("la ve", entorno.get(f"/notas-credito/{sid}").status_code == 200)
+    v.check("y la confirma", _responder(entorno, sid, "aprobar").status_code == 200)
 
 
 def test_la_bodega_ajena_ni_siquiera_la_ve(entorno, v):

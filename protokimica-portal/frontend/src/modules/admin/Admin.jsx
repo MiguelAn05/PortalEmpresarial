@@ -4,6 +4,7 @@ import SupervisionAreas from './SupervisionAreas.jsx'
 import Capacidades from './Capacidades.jsx'
 import Areas from './Areas.jsx'
 import Canales from './Canales.jsx'
+import Bodegas from './Bodegas.jsx'
 import Asociados from './Asociados.jsx'
 import FlujosPQRS from './FlujosPQRS.jsx'
 import { estaContratado } from '../../core/modulos.js'
@@ -12,7 +13,6 @@ import { useAuth } from '../../core/useAuth.js'
 import api from '../../core/api.js'
 import { areasParaSelect, useAreaDeSedes, useAreas } from '../../core/areas.js'
 import { puntosDeVenta, useCanales } from '../../core/canales.js'
-import { AREAS_CON_BODEGA, BODEGAS } from '../../core/bodegas.js'
 import {
   IconoBuscar, IconoCandado, IconoEditar, IconoLlave, IconoPapelera, IconoPersonas,
 } from '../../core/components/Iconos.jsx'
@@ -40,25 +40,6 @@ function SelectPuntoVenta({ valor, onChange, className }) {
       {sedes.map(sede => (
         <option key={sede.prefijo} value={sede.prefijo}>{sede.nombre}</option>
       ))}
-    </select>
-  )
-}
-
-/**
- * La bodega por la que responde alguien, para las devoluciones de nota
- * crédito. Vacío = responde por las dos, igual que un coordinador sin punto
- * de venta ve los seis puntos.
- */
-function SelectBodega({ valor, onChange, className }) {
-  return (
-    <select
-      value={valor || ''}
-      onChange={(e) => onChange(e.target.value || null)}
-      title="Qué devoluciones de nota crédito le toca confirmar"
-      className={className}
-    >
-      <option value="">Todas las bodegas</option>
-      {BODEGAS.map(b => <option key={b} value={b}>Bodega {b}</option>)}
     </select>
   )
 }
@@ -544,14 +525,6 @@ function GestionUsuarios() {
                 />
               )}
 
-              {(u.bodega || AREAS_CON_BODEGA.includes(u.area)) && (
-                <SelectBodega
-                  valor={u.bodega}
-                  onChange={(bodega) => mutActualizar.mutate({ id: u.id, cambios: { bodega } })}
-                  className="text-xs border border-borde rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-acento"
-                />
-              )}
-
               <button
                 onClick={() => setEditando(u)}
                 title="Editar nombre y correo"
@@ -673,6 +646,7 @@ export default function Admin() {
         <GestionUsuarios />
         <Areas />
         <Canales />
+        <Bodegas />
         {/* Solo con PQRS contratado: sin él, el endpoint responde 403. */}
         {estaContratado(user, 'pqrs') && <Asociados />}
         {estaContratado(user, 'pqrs') && <FlujosPQRS />}

@@ -32,15 +32,9 @@ class User(Base):
     # que no cambia: está impreso en el QR pegado en el mostrador.
     punto_venta = Column(String(10), nullable=True)
 
-    # Qué bodega maneja: «Guayabal» o «La 65» de `core/bodegas.py`. Solo
-    # significa algo con la capacidad `notas_credito.confirmar_producto`:
-    # acota a su bodega las devoluciones que le toca confirmar. Vacío =
-    # responde por las dos, como el coordinador sin punto de venta.
-    #
-    # Aquí sí se guarda el nombre y no un prefijo: una bodega no tiene un QR
-    # impreso del que dependa, así que el prefijo no compraría nada y el
-    # nombre se lee en la pantalla sin traducir.
-    bodega = Column(String(40), nullable=True)
+    # La bodega ya NO se marca en el usuario: los responsables se eligen en
+    # cada bodega (`models/bodega.py`, Administración › Bodegas). La columna
+    # `bodega` se quitó en la migración que los pasó a `bodega_responsables`.
 
     activo = Column(Boolean, default=True, nullable=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())

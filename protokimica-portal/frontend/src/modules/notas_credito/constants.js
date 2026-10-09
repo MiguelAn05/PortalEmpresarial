@@ -114,11 +114,19 @@ export function etiquetaEstado(estado) {
  * de venta que devuelve mercancía la recibe en su propio mostrador; no hay
  * bodega que confirme nada, y preguntárselo sería un campo obligatorio que no
  * sabe responder.
+ *
+ * **Institucional se reconoce por el TIPO del canal, no por su nombre**,
+ * igual que en el servidor (`canales.es_institucional`). Esto comparaba con
+ * el texto «Venta institucional»: el día que alguien renombrara el canal en
+ * Administración, la pantalla dejaría de preguntar la bodega y el servidor la
+ * seguiría exigiendo, y esas notas crédito no se podrían radicar.
  */
-export const CANAL_INSTITUCIONAL = 'Venta institucional'
+export function esInstitucional(canal, canales) {
+  return (canales || []).some(c => c.nombre === canal && c.tipo === 'institucional')
+}
 
-export function pideBodega(canal, motivo) {
-  return canal === CANAL_INSTITUCIONAL && Boolean(motivo?.requiere_bodega)
+export function pideBodega(canal, motivo, canales) {
+  return esInstitucional(canal, canales) && Boolean(motivo?.requiere_bodega)
 }
 
 /**
@@ -128,12 +136,12 @@ export function pideBodega(canal, motivo) {
  * el motivo y no un booleano porque el botón deshabilitado sin explicación
  * es la forma más rápida de que alguien crea que el portal está roto.
  */
-export function faltaEnSolicitud(form, motivo) {
+export function faltaEnSolicitud(form, motivo, canales) {
   if (!form.punto_venta) return 'Elige el punto de venta o el canal.'
   if (!form.factura_afectada?.trim()) return 'Escribe la factura afectada.'
   if (!form.observaciones?.trim()) return 'Cuenta qué pasó.'
-  if (pideBodega(form.punto_venta, motivo) && !form.bodega) {
-    return 'Este motivo implica producto devuelto: dinos a qué bodega entró.'
+  if (pideBodega(form.punto_venta, motivo, canales) && !form.bodega) {
+    return 'Este motivo tiene que ver con producto: dinos de qué bodega salió.'
   }
   return null
 }
@@ -147,7 +155,7 @@ export function faltaEnSolicitud(form, motivo) {
  * audita.
  */
 const VERBO_AL_APROBAR = {
-  en_bodega: 'confirmó que el producto llegó',
+  en_bodega: 'confirmó que el producto está bien',
   en_comercial: 'aprobó la nota crédito',
   en_contabilidad: 'verificó ante la DIAN',
   // Etapa histórica: Contabilidad ya no autoriza las del mostrador, pero las

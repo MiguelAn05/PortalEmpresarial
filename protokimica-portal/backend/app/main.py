@@ -47,9 +47,10 @@ from app.modules.notas_credito.router import router as notas_credito_router
 from app.modules.capacidades.router import router as capacidades_router
 from app.modules.areas.router import router as areas_router
 from app.modules.canales.router import router as canales_router
+from app.modules.bodegas.router import router as bodegas_router
 from app.models import (
     tenant, user, pqrs, autorizacion, master_planner, indicadores, encuestas,
-    mejora, catalogo, nota_credito, capacidad, area, canal,
+    mejora, catalogo, nota_credito, capacidad, area, canal, bodega,
 )  # noqa: F401
 
 app = FastAPI(
@@ -153,3 +154,4 @@ app.include_router(notas_credito_router)
 app.include_router(capacidades_router)
 app.include_router(areas_router)
 app.include_router(canales_router)
+app.include_router(bodegas_router)

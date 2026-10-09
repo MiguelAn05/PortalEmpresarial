@@ -8,7 +8,7 @@ se hace desde /usuarios (requiere sesión de administrador).
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core import bodegas, canales
+from app.core import canales
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import hash_password, verify_password, create_access_token
@@ -98,33 +98,6 @@ def resolver_punto_venta(db: Session, tenant_id: int, prefijo: str | None,
             ),
         )
     return prefijo
-
-
-def resolver_bodega(nombre: str | None) -> str | None:
-    """
-    La bodega que se le guarda a alguien, ya validada.
-
-    A diferencia del punto de venta, **no se amarra a un área**: el
-    coordinador de La 65 está en Logística y el de Guayabal en Producción, y
-    mañana pueden estar en otra. Lo que decide si esto significa algo es la
-    capacidad `notas_credito.confirmar_producto`, que se otorga aparte.
-
-    Vacío es «responde por las dos», igual que un usuario de Puntos de Venta
-    sin punto coordina los seis.
-    """
-    bodega = bodegas.normalizar(nombre)
-    if bodega is None:
-        return None
-    if not bodegas.es_valida(bodega):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"«{bodega}» no es una bodega del portal. Elige una de la "
-                f"lista ({', '.join(bodegas.BODEGAS)}), o déjalo vacío si "
-                "responde por todas."
-            ),
-        )
-    return bodega
 
 
 def validar_dominio_email(email: str) -> None:
@@ -283,7 +256,6 @@ def crear_usuario(
         rol=payload.rol,
         area=payload.area,
         punto_venta=resolver_punto_venta(db, tenant_id, payload.punto_venta, payload.area),
-        bodega=resolver_bodega(payload.bodega),
     )
     aplicar_areas_supervisadas(
         user, resolver_areas_supervisadas(db, user.tenant_id, payload.areas_supervisadas, payload.area),
@@ -375,12 +347,6 @@ def actualizar_usuario(
         usuario.punto_venta = resolver_punto_venta(db, usuario.tenant_id, payload.punto_venta, usuario.area)
     elif usuario.area != areas_empresa.area_de_sedes(db, usuario.tenant_id):
         usuario.punto_venta = None
-
-    # La bodega NO se limpia al cambiar de área: el coordinador de La 65 está
-    # en Logística y el de Guayabal en Producción, así que no hay un área
-    # "correcta" contra la que compararla.
-    if "bodega" in payload.model_fields_set:
-        usuario.bodega = resolver_bodega(payload.bodega)
 
     if payload.password is not None:
         if len(payload.password) < 6:

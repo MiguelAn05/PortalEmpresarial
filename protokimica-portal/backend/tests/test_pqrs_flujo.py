@@ -7,7 +7,8 @@ institucional que salió del CD (concepto de Logística), por calidad del
 producto (Área Técnica), y luego Analista Financiera → Contable → Cartera.
 """
 from app.models.autorizacion import AutorizacionPQRS, TipoAutorizacion
-from app.models.pqrs import PQRSBodegaDespacho, PQRSSeguimiento, PQRSSolicitud
+from app.models.bodega import Bodega
+from app.models.pqrs import PQRSSeguimiento, PQRSSolicitud
 from app.modules.pqrs import asociados
 
 CONCEPTOS = [
@@ -46,7 +47,7 @@ def _preparar(entorno, bodega="CD", causa="Calidad del Producto", canal="Venta i
     if causa:
         p.asociado_id = next(a.id for a in asociados.del_tenant(db, entorno.tenant_id) if a.nombre == causa)
     if bodega:
-        p.bodega_despacho_id = db.query(PQRSBodegaDespacho).filter_by(tenant_id=entorno.tenant_id, nombre=bodega).one().id
+        p.bodega_despacho_id = db.query(Bodega).filter_by(tenant_id=entorno.tenant_id, nombre=bodega).one().id
     db.commit()
     db.close()
     return pid, tipos
@@ -255,3 +256,22 @@ def test_las_plantillas_se_editan_en_administracion(entorno, v):
     v.check("un concepto sin elegir -> 400", r.status_code == 400, r.text[:200])
     entorno.como("calidad")
     v.check("solo admin", entorno.get("/pqrs/flujos").status_code == 403)
+
+
+# ── El concepto de cada bodega (Administración › Flujos de PQRS) ─────────
+
+def test_el_concepto_de_cada_bodega_se_cambia(entorno, v):
+    _, tipos = _preparar(entorno)
+    conceptos = {c["nombre"]: c for c in entorno.get("/pqrs/conceptos-bodega").json()}
+    v.check("el CD pide Logística",
+            conceptos["CD"]["tipo_autorizacion_id"] == tipos["Concepto Coordinación Logistica"], conceptos)
+    v.check("Guayabal, Producción",
+            conceptos["Guayabal"]["tipo_autorizacion_id"] == tipos["Concepto Producción"], conceptos)
+    r = entorno.put(f"/pqrs/conceptos-bodega/{conceptos['CD']['bodega_id']}",
+                    json={"tipo_autorizacion_id": tipos["Concepto Producción"]})
+    v.check("se cambia", r.status_code == 200 and r.json()["tipo_autorizacion_id"] == tipos["Concepto Producción"],
+            r.text[:200])
+    r = entorno.put(f"/pqrs/conceptos-bodega/{conceptos['CD']['bodega_id']}", json={"tipo_autorizacion_id": None})
+    v.check("y se quita", r.status_code == 200 and r.json()["tipo_autorizacion_id"] is None, r.text[:200])
+    entorno.como("calidad")
+    v.check("solo admin", entorno.get("/pqrs/conceptos-bodega").status_code == 403)

@@ -169,17 +169,18 @@ async def crear_solicitud(
     pasa_por_bodega = institucional and service.requiere_bodega(db, tenant_id, motivo_id)
 
     bodega = bodegas.normalizar(bodega)
-    if not bodegas.es_valida(bodega):
+    if not bodegas.es_valida(db, tenant_id, bodega):
         raise HTTPException(
             status_code=400,
-            detail=f"'{bodega}' no es una bodega del portal. Elige una de la lista.",
+            detail=(f"'{bodega}' no es una bodega activa del portal. Elige una de la lista "
+                    f"({', '.join(bodegas.nombres(db, tenant_id))})."),
         )
     if pasa_por_bodega and not bodega:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Este motivo implica producto devuelto: dinos a qué bodega "
-                "entró para que allá confirmen que llegó."
+                "Este motivo tiene que ver con producto: dinos de qué bodega "
+                "salió, para que su responsable confirme que está bien."
             ),
         )
     if not pasa_por_bodega:

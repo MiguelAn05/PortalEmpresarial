@@ -120,9 +120,11 @@ export default function FlujosPQRS() {
     queryKey: ['pqrs', 'flujos', 'admin'],
     queryFn: () => api.get('/pqrs/flujos').then(r => r.data),
   })
-  const { data: bodegas = [] } = useQuery({
-    queryKey: ['pqrs', 'bodegas-despacho', 'admin'],
-    queryFn: () => api.get('/pqrs/bodegas-despacho').then(r => r.data),
+  // Las bodegas son la lista común (Administración › Bodegas); aquí solo se
+  // elige qué concepto pide cada una en el flujo.
+  const { data: conceptos = [] } = useQuery({
+    queryKey: ['pqrs', 'conceptos-bodega', 'admin'],
+    queryFn: () => api.get('/pqrs/conceptos-bodega').then(r => r.data),
   })
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ['pqrs'] })
   const fallo = (texto) => (err) => setAviso({ tono: 'negativo', texto: mensajeDeError(err, texto) })
@@ -132,13 +134,12 @@ export default function FlujosPQRS() {
     onSuccess: () => { setEditando(null); setAviso({ tono: 'positivo', texto: 'Flujo guardado.' }); refrescar() },
     onError: fallo('No se pudo guardar el flujo.'),
   })
-  const guardarBodega = useMutation({
-    mutationFn: ({ id, datos }) => (id ? api.put(`/pqrs/bodegas-despacho/${id}`, datos) : api.post('/pqrs/bodegas-despacho', datos)),
+  const guardarConcepto = useMutation({
+    mutationFn: ({ bodegaId, tipoId }) => api.put(`/pqrs/conceptos-bodega/${bodegaId}`, { tipo_autorizacion_id: tipoId }),
     onSuccess: () => { setAviso(null); refrescar() },
-    onError: fallo('No se pudo guardar la bodega.'),
+    onError: fallo('No se pudo guardar el concepto de la bodega.'),
   })
-  const [bodegaNueva, setBodegaNueva] = useState('')
-  const ocupado = guardarPlantilla.isPending || guardarBodega.isPending
+  const ocupado = guardarPlantilla.isPending || guardarConcepto.isPending
 
   return (
     <div className="bg-white rounded-xl border border-borde overflow-hidden">
@@ -195,46 +196,29 @@ export default function FlujosPQRS() {
         )}
       </div>
 
-      {/* Las bodegas de despacho: de dónde salió el producto, y qué concepto pide. */}
+      {/* Qué concepto pide cada bodega. Las bodegas se crean, renombran y
+          borran en Administración › Bodegas. */}
       <div className="border-t border-borde">
         <div className="px-5 pt-4 pb-2">
-          <p className="etiqueta">Bodegas de despacho</p>
+          <p className="etiqueta">Concepto de cada bodega</p>
           <p className="text-xs text-texto-3 mt-0.5">
-            De dónde salió el producto. No son las bodegas de Notas crédito, que es a donde vuelve.
+            El primer paso del flujo según de dónde salió el producto. Las bodegas se administran en «Bodegas».
           </p>
         </div>
         <div className="divide-y divide-borde">
-          {bodegas.map(b => (
-            <div key={`${b.id}-${b.tipo_autorizacion_id}-${b.activo}`} className="px-5 py-2.5 flex flex-wrap items-center gap-3">
-              <span className={`text-sm font-medium w-32 ${b.activo ? 'text-texto' : 'text-texto-3 line-through'}`}>{b.nombre}</span>
-              <select value={b.tipo_autorizacion_id || ''} disabled={ocupado} aria-label={`Concepto de ${b.nombre}`}
-                      onChange={(e) => guardarBodega.mutate({ id: b.id, datos: { nombre: b.nombre, activo: b.activo, tipo_autorizacion_id: Number(e.target.value) || null } })}
+          {conceptos.map(c => (
+            <div key={`${c.bodega_id}-${c.tipo_autorizacion_id}`} className="px-5 py-2.5 flex flex-wrap items-center gap-3">
+              <span className={`text-sm font-medium w-40 truncate ${c.activo ? 'text-texto' : 'text-texto-3 line-through'}`}>
+                {c.nombre}
+              </span>
+              <select value={c.tipo_autorizacion_id || ''} disabled={ocupado} aria-label={`Concepto de ${c.nombre}`}
+                      onChange={(e) => guardarConcepto.mutate({ bodegaId: c.bodega_id, tipoId: Number(e.target.value) || null })}
                       className={`${campo} flex-1 min-w-48`}>
                 <option value="">Sin concepto</option>
                 {tipos.map(t => <option key={t.id} value={t.id}>{t.nombre} — {t.area_autorizadora}</option>)}
               </select>
-              <button type="button" disabled={ocupado}
-                      onClick={() => guardarBodega.mutate({ id: b.id, datos: { nombre: b.nombre, tipo_autorizacion_id: b.tipo_autorizacion_id, activo: !b.activo } })}
-                      className="px-2.5 py-1 rounded-lg text-xs font-semibold text-texto-2 hover:bg-superficie-2">
-                {b.activo ? 'Desactivar' : 'Reactivar'}
-              </button>
             </div>
           ))}
-          <form className="px-5 py-3 flex gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  if (bodegaNueva.trim()) {
-                    guardarBodega.mutate({ id: null, datos: { nombre: bodegaNueva.trim(), tipo_autorizacion_id: null, activo: true } })
-                    setBodegaNueva('')
-                  }
-                }}>
-            <input value={bodegaNueva} onChange={(e) => setBodegaNueva(e.target.value)} maxLength={150}
-                   placeholder="Bodega nueva" aria-label="Bodega nueva" className={`${campo} flex-1`} />
-            <button type="submit" disabled={!bodegaNueva.trim() || ocupado}
-                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-acento-fuerte text-white disabled:opacity-40">
-              Agregar
-            </button>
-          </form>
         </div>
       </div>
     </div>

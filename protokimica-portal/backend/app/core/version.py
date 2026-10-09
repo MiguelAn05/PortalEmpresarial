@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.50.0"
-FECHA = "2026-10-08"
+VERSION = "0.51.0"
+FECHA = "2026-10-09"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,26 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.51.0",
+        "fecha": "2026-10-09",
+        "titulo": "Una sola lista de bodegas, cada una con sus responsables",
+        "cambios": [
+            ("nuevo", "Administración › Bodegas: una sola lista para todo el portal (CD, La 65, "
+                      "Guayabal y las que se agreguen). Se crean, se les cambia el nombre, se "
+                      "desactivan y se borra la creada por error, con un mensaje que pide "
+                      "confirmarlo."),
+            ("nuevo", "Cada bodega tiene sus responsables. En una nota crédito de venta "
+                      "institucional se les avisa primero a ellos, y son quienes confirman que "
+                      "el producto está bien antes de que pase a Comercial."),
+            ("mejora", "La nota crédito institucional pregunta de qué bodega salió el producto "
+                       "en todo lo que tenga que ver con producto, incluido el motivo «Otro»."),
+            ("mejora", "El responsable de una bodega ya no se marca en cada usuario: se elige en "
+                       "la bodega. Quien ya estaba marcado quedó como responsable."),
+            ("correccion", "Las notas crédito de venta institucional siguen preguntando la bodega "
+                           "aunque se le cambie el nombre al canal en Administración."),
+        ],
+    },
     {
         "version": "0.50.0",
         "fecha": "2026-10-08",

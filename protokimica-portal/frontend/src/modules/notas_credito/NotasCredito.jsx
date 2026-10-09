@@ -16,7 +16,7 @@ import api from '../../core/api.js'
 import { puedeVerModulo } from '../../core/modulos.js'
 import { useAuth } from '../../core/useAuth.js'
 import { nombresDe, useCanales } from '../../core/canales.js'
-import { BODEGAS } from '../../core/bodegas.js'
+import { nombresDeBodegas, useBodegas } from '../../core/bodegas.js'
 import {
   IconoAlDia, IconoAlerta, IconoBuscar, IconoCerrar, IconoClip,
   IconoFlecha, IconoRecibo, IconoRechazo,
@@ -57,6 +57,7 @@ function formatValor(valor) {
 // ── Formulario de solicitud ────────────────────────────────────────
 function ModalSolicitar({ motivos, onClose, onCreada }) {
   const listaCanales = useCanales()
+  const listaBodegas = useBodegas()
   const VACIO = {
     punto_venta: '',
     factura_afectada: '',
@@ -104,8 +105,8 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
   // El motivo decide si hay producto de por medio, y de ahí sale si hay que
   // preguntar la bodega. La regla vive en `constants.js`, no aquí.
   const motivo = motivos.find(m => String(m.id) === String(form.motivo_id))
-  const hayQuePreguntarBodega = pideBodega(form.punto_venta, motivo)
-  const falta = faltaEnSolicitud(form, motivo)
+  const hayQuePreguntarBodega = pideBodega(form.punto_venta, motivo, listaCanales)
+  const falta = faltaEnSolicitud(form, motivo, listaCanales)
 
   const campo = "w-full px-3 py-2.5 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento"
   const etiqueta = "block text-xs text-texto-2 font-semibold uppercase tracking-wide mb-1"
@@ -178,11 +179,11 @@ function ModalSolicitar({ motivos, onClose, onCreada }) {
                 pregunta de por qué no funciona. */}
             {hayQuePreguntarBodega && (
               <div>
-                <label htmlFor="nc-bodega" className={etiqueta}>¿A qué bodega entró? *</label>
+                <label htmlFor="nc-bodega" className={etiqueta}>¿De qué bodega salió el producto? *</label>
                 <select id="nc-bodega" name="bodega" value={form.bodega}
                         onChange={cambiar} className={campo}>
                   <option value="">Seleccionar...</option>
-                  {BODEGAS.map(b => <option key={b} value={b}>{b}</option>)}
+                  {nombresDeBodegas(listaBodegas).map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
                 <p className="text-xs text-texto-3 mt-1">
                   Allá confirman que llegó y en qué estado antes de que siga.

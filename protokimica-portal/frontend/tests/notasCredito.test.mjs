@@ -4,17 +4,20 @@
 // que un punto de venta no sabe responder; de menos, una solicitud que el
 // servidor rechaza despues de haberla escrito toda.
 //
-// Aqui tambien se ata la lista de bodegas a la del backend: si se separan, la
-// pantalla ofrece una bodega que el servidor no acepta.
+// Las bodegas ya no son una lista aqui: son una sola tabla para todo el
+// portal, con sus responsables (Administracion > Bodegas), y la pantalla las
+// pide al servidor. Lo que se prueba es que nadie vuelva a escribir su lista.
 import { readFileSync } from 'node:fs'
-import { BODEGAS, AREAS_CON_BODEGA, esBodegaValida } from '../src/core/bodegas.js'
+import { nombresDeBodegas } from '../src/core/bodegas.js'
 import {
-  ESTADOS, ESTADOS_ABIERTOS, CANAL_INSTITUCIONAL, FILTROS, clavesDeFiltro,
+  ESTADOS, ESTADOS_ABIERTOS, FILTROS, clavesDeFiltro, esInstitucional,
   describirPaso, estaAbierta, etiquetaEstado, faltaEnSolicitud, pideBodega,
   MAX_FACTURA, MAX_NUMERO_NC, MAX_OBSERVACIONES,
 } from '../src/modules/notas_credito/constants.js'
 
-const PY_BODEGAS = readFileSync(new URL('../../backend/app/core/bodegas.py', import.meta.url), 'utf8')
+const NC_PANTALLA = readFileSync(new URL('../src/modules/notas_credito/NotasCredito.jsx', import.meta.url), 'utf8')
+const ADMIN = readFileSync(new URL('../src/modules/admin/Admin.jsx', import.meta.url), 'utf8')
+const CORE_BODEGAS = readFileSync(new URL('../src/core/bodegas.js', import.meta.url), 'utf8')
 const PY_MODELO = readFileSync(new URL('../../backend/app/models/nota_credito.py', import.meta.url), 'utf8')
 const PY_SCHEMAS = readFileSync(new URL('../../backend/app/modules/notas_credito/schemas.py', import.meta.url), 'utf8')
 const PY_FLUJO = readFileSync(new URL('../../backend/app/modules/notas_credito/flujo.py', import.meta.url), 'utf8')
@@ -26,52 +29,69 @@ const check = (n, cond, extra = '') => {
 }
 
 const PUNTO = 'Punto de venta Guayabal'
+const INSTITUCIONAL = 'Venta institucional'
+// Los canales llegan del servidor; aquí, como los siembra Protokimica.
+const CANALES = [
+  { nombre: INSTITUCIONAL, tipo: 'institucional', prefijo: 'VI' },
+  { nombre: PUNTO, tipo: 'sede', prefijo: 'PVG' },
+  { nombre: 'WhatsApp', tipo: 'general', prefijo: null },
+]
 const CON_PRODUCTO = { id: 1, nombre: 'Devolución de mercancía', requiere_bodega: true }
 const SIN_PRODUCTO = { id: 2, nombre: 'Error de digitación', requiere_bodega: false }
 
-console.log('\n== Las bodegas son las mismas en los dos lados ==')
-const listaPy = [...PY_BODEGAS.match(/^BODEGAS = \[(.*?)\]/ms)[1].matchAll(/"([^"]+)"/g)].map(m => m[1])
-check('la lista coincide exactamente', JSON.stringify(listaPy) === JSON.stringify(BODEGAS),
-  { python: listaPy, javascript: BODEGAS })
-check('son dos', BODEGAS.length === 2, BODEGAS)
-check('vacio es valido: no toda solicitud pasa por bodega', esBodegaValida('') === true)
-check('una inventada no', esBodegaValida('Sabaneta') === false)
-check('las areas que ofrecen el campo existen de verdad',
-  AREAS_CON_BODEGA.length === 2, AREAS_CON_BODEGA)
-
-console.log('\n== Una bodega NO es un punto de venta, aunque se llamen igual ==')
-// Guayabal y La 65 existen en los dos catalogos y son cosas distintas. Si
-// alguien los unificara, una devolucion institucional le caeria al almacen.
-check('la bodega se guarda con su nombre, no con el prefijo del canal',
-  BODEGAS.every(b => !/^PV/.test(b)), BODEGAS)
+console.log('\n== Una sola lista de bodegas, la del servidor ==')
+// Habia dos listas que no se conocian: esta, escrita a mano con Guayabal y
+// La 65 (sin el CD), y la de despacho de PQRS. Una bodega nueva aparecia en
+// una pantalla y en la otra no.
+check('core/bodegas.js no trae una lista escrita a mano',
+  !/['"](Guayabal|La 65|CD)['"]/.test(CORE_BODEGAS))
+check('el formulario de nota credito las pide al servidor',
+  /useBodegas\(\)/.test(NC_PANTALLA) && !/BODEGAS\b/.test(NC_PANTALLA))
+check('los nombres salen de lo que llega',
+  JSON.stringify(nombresDeBodegas([{ id: 1, nombre: 'CD' }, { id: 2, nombre: 'Guayabal' }])) === '["CD","Guayabal"]')
+check('sin lista todavia, ninguna', nombresDeBodegas(undefined).length === 0)
+// El responsable se elige en la bodega, no en cada usuario.
+check('Administracion > Usuarios ya no marca la bodega de cada persona',
+  !/SelectBodega|u\.bodega/.test(ADMIN))
 
 console.log('\n== Cuando se pregunta la bodega ==')
 check('institucional y con producto: se pregunta',
-  pideBodega(CANAL_INSTITUCIONAL, CON_PRODUCTO) === true)
+  pideBodega(INSTITUCIONAL, CON_PRODUCTO, CANALES) === true)
 check('institucional sin producto: no',
-  pideBodega(CANAL_INSTITUCIONAL, SIN_PRODUCTO) === false)
+  pideBodega(INSTITUCIONAL, SIN_PRODUCTO, CANALES) === false)
 check('un punto de venta, aunque el motivo traiga producto: tampoco',
-  pideBodega(PUNTO, CON_PRODUCTO) === false)
-check('sin motivo elegido: tampoco', pideBodega(CANAL_INSTITUCIONAL, undefined) === false)
+  pideBodega(PUNTO, CON_PRODUCTO, CANALES) === false)
+check('sin motivo elegido: tampoco', pideBodega(INSTITUCIONAL, undefined, CANALES) === false)
+// Lo que mordía: comparar con el NOMBRE. Renombrado el canal, la pantalla
+// dejaba de preguntar la bodega y el servidor la seguía exigiendo.
+const RENOMBRADO = [{ nombre: 'Ventas Institucionales', tipo: 'institucional', prefijo: 'VI' }]
+check('institucional es por el TIPO: renombrado, se sigue preguntando',
+  pideBodega('Ventas Institucionales', CON_PRODUCTO, RENOMBRADO) === true)
+check('y un canal con ese nombre pero de otro tipo no lo es',
+  esInstitucional(INSTITUCIONAL, [{ nombre: INSTITUCIONAL, tipo: 'general' }]) === false)
+check('sin la lista de canales todavía, no pregunta', pideBodega(INSTITUCIONAL, CON_PRODUCTO, []) === false)
+const PANTALLA = readFileSync(new URL('../src/modules/notas_credito/constants.js', import.meta.url), 'utf8')
+check('nadie vuelve a comparar con el nombre escrito a mano',
+  !/['"]Venta institucional['"]/.test(PANTALLA))
 
 console.log('\n== Que le falta al formulario ==')
 const base = {
-  punto_venta: CANAL_INSTITUCIONAL,
+  punto_venta: INSTITUCIONAL,
   factura_afectada: 'FV-1',
   observaciones: 'Devolvieron dos canecas.',
   bodega: '',
 }
-check('sin canal, lo dice', /punto de venta|canal/i.test(faltaEnSolicitud({ ...base, punto_venta: '' }, SIN_PRODUCTO)))
-check('sin factura, lo dice', /factura/i.test(faltaEnSolicitud({ ...base, factura_afectada: '  ' }, SIN_PRODUCTO)))
-check('sin relato, lo dice', /pas/i.test(faltaEnSolicitud({ ...base, observaciones: '' }, SIN_PRODUCTO)))
+check('sin canal, lo dice', /punto de venta|canal/i.test(faltaEnSolicitud({ ...base, punto_venta: '' }, SIN_PRODUCTO, CANALES)))
+check('sin factura, lo dice', /factura/i.test(faltaEnSolicitud({ ...base, factura_afectada: '  ' }, SIN_PRODUCTO, CANALES)))
+check('sin relato, lo dice', /pas/i.test(faltaEnSolicitud({ ...base, observaciones: '' }, SIN_PRODUCTO, CANALES)))
 check('con producto y sin bodega, lo dice',
-  /bodega/i.test(faltaEnSolicitud(base, CON_PRODUCTO)), faltaEnSolicitud(base, CON_PRODUCTO))
+  /bodega/i.test(faltaEnSolicitud(base, CON_PRODUCTO, CANALES)), faltaEnSolicitud(base, CON_PRODUCTO, CANALES))
 check('con la bodega puesta, ya no falta nada',
-  faltaEnSolicitud({ ...base, bodega: 'Guayabal' }, CON_PRODUCTO) === null)
+  faltaEnSolicitud({ ...base, bodega: 'Guayabal' }, CON_PRODUCTO, CANALES) === null)
 check('sin producto no se exige bodega',
-  faltaEnSolicitud(base, SIN_PRODUCTO) === null)
+  faltaEnSolicitud(base, SIN_PRODUCTO, CANALES) === null)
 check('lo que falta se dice con palabras, no con un booleano',
-  typeof faltaEnSolicitud({ ...base, punto_venta: '' }, SIN_PRODUCTO) === 'string')
+  typeof faltaEnSolicitud({ ...base, punto_venta: '' }, SIN_PRODUCTO, CANALES) === 'string')
 
 console.log('\n== Los estados dicen lo mismo que el modelo ==')
 const estadosPy = [...PY_MODELO.matchAll(/^ESTADO_[A-Z_]+ = "([a-z_]+)"/gm)].map(m => m[1])
@@ -151,7 +171,7 @@ console.log('\n== El historial se lee, no se descifra ==')
 // Decir «aprobo» las cuatro veces haria ilegible justo lo que se audita.
 const enBodega = describirPaso({ etapa: 'en_bodega', accion: 'aprobar', usuario_nombre: 'Ana' })
 const enDian = describirPaso({ etapa: 'en_contabilidad', accion: 'aprobar', usuario_nombre: 'Ana' })
-check('la bodega confirma que llego', /lleg/i.test(enBodega), enBodega)
+check('la bodega confirma que el producto está bien', /producto/i.test(enBodega) && /bien/i.test(enBodega), enBodega)
 check('Contabilidad verifica en la DIAN', /DIAN/i.test(enDian), enDian)
 check('y no dicen lo mismo', enBodega !== enDian)
 check('devolver se distingue de rechazar',
