@@ -20,7 +20,7 @@ from app.models.nota_credito import ESTADO_APROBADA, ESTADO_EN_BODEGA
 from app.models.user import User
 from app.core.notificaciones import Aviso, protegido
 from app.modules.notas_credito import flujo
-from app.modules.notas_credito.permisos import CAP_REGISTRAR
+from app.modules.notas_credito.permisos import emisores
 
 # El nombre del evento ES el path del webhook en n8n. Una prueba compara esta
 # lista contra los flujos de `backend/n8n/`: un path mal escrito no falla, n8n
@@ -102,12 +102,14 @@ def _aviso_por_emitir(db: Session, tenant_id: int, solicitud, aprobada_por: str)
     manda a todos los que tienen el permiso. Una nota crédito aprobada que
     nadie emite deja al cliente esperando, y el silencio es el peor final.
     """
+    # Quién emite lo decide `permisos.emisores`: en el mostrador, el punto (o
+    # su coordinador), nunca Contabilidad; en la institucional, Contabilidad.
     prefijo = canales.prefijo_de(db, tenant_id, solicitud.punto_venta)
-    con_permiso = usuarios_con(db, tenant_id, CAP_REGISTRAR)
-    del_punto = [u for u in con_permiso if prefijo and u.punto_venta == prefijo]
+    quienes = emisores(db, tenant_id, solicitud)
+    del_punto = [u for u in quienes if prefijo and u.punto_venta == prefijo]
 
     destinatarios = sorted({
-        u.email for u in (del_punto or con_permiso)
+        u.email for u in quienes
         if u.email and u.id != solicitud.solicitado_por
     })
     if not destinatarios:

@@ -9,8 +9,9 @@ Guayabal no es trabajo de Belén.
 Reglas que se protegen aquí:
 - solo al aprobar, nunca al rechazar;
 - a quien la pidió no se le manda por aquí: ya recibe el de la decisión;
-- si en ese punto no hay nadie que pueda emitirla, **no se descarta**: va a
-  todos los que tienen el permiso.
+- si en ese punto no hay nadie que pueda emitirla, va al coordinador de los
+  puntos de venta — **nunca a Contabilidad**, que en el mostrador no tiene
+  turno. En la institucional sí es Contabilidad quien emite.
 """
 from app.core.capacidades import otorgar_a_area
 from app.models.nota_credito import SolicitudNotaCredito
@@ -48,6 +49,7 @@ def _solicitud(entorno, punto=GUAYABAL, solicitante=None):
         tenant_id=entorno.tenant_id, codigo="NC-2026-0001", punto_venta=punto,
         factura_afectada="FV-100", observaciones="Producto devuelto.",
         solicitado_por=solicitante or entorno.ids["admin"], estado="en_comercial",
+        institucional=punto == "Venta institucional",
     )
     db.add(s)
     db.commit()
@@ -116,21 +118,31 @@ def test_a_quien_la_pidio_no_se_le_repite(entorno, v):
     v.check("solo al otro del punto", correos == ["guayabal2@p.com"], correos)
 
 
-def test_si_el_punto_no_tiene_quien_emita_no_se_pierde(entorno, v):
-    """Contabilidad la recibe: una aprobada que nadie emite deja al cliente esperando."""
-    db = entorno.Session()
-    otorgar_a_area(db, entorno.tenant_id, CAP_REGISTRAR, "Contabilidad",
-                   entorno.ids["admin"])
-    db.commit()
-    db.close()
-    _usuario(entorno, "conta1", area="Contabilidad")
+def test_si_el_punto_no_tiene_quien_emita_va_al_coordinador(entorno, v):
+    """
+    Una aprobada que nadie emite deja al cliente esperando, así que no se
+    descarta: va al coordinador de los puntos (área de las sedes, sin punto).
+    """
+    _permiso_a_los_puntos(entorno)
     _usuario(entorno, "belen1", punto="PVB")
-
+    _usuario(entorno, "coord", punto=None)
     entorno.como("admin")
     avisos = _avisos(entorno, _solicitud(entorno))
     correos = _destinatarios(avisos)
-    v.check("va a quien sí puede registrarla", correos == ["conta1@p.com"], correos)
+    v.check("va al coordinador, no a Belén", correos == ["coord@p.com"], correos)
     v.check("y el correo lo advierte", avisos[0][1]["es_del_punto"] is False, avisos[0][1])
+
+
+def test_contabilidad_nunca_recibe_las_del_mostrador(entorno, v):
+    """En el punto de venta Contabilidad no tiene ningún turno, ni el de emitir."""
+    db = entorno.Session()
+    otorgar_a_area(db, entorno.tenant_id, CAP_REGISTRAR, "Contabilidad", entorno.ids["admin"])
+    db.commit()
+    db.close()
+    _usuario(entorno, "conta1", area="Contabilidad")
+    entorno.como("admin")
+    avisos = _avisos(entorno, _solicitud(entorno))
+    v.check("aunque tenga el permiso de registrar, no le llega", _destinatarios(avisos) == [], avisos)
 
 
 def test_un_canal_que_no_es_una_sede_tambien_llega(entorno, v):

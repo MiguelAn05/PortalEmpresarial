@@ -32,9 +32,9 @@ revisar sin que tengan nada que decidir en ella.
 from sqlalchemy import and_, or_, true
 from sqlalchemy.orm import Session
 
-from app.core import bodegas
-from app.core.capacidades import CAPACIDADES, quienes_tienen, tiene
-from app.models.nota_credito import ESTADO_EN_BODEGA, SolicitudNotaCredito
+from app.core import areas, bodegas, canales
+from app.core.capacidades import CAPACIDADES, quienes_tienen, tiene, usuarios_con
+from app.models.nota_credito import ESTADO_APROBADA, ESTADO_EN_BODEGA, SolicitudNotaCredito
 from app.models.user import User
 from app.modules.notas_credito import flujo
 
@@ -59,6 +59,36 @@ assert all(c in CAPACIDADES for c in CAPACIDADES_DEL_MODULO), (
 # `puede_autorizar()` se retiró con el turno que comprobaba. Quién aprueba un
 # paso lo decide `puede_atender()`, contra la capacidad de la etapa en la que
 # está la solicitud; `CAP_AUTORIZAR` solo abre el módulo entero (`ve_todas`).
+
+
+def emisores(db: Session, tenant_id: int, solicitud) -> list[User]:
+    """
+    Quiénes emiten esta nota crédito y escriben su número.
+
+    - **Institucional:** quien tenga el permiso de registrar (Contabilidad).
+    - **Punto de venta:** la gente de ESE punto con el permiso; si no hay
+      nadie, el coordinador de los puntos (área de las sedes, sin punto).
+      **Contabilidad no entra**: en el mostrador no tiene ningún turno —
+      Comercial decide y el punto emite contra su propia factura—, y dejarle
+      el permiso general la ponía a emitir y a recibir los avisos de notas
+      del mostrador que no son trabajo suyo.
+    """
+    con_permiso = usuarios_con(db, tenant_id, CAP_REGISTRAR)
+    if solicitud.institucional:
+        return con_permiso
+    prefijo = canales.prefijo_de(db, tenant_id, solicitud.punto_venta)
+    del_punto = [u for u in con_permiso if prefijo and u.punto_venta == prefijo]
+    if del_punto:
+        return del_punto
+    sedes = areas.area_de_sedes(db, tenant_id)
+    return [u for u in con_permiso if sedes and u.area == sedes and not u.punto_venta]
+
+
+def puede_emitir(db: Session, usuario: User, solicitud) -> bool:
+    """¿Puede esta persona emitir ESTA nota crédito? Ver `emisores`. `admin` siempre."""
+    if usuario.rol == "admin":
+        return True
+    return any(u.id == usuario.id for u in emisores(db, usuario.tenant_id, solicitud))
 
 
 def puede_registrar(db: Session, usuario: User) -> bool:
@@ -99,6 +129,9 @@ def puede_atender(db: Session, usuario: User, solicitud) -> bool:
         # El responsable de la bodega confirma aunque no tenga el permiso por
         # área: haberlo nombrado responsable ya es el permiso.
         return flujo.atiende_la_bodega(db, usuario, solicitud.bodega, tiene(db, usuario, capacidad))
+    if solicitud.estado == ESTADO_APROBADA:
+        # Emitir: en el mostrador es del punto, no de Contabilidad.
+        return puede_emitir(db, usuario, solicitud)
     return tiene(db, usuario, capacidad)
 
 

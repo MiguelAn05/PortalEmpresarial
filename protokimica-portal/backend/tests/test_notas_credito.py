@@ -18,6 +18,7 @@ datos `d81f6a4c92e3` para los tenants que ya existían; aquí, cada prueba que
 necesita un autorizador la otorga explícitamente con `_dar_capacidades_nc`
 — es la versión de prueba de lo que esa migración hizo una sola vez.
 """
+from app.core import canales
 from app.core.capacidades import otorgar_a_area
 from app.models.nota_credito import SolicitudNotaCredito
 from app.models.user import User
@@ -40,6 +41,23 @@ def _dar_capacidades_nc(portal, area=AREA_CONTABILIDAD):
     otorgar_a_area(db, portal.tenant_id, "notas_credito.autorizar", area, portal.ids["admin"])
     otorgar_a_area(db, portal.tenant_id, "notas_credito.registrar", area, portal.ids["admin"])
     db.close()
+
+
+def _emisor_del_punto(portal, clave="itagui"):
+    """
+    Alguien del punto de venta de la factura, con el permiso de registrar:
+    en el mostrador es quien emite, no Contabilidad.
+    """
+    db = portal.Session()
+    prefijo = canales.prefijo_de(db, portal.tenant_id, PUNTO)
+    otorgar_a_area(db, portal.tenant_id, "notas_credito.registrar", "Puntos de Venta", portal.ids["admin"])
+    u = User(tenant_id=portal.tenant_id, nombre="Itagüí", email=f"{clave}@p.com", password_hash="x",
+             rol="agente", area="Puntos de Venta", punto_venta=prefijo, activo=True)
+    db.add(u)
+    db.commit()
+    portal.ids[clave] = u.id
+    db.close()
+    return clave
 
 
 def _dar_capacidad_comercial(portal, area):
@@ -197,13 +215,19 @@ def test_el_punto_de_venta_emite_apenas_comercial_aprueba(entorno, v):
     portal = entorno
     _con_area(portal, "calidad", AREA_CONTABILIDAD)
     _dar_capacidades_nc(portal)
+    _emisor_del_punto(portal)
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
     _pasar_comercial(portal, sid)
 
     portal.como("calidad")
     r = portal.post(f"/notas-credito/{sid}/aplicar", json={"numero_nc": "NC-9911"})
-    v.check("se emite sin pasar por nadie más", r.status_code == 200, r.text[:250])
+    v.check("Contabilidad no la emite: en el mostrador no tiene turno", r.status_code == 403, r.text[:250])
+    v.check("y el mensaje dice quién", "punto de venta" in r.json()["detail"], r.json())
+
+    portal.como("itagui")
+    r = portal.post(f"/notas-credito/{sid}/aplicar", json={"numero_nc": "NC-9911"})
+    v.check("la emite el punto, sin pasar por nadie más", r.status_code == 200, r.text[:250])
     v.check("y queda aplicada", r.json()["estado"] == "aplicada", r.json())
 
 
@@ -258,18 +282,17 @@ def test_no_se_responde_dos_veces(entorno, v):
 
 def test_el_numero_de_la_nc_cierra_el_ciclo(entorno, v):
     portal = entorno
-    _con_area(portal, "calidad", AREA_CONTABILIDAD)
-    _dar_capacidades_nc(portal)
+    _emisor_del_punto(portal)
     portal.como("logistica")
     sid = _radicar(portal).json()["id"]
     _pasar_comercial(portal, sid)
 
-    portal.como("calidad")
+    portal.como("itagui")
     r = portal.post(f"/notas-credito/{sid}/aplicar", json={"numero_nc": "NC-9911"})
     v.check("se registra", r.status_code == 200, r.text[:250])
     v.check("queda aplicada", r.json()["estado"] == "aplicada", r.json())
     v.check("con el número de la nota", r.json()["numero_nc"] == "NC-9911", r.json())
-    v.check("y quién la hizo", r.json()["ejecutor_nombre"] == "Cali", r.json())
+    v.check("y quién la hizo", r.json()["ejecutor_nombre"] == "Itagüí", r.json())
 
 
 def test_no_se_aplica_lo_que_nadie_aprobo(entorno, v):
@@ -365,8 +388,13 @@ def test_el_alcance_dice_la_verdad(entorno, v):
     alcance = portal.get(f"/notas-credito/{sid}").json()["alcance"]
     v.check("aprobada: ya no se vuelve a firmar",
             alcance["puede_responder"] is False, alcance)
-    v.check("y ahora sí se registra el número",
-            alcance["puede_aplicar"] is True, alcance)
+    v.check("y Contabilidad no la emite: es del punto",
+            alcance["puede_aplicar"] is False, alcance)
+
+    _emisor_del_punto(portal)
+    portal.como("itagui")
+    alcance = portal.get(f"/notas-credito/{sid}").json()["alcance"]
+    v.check("el punto de venta sí registra el número", alcance["puede_aplicar"] is True, alcance)
 
 
 # ── Catálogo de motivos ──────────────────────────────────────────────────

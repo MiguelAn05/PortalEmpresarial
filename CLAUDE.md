@@ -1413,6 +1413,16 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   solo agregan el tiempo que la solicitud pasa esperando. En la institucional
   Contabilidad sigue igual, porque ahí sí verifica algo.
 
+  **Y tampoco emite** (desde la 0.51.1). Le quedaba una puerta: tener
+  `notas_credito.registrar` la dejaba registrar el número, le metía las del
+  mostrador en «Mi turno» y le mandaba `nc-por-emitir` cuando el punto no
+  tenía a nadie. Quién emite lo decide `permisos.emisores()`, una sola
+  fuente para el endpoint, el alcance, «Mi turno» y el correo: en la
+  institucional, quien tenga el permiso; en el mostrador, la gente de ESE
+  punto con el permiso y, si no hay, el coordinador de los puntos (área de
+  las sedes sin punto). **Nunca Contabilidad.** Sigue VIÉNDOLAS por
+  `ve_todas`: verlas no es tener turno.
+
   `solicitada` sobrevive como **etapa del historial** —las que autorizó en su
   día lo siguen diciendo— pero no es el estado de ninguna solicitud viva: no
   está en `ESTADOS` ni en ningún grupo de filtro. La migración
@@ -1549,8 +1559,8 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   cada sede: una nota crédito de Guayabal no es trabajo de Belén. A quien la
   pidió no se le manda por ahí, que ya recibe `nc-respondida` y serían dos
   correos por lo mismo. **Si en ese punto no hay nadie que pueda emitirla, no
-  se descarta**: va a todos los que tienen la capacidad, y el correo lo
-  advierte. `core/capacidades.usuarios_con()` es lo que permite filtrar por
+  se descarta**: va al coordinador de los puntos de venta —nunca a
+  Contabilidad—, y el correo lo advierte (`permisos.emisores`). `core/capacidades.usuarios_con()` es lo que permite filtrar por
   algo más que el correo.
 
 ## Pendientes conocidos

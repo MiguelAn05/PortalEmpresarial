@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.51.0"
+VERSION = "0.51.1"
 FECHA = "2026-10-09"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,17 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.51.1",
+        "fecha": "2026-10-09",
+        "titulo": "Las notas crédito del punto de venta no pasan por Contabilidad",
+        "cambios": [
+            ("mejora", "Las notas crédito de un punto de venta ya no pasan por Contabilidad: "
+                       "Comercial aprueba y el propio punto la emite (o el coordinador de los "
+                       "puntos, si en esa sede no hay quien). A Contabilidad no le llega el aviso "
+                       "ni le aparecen en «Mi turno»."),
+        ],
+    },
     {
         "version": "0.51.0",
         "fecha": "2026-10-09",

@@ -30,7 +30,7 @@ from app.models.user import User
 from app.modules.notas_credito import flujo, service
 from app.modules.notas_credito.permisos import (
     filtrar_visibles, mensaje_falta_capacidad, puede_atender, puede_radicar,
-    puede_registrar, puede_ver,
+    puede_emitir, puede_ver,
 )
 from app.modules.notas_credito.schemas import (
     AlcanceNotaCredito, AplicarSolicitud, ComentarioOpcional, MotivoCreate, MotivoOut,
@@ -256,7 +256,8 @@ def listar_solicitudes(
     # son los dos momentos en que la pelota está en su cancha, y pedirlo
     # estado por estado obligaría a la pantalla a conocer la cadena — que es
     # justo lo que vive en el servidor. Ver `flujo.GRUPOS_FILTRO`.
-    if estado == flujo.GRUPO_MI_TURNO:
+    mi_turno = estado == flujo.GRUPO_MI_TURNO
+    if mi_turno:
         query = query.filter(SolicitudNotaCredito.estado.in_(_estados_que_atiende(db, current_user)))
     elif estados := flujo.estados_del_filtro(estado or ""):
         query = query.filter(SolicitudNotaCredito.estado.in_(estados))
@@ -266,7 +267,13 @@ def listar_solicitudes(
         query = query.filter(SolicitudNotaCredito.estado == estado)
 
     query = filtrar_visibles(query, db, current_user)
-    return query.order_by(SolicitudNotaCredito.creado_en.desc()).all()
+    solicitudes = query.order_by(SolicitudNotaCredito.creado_en.desc()).all()
+    if mi_turno:
+        # El estado no basta: una aprobada del mostrador está en «por emitir»,
+        # pero no es turno de Contabilidad aunque tenga el permiso de
+        # registrar. Se pregunta solicitud por solicitud.
+        solicitudes = [s for s in solicitudes if puede_atender(db, current_user, s)]
+    return solicitudes
 
 
 def _estados_que_atiende(db: Session, usuario: User) -> list[str]:
@@ -322,7 +329,7 @@ def obtener_solicitud(
         # distintos y pueden separarse desde Administración › Capacidades.
         # Solo aplica sobre una ya aprobada: dejarlo antes sería anotar una
         # nota crédito que nadie autorizó.
-        puede_aplicar=escribe and puede_registrar(db, current_user)
+        puede_aplicar=escribe and puede_emitir(db, current_user, solicitud)
         and solicitud.estado == ESTADO_APROBADA,
         # Corregir y volver a mandarla, o retirarla, es de quien la pidió.
         puede_reenviar=suya and solicitud.estado == ESTADO_DEVUELTA,
@@ -553,14 +560,6 @@ def aplicar_solicitud(
     """
     solicitud = _buscar(db, tenant_id, solicitud_id, current_user)
 
-    if not puede_registrar(db, current_user):
-        raise HTTPException(
-            status_code=403,
-            detail=mensaje_falta_capacidad(
-                db, tenant_id, "notas_credito.registrar",
-                "Registrar el número de una nota crédito emitida",
-            ),
-        )
     if solicitud.estado != ESTADO_APROBADA:
         raise HTTPException(
             status_code=400,
@@ -572,6 +571,18 @@ def aplicar_solicitud(
             ),
         )
 
+    if not puede_emitir(db, current_user, solicitud):
+        if solicitud.institucional:
+            detalle = mensaje_falta_capacidad(
+                db, tenant_id, "notas_credito.registrar",
+                "Registrar el número de una nota crédito emitida",
+            )
+        else:
+            detalle = (
+                "Esta nota crédito es de un punto de venta: la emite y registra ese punto "
+                f"({solicitud.punto_venta}) o el coordinador de los puntos de venta."
+            )
+        raise HTTPException(status_code=403, detail=detalle)
     numero = payload.numero_nc.strip()
     if not numero:
         raise HTTPException(status_code=400, detail="Escribe el número de la nota crédito.")
