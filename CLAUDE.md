@@ -400,13 +400,24 @@ crédito, cuando no alcanzó a salir.
 `modules/pqrs/flujo.py` (la regla), `router_flujo.py` (los endpoints) y
 `FlujoPQRS.jsx` / `admin/FlujosPQRS.jsx` (las pantallas):
 
-- **Plantillas por tipo de canal** (`pqrs_flujos` + `pqrs_flujo_pasos`),
-  editables en Administración. Un paso es un concepto fijo, el de la
+- **Plantillas por TIPO de PQRS y tipo de canal** (`pqrs_flujos` +
+  `pqrs_flujo_pasos`), editables en Administración. Un paso es un concepto fijo, el de la
   **bodega de despacho** (la lista común de bodegas; su concepto vive en
   `pqrs_conceptos_bodega`: CD y La 65 → Logística, Guayabal → Producción) o
   el **técnico de la causa**
   (`pqrs_asociados.concepto_tecnico_id`). Se siembran solas la primera vez
   (`flujo.sembrar`), buscando los tipos de autorización por nombre.
+- **El tipo pesa más que el canal** (desde la 0.52): un reclamo por producto
+  pide bodega, técnico y la cadena financiera; una queja por la atención o
+  una felicitación no. `tipos_pqrs` vacío es «cualquier tipo», y a cada PQRS
+  le toca la plantilla **más específica** (`plantilla_para`): tipo + canal,
+  solo tipo, solo canal, genérica. Dos plantillas activas que empaten (mismo
+  canal y tipos que se cruzan) se rechazan con 409 (`choque`): si no, el
+  portal escogería una por antigüedad y la otra parecería no funcionar. Las
+  sembradas son de `reclamo` (la migración `e2c7a4f9b136` les puso eso a las
+  que existían); los demás tipos no tienen plantilla hasta que alguien la
+  defina, y la PQRS lo dice (`sin_plantilla`) y deja armar los pasos a mano.
+  Como la propuesta se calcula al pedirla, reclasificar el tipo la cambia.
 - **La propuesta se resuelve para cada PQRS** y dice lo que falta (la
   bodega, la causa); un concepto no se repite aunque salga por dos pasos.
 - **Al iniciar, la plantilla se COPIA** a `pqrs_cadena_pasos`: cambiar la
@@ -432,6 +443,30 @@ ser tarjeta: toda PQRS nace con quien reparte. El detalle muestra la línea de
 vida (`lineaDeVida()`, con las fechas del historial vía `estado_nuevo`) y el
 historial se filtra con `FILTROS_HISTORIAL`; todo con prueba en
 `tests/pqrs.test.mjs`.
+
+**PQRS — el detalle: un solo lugar para actuar** (desde la 0.53). Antes
+eran cinco tarjetas de acción apiladas —causa, flujo, gestionar,
+autorizaciones, clasificación— y para hacer una sola cosa había que
+encontrar cuál era. Ahora `PQRSDetail.jsx` es: cabecera y línea de vida →
+**«Para cerrar»** → el panel **Gestionar** (`GestionarPQRS.jsx`) → lo que
+se LEE (el caso, «Conceptos», el historial) y a la derecha los datos.
+
+- **«Para cerrar» sale del servidor**: `requisitos_cierre` del detalle lo
+  arma `gestion.requisitos_para_cerrar()`, la MISMA función con la que
+  `_validar` rechaza el cierre (con el mensaje del primero que falte). Una
+  regla nueva de cierre va ahí y aparece sola en la pantalla; cada `clave`
+  necesita su destino en `DESTINO_REQUISITO` (una prueba los ata).
+- **El panel tiene modos** (`MODOS_GESTION`, y quién ve cuál en
+  `modosDeGestion()`): Avanzar (estado, área, solución, comentario),
+  Conceptos (el flujo + un concepto suelto), Clasificar (tipo y causa;
+  es lo único que queda con la PQRS cerrada) y Comentar. Cada modo dice
+  **antes de guardar** qué va a pasar (se le escribe al cliente, se congela
+  el estado, cambia el área).
+- **Responder un concepto NO está en el panel**: vive en la tarjeta
+  «Conceptos», donde llega el área que firma desde el correo. El panel es de
+  quien gestiona el caso.
+- El flujo se pide con `useFlujo()`: el panel y la tarjeta comparten la
+  misma clave de React Query, una sola petición.
 
 **PQRS — cada punto de venta ve las suyas:** todo el portal ve todas las
 PQRS, **menos el área de las sedes** (la marcada con `es_de_sedes` en

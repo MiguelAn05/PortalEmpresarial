@@ -197,6 +197,13 @@ class EncuestaOut(BaseModel):
         from_attributes = True
 
 
+class RequisitoCierre(BaseModel):
+    clave: str
+    etiqueta: str
+    cumple: bool
+    mensaje: str
+
+
 class AlcancePQRS(BaseModel):
     """
     Qué puede hacer ESTA persona con ESTA PQRS.
@@ -232,6 +239,9 @@ class PQRSDetailOut(PQRSOut):
     seguimientos: list[SeguimientoOut] = []
     encuesta: EncuestaOut | None = None
     alcance: AlcancePQRS | None = None
+    # Qué falta para cerrar a mano: sale de `gestion.requisitos_para_cerrar`,
+    # la misma regla que rechaza el cierre. Vacío en una PQRS cerrada.
+    requisitos_cierre: list[RequisitoCierre] = []
     adjuntos_solucion: list[AdjuntoSolucionOut] = []
     # Cuándo se cierra sola si el cliente no contesta. Solo tiene sentido
     # con `estado == "resuelto"`; se calcula en el router porque depende de

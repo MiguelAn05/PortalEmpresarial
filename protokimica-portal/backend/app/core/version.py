@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.51.1"
-FECHA = "2026-10-09"
+VERSION = "0.53.0"
+FECHA = "2026-10-10"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,36 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.53.0",
+        "fecha": "2026-10-10",
+        "titulo": "El detalle de la PQRS, ordenado para gestionar",
+        "cambios": [
+            ("mejora", "Todo lo que se hace con una PQRS está en un solo panel, «Gestionar», con "
+                       "cuatro pestañas: Avanzar, Conceptos, Clasificar y Comentar. Antes eran cinco "
+                       "tarjetas sueltas y había que buscar cuál era la que servía."),
+            ("nuevo", "Arriba del panel, «Para cerrar» dice qué le falta a la PQRS para poder "
+                      "cerrarse (conceptos, causa, producto confirmado). Al pulsar lo que falta, "
+                      "te lleva a donde se resuelve."),
+            ("mejora", "En «Conceptos» están juntos el flujo automático y pedir un concepto suelto. "
+                       "La tarjeta de conceptos dice en qué paso va el flujo y a quién se espera."),
+            ("mejora", "Antes de guardar, el panel dice qué va a pasar: si se le escribe al "
+                       "cliente, si se congela el estado o si el caso cambia de área."),
+        ],
+    },
+    {
+        "version": "0.52.0",
+        "fecha": "2026-10-10",
+        "titulo": "El flujo de conceptos depende del tipo de PQRS",
+        "cambios": [
+            ("mejora", "Cada flujo de PQRS dice para qué tipos sirve (petición, queja, reclamo, "
+                       "sugerencia, felicitación), además del canal. Una queja o una felicitación "
+                       "ya no reciben la cadena de conceptos de un reclamo por producto."),
+            ("mejora", "Los dos flujos que ya existían quedan para los reclamos. Si una PQRS no "
+                       "tiene flujo para su tipo, el portal lo dice y deja armar los pasos a mano."),
+            ("mejora", "Al corregir el tipo de una PQRS, el flujo que se propone cambia con él."),
+        ],
+    },
     {
         "version": "0.51.1",
         "fecha": "2026-10-09",

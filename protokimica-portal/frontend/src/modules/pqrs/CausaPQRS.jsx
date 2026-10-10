@@ -4,7 +4,7 @@
  * Antes el área causante era un desplegable chiquito dentro de la cabecera,
  * opcional, y «Asociado a» no existía: se llevaba en el Excel de Calidad.
  * La mitad de las PQRS se cerraban sin causa y el informe no servía. Ahora
- * van juntas en su tarjeta, las marca quien reparte y son obligatorias para
+ * van juntas, las marca quien reparte y son obligatorias para
  * cerrar a mano (el servidor lo exige; aquí solo se avisa antes).
  *
  * La lista se busca escribiendo («ME», «peso», «entrega») o bajando por
@@ -17,36 +17,25 @@ import { areasParaSelect, useAreas } from '../../core/areas.js'
 import { useCanales } from '../../core/canales.js'
 import { mensajeDeError } from '../../core/errores.js'
 import Boton from '../../core/components/Boton.jsx'
-import { Tarjeta } from './piezas.jsx'
-import { IconoAlerta, IconoBuscar, IconoCheck } from '../../core/components/Iconos.jsx'
+import { IconoBuscar } from '../../core/components/Iconos.jsx'
 import {
   agruparAsociados, areaPropuesta, etiquetaAsociado, tipoDeCanal, useAsociados,
 } from './asociados.js'
 
+/**
+ * Vive dentro del modo «Clasificar» del panel Gestionar (`GestionarPQRS.jsx`),
+ * sin tarjeta propia: el panel ya dice qué es y si falta para cerrar.
+ */
 export default function CausaPQRS({ pqrs, puedeMarcar }) {
-  const sinCausa = !pqrs.asociado_id || !pqrs.area_causante
-
-  const estado = sinCausa ? (
-    <span className="inline-flex items-center gap-1 bg-alerta-bg text-alerta text-xs font-semibold px-2 py-0.5 rounded-md">
-      <IconoAlerta tam={13} /> {pqrs.estado === 'cerrado' ? 'Sin clasificar' : 'Obligatoria para cerrar'}
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 bg-positivo-bg text-positivo text-xs font-semibold px-2 py-0.5 rounded-md">
-      <IconoCheck tam={13} /> Clasificada
-    </span>
-  )
-
   return (
-    <Tarjeta titulo="Causa de la PQRS" accion={estado}>
-      <p className="text-xs text-texto-2 mb-4">
-        De dónde salió el problema, no quién lo está atendiendo. De aquí salen
-        los informes y las OMP.
+    <div>
+      <p className="text-xs text-texto-2 mb-3">
+        De dónde salió el problema, no quién lo está atendiendo. De aquí salen los informes y las OMP.
       </p>
-
       {puedeMarcar
         ? <EditorCausa key={`${pqrs.asociado_id}-${pqrs.area_causante}`} pqrs={pqrs} />
         : <LecturaCausa pqrs={pqrs} />}
-    </Tarjeta>
+    </div>
   )
 }
 

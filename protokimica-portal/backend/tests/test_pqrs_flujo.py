@@ -21,7 +21,7 @@ CONCEPTOS = [
 ]
 
 
-def _preparar(entorno, bodega="CD", causa="Calidad del Producto", canal="Venta institucional"):
+def _preparar(entorno, bodega="CD", causa="Calidad del Producto", canal="Venta institucional", tipo="reclamo"):
     """Los conceptos de Protokimica, y una PQRS institucional sin flujo."""
     db = entorno.Session()
     tipos = {}
@@ -30,7 +30,7 @@ def _preparar(entorno, bodega="CD", causa="Calidad del Producto", canal="Venta i
         db.add(t)
         db.flush()
         tipos[nombre] = t.id
-    p = PQRSSolicitud(tenant_id=entorno.tenant_id, tipo="reclamo", cliente_nombre="C", descripcion="x",
+    p = PQRSSolicitud(tenant_id=entorno.tenant_id, tipo=tipo, cliente_nombre="C", descripcion="x",
                       estado="en_proceso", prioridad="alta", origen_publico="interno",
                       canal_atencion=canal, area_responsable="Servicio al Cliente", codigo_seguimiento="VI0099")
     db.add(p)
@@ -119,6 +119,92 @@ def test_un_concepto_no_se_repite(entorno, v):
     pasos = entorno.get(f"/pqrs/{pid}/flujo").json()["propuesta"]["pasos"]
     v.check("Logística una sola vez",
             [p["concepto"] for p in pasos].count("Concepto Coordinación Logistica") == 1, pasos)
+
+
+# ── La plantilla depende del tipo de PQRS ────────────────────────────────
+
+def _plantilla(entorno, nombre, tipos, aplica_a, tipo_id, activo=True):
+    return entorno.post("/pqrs/flujos", json={
+        "nombre": nombre, "tipos": tipos, "aplica_a": aplica_a, "activo": activo,
+        "pasos": [{"clase": "concepto", "tipo_autorizacion_id": tipo_id}],
+    })
+
+
+def test_las_sembradas_son_para_reclamos(entorno, v):
+    _preparar(entorno)
+    tipos = {f["nombre"]: f["tipos"] for f in entorno.get("/pqrs/flujos").json()}
+    v.check("las dos, solo reclamos", tipos == {"Venta institucional": ["reclamo"], "Punto de venta": ["reclamo"]}, tipos)
+
+
+def test_una_queja_no_recibe_la_cadena_de_un_reclamo(entorno, v):
+    pid, _ = _preparar(entorno, tipo="queja")
+    r = entorno.get(f"/pqrs/{pid}/flujo").json()["propuesta"]
+    v.check("sin plantilla", r["flujo"] is None and r["pasos"] == [], r)
+    v.check("y lo dice con el tipo y el canal",
+            "las quejas de venta institucional" in (r["sin_plantilla"] or ""), r["sin_plantilla"])
+
+
+def test_gana_la_plantilla_mas_especifica(entorno, v):
+    pid, tipos = _preparar(entorno, tipo="queja")
+    r = _plantilla(entorno, "Quejas", ["queja"], None, tipos["Concepto Analista Financiera"])
+    v.check("se crea la de quejas, para cualquier canal", r.status_code == 201, r.text[:200])
+    r = _plantilla(entorno, "Reclamos en general", ["reclamo"], None, tipos["Concepto Cartera"])
+    v.check("y una de reclamos para cualquier canal", r.status_code == 201, r.text[:200])
+    r = entorno.get(f"/pqrs/{pid}/flujo").json()["propuesta"]
+    v.check("la queja institucional toma la de quejas", r["flujo"]["nombre"] == "Quejas", r["flujo"])
+
+    pid_r, _ = _preparar_otra(entorno, "reclamo", "Venta institucional")
+    r = entorno.get(f"/pqrs/{pid_r}/flujo").json()["propuesta"]
+    v.check("un reclamo institucional: tipo y canal ganan a solo tipo",
+            r["flujo"]["nombre"] == "Venta institucional", r["flujo"])
+    pid_g, _ = _preparar_otra(entorno, "reclamo", "WhatsApp")
+    r = entorno.get(f"/pqrs/{pid_g}/flujo").json()["propuesta"]
+    v.check("un reclamo de otro canal toma la de reclamos en general",
+            r["flujo"]["nombre"] == "Reclamos en general", r["flujo"])
+
+
+def test_reclasificar_cambia_la_propuesta(entorno, v):
+    """El tipo se corrige antes de cerrar: la propuesta sigue al tipo corregido."""
+    pid, _ = _preparar(entorno, tipo="felicitacion")
+    v.check("una felicitación no tiene plantilla",
+            entorno.get(f"/pqrs/{pid}/flujo").json()["propuesta"]["flujo"] is None)
+    db = entorno.Session()
+    db.get(PQRSSolicitud, pid).tipo = "reclamo"
+    db.commit()
+    db.close()
+    r = entorno.get(f"/pqrs/{pid}/flujo").json()["propuesta"]
+    v.check("reclasificada a reclamo, la de venta institucional",
+            r["flujo"]["nombre"] == "Venta institucional", r["flujo"])
+
+
+def test_dos_plantillas_no_compiten_por_las_mismas_pqrs(entorno, v):
+    _, tipos = _preparar(entorno)
+    r = _plantilla(entorno, "Otra institucional", ["reclamo", "queja"], "institucional", tipos["Concepto Cartera"])
+    v.check("chocar con «Venta institucional» -> 409", r.status_code == 409 and "Venta institucional" in r.text, r.text[:200])
+    r = _plantilla(entorno, "Otra institucional", ["reclamo"], "institucional", tipos["Concepto Cartera"], activo=False)
+    v.check("desactivada no compite", r.status_code == 201, r.text[:200])
+    r = _plantilla(entorno, "Quejas institucionales", ["queja"], "institucional", tipos["Concepto Cartera"])
+    v.check("otro tipo en el mismo canal, sí", r.status_code == 201, r.text[:200])
+    r = entorno.put(f"/pqrs/flujos/{r.json()['id']}", json={
+        "nombre": "Quejas institucionales", "tipos": ["queja"], "aplica_a": "institucional",
+        "pasos": [{"clase": "concepto", "tipo_autorizacion_id": tipos["Concepto Analista Contable"]}],
+    })
+    v.check("editarla no choca consigo misma", r.status_code == 200, r.text[:200])
+    r = _plantilla(entorno, "Rara", ["anulada"], None, tipos["Concepto Cartera"])
+    v.check("un tipo que no existe -> 400", r.status_code == 400, r.text[:200])
+
+
+def _preparar_otra(entorno, tipo, canal):
+    """Otra PQRS en el mismo entorno, sin volver a crear los conceptos."""
+    db = entorno.Session()
+    p = PQRSSolicitud(tenant_id=entorno.tenant_id, tipo=tipo, cliente_nombre="C", descripcion="x",
+                      estado="en_proceso", prioridad="alta", origen_publico="interno",
+                      canal_atencion=canal, area_responsable="Servicio al Cliente")
+    db.add(p)
+    db.commit()
+    pid = p.id
+    db.close()
+    return pid, None
 
 
 # ── El flujo andando ─────────────────────────────────────────────────────

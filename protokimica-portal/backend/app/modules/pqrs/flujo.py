@@ -12,8 +12,10 @@ pedir el que se mandó mal.
 
 **Cómo funciona:**
 
-1. Una **plantilla** (`PQRSFlujo`) por tipo de canal, editable en
-   Administración. Sus pasos son de tres clases: un concepto fijo, el
+1. Una **plantilla** (`PQRSFlujo`) por tipo de PQRS y tipo de canal,
+   editable en Administración. El tipo importa tanto como el canal: un
+   reclamo por producto pide bodega, técnico y la cadena financiera; una
+   queja por la atención o una felicitación no piden nada de eso. Sus pasos son de tres clases: un concepto fijo, el
    concepto de la **bodega** de donde salió el producto (Logística para el CD
    y La 65, Producción para Guayabal) y el concepto **técnico** de la causa
    («Asociado a» → Área Técnica, Logística…).
@@ -40,7 +42,7 @@ from app.models.autorizacion import AutorizacionPQRS, TipoAutorizacion
 from app.models.bodega import Bodega
 from app.models.pqrs import (
     PQRSCadenaPaso, PQRSConceptoBodega, PQRSFlujo, PQRSFlujoPaso,
-    PQRSSeguimiento, PQRSSolicitud,
+    PQRSSeguimiento, PQRSSolicitud, TIPOS_PQRS,
 )
 from app.modules.autorizaciones.service import registrar_solicitud
 from app.modules.pqrs import asociados
@@ -48,6 +50,14 @@ from app.modules.pqrs import asociados
 ESTADO_POR_DECISION = {"aprobada": "aprobado", "rechazada": "rechazado", "devuelta": "devuelto"}
 TERMINADOS = ("aprobado", "rechazado", "devuelto")
 TIPOS_CANAL = ("sede", "institucional", "general")
+
+# Cómo se nombran en los mensajes («No hay plantilla para las quejas…»).
+TIPOS_EN_PLURAL = {
+    "peticion": "las peticiones", "queja": "las quejas", "reclamo": "los reclamos",
+    "sugerencia": "las sugerencias", "felicitacion": "las felicitaciones",
+}
+CANALES_EN_MENSAJE = {"sede": "de punto de venta", "institucional": "de venta institucional", "general": "de otros canales"}
+assert set(TIPOS_EN_PLURAL) == set(TIPOS_PQRS)
 
 
 def _clave(texto: str | None) -> str:
@@ -106,8 +116,11 @@ def sembrar(db: Session, tenant_id: int) -> None:
         if tipo and not _concepto_de(db, bodega.id):
             db.add(PQRSConceptoBodega(tenant_id=tenant_id, bodega_id=bodega.id, tipo_autorizacion_id=tipo.id))
 
+    # Las dos salieron del análisis de los RECLAMOS: es el recorrido que ya
+    # está definido. Los demás tipos arrancan sin plantilla.
     def plantilla(nombre, aplica_a, fijos):
         flujo = PQRSFlujo(tenant_id=tenant_id, nombre=nombre, aplica_a=aplica_a)
+        flujo.tipos = ["reclamo"]
         pasos = [("bodega", None), ("tecnico", None)] + [("concepto", t) for t in fijos if t]
         flujo.pasos = [PQRSFlujoPaso(orden=i, clase=c, tipo_autorizacion_id=t.id if t else None)
                        for i, (c, t) in enumerate(pasos)]
@@ -145,15 +158,63 @@ def tipo_de_canal(db: Session, pqrs: PQRSSolicitud) -> str | None:
     return None
 
 
+def _especificidad(f: PQRSFlujo, tipo: str | None, canal: str | None) -> tuple[bool, bool] | None:
+    """
+    None si la plantilla no le sirve a esa PQRS; si sirve, qué tan a la
+    medida: (dice el tipo, dice el canal). El tipo pesa más que el canal
+    porque es el que cambia la naturaleza del recorrido: una felicitación de
+    venta institucional se parece más a otra felicitación que a un reclamo
+    de venta institucional.
+    """
+    tipos = f.tipos
+    if tipos and tipo not in tipos:
+        return None
+    if f.aplica_a and f.aplica_a != canal:
+        return None
+    return (bool(tipos), bool(f.aplica_a))
+
+
 def plantilla_para(db: Session, pqrs: PQRSSolicitud) -> PQRSFlujo | None:
-    """La plantilla de su tipo de canal; si no hay, la que sirve para cualquiera."""
+    """
+    La plantilla MÁS ESPECÍFICA que le sirve: tipo y canal, luego solo tipo,
+    luego solo canal, luego la genérica. No hay empates: `choque()` no deja
+    guardar dos activas con la misma especificidad para un mismo caso.
+    """
     sembrar(db, pqrs.tenant_id)
     activas = db.query(PQRSFlujo).filter(
         PQRSFlujo.tenant_id == pqrs.tenant_id, PQRSFlujo.activo.is_(True),
     ).order_by(PQRSFlujo.id).all()
     canal = tipo_de_canal(db, pqrs)
-    return (next((f for f in activas if canal and f.aplica_a == canal), None)
-            or next((f for f in activas if f.aplica_a is None), None))
+    candidatas = [(e, f) for f in activas if (e := _especificidad(f, pqrs.tipo, canal)) is not None]
+    # `max` se queda con la primera en un empate, que es la más vieja.
+    return max(candidatas, key=lambda c: c[0])[1] if candidatas else None
+
+
+def choque(db: Session, tenant_id: int, aplica_a: str | None, tipos: list[str],
+           excluir_id: int | None = None) -> PQRSFlujo | None:
+    """
+    La plantilla activa que competiría con esta por las mismas PQRS: mismo
+    canal y tipos que se cruzan (o las dos para cualquier tipo). Si se
+    dejaran las dos, el portal escogería una por antigüedad sin que nadie lo
+    supiera, y la otra parecería no funcionar.
+    """
+    q = db.query(PQRSFlujo).filter(PQRSFlujo.tenant_id == tenant_id, PQRSFlujo.activo.is_(True))
+    if excluir_id is not None:
+        q = q.filter(PQRSFlujo.id != excluir_id)
+    for f in q.order_by(PQRSFlujo.id):
+        if f.aplica_a != aplica_a:
+            continue
+        if (not f.tipos and not tipos) or set(f.tipos) & set(tipos):
+            return f
+    return None
+
+
+def sin_plantilla(db: Session, pqrs: PQRSSolicitud) -> str:
+    """Qué decir cuando ninguna plantilla le sirve, nombrando el tipo y el canal."""
+    tipo = TIPOS_EN_PLURAL.get(pqrs.tipo, "este tipo de PQRS")
+    canal = CANALES_EN_MENSAJE.get(tipo_de_canal(db, pqrs), "")
+    return (f"No hay plantilla para {tipo} {canal}".rstrip() + ". Si necesita conceptos, arma los pasos a mano; "
+            "si el recorrido se repite, créale una plantilla en Administración › Flujos de PQRS.")
 
 
 def propuesta(db: Session, pqrs: PQRSSolicitud) -> dict:
@@ -166,7 +227,7 @@ def propuesta(db: Session, pqrs: PQRSSolicitud) -> dict:
     flujo = plantilla_para(db, pqrs)
     pasos, faltan, vistos = [], [], set()
     if not flujo:
-        return {"flujo": None, "pasos": [], "faltan": []}
+        return {"flujo": None, "pasos": [], "faltan": [], "sin_plantilla": sin_plantilla(db, pqrs)}
 
     def agregar(origen, tipo):
         if tipo and tipo.activo and tipo.id not in vistos:
@@ -191,7 +252,7 @@ def propuesta(db: Session, pqrs: PQRSSolicitud) -> dict:
                 faltan.append({"clase": "tecnico", "mensaje": "Marca la causa («Asociado a») para saber qué concepto técnico pedir."})
             elif asociado.concepto_tecnico_id:
                 agregar("tecnico", db.get(TipoAutorizacion, asociado.concepto_tecnico_id))
-    return {"flujo": {"id": flujo.id, "nombre": flujo.nombre}, "pasos": pasos, "faltan": faltan}
+    return {"flujo": {"id": flujo.id, "nombre": flujo.nombre}, "pasos": pasos, "faltan": faltan, "sin_plantilla": None}
 
 
 # ── La cadena de una PQRS ──────────────────────────────────────────────

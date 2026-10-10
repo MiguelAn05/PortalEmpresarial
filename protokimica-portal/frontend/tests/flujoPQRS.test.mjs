@@ -5,9 +5,12 @@
 // nombres de estados, clases y canales sean los mismos del servidor.
 import { readFileSync } from 'node:fs'
 import {
-  APLICA_A, CLASES_PASO, ESTADOS_FLUJO, ESTADOS_PASO, MAX_PASOS,
-  agregar, mover, paraEnviar, quitar, ultimoDetenido,
+  APLICA_A, CLASES_PASO, ESTADOS_FLUJO, ESTADOS_PASO, MAX_PASOS, TIPOS_PQRS,
+  agregar, mover, paraEnviar, paraQuien, quitar, resumenCadena, ultimoDetenido,
 } from '../src/modules/pqrs/flujo.js'
+import {
+  DESTINO_REQUISITO, MODOS_GESTION, TIPOS, avanceDeCierre, modosDeGestion,
+} from '../src/modules/pqrs/constants.js'
 
 let fallos = []
 const check = (n, cond, extra = '') => {
@@ -65,7 +68,54 @@ check('canales de una plantilla',
 const estadosFlujo = ['sin_flujo', 'en_curso', 'detenida', 'lista', 'completa']
 check('estados del flujo, los que dice estado_cadena()',
   estadosFlujo.every(e => FLUJO.includes(e) && ESTADOS_FLUJO[e]), Object.keys(ESTADOS_FLUJO))
+check('tipos de PQRS de una plantilla',
+  JSON.stringify(tupla(MODELO, 'TIPOS_PQRS')) === JSON.stringify(TIPOS_PQRS), tupla(MODELO, 'TIPOS_PQRS'))
+check('y todos tienen nombre en la pantalla', TIPOS_PQRS.every(t => TIPOS[t]?.label), Object.keys(TIPOS))
+
+console.log('\n== Para quién es una plantilla ==')
+check('tipos y canal', paraQuien({ tipos: ['reclamo', 'queja'], aplica_a: 'institucional' }, TIPOS) === 'Reclamo, Queja · Venta institucional')
+check('sin tipos ni canal', paraQuien({ tipos: [], aplica_a: null }, TIPOS) === 'Cualquier tipo · Cualquier canal')
+
 check('el tope de pasos', (ROUTER.match(/max_length=(\d+)\)/) || [])[1] === String(MAX_PASOS))
+
+console.log('\n== En qué va el flujo, en una línea ==')
+const cadena = [
+  { concepto: 'Logística', area: 'Logística', estado: 'aprobado' },
+  { concepto: 'Financiera', area: 'Comercial', estado: 'en_curso' },
+  { concepto: 'Cartera', area: 'Facturación', estado: 'pendiente' },
+]
+check('en curso: el paso y a quién se espera', resumenCadena('en_curso', cadena) === 'Paso 2 de 3 · esperando a Comercial')
+check('detenido: cuál y cómo salió',
+  resumenCadena('detenida', [cadena[0], { ...cadena[1], estado: 'devuelto' }, cadena[2]]) === 'Detenido · Financiera salió devuelto')
+check('esperando que se reanude: cuántos faltan',
+  resumenCadena('lista', [cadena[0], { ...cadena[1], estado: 'pendiente' }, cadena[2]]) === 'Esperando que se reanude · faltan 2 conceptos')
+check('completo', resumenCadena('completa', [cadena[0]]) === 'Flujo completo · 1 concepto')
+check('sin flujo, nada', resumenCadena('sin_flujo', []) === null && resumenCadena(undefined, undefined) === null)
+
+console.log('\n== El panel Gestionar ==')
+const conAlcance = (estado, alcance) => ({ estado, alcance })
+const reparte = { puede_gestionar: true, puede_reclasificar: true, puede_marcar_causa: true }
+const agente = { puede_gestionar: true }
+const lectura = { puede_gestionar: false }
+check('quien reparte ve los cuatro modos',
+  JSON.stringify(modosDeGestion(conAlcance('asignado', reparte), true)) === JSON.stringify(['avanzar', 'conceptos', 'clasificar', 'comentar']))
+check('un agente pide conceptos por su rol', modosDeGestion(conAlcance('asignado', agente), true).includes('conceptos'))
+check('sin pedir ni repartir, no hay modo conceptos', !modosDeGestion(conAlcance('asignado', agente), false).includes('conceptos'))
+check('lectura solo ve la clasificación', JSON.stringify(modosDeGestion(conAlcance('asignado', lectura), false)) === '["clasificar"]')
+check('cerrada: solo clasificar (la causa se corrige después)',
+  JSON.stringify(modosDeGestion(conAlcance('cerrado', reparte), true)) === '["clasificar"]')
+check('cada modo tiene nombre', modosDeGestion(conAlcance('asignado', reparte), true).every(m => MODOS_GESTION[m]?.label))
+
+console.log('\n== Para cerrar ==')
+const avance = avanceDeCierre([{ clave: 'causa', cumple: false }, { clave: 'producto', cumple: true }, { clave: 'conceptos', cumple: true }])
+check('cuenta hechos y faltan', avance.total === 3 && avance.hechos === 2 && avance.faltan[0].clave === 'causa')
+check('sin requisitos (cerrada), nada', avanceDeCierre(undefined).total === 0)
+const GESTION = readFileSync(new URL('../../backend/app/modules/pqrs/gestion.py', import.meta.url), 'utf8')
+const clavesServidor = [...GESTION.matchAll(/"clave": "([a-z_]+)"/g)].map(m => m[1]).sort()
+check('cada requisito del servidor lleva a alguna parte',
+  JSON.stringify(clavesServidor) === JSON.stringify(Object.keys(DESTINO_REQUISITO).sort()), clavesServidor)
+check('y a un modo que existe',
+  Object.values(DESTINO_REQUISITO).every(d => d.tarjeta || MODOS_GESTION[d.modo]))
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

@@ -512,3 +512,52 @@ export const PRIORIDADES = {
   alta:    { label: 'Prioridad alta',    tono: 'alerta'   },
   critica: { label: 'Prioridad crítica', tono: 'negativo' },
 }
+
+// ── El panel «Gestionar» del detalle ──────────────────────────────
+
+/**
+ * Los modos del panel único de gestión (`GestionarPQRS.jsx`). Antes eran
+ * cinco tarjetas apiladas —causa, flujo, gestionar, autorizaciones,
+ * clasificación— y para hacer una sola cosa había que encontrar cuál de
+ * ellas era. Ahora hay un solo lugar donde se ACTÚA, y debajo lo que se LEE.
+ */
+export const MODOS_GESTION = {
+  avanzar:    { label: 'Avanzar',    ayuda: 'Cambia el estado o el área y deja constancia' },
+  conceptos:  { label: 'Conceptos',  ayuda: 'Quién tiene que opinar antes de responderle al cliente' },
+  clasificar: { label: 'Clasificar', ayuda: 'El tipo y la causa: de ahí salen los informes y las OMP' },
+  comentar:   { label: 'Comentar',   ayuda: 'Una nota interna: no cambia nada ni le llega al cliente' },
+}
+
+/**
+ * Qué modos ve esta persona en esta PQRS. Los permisos llegan resueltos en
+ * `alcance`; `puedeSolicitar` es si su rol pide autorizaciones. Clasificar
+ * siempre está —quien no puede marcar la causa la ve—, y es lo único que
+ * queda con la PQRS cerrada: la causa se corrige después de cerrar.
+ */
+export function modosDeGestion(pqrs, puedeSolicitar) {
+  const alcance = pqrs.alcance || {}
+  const abierta = pqrs.estado !== 'cerrado'
+  const modos = []
+  if (alcance.puede_gestionar && abierta) modos.push('avanzar')
+  if (abierta && (puedeSolicitar || alcance.puede_reclasificar)) modos.push('conceptos')
+  modos.push('clasificar')
+  if (alcance.puede_gestionar && abierta) modos.push('comentar')
+  return modos
+}
+
+/**
+ * A dónde lleva cada requisito de «Para cerrar» al pulsarlo: a un modo del
+ * panel, o a una tarjeta (el producto se confirma en la suya).
+ */
+export const DESTINO_REQUISITO = {
+  conceptos: { modo: 'conceptos' },
+  causa:     { modo: 'clasificar' },
+  producto:  { tarjeta: 'productos' },
+}
+
+/** Cuántos requisitos de cierre se cumplen y cuáles faltan. Los manda el servidor. */
+export function avanceDeCierre(requisitos) {
+  const lista = requisitos || []
+  const faltan = lista.filter(r => !r.cumple)
+  return { total: lista.length, hechos: lista.length - faltan.length, faltan }
+}

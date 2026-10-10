@@ -52,6 +52,60 @@ ESTADO_LEGIBLE = {
 }
 
 
+def requisitos_para_cerrar(db: Session, solicitud: PQRSSolicitud) -> list[dict]:
+    """
+    Lo que tiene que estar listo para cerrar A MANO, cada uno con si se
+    cumple y qué decir si no. Es la única fuente: `_validar` rechaza con el
+    primero que falte y el detalle lo manda a la pantalla para la lista «Para
+    cerrar». Si la pantalla la armara aparte, el día que se agregue una regla
+    diría «todo listo» y el servidor seguiría diciendo que no.
+
+    Las que cierra el cliente o el cierre automático no pasan por aquí; esas
+    se clasifican después de cerradas.
+    """
+    hay_pendiente = db.query(AutorizacionPQRS.id).filter(
+        AutorizacionPQRS.pqrs_id == solicitud.id,
+        AutorizacionPQRS.estado == "pendiente",
+    ).first() is not None
+
+    # La causa es lo que alimenta los informes y las OMP: cerrar sin ella es
+    # una PQRS que no cuenta para nada. Ver `pqrs/asociados.py`.
+    sin_causa = [nombre for nombre, valor in (
+        ("«Asociado a»", solicitud.asociado_id),
+        ("el área causante", solicitud.area_causante),
+    ) if not valor]
+
+    # El cliente escribió el producto porque no lo encontró en el buscador.
+    # Se corrige ANTES de cerrar, igual que el tipo: después ya no se puede,
+    # y un nombre suelto vuelve inservible el informe por producto — que es
+    # justo el que dice cuál da más problemas.
+    por_confirmar = [p.producto_nombre for p in solicitud.productos if p.por_confirmar]
+    escritos = ", ".join(f"«{n}»" for n in por_confirmar)
+
+    return [
+        {
+            "clave": "conceptos", "etiqueta": "Conceptos respondidos", "cumple": not hay_pendiente,
+            "mensaje": "No se puede cerrar la PQRS: hay una autorización pendiente de respuesta.",
+        },
+        {
+            "clave": "causa", "etiqueta": "Causa de la PQRS", "cumple": not sin_causa,
+            "mensaje": (
+                f"Antes de cerrar falta marcar {' y '.join(sin_causa)} en «Causa "
+                "de la PQRS». De ahí salen los informes y las OMP."
+            ),
+        },
+        {
+            "clave": "producto", "etiqueta": "Producto confirmado en el catálogo", "cumple": not por_confirmar,
+            "mensaje": (
+                f"Falta confirmar el producto. El cliente escribió {escritos} "
+                "porque no lo encontró en el buscador. Búscalo en el catálogo "
+                "y confírmalo antes de cerrar: después ya no se puede corregir "
+                "y el informe por producto quedaría mal."
+            ),
+        },
+    ]
+
+
 def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
              area: str | None, estado: str | None, solucion: str | None) -> None:
     """
@@ -122,56 +176,9 @@ def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
             ),
         )
 
-    hay_pendiente = (
-        db.query(AutorizacionPQRS)
-        .filter(
-            AutorizacionPQRS.pqrs_id == solicitud.id,
-            AutorizacionPQRS.estado == "pendiente",
-        )
-        .first()
-    )
-    if hay_pendiente:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "No se puede cerrar la PQRS: hay una autorización pendiente "
-                "de respuesta."
-            ),
-        )
-
-    # La causa es lo que alimenta los informes y las OMP: cerrar sin ella es
-    # una PQRS que no cuenta para nada. Las que cierra el cliente o el cierre
-    # automático no pasan por aquí; esas se clasifican después de cerradas.
-    # Ver `pqrs/asociados.py`.
-    falta = [nombre for nombre, valor in (
-        ("«Asociado a»", solicitud.asociado_id),
-        ("el área causante", solicitud.area_causante),
-    ) if not valor]
+    falta = next((r for r in requisitos_para_cerrar(db, solicitud) if not r["cumple"]), None)
     if falta:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Antes de cerrar falta marcar {' y '.join(falta)} en «Causa "
-                "de la PQRS». De ahí salen los informes y las OMP."
-            ),
-        )
-
-    # El cliente escribió el producto porque no lo encontró en el buscador.
-    # Se corrige ANTES de cerrar, igual que el tipo: después ya no se puede,
-    # y un nombre suelto vuelve inservible el informe por producto — que es
-    # justo el que dice cuál da más problemas.
-    pendientes = [p.producto_nombre for p in solicitud.productos if p.por_confirmar]
-    if pendientes:
-        escritos = ", ".join(f"«{n}»" for n in pendientes)
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Falta confirmar el producto. El cliente escribió {escritos} "
-                "porque no lo encontró en el buscador. Búscalo en el catálogo "
-                "y confírmalo antes de cerrar: después ya no se puede corregir "
-                "y el informe por producto quedaría mal."
-            ),
-        )
+        raise HTTPException(status_code=400, detail=falta["mensaje"])
 
 
 def aplicar_gestion(

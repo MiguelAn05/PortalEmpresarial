@@ -32,7 +32,7 @@ from app.modules.pqrs.permisos import CAPACIDAD_GESTION
 from app.core import areas, capacidades
 from app.modules.pqrs import productos as pqrs_productos
 from app.modules.pqrs.cierre_automatico import cerrar_vencidas, plazo_confirmacion
-from app.modules.pqrs.gestion import aplicar_gestion
+from app.modules.pqrs.gestion import aplicar_gestion, requisitos_para_cerrar
 from app.core.archivos import (
     EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB, guardar_archivo,
 )
@@ -323,6 +323,8 @@ def obtener_pqrs(
         puede_editar_datos=escribe and solicitud.estado != "cerrado",
         puede_marcar_causa=escribe and servicio_cliente,
     )
+    if solicitud.estado != "cerrado":
+        detalle.requisitos_cierre = requisitos_para_cerrar(db, solicitud)
     if solicitud.estado == "resuelto" and solicitud.fecha_resuelto:
         detalle.plazo_confirmacion = plazo_confirmacion(solicitud.fecha_resuelto)
     return detalle

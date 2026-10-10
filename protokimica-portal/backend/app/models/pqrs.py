@@ -331,6 +331,11 @@ class PQRSPasoArea(Base):
 # los otros dos se resuelven con los datos de cada PQRS.
 CLASES_PASO = ("concepto", "bodega", "tecnico")
 
+# Los tipos de PQRS. Una plantilla de flujo dice para cuáles sirve: un
+# reclamo por producto no recorre lo mismo que una queja por la atención, y
+# una felicitación no pide conceptos.
+TIPOS_PQRS = ("peticion", "queja", "reclamo", "sugerencia", "felicitacion")
+
 # Cómo va cada paso de la cadena de una PQRS.
 ESTADOS_PASO = ("pendiente", "en_curso", "aprobado", "rechazado", "devuelto")
 
@@ -356,7 +361,9 @@ class PQRSConceptoBodega(Base):
 class PQRSFlujo(Base):
     """
     Una plantilla de conceptos: qué se pide, en qué orden, para las PQRS de
-    un tipo de canal. Se edita en Administración sin desplegar.
+    unos TIPOS (reclamo, queja…) y un tipo de canal. Se edita en
+    Administración sin desplegar. Cuál le toca a cada PQRS lo decide
+    `flujo.plantilla_para()`: la más específica.
     """
     __tablename__ = 'pqrs_flujos'
 
@@ -365,8 +372,20 @@ class PQRSFlujo(Base):
     nombre = Column(String(MAX_NOMBRE_ASOCIADO), nullable=False)
     # `sede`, `institucional`, `general`, o vacío: cualquier canal.
     aplica_a = Column(String(20), nullable=True)
+    # Los tipos de PQRS para los que sirve, separados por coma y en el orden
+    # de `TIPOS_PQRS`; vacío: cualquier tipo. Se lee con `.tipos`.
+    tipos_pqrs = Column(String(100), nullable=True)
     activo = Column(Boolean, nullable=False, default=True, server_default='true')
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    @property
+    def tipos(self) -> list[str]:
+        return [t for t in (self.tipos_pqrs or "").split(",") if t]
+
+    @tipos.setter
+    def tipos(self, valores) -> None:
+        elegidos = set(valores or ())
+        self.tipos_pqrs = ",".join(t for t in TIPOS_PQRS if t in elegidos) or None
 
     pasos = relationship(
         'PQRSFlujoPaso', back_populates='flujo', cascade='all, delete-orphan',

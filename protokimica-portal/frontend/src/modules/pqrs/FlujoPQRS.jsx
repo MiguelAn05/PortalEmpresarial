@@ -6,9 +6,14 @@
  *
  * Todo lo que es regla vive en el servidor (`pqrs/flujo.py`); aquí se
  * muestra y se edita la lista antes de mandarla (`flujo.js`).
+ *
+ * Vive dentro del modo «Conceptos» del panel Gestionar (`GestionarPQRS.jsx`),
+ * sin tarjeta propia: pedir un concepto suelto y mover el flujo son la misma
+ * decisión —quién tiene que opinar— y estaban en dos tarjetas separadas.
  */
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useFlujo } from './useFlujo.js'
 import api from '../../core/api.js'
 import { mensajeDeError } from '../../core/errores.js'
 import Boton from '../../core/components/Boton.jsx'
@@ -17,7 +22,7 @@ import { IconoAlerta, IconoCerrar, IconoCheck, IconoChevron } from '../../core/c
 import {
   ESTADOS_FLUJO, ESTADOS_PASO, ORIGENES, agregar, mover, paraEnviar, quitar, ultimoDetenido,
 } from './flujo.js'
-import { Insignia, Tarjeta } from './piezas.jsx'
+import { Insignia } from './piezas.jsx'
 
 const claseCampo = 'w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento'
 
@@ -101,14 +106,10 @@ function EditorPasos({ pasos, onCambio, tipos }) {
 
 export default function FlujoPQRS({ pqrs, tipos }) {
   const queryClient = useQueryClient()
-  const clave = ['pqrs', String(pqrs.id), 'flujo']
   const [editando, setEditando] = useState(null)   // la lista que se está armando, o null
   const [error, setError] = useState('')
 
-  const { data: flujo, isLoading } = useQuery({
-    queryKey: clave,
-    queryFn: () => api.get(`/pqrs/${pqrs.id}/flujo`).then(r => r.data),
-  })
+  const { data: flujo, isLoading } = useFlujo(pqrs.id)
 
   const refrescar = () => {
     queryClient.invalidateQueries({ queryKey: ['pqrs', String(pqrs.id)] })
@@ -121,7 +122,7 @@ export default function FlujoPQRS({ pqrs, tipos }) {
     onError: (err) => setError(mensajeDeError(err, 'No se pudo mover el flujo.')),
   })
 
-  if (isLoading) return <Tarjeta titulo="Flujo de conceptos"><Esqueleto alto="h-24" className="rounded-lg" /></Tarjeta>
+  if (isLoading) return <Esqueleto alto="h-24" className="rounded-lg" />
   if (!flujo) return null
 
   const { estado, pasos, propuesta, bodegas, puede_gestionar: puede } = flujo
@@ -129,28 +130,44 @@ export default function FlujoPQRS({ pqrs, tipos }) {
   const pendientes = pasos.filter(p => p.estado === 'pendiente')
   const detenido = ultimoDetenido(pasos)
   const sinNada = estado === 'sin_flujo' || estado === 'completa'
+  // Ninguna plantilla sirve para su tipo y su canal (una felicitación, una
+  // queja sin plantilla): se dice por qué y los pasos se arman a mano si
+  // hacen falta. Un editor vacío ahí se leía como un flujo roto.
+  const sinPlantilla = sinNada && propuesta && !propuesta.flujo
 
-  // Nadie puede moverlo y no hay nada que ver: la tarjeta no dice nada.
+  // Nadie puede moverlo y no hay nada que ver: no dice nada.
   if (!puede && !pasos.length) return null
 
   const iniciar = (lista) => accion.mutate({ metodo: 'post', ruta: '/flujo/iniciar', cuerpo: { pasos: paraEnviar(lista) } })
   const guardarPendientes = (lista) => accion.mutate({ metodo: 'put', ruta: '/flujo/pasos', cuerpo: { pasos: paraEnviar(lista) } })
 
   return (
-    <Tarjeta titulo="Flujo de conceptos" accion={<Insignia tono={estadoFlujo.tono}>{estadoFlujo.label}</Insignia>}>
-      <p className="text-xs text-texto-2 mb-4">
-        Al aprobarse un concepto, el portal pide el siguiente solo. Si alguien lo rechaza o lo devuelve,
-        el flujo se detiene y la PQRS vuelve a Servicio al Cliente.
-      </p>
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span className="etiqueta">Flujo de conceptos</span>
+        <Insignia tono={estadoFlujo.tono}>{estadoFlujo.label}</Insignia>
+        <span className="text-xs text-texto-3 flex-1 min-w-48">
+          Al aprobarse uno, el portal pide el siguiente solo. Si alguien rechaza o devuelve, se detiene y vuelve a Servicio al Cliente.
+        </span>
+      </div>
 
       {pasos.length > 0 && <div className="mb-4"><Cadena pasos={pasos} /></div>}
 
       {puede && (
         <div className="space-y-3">
           {/* Antes de iniciar: la bodega y la propuesta, que se puede ajustar. */}
-          {sinNada && propuesta && (
+          {sinPlantilla && editando === null && (
+            <div className="border-t border-borde pt-4 space-y-3">
+              <p className="text-sm text-texto-2">{propuesta.sin_plantilla}</p>
+              <div className="flex justify-end">
+                <Boton onClick={() => setEditando([])}>Armar los pasos a mano</Boton>
+              </div>
+            </div>
+          )}
+
+          {sinNada && propuesta && !(sinPlantilla && editando === null) && (
             <div className="space-y-3 border-t border-borde pt-4">
-              <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-end">
+              {!sinPlantilla && <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-end">
                 <div>
                   <label htmlFor="flujo-bodega" className="etiqueta block mb-1.5">Bodega de despacho</label>
                   <select id="flujo-bodega" value={flujo.bodega_despacho_id ?? ''} className={claseCampo}
@@ -162,10 +179,8 @@ export default function FlujoPQRS({ pqrs, tipos }) {
                     {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
                   </select>
                 </div>
-                <span className="text-xs text-texto-3 pb-2">
-                  {propuesta.flujo ? `Plantilla: ${propuesta.flujo.nombre}` : 'No hay plantilla para este canal'}
-                </span>
-              </div>
+                <span className="text-xs text-texto-3 pb-2">Plantilla: {propuesta.flujo.nombre}</span>
+              </div>}
 
               {propuesta.faltan.map(f => (
                 <p key={f.clase} className="flex items-start gap-1.5 text-xs text-alerta bg-alerta-bg rounded-lg px-3 py-2">
@@ -175,7 +190,8 @@ export default function FlujoPQRS({ pqrs, tipos }) {
 
               <EditorPasos pasos={editando ?? propuesta.pasos} onCambio={setEditando} tipos={tipos} />
 
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                {sinPlantilla && <Boton onClick={() => setEditando(null)}>Cancelar</Boton>}
                 <Boton tono="primario" cargando={accion.isPending} textoCargando="Iniciando…"
                        disabled={!(editando ?? propuesta.pasos).length}
                        onClick={() => iniciar(editando ?? propuesta.pasos)}>
@@ -240,6 +256,6 @@ export default function FlujoPQRS({ pqrs, tipos }) {
           {error && <p role="alert" className="text-sm text-negativo">{error}</p>}
         </div>
       )}
-    </Tarjeta>
+    </div>
   )
 }

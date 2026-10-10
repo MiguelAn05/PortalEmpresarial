@@ -47,6 +47,20 @@ export const APLICA_A = {
   general: 'Otros canales',
 }
 
+// Los tipos de PQRS que puede declarar una plantilla. Gemelo de
+// `TIPOS_PQRS` de `models/pqrs.py`; los nombres salen de `TIPOS` de
+// `constants.js`.
+export const TIPOS_PQRS = ['peticion', 'queja', 'reclamo', 'sugerencia', 'felicitacion']
+
+/**
+ * Para quién es una plantilla, en palabras: «Reclamo · Venta institucional».
+ * Recibe `TIPOS` para no importar las constantes de toda la PQRS aquí.
+ */
+export function paraQuien(plantilla, tipos) {
+  const nombres = (plantilla.tipos || []).map(t => tipos[t]?.label || t)
+  return `${nombres.length ? nombres.join(', ') : 'Cualquier tipo'} · ${APLICA_A[plantilla.aplica_a || '']}`
+}
+
 // Tope de pasos: atado a `max_length=20` de `router_flujo.py`.
 export const MAX_PASOS = 20
 
@@ -88,4 +102,27 @@ export function paraEnviar(lista) {
 /** El último concepto que se rechazó o se devolvió: lo que «Volver a pedir» repite. */
 export function ultimoDetenido(pasos) {
   return [...(pasos || [])].reverse().find(p => p.estado === 'rechazado' || p.estado === 'devuelto') || null
+}
+
+/**
+ * En qué va el flujo, en una línea: lo dice la tarjeta «Conceptos» a quien no
+ * lo mueve (el área que firma también quiere saber qué viene después). Recibe
+ * el estado que calculó el servidor (`estado_cadena`), no lo deduce.
+ */
+export function resumenCadena(estado, pasos) {
+  const total = pasos?.length || 0
+  if (!total || estado === 'sin_flujo') return null
+  if (estado === 'en_curso') {
+    const i = pasos.findIndex(p => p.estado === 'en_curso')
+    return `Paso ${i + 1} de ${total} · esperando a ${pasos[i].area}`
+  }
+  if (estado === 'detenida') {
+    const d = ultimoDetenido(pasos)
+    return `Detenido · ${d?.concepto} salió ${d?.estado === 'devuelto' ? 'devuelto' : 'rechazado'}`
+  }
+  if (estado === 'lista') {
+    const faltan = pasos.filter(p => p.estado === 'pendiente').length
+    return `Esperando que se reanude · ${faltan === 1 ? 'falta 1 concepto' : `faltan ${faltan} conceptos`}`
+  }
+  return `Flujo completo · ${total === 1 ? '1 concepto' : `${total} conceptos`}`
 }

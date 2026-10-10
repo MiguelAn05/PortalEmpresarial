@@ -22,7 +22,7 @@ from app.core.modulos import contratado
 from app.core.notificaciones import enviar_avisos
 from app.models.autorizacion import TipoAutorizacion
 from app.models.pqrs import (
-    CLASES_PASO, MAX_NOMBRE_ASOCIADO, PQRSFlujo, PQRSFlujoPaso,
+    CLASES_PASO, MAX_NOMBRE_ASOCIADO, PQRSFlujo, PQRSFlujoPaso, TIPOS_PQRS,
 )
 from app.models.user import User
 from app.modules.pqrs import flujo
@@ -180,6 +180,8 @@ class PasoPlantilla(BaseModel):
 class Plantilla(BaseModel):
     nombre: str = Field(min_length=2, max_length=MAX_NOMBRE_ASOCIADO)
     aplica_a: str | None = None
+    # Vacío: sirve para cualquier tipo de PQRS.
+    tipos: list[str] = Field(default_factory=list, max_length=len(TIPOS_PQRS))
     activo: bool = True
     pasos: list[PasoPlantilla] = Field(default_factory=list, max_length=20)
 
@@ -200,15 +202,25 @@ def _plantilla_out(db: Session, f: PQRSFlujo) -> dict:
         t = db.get(TipoAutorizacion, tipo_id) if tipo_id else None
         return {"concepto": t.nombre, "area": t.area_autorizadora} if t else {"concepto": None, "area": None}
     return {
-        "id": f.id, "nombre": f.nombre, "aplica_a": f.aplica_a, "activo": f.activo,
+        "id": f.id, "nombre": f.nombre, "aplica_a": f.aplica_a, "tipos": f.tipos, "activo": f.activo,
         "pasos": [{"clase": p.clase, "tipo_autorizacion_id": p.tipo_autorizacion_id, **nombre(p.tipo_autorizacion_id)}
                   for p in f.pasos],
     }
 
 
-def _validar_plantilla(db: Session, tenant_id: int, payload: Plantilla) -> list[PQRSFlujoPaso]:
+def _validar_plantilla(db: Session, tenant_id: int, payload: Plantilla,
+                      excluir_id: int | None = None) -> list[PQRSFlujoPaso]:
     if payload.aplica_a is not None and payload.aplica_a not in flujo.TIPOS_CANAL:
         raise HTTPException(status_code=400, detail="«Aplica a» es punto de venta (sede), venta institucional, otros canales o vacío.")
+    if any(t not in TIPOS_PQRS for t in payload.tipos):
+        raise HTTPException(status_code=400, detail="Los tipos son petición, queja, reclamo, sugerencia o felicitación. Elígelos de la lista.")
+    otra = flujo.choque(db, tenant_id, payload.aplica_a, payload.tipos, excluir_id) if payload.activo else None
+    if otra:
+        raise HTTPException(
+            status_code=409,
+            detail=f"«{otra.nombre}» ya sirve para esas mismas PQRS (el mismo canal y alguno de los mismos tipos). "
+                   "Cambia los tipos o el canal de una de las dos, o desactiva la otra.",
+        )
     pasos = []
     for i, p in enumerate(payload.pasos):
         if p.clase not in CLASES_PASO:
@@ -241,6 +253,7 @@ def crear_plantilla(
     flujo.sembrar(db, tenant_id)
     nueva = PQRSFlujo(tenant_id=tenant_id, nombre=" ".join(payload.nombre.split()),
                       aplica_a=payload.aplica_a, activo=payload.activo)
+    nueva.tipos = payload.tipos
     nueva.pasos = _validar_plantilla(db, tenant_id, payload)
     db.add(nueva)
     db.commit()
@@ -263,9 +276,10 @@ def cambiar_plantilla(
     plantilla = db.query(PQRSFlujo).filter(PQRSFlujo.id == flujo_id, PQRSFlujo.tenant_id == tenant_id).first()
     if not plantilla:
         raise HTTPException(status_code=404, detail="Ese flujo no existe.")
-    pasos = _validar_plantilla(db, tenant_id, payload)
+    pasos = _validar_plantilla(db, tenant_id, payload, excluir_id=plantilla.id)
     plantilla.nombre = " ".join(payload.nombre.split())
     plantilla.aplica_a = payload.aplica_a
+    plantilla.tipos = payload.tipos
     plantilla.activo = payload.activo
     plantilla.pasos = pasos
     db.commit()

@@ -2,7 +2,8 @@
  * Flujos de PQRS: las plantillas de conceptos y las bodegas de despacho.
  *
  * Una plantilla dice qué conceptos se piden, en qué orden, para las PQRS de
- * un tipo de canal. Sus pasos son de tres clases: un concepto fijo, el de la
+ * unos tipos (reclamo, queja…) y un tipo de canal. A cada PQRS le toca la más
+ * específica, y eso lo decide el servidor (`flujo.plantilla_para()`). Sus pasos son de tres clases: un concepto fijo, el de la
  * bodega de donde salió el producto, y el técnico de la causa («Asociado a»,
  * que se configura en su propia sección). Cambiar una plantilla afecta lo
  * que se inicie de aquí en adelante: las PQRS que ya van en camino conservan
@@ -13,13 +14,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
 import { mensajeDeError } from '../../core/errores.js'
 import { IconoCerrar, IconoChevron, IconoRecargar } from '../../core/components/Iconos.jsx'
-import { APLICA_A, CLASES_PASO, MAX_PASOS, mover, quitar } from '../pqrs/flujo.js'
+import { APLICA_A, CLASES_PASO, MAX_PASOS, mover, paraQuien, quitar } from '../pqrs/flujo.js'
+import { TIPOS } from '../pqrs/constants.js'
 
 const campo = 'rounded-lg border border-borde px-3 py-1.5 text-sm bg-white'
 
 function EditorPlantilla({ plantilla, tipos, ocupado, onGuardar, onCancelar }) {
   const [nombre, setNombre] = useState(plantilla.nombre)
   const [aplicaA, setAplicaA] = useState(plantilla.aplica_a || '')
+  const [tiposPqrs, setTiposPqrs] = useState(plantilla.tipos || [])
   const [activo, setActivo] = useState(plantilla.activo)
   const [pasos, setPasos] = useState(plantilla.pasos.map(p => ({ clase: p.clase, tipo_autorizacion_id: p.tipo_autorizacion_id || '' })))
 
@@ -38,6 +41,19 @@ function EditorPlantilla({ plantilla, tipos, ocupado, onGuardar, onCancelar }) {
           <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Activo
         </label>
       </div>
+
+      <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <legend className="text-xs text-texto-2 mb-1.5">
+          Para qué tipos de PQRS. Sin ninguno marcado, sirve para todos.
+        </legend>
+        {Object.entries(TIPOS).map(([v, t]) => (
+          <label key={v} className="inline-flex items-center gap-1.5 text-sm text-texto">
+            <input type="checkbox" checked={tiposPqrs.includes(v)}
+                   onChange={(e) => setTiposPqrs(e.target.checked ? [...tiposPqrs, v] : tiposPqrs.filter(x => x !== v))} />
+            {t.label}
+          </label>
+        ))}
+      </fieldset>
 
       <ol className="space-y-1.5">
         {pasos.map((p, i) => (
@@ -88,7 +104,7 @@ function EditorPlantilla({ plantilla, tipos, ocupado, onGuardar, onCancelar }) {
           </button>
           <button type="button" disabled={!listo || ocupado}
                   onClick={() => onGuardar({
-                    nombre, aplica_a: aplicaA || null, activo,
+                    nombre, aplica_a: aplicaA || null, tipos: tiposPqrs, activo,
                     pasos: pasos.map(p => ({ clase: p.clase, tipo_autorizacion_id: p.clase === 'concepto' ? Number(p.tipo_autorizacion_id) : null })),
                   })}
                   className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-acento-fuerte text-white disabled:opacity-40">
@@ -148,8 +164,9 @@ export default function FlujosPQRS() {
           <IconoRecargar tam={18} /> Flujos de PQRS
         </h3>
         <p className="text-xs text-texto-2 mt-0.5">
-          Qué conceptos se piden, en qué orden, según el canal. Al aprobarse uno, el portal pide el siguiente solo.
-          El concepto técnico de cada causa se elige en «Asociado a».
+          Qué conceptos se piden, en qué orden, según el tipo de PQRS y el canal. A cada PQRS le toca la plantilla
+          más a su medida: la de su tipo y su canal antes que la de solo su tipo, y esa antes que la de solo su canal.
+          Al aprobarse un concepto, el portal pide el siguiente solo. El concepto técnico de cada causa se elige en «Asociado a».
         </p>
       </div>
 
@@ -171,7 +188,7 @@ export default function FlujosPQRS() {
             <div key={f.id} className="px-5 py-3 flex flex-wrap items-center gap-3">
               <div className="flex-1 min-w-0">
                 <div className={`text-sm font-medium ${f.activo ? 'text-texto' : 'text-texto-3 line-through'}`}>
-                  {f.nombre} <span className="text-xs text-texto-3 font-normal">· {APLICA_A[f.aplica_a || '']}</span>
+                  {f.nombre} <span className="text-xs text-texto-3 font-normal">· {paraQuien(f, TIPOS)}</span>
                 </div>
                 <div className="text-xs text-texto-3 truncate">{resumenPasos(f) || 'Sin pasos'}</div>
               </div>
@@ -183,7 +200,7 @@ export default function FlujosPQRS() {
           )
         ))}
         {editando === 'nueva' ? (
-          <EditorPlantilla plantilla={{ nombre: '', aplica_a: '', activo: true, pasos: [] }} tipos={tipos} ocupado={ocupado}
+          <EditorPlantilla plantilla={{ nombre: '', aplica_a: '', tipos: [], activo: true, pasos: [] }} tipos={tipos} ocupado={ocupado}
                            onCancelar={() => setEditando(null)}
                            onGuardar={(datos) => guardarPlantilla.mutate({ id: 'nueva', datos })} />
         ) : (

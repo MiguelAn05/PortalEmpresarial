@@ -178,6 +178,23 @@ def test_no_se_cierra_a_mano_sin_causa(entorno, v):
     v.check("con las dos, cierra", r.status_code == 200, r.text[:200])
 
 
+def test_el_detalle_dice_que_falta_para_cerrar(entorno, v):
+    """La lista «Para cerrar» de la pantalla sale de la misma regla que rechaza el cierre."""
+    pid = _pqrs(entorno)
+    me = _catalogo(entorno)["Mala Entrega (CEDI)"]
+    reqs = {r["clave"]: r for r in entorno.get(f"/pqrs/{pid}").json()["requisitos_cierre"]}
+    v.check("los tres requisitos", set(reqs) == {"conceptos", "causa", "producto"}, reqs)
+    v.check("falta la causa, con el mismo mensaje del cierre",
+            not reqs["causa"]["cumple"] and "Asociado a" in reqs["causa"]["mensaje"], reqs["causa"])
+    v.check("lo demás está listo", reqs["conceptos"]["cumple"] and reqs["producto"]["cumple"], reqs)
+
+    entorno.patch(f"/pqrs/{pid}/causa", json={"asociado_id": me["id"], "area_causante": "Logística"})
+    reqs = entorno.get(f"/pqrs/{pid}").json()["requisitos_cierre"]
+    v.check("con la causa, todo cumple", all(r["cumple"] for r in reqs), reqs)
+    entorno.patch(f"/pqrs/{pid}/estado", data={"estado": "cerrado"})
+    v.check("cerrada, no hay lista", entorno.get(f"/pqrs/{pid}").json()["requisitos_cierre"] == [])
+
+
 def test_una_cerrada_sin_causa_se_clasifica_despues(entorno, v):
     """La que cerró el cliente al confirmar no pasó por quien reparte."""
     pid = _pqrs(entorno, estado="cerrado")
