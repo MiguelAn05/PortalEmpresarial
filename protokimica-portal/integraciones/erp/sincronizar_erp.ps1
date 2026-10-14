@@ -50,6 +50,23 @@ $Esquema      = "GEMIMUS01"
 # guarda lo que imprime: sin esto, un fallo de madrugada no deja rastro.
 $Log          = Join-Path $PSScriptRoot "sincronizar_erp.log"
 
+# sqlplus del PATH. Si se usa un Instant Client sin instalar, la ruta al .exe.
+$SqlPlus      = "sqlplus"
+
+# Lo de arriba se puede sobrescribir en `sincronizar_erp.config.ps1`, al lado
+# de este script (ver `sincronizar_erp.config.ejemplo.ps1`). Ese archivo NO
+# va a git: así las claves no terminan en el repositorio.
+$ConfigLocal  = Join-Path $PSScriptRoot "sincronizar_erp.config.ps1"
+if (Test-Path $ConfigLocal) { . $ConfigLocal }
+
+# Sin clave de Oracle escrita, se pide al correr y no queda en ningún
+# archivo. Es la forma de probarlo a mano; programado, tiene que estar arriba.
+if ([string]::IsNullOrEmpty($OraclePass) -or $OraclePass -like "LA-CLAVE-*") {
+    $segura = Read-Host "Clave de Oracle para $OracleUser" -AsSecureString
+    $OraclePass = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
+}
+
 # ── PREPARACIÓN ──────────────────────────────────────────────────────────
 $ErrorActionPreference = "Stop"
 # PowerShell 5 habla TLS 1.0 por defecto y Cloudflare lo rechaza.
@@ -96,7 +113,7 @@ SPOOL OFF
 EXIT
 "@
         [IO.File]::WriteAllText($sql, $script, (New-Object Text.UTF8Encoding $false))
-        $consola = & sqlplus -S -L /nolog "@$sql" 2>&1
+        $consola = & $SqlPlus -S -L /nolog "@$sql" 2>&1
         if ($LASTEXITCODE -ne 0 -or ($consola -match "ORA-\d+|SP2-\d+")) {
             throw "sqlplus falló (código $LASTEXITCODE). Revisa usuario, clave y cadena de conexión:`n$consola"
         }

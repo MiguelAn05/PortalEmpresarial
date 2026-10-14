@@ -1,0 +1,8 @@
+# Entorno del análisis de datos del ERP (no lo usa el portal).
+#   python -m venv .venv
+#   .venv\Scripts\pip install -r requirements.txt
+pandas
+sqlalchemy
+psycopg[binary]
+ipykernel
+nbformat

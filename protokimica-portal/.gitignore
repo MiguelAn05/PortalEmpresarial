@@ -25,3 +25,8 @@ pgdata/
 
 # OS
 .DS_Store
+
+# Integración con el ERP: claves locales y el registro de cada corrida
+integraciones/erp/sincronizar_erp.config.ps1
+integraciones/erp/sincronizar_erp.log
+integraciones/erp/analisis/salidas/
