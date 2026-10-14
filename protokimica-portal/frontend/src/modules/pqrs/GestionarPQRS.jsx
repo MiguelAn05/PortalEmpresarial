@@ -4,16 +4,20 @@
  * Antes eran cinco tarjetas apiladas —causa, flujo de conceptos, gestionar,
  * autorizaciones y clasificación— con su propio botón cada una, y para hacer
  * una sola cosa había que encontrar primero cuál de ellas era. Ahora es un
- * panel con cuatro modos (`MODOS_GESTION`), y debajo queda lo que se LEE.
+ * panel con modos (`MODOS_GESTION`), y debajo queda lo que se LEE.
  *
+ * - **Responder concepto** (primero, y solo si te toca firmar uno): aprobar,
+ *   rechazar o devolver. Vivía abajo, en la tarjeta «Conceptos», y la gente
+ *   escribía la respuesta en «Avanzar»: quedaba un comentario y la PQRS
+ *   seguía bloqueada esperando la firma.
  * - **Avanzar**: estado, área, solución, comentario y evidencia en un solo
- *   guardado. Elegir «Cerrado» con requisitos pendientes lo dice y no deja
- *   guardar; los requisitos llegan del servidor.
+ *   guardado; un comentario suelto también vale. Cambiar el área deja la
+ *   PQRS «asignada» sola (lo hace el servidor). Elegir «Cerrado» con
+ *   requisitos pendientes lo dice y no deja guardar.
  * - **Conceptos**: el flujo automático (`FlujoPQRS`) y, aparte, pedir un
  *   concepto suelto. Las dos cosas responden a lo mismo: quién tiene que
  *   opinar antes de responderle al cliente.
  * - **Clasificar**: el tipo (antes de cerrar) y la causa.
- * - **Comentar**: una nota interna, sin tocar nada más.
  *
  * Qué modos ve cada quien sale de `modosDeGestion()`; qué puede hacer dentro
  * de cada uno, del `alcance` que manda el servidor.
@@ -25,16 +29,20 @@ import { useAreas } from '../../core/areas.js'
 import { mensajeDeError } from '../../core/errores.js'
 import Boton from '../../core/components/Boton.jsx'
 import {
-  IconoAlerta, IconoCandado, IconoComentario, IconoEtiqueta, IconoFlecha, IconoInfo, IconoReloj,
+  IconoAlDia, IconoAlerta, IconoCandado, IconoComentario, IconoEtiqueta, IconoFlecha, IconoInfo,
+  IconoRechazo, IconoReloj,
 } from '../../core/components/Iconos.jsx'
-import { ESTADOS, MODOS_GESTION, TIPOS, avanceDeCierre, modosDeGestion } from './constants.js'
+import {
+  ESTADOS, MODOS_GESTION, TIPOS, avanceDeCierre, modoActual, modosDeGestion, pasaAAsignado,
+} from './constants.js'
 import CausaPQRS from './CausaPQRS.jsx'
 import FlujoPQRS from './FlujoPQRS.jsx'
+import { Mensaje } from './piezas.jsx'
 import { useFlujo } from './useFlujo.js'
 
 const claseCampo = 'w-full px-3 py-2 rounded-lg border border-borde-fuerte text-sm text-texto bg-white placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento'
 const claseArchivo = 'w-full text-xs text-texto-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde'
-const ICONOS = { avanzar: IconoFlecha, conceptos: IconoCandado, clasificar: IconoEtiqueta, comentar: IconoComentario }
+const ICONOS = { responder: IconoAlDia, avanzar: IconoFlecha, conceptos: IconoCandado, clasificar: IconoEtiqueta }
 
 /** Lo que va a pasar al guardar, dicho antes de guardar. */
 function Efecto({ tono = 'info', children }) {
@@ -99,7 +107,7 @@ function ConfirmarCierre({ pqrs, guardando, onConfirmar, onCancelar }) {
   )
 }
 
-function ModoAvanzar({ pqrs, alcance, hayPendiente, invalidar }) {
+function ModoAvanzar({ pqrs, alcance, hayPendiente, esperando, puedeResponder, onResponder, invalidar }) {
   const listaAreas = useAreas()
   const [area, setArea] = useState('')
   const [estado, setEstado] = useState('')
@@ -143,21 +151,37 @@ function ModoAvanzar({ pqrs, alcance, hayPendiente, invalidar }) {
 
   const hayAlgo = Boolean(area || estado || comentario.trim() || evidencia)
   const listo = hayAlgo && (!esResuelto || solucion.trim() !== '') && !cierreBloqueado
+  // El servidor la deja «asignada» al cambiarle el área; aquí solo se anuncia.
+  const quedaAsignada = pasaAAsignado(pqrs, area, estado, hayPendiente)
+  // El botón dice qué se va a guardar: un comentario solo no es «gestión».
+  const soloNota = !area && !estado && hayAlgo
 
   return (
     <div className="space-y-3">
-      {hayPendiente && (
+      {/* Con un concepto pendiente, lo primero es decir dónde se responde:
+          escribir aquí la respuesta deja un comentario y la PQRS sigue
+          esperando la firma. */}
+      {hayPendiente && (puedeResponder ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg bg-alerta-bg px-3 py-2.5 text-xs text-alerta">
+          <IconoAlerta tam={14} className="flex-shrink-0" />
+          <span className="flex-1 min-w-48">
+            Te toca responder <strong>{esperando?.tipo?.nombre}</strong>. Aquí NO se responde: si escribes la
+            respuesta como comentario, la PQRS sigue bloqueada.
+          </span>
+          <Boton tam="sm" tono="primario" onClick={onResponder}>Responder concepto</Boton>
+        </div>
+      ) : (
         <Efecto tono="alerta">
-          Hay un concepto esperando respuesta: el estado queda congelado hasta que lo respondan.
-          Sí puedes comentar o adjuntar un soporte.
+          Esperando el concepto de <strong>{esperando?.tipo?.area_autorizadora}</strong>: el estado queda congelado
+          hasta que lo respondan. Sí puedes comentar o adjuntar un soporte.
         </Efecto>
-      )}
+      ))}
 
       <div className="grid sm:grid-cols-2 gap-3">
         <Campo id="gestion-estado" etiqueta="Estado" opcional={`hoy: ${ESTADOS[pqrs.estado]?.label}`}>
           <select id="gestion-estado" value={estado} onChange={(e) => setEstado(e.target.value)} disabled={hayPendiente}
                   className={`${claseCampo} disabled:bg-superficie-2 disabled:text-texto-3`}>
-            <option value="">Sin cambio</option>
+            <option value="">{quedaAsignada ? 'Pasa a Asignado (por el cambio de área)' : 'Sin cambio'}</option>
             {Object.entries(ESTADOS)
               .filter(([clave]) => clave !== pqrs.estado)
               // «Cerrado» solo para quien puede cerrar: mejor no ofrecerlo
@@ -222,7 +246,8 @@ function ModoAvanzar({ pqrs, alcance, hayPendiente, invalidar }) {
       )}
       {area && (
         <Efecto tono="neutro">
-          El caso pasa a <strong>{area}</strong>, que tiene 3 días hábiles para moverlo. Su reloj empieza en cero.
+          El caso pasa a <strong>{area}</strong>{quedaAsignada ? <> y queda <strong>Asignado</strong></> : ''}.
+          Tiene 3 días hábiles para moverlo; su reloj empieza en cero.
         </Efecto>
       )}
       {!alcance?.puede_cerrar && (
@@ -235,7 +260,7 @@ function ModoAvanzar({ pqrs, alcance, hayPendiente, invalidar }) {
       <div className="flex justify-end">
         <Boton tono="primario" disabled={!listo} cargando={mutacion.isPending} textoCargando="Guardando…"
                onClick={() => (estado === 'cerrado' ? setConfirmandoCierre(true) : mutacion.mutate())}>
-          Guardar gestión
+          {soloNota ? 'Guardar comentario' : 'Guardar gestión'}
         </Boton>
       </div>
 
@@ -312,7 +337,7 @@ function ConceptoSuelto({ pqrsId, tipos, invalidar }) {
   )
 }
 
-function ModoConceptos({ pqrs, tipos, puedeSolicitar, hayPendiente, autorizaciones, invalidar }) {
+function ModoConceptos({ pqrs, tipos, puedeSolicitar, hayPendiente, autorizaciones, onResponder, invalidar }) {
   const { data: flujo } = useFlujo(pqrs.id)
   const [suelto, setSuelto] = useState(false)
   const mueveElFlujo = Boolean(flujo?.puede_gestionar)
@@ -321,14 +346,20 @@ function ModoConceptos({ pqrs, tipos, puedeSolicitar, hayPendiente, autorizacion
 
   return (
     <div className="space-y-4">
-      {/* Lo pendiente se responde en la tarjeta «Conceptos», donde lo ve el
-          área que firma. Aquí solo se dice que hay que esperar. */}
-      {esperando && (
+      {/* Lo pendiente lo firma el área que lo recibió, en «Responder
+          concepto». Aquí se dice a quién se espera y, si eres tú, te lleva. */}
+      {esperando && (esperando.puede_responder ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg bg-alerta-bg px-3 py-2.5 text-xs text-alerta">
+          <IconoAlerta tam={14} className="flex-shrink-0" />
+          <span className="flex-1 min-w-48">Te toca responder <strong>{esperando.tipo.nombre}</strong>.</span>
+          <Boton tam="sm" tono="primario" onClick={onResponder}>Responder concepto</Boton>
+        </div>
+      ) : (
         <Efecto tono="alerta">
-          Esperando a <strong>{esperando.tipo.area_autorizadora}</strong> ({esperando.tipo.nombre}). Lo responden en la
-          tarjeta «Conceptos», más abajo.
+          Esperando a <strong>{esperando.tipo.area_autorizadora}</strong> ({esperando.tipo.nombre}). Mientras tanto
+          no se pide otro.
         </Efecto>
-      )}
+      ))}
 
       {mueveElFlujo && <FlujoPQRS pqrs={pqrs} tipos={tipos} />}
 
@@ -446,49 +477,99 @@ function ModoClasificar({ pqrs, alcance }) {
   )
 }
 
-// ── Comentar ──────────────────────────────────────────────────────
+// ── Responder concepto ────────────────────────────────────────────
 
-function ModoComentar({ pqrs, invalidar }) {
+// Qué pasa con cada decisión, dicho antes de pulsar (en el `title`).
+const DECISIONES = {
+  aprobada: 'Sigue el flujo: se pide el siguiente concepto solo, o la PQRS vuelve a Servicio al Cliente si era el último.',
+  rechazada: 'Detiene el flujo y la PQRS vuelve a Servicio al Cliente, que decide qué sigue.',
+  devuelta: 'Para cuando no le corresponde a tu área o falta información. Vuelve a Servicio al Cliente con tu comentario.',
+}
+
+/**
+ * Firmar un concepto que te pidieron. Es lo que más se hace en una PQRS y
+ * por eso va primero en el panel, con la pregunta a la vista: quien firma
+ * tiene que leer qué le preguntan antes de decidir.
+ */
+function ModoResponder({ pqrsId, pendientes, invalidar }) {
+  const [elegida, setElegida] = useState(pendientes[0]?.id)
   const [comentario, setComentario] = useState('')
-  const [evidencia, setEvidencia] = useState(null)
+  const [adjunto, setAdjunto] = useState(null)
+  const [decision, setDecision] = useState(null)
   const [error, setError] = useState('')
   const archivoRef = useRef(null)
+  const aut = pendientes.find(a => a.id === elegida) || pendientes[0]
 
-  // Es el mismo endpoint de gestionar con solo el comentario: un comentario
-  // suelto es una gestión válida y queda en el mismo historial.
   const mut = useMutation({
-    mutationFn: () => {
+    mutationFn: (d) => {
       const datos = new FormData()
-      datos.append('comentario', comentario.trim())
-      if (evidencia) datos.append('evidencia', evidencia)
-      return api.patch(`/pqrs/${pqrs.id}/gestion`, datos)
+      datos.append('decision', d)
+      if (comentario.trim()) datos.append('comentario_respuesta', comentario.trim())
+      if (adjunto) datos.append('adjunto', adjunto)
+      return api.post(`/autorizaciones/pqrs/${pqrsId}/${aut.id}/responder`, datos)
     },
     onSuccess: () => {
       invalidar()
-      setComentario(''); setEvidencia(null); setError('')
+      setComentario(''); setAdjunto(null); setDecision(null); setError('')
       if (archivoRef.current) archivoRef.current.value = ''
     },
-    onError: (err) => setError(mensajeDeError(err, 'No se pudo guardar el comentario.')),
+    onError: (err) => setError(mensajeDeError(err, 'No se pudo registrar la decisión.')),
   })
+
+  if (!aut) return null
+  const responder = (d) => { setDecision(d); mut.mutate(d) }
 
   return (
     <div className="space-y-3">
-      <Campo id="comentario-interno" etiqueta="Comentario interno" obligatorio>
-        <textarea id="comentario-interno" value={comentario} onChange={(e) => setComentario(e.target.value)} rows={3}
-                  placeholder="Lo ve solo el equipo…" className={`${claseCampo} resize-y`} />
+      {pendientes.length > 1 && (
+        <Campo id="responder-cual" etiqueta="Cuál respondes">
+          <select id="responder-cual" value={aut.id} onChange={(e) => setElegida(Number(e.target.value))} className={claseCampo}>
+            {pendientes.map(a => <option key={a.id} value={a.id}>{a.tipo.nombre} — {a.tipo.area_autorizadora}</option>)}
+          </select>
+        </Campo>
+      )}
+
+      <div>
+        <div className="text-sm font-semibold text-texto">{aut.tipo.nombre}</div>
+        <div className="text-xs text-texto-3">Lo responde {aut.tipo.area_autorizadora}</div>
+      </div>
+      {(aut.comentario_solicitud || aut.adjunto_solicitud) ? (
+        <Mensaje quien={`Te pregunta${aut.solicitante_nombre ? ` · ${aut.solicitante_nombre}` : ''}`}
+                 texto={aut.comentario_solicitud} soporte={aut.adjunto_solicitud} etiquetaSoporte="Soporte de la solicitud" />
+      ) : (
+        <p className="text-xs text-texto-3">Lo pidieron sin comentario: el caso está abajo, en «El caso».</p>
+      )}
+
+      <Campo id="responder-comentario" etiqueta="Tu concepto" opcional="obligatorio para devolver">
+        <textarea id="responder-comentario" value={comentario} onChange={(e) => setComentario(e.target.value)} rows={3}
+                  placeholder="Qué encontraste y qué recomiendas…" className={`${claseCampo} resize-y`} />
       </Campo>
-      <Campo id="comentario-evidencia" etiqueta="Adjunto" opcional="opcional">
-        <input id="comentario-evidencia" ref={archivoRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf"
-               onChange={(e) => setEvidencia(e.target.files?.[0] || null)} className={claseArchivo} />
+      <Campo id="responder-adjunto" etiqueta="Soporte" opcional="opcional">
+        <input id="responder-adjunto" ref={archivoRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf"
+               onChange={(e) => setAdjunto(e.target.files?.[0] || null)} className={claseArchivo} />
       </Campo>
-      <Efecto tono="neutro">No le llega al cliente, no cambia el estado ni el área, y no detiene el plazo.</Efecto>
+
       {error && <p role="alert" className="text-sm text-negativo">{error}</p>}
-      <div className="flex justify-end">
-        <Boton tono="primario" disabled={!comentario.trim()} cargando={mut.isPending} textoCargando="Guardando…"
-               onClick={() => mut.mutate()}>
-          Comentar
+      <div className="grid sm:grid-cols-3 gap-2">
+        <Boton tono="primario" icono={IconoAlDia} cargando={mut.isPending && decision === 'aprobada'}
+               disabled={mut.isPending} onClick={() => responder('aprobada')} title={DECISIONES.aprobada}>
+          Aprobar
+        </Boton>
+        <Boton tono="peligro" icono={IconoRechazo} cargando={mut.isPending && decision === 'rechazada'}
+               disabled={mut.isPending} onClick={() => responder('rechazada')} title={DECISIONES.rechazada}>
+          Rechazar
+        </Boton>
+        {/* Una devolución muda obliga a una llamada: el comentario se exige. */}
+        <Boton icono={IconoFlecha} cargando={mut.isPending && decision === 'devuelta'}
+               disabled={mut.isPending || !comentario.trim()} onClick={() => responder('devuelta')}
+               title={comentario.trim() ? DECISIONES.devuelta : 'Escribe primero por qué la devuelves'}>
+          Devolver
         </Boton>
       </div>
+      <Efecto tono="neutro">
+        Aprobar sigue el flujo solo. Rechazar o devolver lo detiene y la PQRS vuelve a Servicio al Cliente; devolver
+        es para «no me corresponde» o «falta información», y pide comentario.
+      </Efecto>
     </div>
   )
 }
@@ -502,9 +583,12 @@ export default function GestionarPQRS({
   const alcance = pqrs.alcance
   // Quién pide autorizaciones es regla del rol, igual que antes en la tarjeta.
   const puedeSolicitar = ['admin', 'lider', 'agente'].includes(user?.rol)
-  const modos = modosDeGestion(pqrs, puedeSolicitar)
-  const actual = modos.includes(modo) ? modo : modos[0]
-  const soloLectura = modos.length === 1
+  // Lo que ESTA persona puede firmar ya: el servidor lo dice en cada concepto.
+  const porResponder = autorizaciones.filter(a => a.estado === 'pendiente' && a.puede_responder)
+  const esperando = autorizaciones.find(a => a.estado === 'pendiente')
+  const modos = modosDeGestion(pqrs, puedeSolicitar, porResponder.length > 0)
+  const actual = modoActual(modo, modos)
+  const soloLectura = modos.length === 1 && modos[0] === 'clasificar'
 
   // El modo que pide atención lleva una marca: la causa que falta para
   // cerrar y el flujo detenido esperando que alguien decida.
@@ -512,6 +596,7 @@ export default function GestionarPQRS({
   const alertas = {
     clasificar: sinCausa && Boolean(alcance?.puede_marcar_causa),
     conceptos: flujo?.estado === 'detenida' && Boolean(flujo?.puede_gestionar),
+    responder: true,
   }
 
   return (
@@ -544,15 +629,20 @@ export default function GestionarPQRS({
       )}
 
       <div role="tabpanel" className="p-5">
+        {actual === 'responder' && (
+          <ModoResponder key={porResponder.map(a => a.id).join('-')} pqrsId={pqrs.id} pendientes={porResponder}
+                         invalidar={invalidar} />
+        )}
         {actual === 'avanzar' && (
-          <ModoAvanzar pqrs={pqrs} alcance={alcance} hayPendiente={hayPendiente} invalidar={invalidar} />
+          <ModoAvanzar pqrs={pqrs} alcance={alcance} hayPendiente={hayPendiente} esperando={esperando}
+                       puedeResponder={porResponder.length > 0} onResponder={() => onModo('responder')}
+                       invalidar={invalidar} />
         )}
         {actual === 'conceptos' && (
           <ModoConceptos pqrs={pqrs} tipos={tipos} puedeSolicitar={puedeSolicitar} hayPendiente={hayPendiente}
-                         autorizaciones={autorizaciones} invalidar={invalidar} />
+                         autorizaciones={autorizaciones} onResponder={() => onModo('responder')} invalidar={invalidar} />
         )}
         {actual === 'clasificar' && <ModoClasificar pqrs={pqrs} alcance={alcance} />}
-        {actual === 'comentar' && <ModoComentar pqrs={pqrs} invalidar={invalidar} />}
       </div>
 
       {!soloLectura && user && (

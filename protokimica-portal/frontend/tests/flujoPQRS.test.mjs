@@ -9,7 +9,8 @@ import {
   agregar, mover, paraEnviar, paraQuien, quitar, resumenCadena, ultimoDetenido,
 } from '../src/modules/pqrs/flujo.js'
 import {
-  DESTINO_REQUISITO, MODOS_GESTION, TIPOS, avanceDeCierre, modosDeGestion,
+  DESTINO_REQUISITO, ESTADOS_QUE_PASAN_A_ASIGNADO, MODOS_GESTION, TIPOS, avanceDeCierre, modoActual,
+  modosDeGestion, pasaAAsignado,
 } from '../src/modules/pqrs/constants.js'
 
 let fallos = []
@@ -97,8 +98,31 @@ const conAlcance = (estado, alcance) => ({ estado, alcance })
 const reparte = { puede_gestionar: true, puede_reclasificar: true, puede_marcar_causa: true }
 const agente = { puede_gestionar: true }
 const lectura = { puede_gestionar: false }
-check('quien reparte ve los cuatro modos',
-  JSON.stringify(modosDeGestion(conAlcance('asignado', reparte), true)) === JSON.stringify(['avanzar', 'conceptos', 'clasificar', 'comentar']))
+check('quien reparte ve tres modos (Comentar ya es parte de Avanzar)',
+  JSON.stringify(modosDeGestion(conAlcance('asignado', reparte), true)) === JSON.stringify(['avanzar', 'conceptos', 'clasificar']))
+check('si le toca firmar, «Responder concepto» va PRIMERO',
+  modosDeGestion(conAlcance('asignado', reparte), true, true)[0] === 'responder')
+check('con la PQRS cerrada no hay nada que responder',
+  !modosDeGestion(conAlcance('cerrado', reparte), true, true).includes('responder'))
+const modos = ['responder', 'avanzar', 'conceptos', 'clasificar']
+check('sin modo elegido abre en el primero', modoActual(null, modos) === 'responder')
+check('el elegido, si existe', modoActual('clasificar', modos) === 'clasificar')
+check('«responder» sin nada que firmar lleva a Conceptos',
+  modoActual('responder', ['avanzar', 'conceptos', 'clasificar']) === 'conceptos')
+check('un modo que no existe cae en el primero', modoActual('comentar', ['avanzar', 'clasificar']) === 'avanzar')
+
+console.log('\n== Asignar un área la deja Asignada ==')
+const recibida = { estado: 'recibido', area_responsable: 'Servicio al Cliente' }
+check('recibida + área nueva -> asignada', pasaAAsignado(recibida, 'Logística', '', false))
+check('en proceso también', pasaAAsignado({ ...recibida, estado: 'en_proceso' }, 'Logística', '', false))
+check('resuelta no', !pasaAAsignado({ ...recibida, estado: 'resuelto' }, 'Logística', '', false))
+check('un estado elegido a mano gana', !pasaAAsignado(recibida, 'Logística', 'en_proceso', false))
+check('con un concepto esperando, no (el estado está congelado)', !pasaAAsignado(recibida, 'Logística', '', true))
+check('la misma área no es un cambio', !pasaAAsignado(recibida, 'Servicio al Cliente', '', false))
+const GESTION_PY = readFileSync(new URL('../../backend/app/modules/pqrs/gestion.py', import.meta.url), 'utf8')
+check('los estados son los mismos del servidor',
+  JSON.stringify(tupla(GESTION_PY, 'ESTADOS_QUE_PASAN_A_ASIGNADO')) === JSON.stringify(ESTADOS_QUE_PASAN_A_ASIGNADO),
+  tupla(GESTION_PY, 'ESTADOS_QUE_PASAN_A_ASIGNADO'))
 check('un agente pide conceptos por su rol', modosDeGestion(conAlcance('asignado', agente), true).includes('conceptos'))
 check('sin pedir ni repartir, no hay modo conceptos', !modosDeGestion(conAlcance('asignado', agente), false).includes('conceptos'))
 check('lectura solo ve la clasificación', JSON.stringify(modosDeGestion(conAlcance('asignado', lectura), false)) === '["clasificar"]')

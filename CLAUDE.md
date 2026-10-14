@@ -457,14 +457,24 @@ se LEE (el caso, «Conceptos», el historial) y a la derecha los datos.
   regla nueva de cierre va ahí y aparece sola en la pantalla; cada `clave`
   necesita su destino en `DESTINO_REQUISITO` (una prueba los ata).
 - **El panel tiene modos** (`MODOS_GESTION`, y quién ve cuál en
-  `modosDeGestion()`): Avanzar (estado, área, solución, comentario),
-  Conceptos (el flujo + un concepto suelto), Clasificar (tipo y causa;
-  es lo único que queda con la PQRS cerrada) y Comentar. Cada modo dice
+  `modosDeGestion()`): Responder concepto, Avanzar (estado, área, solución,
+  comentario), Conceptos (el flujo + un concepto suelto) y Clasificar (tipo
+  y causa; es lo único que queda con la PQRS cerrada). Cada modo dice
   **antes de guardar** qué va a pasar (se le escribe al cliente, se congela
   el estado, cambia el área).
-- **Responder un concepto NO está en el panel**: vive en la tarjeta
-  «Conceptos», donde llega el área que firma desde el correo. El panel es de
-  quien gestiona el caso.
+- **Responder un concepto va PRIMERO en el panel** (desde la 0.54), y solo
+  aparece si hay uno pendiente con `puede_responder`. Vivía abajo, en la
+  tarjeta «Conceptos», con el panel arriba: la gente escribía la respuesta
+  en «Avanzar», quedaba un comentario y la PQRS seguía bloqueada esperando
+  la firma. La tarjeta quedó para LEER, con un botón «Responder» que lleva
+  al panel. Sin modo elegido, el panel abre en el primero (`modoActual`).
+- **«Comentar» ya no es un modo**: era «Avanzar» sin cambiar nada, que ya se
+  podía. El botón dice «Guardar comentario» cuando solo hay eso.
+- **Cambiar el área deja la PQRS «asignada» sola**
+  (`gestion.estado_al_asignar`): desde `recibido` y `en_proceso`, si nadie
+  eligió otro estado y no hay un concepto esperando (ahí el estado está
+  congelado). Era el doble trabajo de cada reparto. La pantalla solo lo
+  ANUNCIA con `pasaAAsignado()`, gemelo con prueba que lo ata.
 - El flujo se pide con `useFlujo()`: el panel y la tarjeta comparten la
   misma clave de React Query, una sola petición.
 

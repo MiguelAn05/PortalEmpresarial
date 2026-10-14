@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.53.0"
-FECHA = "2026-10-10"
+VERSION = "0.54.0"
+FECHA = "2026-10-14"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,21 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.54.0",
+        "fecha": "2026-10-14",
+        "titulo": "Responder un concepto, lo primero del panel",
+        "cambios": [
+            ("mejora", "Si te toca responder un concepto, el panel «Gestionar» abre directo en "
+                       "«Responder concepto», con la pregunta a la vista y los botones Aprobar, "
+                       "Rechazar y Devolver. Antes estaban abajo, y escribir la respuesta en "
+                       "«Avanzar» dejaba la PQRS bloqueada."),
+            ("mejora", "Al pasarle una PQRS a otra área queda «Asignada» sola: ya no hay que "
+                       "cambiar el estado aparte."),
+            ("mejora", "«Comentar» se unió con «Avanzar»: un comentario solo se guarda desde ahí, "
+                       "y el botón dice «Guardar comentario»."),
+        ],
+    },
     {
         "version": "0.53.0",
         "fecha": "2026-10-10",

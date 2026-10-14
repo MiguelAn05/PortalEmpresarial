@@ -520,29 +520,50 @@ export const PRIORIDADES = {
  * cinco tarjetas apiladas —causa, flujo, gestionar, autorizaciones,
  * clasificación— y para hacer una sola cosa había que encontrar cuál de
  * ellas era. Ahora hay un solo lugar donde se ACTÚA, y debajo lo que se LEE.
+ *
+ * «Comentar» existió y se quitó: era «Avanzar» sin cambiar nada, que ya se
+ * puede (un comentario suelto es una gestión válida). Dos pestañas para lo
+ * mismo obligaban a decidir cuál usar antes de escribir.
  */
 export const MODOS_GESTION = {
-  avanzar:    { label: 'Avanzar',    ayuda: 'Cambia el estado o el área y deja constancia' },
+  responder:  { label: 'Responder concepto', ayuda: 'Te toca: aprueba, rechaza o devuelve el concepto que te pidieron' },
+  avanzar:    { label: 'Avanzar',    ayuda: 'Cambia el estado o el área, o deja un comentario' },
   conceptos:  { label: 'Conceptos',  ayuda: 'Quién tiene que opinar antes de responderle al cliente' },
   clasificar: { label: 'Clasificar', ayuda: 'El tipo y la causa: de ahí salen los informes y las OMP' },
-  comentar:   { label: 'Comentar',   ayuda: 'Una nota interna: no cambia nada ni le llega al cliente' },
 }
 
 /**
- * Qué modos ve esta persona en esta PQRS. Los permisos llegan resueltos en
- * `alcance`; `puedeSolicitar` es si su rol pide autorizaciones. Clasificar
- * siempre está —quien no puede marcar la causa la ve—, y es lo único que
- * queda con la PQRS cerrada: la causa se corrige después de cerrar.
+ * Qué modos ve esta persona en esta PQRS, en orden. Los permisos llegan
+ * resueltos del servidor: `alcance` en la PQRS y `puede_responder` en cada
+ * concepto. `puedeSolicitar` es si su rol pide autorizaciones.
+ *
+ * - **Responder concepto va PRIMERO** cuando hay uno pendiente que esta
+ *   persona puede firmar: es lo que más se hace, y con la respuesta abajo en
+ *   otra tarjeta la gente escribía en «Avanzar», guardaba un comentario y la
+ *   PQRS seguía bloqueada esperando la firma.
+ * - Clasificar siempre está —quien no puede marcar la causa la ve— y es lo
+ *   único que queda con la PQRS cerrada: la causa se corrige después.
  */
-export function modosDeGestion(pqrs, puedeSolicitar) {
+export function modosDeGestion(pqrs, puedeSolicitar, puedeResponder = false) {
   const alcance = pqrs.alcance || {}
   const abierta = pqrs.estado !== 'cerrado'
   const modos = []
+  if (puedeResponder && abierta) modos.push('responder')
   if (alcance.puede_gestionar && abierta) modos.push('avanzar')
   if (abierta && (puedeSolicitar || alcance.puede_reclasificar)) modos.push('conceptos')
   modos.push('clasificar')
-  if (alcance.puede_gestionar && abierta) modos.push('comentar')
   return modos
+}
+
+/**
+ * El modo que se muestra. Sin uno elegido, el primero (responder, si toca).
+ * Pedir «responder» cuando no hay nada que firmar lleva a «Conceptos», que
+ * es donde se ve a quién se está esperando.
+ */
+export function modoActual(pedido, modos) {
+  if (pedido && modos.includes(pedido)) return pedido
+  if (pedido === 'responder' && modos.includes('conceptos')) return 'conceptos'
+  return modos[0]
 }
 
 /**
@@ -550,7 +571,7 @@ export function modosDeGestion(pqrs, puedeSolicitar) {
  * panel, o a una tarjeta (el producto se confirma en la suya).
  */
 export const DESTINO_REQUISITO = {
-  conceptos: { modo: 'conceptos' },
+  conceptos: { modo: 'responder' },
   causa:     { modo: 'clasificar' },
   producto:  { tarjeta: 'productos' },
 }
@@ -560,4 +581,17 @@ export function avanceDeCierre(requisitos) {
   const lista = requisitos || []
   const faltan = lista.filter(r => !r.cumple)
   return { total: lista.length, hechos: lista.length - faltan.length, faltan }
+}
+
+/**
+ * Pasarle el caso a otra área lo deja «asignado» solo: el servidor lo hace
+ * (`gestion.estado_al_asignar`) y aquí únicamente se ANUNCIA antes de
+ * guardar. Gemelo de `ESTADOS_QUE_PASAN_A_ASIGNADO` de `gestion.py`, con
+ * prueba que los ata.
+ */
+export const ESTADOS_QUE_PASAN_A_ASIGNADO = ['recibido', 'en_proceso']
+
+export function pasaAAsignado(pqrs, area, estadoElegido, hayPendiente) {
+  return Boolean(area) && !estadoElegido && !hayPendiente
+    && area !== pqrs.area_responsable && ESTADOS_QUE_PASAN_A_ASIGNADO.includes(pqrs.estado)
 }

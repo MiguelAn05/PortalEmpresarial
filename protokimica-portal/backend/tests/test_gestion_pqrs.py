@@ -136,6 +136,34 @@ def test_solo_area_no_finge_un_cambio_de_estado(entorno, v):
             portal.get(f"/pqrs/{pid}").json()["estado"] == "asignado")
 
 
+def test_asignar_un_area_la_deja_asignada_sola(entorno, v):
+    """Repartir no exige cambiar el estado aparte: era doble trabajo en cada caso."""
+    portal = entorno
+    _con_area(portal, "calidad", AREA_SC)
+    portal.como("calidad")
+
+    pid = _crear_pqrs(portal, area="Servicio al Cliente", estado="recibido")
+    r = portal.patch(f"/pqrs/{pid}/gestion", data={"area": "Logística"})
+    v.check("guarda", r.status_code == 200, r.text[:200])
+    v.check("recibida -> asignada", portal.get(f"/pqrs/{pid}").json()["estado"] == "asignado")
+    evento = _seguimientos(portal, pid)[-1]
+    v.check("y el historial dice las dos cosas en un evento",
+            "Logística" in evento["comentario"] and "asignado" in evento["comentario"], evento["comentario"])
+
+    pid = _crear_pqrs(portal, area="Logística", estado="en_proceso")
+    portal.patch(f"/pqrs/{pid}/gestion", data={"area": "Calidad"})
+    v.check("en proceso -> asignada: el área nueva no ha empezado",
+            portal.get(f"/pqrs/{pid}").json()["estado"] == "asignado")
+
+    pid = _crear_pqrs(portal, area="Logística", estado="recibido")
+    portal.patch(f"/pqrs/{pid}/gestion", data={"area": "Calidad", "estado": "en_proceso"})
+    v.check("un estado elegido a mano gana", portal.get(f"/pqrs/{pid}").json()["estado"] == "en_proceso")
+
+    pid = _crear_pqrs(portal, area="Logística", estado="recibido")
+    portal.patch(f"/pqrs/{pid}/gestion", data={"comentario": "solo una nota"})
+    v.check("sin cambiar el área, el estado no se toca", portal.get(f"/pqrs/{pid}").json()["estado"] == "recibido")
+
+
 def test_un_comentario_suelto_es_una_gestion_valida(entorno, v):
     """
     Antes había que mover el estado para poder escribir. Así es como un

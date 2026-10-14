@@ -9,6 +9,8 @@
  * categoría, y siempre va con punto y palabra: el ámbar de la marca no se
  * lee solo sobre blanco.
  */
+import { useState } from 'react'
+import { IconoClip } from '../../core/components/Iconos.jsx'
 
 const TONOS = {
   positivo: 'bg-positivo-bg text-positivo',
@@ -60,6 +62,36 @@ export function Dato({ etiqueta, children }) {
     <div className="flex gap-3 items-baseline text-sm">
       <span className="etiqueta w-24 flex-shrink-0">{etiqueta}</span>
       <span className="text-texto min-w-0 break-words">{children}</span>
+    </div>
+  )
+}
+
+const LARGO_RECORTE = 260
+
+/**
+ * Un mensaje de la conversación de un concepto: quién, y qué dijo. Lo usan
+ * el panel (lo que te preguntan al responder) y la tarjeta «Conceptos».
+ */
+export function Mensaje({ quien, texto, soporte, etiquetaSoporte, fondo = 'bg-superficie-2' }) {
+  const [completo, setCompleto] = useState(false)
+  const largo = (texto || '').length > LARGO_RECORTE
+  return (
+    <div className={`rounded-lg px-3.5 py-2.5 text-sm text-texto-2 leading-relaxed ${fondo}`}>
+      <span className="etiqueta block mb-1">{quien}</span>
+      {texto && (
+        <p className={`whitespace-pre-wrap ${largo && !completo ? 'line-clamp-3' : ''}`}>{texto}</p>
+      )}
+      {largo && (
+        <button type="button" onClick={() => setCompleto(v => !v)} className="text-xs font-semibold text-acento mt-1.5 hover:underline">
+          {completo ? 'Ver menos' : 'Ver completo'}
+        </button>
+      )}
+      {soporte && (
+        <a href={soporte} target="_blank" rel="noreferrer"
+           className="flex items-center gap-1.5 text-xs text-acento font-semibold hover:underline mt-2">
+          <IconoClip tam={13} /> {etiquetaSoporte}
+        </a>
+      )}
     </div>
   )
 }

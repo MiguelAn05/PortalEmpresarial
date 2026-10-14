@@ -181,6 +181,27 @@ def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
         raise HTTPException(status_code=400, detail=falta["mensaje"])
 
 
+# Pasarle el caso a otra área lo deja «asignado» sin que nadie tenga que
+# cambiar el estado aparte: era el doble trabajo de cada reparto, y quien lo
+# olvidaba dejaba la PQRS «recibida» en la bandeja de un área que ya la tenía.
+# Desde «en proceso» también: el área nueva todavía no ha empezado. Resuelta
+# y cerrada no se tocan —ya se le respondió al cliente—, y un estado elegido
+# a mano siempre gana. Con un concepto esperando respuesta el estado está
+# congelado, y mover el área no lo descongela.
+# Gemelo: `ESTADOS_QUE_PASAN_A_ASIGNADO` de `pqrs/constants.js`.
+ESTADOS_QUE_PASAN_A_ASIGNADO = ("recibido", "en_proceso")
+
+
+def estado_al_asignar(db: Session, solicitud: PQRSSolicitud, area: str | None) -> str | None:
+    """El estado que toma la PQRS al cambiarle el área, si nadie eligió otro."""
+    if not area or area == solicitud.area_responsable or solicitud.estado not in ESTADOS_QUE_PASAN_A_ASIGNADO:
+        return None
+    esperando = db.query(AutorizacionPQRS.id).filter(
+        AutorizacionPQRS.pqrs_id == solicitud.id, AutorizacionPQRS.estado == "pendiente",
+    ).first()
+    return None if esperando else "asignado"
+
+
 def aplicar_gestion(
     db: Session,
     tenant_id: int,
@@ -216,6 +237,9 @@ def aplicar_gestion(
         )
 
     solicitud = obtener_visible(db, tenant_id, pqrs_id, usuario)
+
+    if not estado:
+        estado = estado_al_asignar(db, solicitud, area)
 
     _validar(db, solicitud, usuario, area, estado, solucion)
 

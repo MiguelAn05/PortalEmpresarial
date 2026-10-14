@@ -4,8 +4,8 @@
  * Arriba, lo que se pregunta primero —de quién es, en qué va, quién la
  * tiene— y la línea de vida del caso. Luego «Para cerrar», que dice qué falta
  * y lleva a resolverlo, y el panel **Gestionar**: el ÚNICO lugar donde se
- * actúa (`GestionarPQRS.jsx`). Debajo, lo que se LEE: el caso, los conceptos
- * con sus respuestas y el historial. A la derecha, los datos de consulta
+ * actúa (`GestionarPQRS.jsx`), incluido responder un concepto. Debajo, lo
+ * que se LEE: el caso, los conceptos con sus respuestas y el historial. A la derecha, los datos de consulta
  * (cliente, productos, evidencias, encuesta).
  *
  * Antes eran cinco tarjetas de acción apiladas —causa, flujo, gestionar,
@@ -18,7 +18,7 @@
  */
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/useAuth.js'
 import api from '../../core/api.js'
 import { Esqueleto } from '../../core/components/Cargando.jsx'
@@ -26,9 +26,8 @@ import Boton from '../../core/components/Boton.jsx'
 import {
   IconoAlDia, IconoAlerta, IconoBuscar, IconoCandado, IconoCheck, IconoClip,
   IconoComentario, IconoEditar, IconoEmpresa, IconoEscalar, IconoEstrella,
-  IconoEtiqueta, IconoFlecha, IconoRecargar, IconoRechazo, IconoRecibo, IconoReloj, IconoUsuario,
+  IconoEtiqueta, IconoRecargar, IconoRecibo, IconoReloj, IconoUsuario,
 } from '../../core/components/Iconos.jsx'
-import { mensajeDeError } from '../../core/errores.js'
 import {
   DESTINO_REQUISITO, ESTADOS, FILTROS_HISTORIAL, PRIORIDADES, TIPOS,
   avanceDeCierre, estadoDelPlazo, filtrarHistorial, iniciales, lineaDeVida, nombrePrincipal, tiempoEnArea,
@@ -38,7 +37,7 @@ import { BotonEditar, ModalEditarDatos, PanelAdjuntos } from './EdicionDatos.jsx
 import { ListaProductos } from './ProductosPQRS.jsx'
 import GestionarPQRS from './GestionarPQRS.jsx'
 import { useFlujo } from './useFlujo.js'
-import { Dato, Insignia, InsigniaDe, Tarjeta } from './piezas.jsx'
+import { Dato, Insignia, InsigniaDe, Mensaje, Tarjeta } from './piezas.jsx'
 
 const EVENTOS = {
   cambio_estado:           { Icono: IconoRecargar,   label: 'Cambio de estado'        },
@@ -76,8 +75,6 @@ function fechaCorta(fecha) {
   return `${dia} · ${hora}`
 }
 
-const claseCampo = 'w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto placeholder-texto-3 focus:outline-none focus:ring-2 focus:ring-acento'
-const claseArchivo = 'w-full text-xs text-texto-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-acento-suave file:text-acento hover:file:bg-borde'
 
 // ── Cabecera y línea de vida ──────────────────────────────────────
 
@@ -195,59 +192,15 @@ const FONDO_RESPUESTA = {
   rechazada: 'bg-negativo-bg',
   devuelta: 'bg-superficie-2',
 }
-const LARGO_RECORTE = 260
-
-/** Un mensaje de la conversación de un concepto: quién, y qué dijo. */
-function Mensaje({ quien, texto, soporte, etiquetaSoporte, fondo = 'bg-superficie-2' }) {
-  const [completo, setCompleto] = useState(false)
-  const largo = (texto || '').length > LARGO_RECORTE
-  return (
-    <div className={`rounded-lg px-3.5 py-2.5 text-sm text-texto-2 leading-relaxed ${fondo}`}>
-      <span className="etiqueta block mb-1">{quien}</span>
-      {texto && (
-        <p className={`whitespace-pre-wrap ${largo && !completo ? 'line-clamp-3' : ''}`}>{texto}</p>
-      )}
-      {largo && (
-        <button type="button" onClick={() => setCompleto(v => !v)} className="text-xs font-semibold text-acento mt-1.5 hover:underline">
-          {completo ? 'Ver menos' : 'Ver completo'}
-        </button>
-      )}
-      {soporte && (
-        <a href={soporte} target="_blank" rel="noreferrer"
-           className="flex items-center gap-1.5 text-xs text-acento font-semibold hover:underline mt-2">
-          <IconoClip tam={13} /> {etiquetaSoporte}
-        </a>
-      )}
-    </div>
-  )
-}
-
 /**
- * Los conceptos pedidos, con lo que se preguntó y lo que se respondió. Aquí
- * responde el ÁREA que firma (`puede_responder` lo resuelve el servidor): es
- * donde llega quien abre el enlace del correo. Pedirlos y mover el flujo es
- * de quien reparte, y vive en el panel Gestionar.
+ * Los conceptos pedidos, con lo que se preguntó y lo que se respondió. Es
+ * para LEER: firmar se hace arriba, en «Responder concepto» del panel. Con
+ * los botones aquí abajo y el panel arriba, la gente escribía la respuesta
+ * en «Avanzar» —quedaba un comentario— y la PQRS seguía bloqueada esperando
+ * la firma. Al que le toca, la tarjeta lo dice y lo lleva.
  */
-function TarjetaConceptos({ pqrsId, autorizaciones, hayPendiente, invalidar }) {
+function TarjetaConceptos({ pqrsId, autorizaciones, hayPendiente, onResponder }) {
   const { data: flujo } = useFlujo(pqrsId)
-  const [respuesta, setRespuesta] = useState({ id: null, comentario: '', adjunto: null })
-  const [error, setError] = useState('')
-
-  const mutResponder = useMutation({
-    mutationFn: ({ autId, decision, comentario, adjunto }) => {
-      const datos = new FormData()
-      datos.append('decision', decision)
-      if (comentario?.trim()) datos.append('comentario_respuesta', comentario.trim())
-      if (adjunto) datos.append('adjunto', adjunto)
-      return api.post(`/autorizaciones/pqrs/${pqrsId}/${autId}/responder`, datos)
-    },
-    onSuccess: () => {
-      invalidar()
-      setRespuesta({ id: null, comentario: '', adjunto: null })
-      setError('')
-    },
-    onError: (err) => setError(mensajeDeError(err, 'No se pudo registrar la decisión.')),
-  })
 
   // En qué va el flujo lo ve también el área que firma: qué viene después.
   const cadena = resumenCadena(flujo?.estado, flujo?.pasos)
@@ -260,13 +213,6 @@ function TarjetaConceptos({ pqrsId, autorizaciones, hayPendiente, invalidar }) {
       ? <Insignia tono="alerta">Esperando respuesta</Insignia>
       : <span className="cifra text-xs text-texto-3">{respondidas} de {autorizaciones.length} respondidos</span>
 
-  const responder = (aut, decision) => mutResponder.mutate({
-    autId: aut.id,
-    decision,
-    comentario: respuesta.id === aut.id ? respuesta.comentario : '',
-    adjunto: respuesta.id === aut.id ? respuesta.adjunto : null,
-  })
-
   return (
     <Tarjeta titulo="Conceptos" accion={resumen} sinRelleno>
       {!autorizaciones.length && (
@@ -276,7 +222,7 @@ function TarjetaConceptos({ pqrsId, autorizaciones, hayPendiente, invalidar }) {
         {autorizaciones.map((aut) => {
           const estado = ESTADO_AUTORIZACION[aut.estado] || { label: aut.estado, tono: 'neutro' }
           const firma = aut.autorizador_nombre || aut.tipo.area_autorizadora
-          const comentarioPropio = respuesta.id === aut.id ? respuesta.comentario : ''
+          const teToca = aut.estado === 'pendiente' && aut.puede_responder
           return (
             <div key={aut.id} className="px-5 py-4">
               <div className="flex items-center gap-3">
@@ -293,66 +239,30 @@ function TarjetaConceptos({ pqrsId, autorizaciones, hayPendiente, invalidar }) {
                   <span className="cifra text-xs text-texto-3 hidden sm:inline">
                     {fechaCorta(aut.fecha_respuesta || aut.fecha_solicitud)}
                   </span>
-                  <Insignia tono={estado.tono}>{estado.label}</Insignia>
+                  {teToca
+                    ? <Boton tam="sm" tono="primario" onClick={onResponder}>Responder</Boton>
+                    : <Insignia tono={estado.tono}>{estado.label}</Insignia>}
                 </div>
               </div>
 
-              <div className="sm:pl-11 mt-3 space-y-2.5">
-                {(aut.comentario_solicitud || aut.adjunto_solicitud) && (
-                  <Mensaje quien={`Solicitó${aut.solicitante_nombre ? ` · ${aut.solicitante_nombre}` : ''}`}
-                           texto={aut.comentario_solicitud} soporte={aut.adjunto_solicitud}
-                           etiquetaSoporte="Soporte de la solicitud" />
-                )}
-                {(aut.comentario_respuesta || aut.adjunto_respuesta) && (
-                  <Mensaje quien={`Respondió${aut.autorizador_nombre ? ` · ${aut.autorizador_nombre}` : ''}`}
-                           texto={aut.comentario_respuesta} soporte={aut.adjunto_respuesta}
-                           etiquetaSoporte="Soporte de la respuesta" fondo={FONDO_RESPUESTA[aut.estado]} />
-                )}
-
-                {/* Firma quien pertenece al área autorizadora, sea líder o
-                    agente. El servidor ya lo resolvió en `puede_responder`. */}
-                {aut.puede_responder && (
-                  <div className="space-y-2 pt-1">
-                    <textarea
-                      value={comentarioPropio}
-                      onChange={(e) => setRespuesta({ id: aut.id, comentario: e.target.value, adjunto: respuesta.id === aut.id ? respuesta.adjunto : null })}
-                      placeholder="Comentario de la decisión (obligatorio para devolver)..."
-                      rows={2} className={`${claseCampo} resize-none`}
-                    />
-                    <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" aria-label="Soporte de la decisión (opcional)"
-                           onChange={(e) => setRespuesta({ id: aut.id, comentario: comentarioPropio, adjunto: e.target.files?.[0] || null })}
-                           className={claseArchivo} />
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => responder(aut, 'aprobada')} disabled={mutResponder.isPending}
-                              className="flex-1 inline-flex items-center justify-center gap-1.5 bg-positivo-vivo text-white font-semibold py-2 rounded-lg text-xs transition disabled:opacity-50">
-                        <IconoAlDia tam={15} /> Aprobar
-                      </button>
-                      <button onClick={() => responder(aut, 'rechazada')} disabled={mutResponder.isPending}
-                              className="flex-1 inline-flex items-center justify-center gap-1.5 bg-negativo-vivo text-white font-semibold py-2 rounded-lg text-xs transition disabled:opacity-50">
-                        <IconoRechazo tam={15} /> Rechazar
-                      </button>
-                      {/* Devolver no es rechazar: «esto no le toca a mi área» o
-                          «falta información». Vuelve a Servicio al Cliente y
-                          exige comentario — una devolución muda obliga a una
-                          llamada. */}
-                      <button onClick={() => responder(aut, 'devuelta')}
-                              disabled={mutResponder.isPending || !comentarioPropio.trim()}
-                              title={comentarioPropio.trim() ? 'No le corresponde a mi área o falta información' : 'Escribe primero por qué la devuelves'}
-                              className="flex-1 inline-flex items-center justify-center gap-1.5 border border-borde-fuerte bg-white text-texto font-semibold py-2 rounded-lg text-xs transition hover:bg-superficie-2 disabled:opacity-50">
-                        <IconoFlecha tam={15} className="rotate-180" /> Devolver
-                      </button>
-                    </div>
-                    <p className="text-xs text-texto-3">
-                      Devolver es para cuando no le corresponde a tu área o falta información: vuelve a Servicio al Cliente.
-                    </p>
-                  </div>
-                )}
-              </div>
+              {(aut.comentario_solicitud || aut.adjunto_solicitud || aut.comentario_respuesta || aut.adjunto_respuesta) && (
+                <div className="sm:pl-11 mt-3 space-y-2.5">
+                  {(aut.comentario_solicitud || aut.adjunto_solicitud) && (
+                    <Mensaje quien={`Solicitó${aut.solicitante_nombre ? ` · ${aut.solicitante_nombre}` : ''}`}
+                             texto={aut.comentario_solicitud} soporte={aut.adjunto_solicitud}
+                             etiquetaSoporte="Soporte de la solicitud" />
+                  )}
+                  {(aut.comentario_respuesta || aut.adjunto_respuesta) && (
+                    <Mensaje quien={`Respondió${aut.autorizador_nombre ? ` · ${aut.autorizador_nombre}` : ''}`}
+                             texto={aut.comentario_respuesta} soporte={aut.adjunto_respuesta}
+                             etiquetaSoporte="Soporte de la respuesta" fondo={FONDO_RESPUESTA[aut.estado]} />
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
       </div>
-      {error && <p role="alert" className="text-sm text-negativo px-5 pb-4">{error}</p>}
     </Tarjeta>
   )
 }
@@ -529,7 +439,9 @@ export default function PQRSDetail() {
   const queryClient = useQueryClient()
   const { user }    = useAuth()
   const [editandoDatos, setEditandoDatos] = useState(false)
-  const [modo, setModo] = useState('avanzar')
+  // Sin modo elegido, el panel abre en el primero que toca: «Responder
+  // concepto» si hay uno que esta persona puede firmar.
+  const [modo, setModo] = useState(null)
 
   const { data: pqrs, isLoading, isError } = useQuery({
     queryKey: ['pqrs', id],
@@ -625,7 +537,7 @@ export default function PQRSDetail() {
             <Boton icono={IconoEditar} onClick={() => setEditandoDatos(true)}>Editar datos</Boton>
           )}
           {gestionable && (
-            <Boton tono="primario" icono={IconoComentario} onClick={() => abrirModo('avanzar')}>Gestionar</Boton>
+            <Boton tono="primario" icono={IconoComentario} onClick={() => abrirModo(null)}>Gestionar</Boton>
           )}
         </div>
       </header>
@@ -659,7 +571,8 @@ export default function PQRSDetail() {
             )}
           </Tarjeta>
 
-          <TarjetaConceptos pqrsId={pqrs.id} autorizaciones={autorizaciones} hayPendiente={hayPendiente} invalidar={invalidar} />
+          <TarjetaConceptos pqrsId={pqrs.id} autorizaciones={autorizaciones} hayPendiente={hayPendiente}
+                            onResponder={() => abrirModo('responder')} />
 
           <Historial seguimientos={pqrs.seguimientos} />
         </div>
