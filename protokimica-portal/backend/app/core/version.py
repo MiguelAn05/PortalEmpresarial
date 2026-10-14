@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.54.0"
+VERSION = "0.55.0"
 FECHA = "2026-10-14"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,20 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.55.0",
+        "fecha": "2026-10-14",
+        "titulo": "El buscador de productos, como lo escribe la gente",
+        "cambios": [
+            ("mejora", "El buscador de productos encuentra sin tildes y con las palabras en "
+                       "cualquier orden: «hipo 20» trae «Hipoclorito de sodio × 20 L». Si se pega "
+                       "el código exacto de la factura, sale primero, y lo que más se vende va "
+                       "antes que lo que no se vende hace años."),
+            ("nuevo", "En el detalle de una PQRS, junto al NIT, el portal dice si es cliente "
+                      "registrado en el ERP. Es solo un dato para quien gestiona: no frena nada "
+                      "y el cliente nunca lo ve."),
+        ],
+    },
     {
         "version": "0.54.0",
         "fecha": "2026-10-14",

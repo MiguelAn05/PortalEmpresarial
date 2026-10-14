@@ -1413,12 +1413,29 @@ petición: si Microsoft, n8n o el ERP están caídos, el portal sigue trabajando
   autenticarse para resolver un id es pedirle que averigüe algo que el backend
   ya tenía a la mano. Y en el HTML de un correo, `href="{{ $json.link }}"` — el
   campo ya es una expresión, y un `=` de más deja el enlace roto.
-- **Catálogo de productos (Oracle del ERP).** El portal NO se conecta a Oracle.
-  Un script en el servidor del ERP (`integraciones/erp/`) lee una vista de solo
-  lectura y **empuja** el catálogo al portal por HTTP. La dirección es lo que
-  importa: el portal está expuesto a internet, así que ahí no puede haber ni
-  credenciales ni rutas hacia la base del ERP. De paso, el buscador responde en
-  milisegundos y sigue funcionando aunque el ERP esté caído.
+- **Productos y clientes (Oracle del ERP).** El portal NO se conecta a Oracle.
+  `integraciones/erp/sincronizar_erp.ps1` corre en MORFEO, hace solo `SELECT`
+  con un usuario de lectura y **empuja** al portal por HTTP. La dirección es lo
+  que importa: el portal está expuesto a internet, así que ahí no puede haber
+  ni credenciales ni rutas hacia la base del ERP. De paso, el buscador responde
+  en milisegundos y sigue funcionando aunque el ERP esté caído. Tampoco se
+  crean vistas en el ERP: crear una es escribir en su esquema.
+  - **Productos** (`cat_productos`): código, nombre, presentación, grupo y
+    última venta. El buscador exige cada palabra en cualquier orden, sin
+    tildes (`texto_busqueda`, con índice de trigramas), y ordena código exacto
+    → código que empieza así → vendido más reciente. Lo viejo NO se esconde:
+    también se reclama.
+  - **Clientes: no se copian.** Llega solo la HUELLA de cada NIT
+    (HMAC-SHA256 con `CLAVE_HUELLA_NIT`, calculada en MORFEO) y el detalle de
+    la PQRS dice «Cliente en el ERP» / «No aparece» (`cliente_en_erp`,
+    `catalogo/clientes.py`). Nunca frena una PQRS y **nunca se le dice al
+    cliente**: si no, el formulario serviría para averiguar quién nos compra.
+    `None` ≠ `False`: sin clave o sin lista no se afirma nada. Una huella de
+    control rechaza (409) un script con otra clave, que si no daría «nadie es
+    cliente» sin ningún error.
+  - Cada envío queda en `cat_sincronizaciones`, incluidos los rechazados, y
+    `GET /catalogo/estado` (admin) dice cuándo llegó lo último: el script corre
+    en otro servidor y es la única forma de notar que dejó de correr.
 
 ## Cómo se le sirven los datos a una automatización
 
@@ -1620,15 +1637,18 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   vez de opinar: `docker exec protokimica_backend python -m
   app.scripts.medir_lista_pqrs --filas 20000` siembra, mide y borra (solo contra la
   base de desarrollo; se niega si encuentra demasiadas PQRS de verdad).
-- **Catálogo de productos: falta el lado del ERP.** El portal ya está
-  completo (tabla, sincronización, buscador con límite por IP, pruebas, y el
-  formulario público conectado al catálogo real). Lo que falta es **fuera del
-  repositorio**: en MORFEO hay que crear la vista `V_PRODUCTOS_PORTAL` y el
-  usuario `PORTAL_LECTURA`, poner `CLAVE_SINCRONIZACION` en el `.env.prod` y
-  programar `integraciones/erp/sincronizar_productos.ps1`, que todavía trae
-  nombres de tabla de ejemplo. Hasta que eso corra, **el buscador no devuelve
-  nada** — y por eso la salida de escape no es opcional. Ver
-  `integraciones/erp/LEEME.md`.
+- **ERP: falta el lado de MORFEO.** El portal ya está completo (productos,
+  huellas de clientes, estado, pruebas). Lo que falta es **fuera del
+  repositorio**: que TI le quite el rol `DBA` a `USR_LECTURA`, le dé `SELECT`
+  sobre `PRODUCTOS`, `UNIDADESDEMEDIDA`, `GRUPOS` y `NITS` y un perfil sin
+  vencimiento de contraseña; poner `CLAVE_SINCRONIZACION` y `CLAVE_HUELLA_NIT`
+  en el `.env.prod`, y programar `sincronizar_erp.ps1`. El script **no se ha
+  corrido contra Oracle**: las columnas salen de la especificación, no de una
+  prueba. Hasta que corra, **el buscador no devuelve nada** — y por eso la
+  salida de escape no es opcional. Ver `integraciones/erp/LEEME.md`.
+- **ERP: lotes y facturas, después.** Los lotes (`CLASIFICACIONES_PRODUCTOS`,
+  con su producto deducido del código) y las facturas están explorados en la
+  especificación de sincronización, pero no implementados.
 - **Mejora: falta el exportador y el importador.** El modelo ya cubre las 23
   columnas del `RCN-F-13`, pero todavía no se puede **regenerar el .xlsx** con
   el encabezado, la fila 5 de numeración, los anchos de columna y el pie de

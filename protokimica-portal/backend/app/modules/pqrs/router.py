@@ -31,6 +31,7 @@ from app.modules.pqrs import asociados, edicion, informe, pendientes, tiempo_en_
 from app.modules.pqrs.permisos import CAPACIDAD_GESTION
 from app.core import areas, capacidades
 from app.modules.pqrs import productos as pqrs_productos
+from app.modules.catalogo import clientes as clientes_erp
 from app.modules.pqrs.cierre_automatico import cerrar_vencidas, plazo_confirmacion
 from app.modules.pqrs.gestion import aplicar_gestion, requisitos_para_cerrar
 from app.core.archivos import (
@@ -327,6 +328,7 @@ def obtener_pqrs(
         detalle.requisitos_cierre = requisitos_para_cerrar(db, solicitud)
     if solicitud.estado == "resuelto" and solicitud.fecha_resuelto:
         detalle.plazo_confirmacion = plazo_confirmacion(solicitud.fecha_resuelto)
+    detalle.cliente_en_erp = clientes_erp.es_cliente(db, tenant_id, solicitud.nit_cedula)
     return detalle
 
 

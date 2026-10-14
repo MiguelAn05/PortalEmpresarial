@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     # Vacío = la sincronización queda cerrada.
     CLAVE_SINCRONIZACION: str = ""
 
+    # Clave del HMAC con que se reducen los NIT de clientes a una huella (ver
+    # `modules/catalogo/clientes.py`). Tiene que ser la MISMA del script de
+    # MORFEO. Aparte de la de sincronización: cambiar aquella no puede
+    # obligar a recalcular todas las huellas.
+    # Vacío = no se verifica si el NIT de una PQRS es cliente.
+    CLAVE_HUELLA_NIT: str = ""
+
     # Dónde se guardan los archivos que sube la gente. Lo sirve `main.py` en
     # `/uploads` y lo escribe `core/archivos.py`; antes estaba escrito a mano
     # en tres sitios.

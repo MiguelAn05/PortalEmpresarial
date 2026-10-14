@@ -1,14 +1,25 @@
-# Catálogo de productos desde el ERP
+# Del ERP al portal: productos y clientes
 
-El portal **no se conecta a Oracle**. Un script que corre en MORFEO lee el
-catálogo y se lo manda al portal por HTTP.
+El portal **no se conecta a Oracle**. Un script que corre en MORFEO
+(`sincronizar_erp.ps1`) lee el ERP y le manda al portal dos cosas por HTTP:
+
+1. **El catálogo de productos**: código, nombre, presentación, grupo y fecha
+   de la última venta. Con eso funciona el buscador de los formularios de
+   PQRS y se agrupan los informes por producto.
+2. **Las huellas de los clientes**: un HMAC-SHA256 de cada NIT, calculado
+   en MORFEO. Sirve para una sola pregunta —«¿quien radica ya es cliente
+   nuestro?»— sin copiar ningún cliente al portal (ver más abajo).
 
 La dirección es lo que importa: el portal está expuesto a internet, así que
 si algún día lo comprometen, ahí no hay ninguna credencial ni ruta hacia la
-base del ERP. El tráfico va de la red interna hacia afuera.
+base del ERP. El tráfico va de la red interna hacia afuera, y el firewall de
+MORFEO no tiene que abrirle el 1521 a nadie.
 
 Además, así deja de importar que Oracle sea 11.2: no hace falta ningún driver
 ni el Instant Client dentro del contenedor.
+
+**El script solo hace `SELECT`.** No crea, no modifica y no borra nada en
+Oracle, y tampoco crea vistas: no hay que tocar el esquema del ERP.
 
 ## Lo que hay que hacer una sola vez
 
@@ -33,131 +44,152 @@ delata que son dos entornos y no dos esquemas del mismo.
 > los clientes un catálogo de mentira, y eso solo se nota cuando alguien
 > reclama por un producto cuyo código no existe en la base real.
 
-#### La vista
+#### Qué lee el script
 
-El portal nunca lee la tabla del ERP directamente: si el proveedor renombra
-una columna en una actualización, se ajusta la vista y nada más se entera.
-Geminus ya expone `V_PRODUCTOS` con 250 columnas —incluidos precios, costos,
-márgenes y diez listas de precios—, así que **encima de esa se crea una de
-tres columnas**, y el `GRANT` va solo sobre la nuestra:
-
-Antes de crearla, **comprobar que el nombre está libre**. Es el único paso de
-todo esto que podría hacer daño: un `CREATE OR REPLACE` sobre un objeto que ya
-existe lo pisa.
-
-```sql
-SELECT owner, object_name, object_type
-FROM all_objects WHERE object_name LIKE 'V_PRODUCTOS%';
-```
-
-Y se crea con `CREATE VIEW`, no con `CREATE OR REPLACE`: si el nombre estuviera
-ocupado, es mejor que reviente a que lo reemplace.
-
-```sql
-CREATE VIEW GEMIMUS01.V_PRODUCTOS_PORTAL AS
-SELECT p.PROD_CODIGO                   AS codigo,
-       p.PROD_DESCRIPCION              AS nombre,
-       p.PROD_DESCRIPCIONUNIDADMEDIDA  AS presentacion
-FROM GEMIMUS01.V_PRODUCTOS p
-WHERE p.PROD_ESTADO = 'A'
-  AND p.PROD_ESPARAVENTA = 'S';
-```
-
-Debe devolver **7.802** de los 7.841 que tiene `V_PRODUCTOS`.
-
-Equivalencias ya verificadas, con los tamaños de cada lado:
-
-| Geminus | Portal | |
+| Tabla de `GEMIMUS01` | Columnas | Para qué |
 |---|---|---|
-| `PROD_CODIGO` VARCHAR2(30) | `cat_productos.codigo` String(60) | cabe |
-| `PROD_DESCRIPCION` VARCHAR2(250) | `cat_productos.nombre` String(300) | cabe |
-| `PROD_DESCRIPCIONUNIDADMEDIDA` VARCHAR2(30) | `presentacion` String(60) | cabe |
+| `PRODUCTOS` | `PR_PRODUCTO`, `PR_DESCRIPCION`, `PR_UNIDADDEMEDIDA`, `PR_GRUPO`, `PR_ESTADO`, `PR_FECHAULTIMAVENTA` | El catálogo (solo `PR_ESTADO = 'A'`) |
+| `UNIDADESDEMEDIDA` | `UM_CODIGO`, `UM_DESCRIPCION` | La presentación |
+| `GRUPOS` | `GR_GRUPO`, `GR_DESCRIPCION` | El grupo, para los informes |
+| `NITS` | `NIT`, `CLASE`, `ESTADO` | Solo el número, de los clientes activos (`CLASE LIKE '%C%'`) |
 
-Los códigos vienen únicos (7.774 de 7.774), así que
-`uq_producto_codigo` no va a estorbar.
+Columnas nombradas una por una, nunca `SELECT *`. **Nada de costos**
+(`PR_COSTOULTIMO` y compañía) ni, de `NITS`, nada que no sea el número:
+ni nombre, ni ciudad, ni datos bancarios.
 
-#### De dónde salió el filtro
+**Por qué los productos salen de la tabla y no de `V_PRODUCTOS`.** La
+primera versión de este LEEME proponía crear una vista de tres columnas
+(`V_PRODUCTOS_PORTAL`) encima de `V_PRODUCTOS`. Se cambió porque crear una
+vista **es escribir en el esquema del ERP**, y la regla es solo lectura. El
+precio: Oracle no limita un `SELECT` por columnas, así que el usuario de
+lectura PODRÍA leer `PR_COSTOULTIMO` si alguien cambiara el script. Como la
+clave vive solo en MORFEO —nunca en el portal—, se aceptó. Si TI prefiere
+cerrarlo del todo, la salida son vistas creadas por TI con el `GRANT` sobre
+ellas; el script solo tendría que cambiar los nombres de las tablas.
 
-Así se reparten los 7.841 productos de producción:
+#### Los clientes no se copian: se copia una huella
 
-| `ESTADO` | `ESPARAVENTA` | `EMPAQUE` | `DOTACION` | `SERVICIO` | Cuántos |
-|:-:|:-:|:-:|:-:|:-:|--:|
-| A | S | N | N | N | 7790 |
-| I | S | N | N | N | 37 |
-| A | S | N | N | S | 7 |
-| A | S | S | N | N | 5 |
-| A | N | N | N | S | 1 |
-| I | S | N | N | S | 1 |
+El ERP tiene unos 167.000 terceros clientes, muchos personas naturales con su
+cédula. El portal no necesita saber quiénes son, solo si el NIT que alguien
+escribe en una PQRS es de un cliente. Así que el script:
 
-`PROD_ESTADO` es `A`/`I` y `PROD_ESPARAVENTA` es `S`/`N`. Con esas dos basta.
+1. Lee solo el NIT de los clientes activos.
+2. Lo deja en cifras y sin ceros a la izquierda (el ERP lo guarda sin dígito
+   de verificación).
+3. Calcula `HMAC-SHA256(CLAVE_HUELLA_NIT, nit)` y manda **solo eso**.
 
-**Los empaques y los servicios NO se excluyen**, aunque se podría: son doce
-productos, un cliente sí puede reclamar por un envase o por un servicio, y
-filtrar de más es cerrarle la puerta a alguien por ahorrar doce filas. Para
-lo que quede fuera está el «no encuentro mi producto» del formulario.
+Los NIT nunca salen de MORFEO. En el portal queda una lista de cadenas de 64
+caracteres que, sin la clave, no se pueden convertir de vuelta en un NIT; y la
+clave vive en el `.env`, no en la base, así que una copia de la base sola no
+revela nada.
 
-#### Quién crea la vista
+Al abrir una PQRS, el portal calcula la huella del NIT escrito (acepta
+`900.123.456-7`, `900123456 7` o `9001234567`) y la busca. El detalle muestra
+**«Cliente en el ERP»** o **«No aparece en el ERP»**. Lo que el portal
+**nunca** hace con esto:
 
-Va **dentro de `GEMIMUS01`**, el dueño de los datos. Crearla desde otro
-usuario falla con `ORA-01031` aunque ese usuario sí pueda consultar la tabla:
-Oracle desactiva los privilegios que llegan por un rol dentro de la
-definición de una vista, y ahí el `SELECT` tiene que estar concedido directo.
+- **Frenar la PQRS.** No aparecer puede ser un cliente nuevo, una persona
+  natural o un NIT mal escrito.
+- **Decírselo al cliente.** Ni el formulario público ni la consulta del
+  radicado lo muestran: si no, el formulario serviría para averiguar quién le
+  compra a la empresa.
 
-`ADMIN_GEM` tiene el rol `DBA`, así que alcanza para todo esto. Pero **avísale
-al proveedor de Geminus antes**, no por trámite: una actualización suya puede
-recrear o borrar `V_PRODUCTOS`, y si nadie sabe que hay una vista colgando de
-ahí, el catálogo del portal se cae en silencio y nadie sabe por qué.
+#### El usuario de solo lectura
 
-**El usuario de solo lectura.** No se usa el usuario del ERP ni `SYSTEM`.
-Este solo puede hacer `SELECT`, y solo sobre esa vista: aunque su clave se
-filtrara, eso es todo lo que alcanzaría.
+Lo crea TI. Hoy `USR_LECTURA` tiene el rol `DBA` (control total) y hay que
+reducirlo **antes** de poner su clave en el script:
 
 ```sql
-CREATE USER PORTAL_LECTURA IDENTIFIED BY "una-clave-larga-y-aleatoria";
-GRANT CREATE SESSION TO PORTAL_LECTURA;
-GRANT SELECT ON GEMIMUS01.V_PRODUCTOS_PORTAL TO PORTAL_LECTURA;
+REVOKE DBA FROM USR_LECTURA;
+REVOKE UNLIMITED TABLESPACE FROM USR_LECTURA;
+-- CREATE SESSION se mantiene
+GRANT SELECT ON GEMIMUS01.PRODUCTOS        TO USR_LECTURA;
+GRANT SELECT ON GEMIMUS01.UNIDADESDEMEDIDA TO USR_LECTURA;
+GRANT SELECT ON GEMIMUS01.GRUPOS           TO USR_LECTURA;
+GRANT SELECT ON GEMIMUS01.NITS             TO USR_LECTURA;
 ```
 
-Nada de `GRANT SELECT ANY TABLE` ni de roles como `DBA` o `RESOURCE`. Y el
-`GRANT` va sobre `V_PRODUCTOS_PORTAL`, **nunca sobre `V_PRODUCTOS`**: esa
-última trae `PROD_PRECIOBASESINIMPUESTOS`, `PROD_COSTOULTCOMPRASINIMPUESTO`,
-`PROD_PORCRENTABILIDADMINIMA` y diez listas de precios completas.
+Nada de `SELECT ANY TABLE` ni de roles como `DBA` o `RESOURCE`.
+
+Y pedir que tenga un **perfil sin vencimiento de contraseña**: el de fábrica
+de 11g la vence a los 180 días, y ese día la sincronización se cae de
+madrugada sin que nadie se entere.
+
+Para comprobar que quedó bien, conectado como `USR_LECTURA`:
+
+```sql
+SELECT COUNT(*) FROM GEMIMUS01.PRODUCTOS WHERE PR_ESTADO = 'A';   -- ~7.848
+SELECT COUNT(*) FROM GEMIMUS01.NITS WHERE CLASE LIKE '%C%' AND ESTADO = 'A';
+SELECT * FROM SESSION_ROLES;   -- no debe aparecer DBA
+```
 
 ### 2. En el portal
 
-Generar una clave larga y ponerla en `backend/.env.prod`:
+Dos claves largas y distintas en `backend/.env.prod`:
 
 ```
-CLAVE_SINCRONIZACION=<pega aquí una clave larga y aleatoria>
+CLAVE_SINCRONIZACION=<clave larga y aleatoria>
+CLAVE_HUELLA_NIT=<otra clave larga y aleatoria>
 ```
+
+Se generan con `python3 -c "import secrets; print(secrets.token_hex(32))"`.
+
+- `CLAVE_SINCRONIZACION` es la que deja entrar al script. Si se filtra, se
+  cambia sin más.
+- `CLAVE_HUELLA_NIT` es con la que se calculan las huellas. **Si se cambia,
+  hay que volver a correr el script**: las huellas viejas dejan de coincidir.
 
 Y recrear el contenedor (nunca `restart`: no relee el `.env`):
 
 ```bash
 sudo docker compose -f docker-compose.prod.yml up -d backend
+docker exec protokimica_backend env | grep CLAVE_
 ```
 
 ### 3. En MORFEO
 
-Copiar `sincronizar_productos.ps1`, ajustar el bloque CONFIGURACIÓN (la misma
-clave del `.env`, el usuario de Oracle y el nombre de la vista) y probarlo a
-mano:
+Copiar `sincronizar_erp.ps1` y ajustar el bloque CONFIGURACIÓN: las dos claves
+del `.env` (copiadas igual, sin espacios), el usuario de Oracle y la dirección
+del portal.
+
+**La dirección:** por defecto va a `https://portal.protokimica.com/api`,
+cifrado. Si MORFEO no tiene salida a internet, sirve la IP interna
+(`http://172.20.70.47:8080/api`), pero la clave viaja en texto plano por la
+red interna.
+
+Probarlo a mano, primero solo los productos:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\ruta\sincronizar_productos.ps1
+powershell -ExecutionPolicy Bypass -File C:\ruta\sincronizar_erp.ps1 -SoloProductos
+powershell -ExecutionPolicy Bypass -File C:\ruta\sincronizar_erp.ps1
 ```
 
-Debe imprimir cuántos productos leyó y cuántos quedaron activos.
+Imprime cuántos leyó y qué cambió, y lo deja también en
+`sincronizar_erp.log`, al lado del script.
 
-Cuando funcione, programarlo en el **Programador de tareas de Windows**, una
-vez al día de madrugada:
+Cuando funcione, programarlo en el **Programador de tareas de Windows**. Es
+barato —medido con 8.000 productos y 167.000 huellas: menos de un segundo
+para los productos y medio segundo para las huellas una vez cargadas—, así
+que puede correr **cada hora de 7 a. m. a 7 p. m.**; como mínimo, una vez de
+madrugada:
 
 ```
 Programa:   powershell.exe
-Argumentos: -ExecutionPolicy Bypass -File C:\ruta\sincronizar_productos.ps1
+Argumentos: -ExecutionPolicy Bypass -File C:\ruta\sincronizar_erp.ps1
 ```
 
-## Cómo encontrar la tabla de productos
+Cada corrida es completa: no hace falta una incremental, y así un producto
+que el ERP desactivó también se entera.
+
+**Cómo se sabe que sigue corriendo:** `GET /api/catalogo/estado` (solo
+`admin`) dice cuándo llegó lo último de cada cosa y si salió bien.
+
+## Cómo se encontró la tabla de productos
+
+Lo que sigue es cómo se exploró el ERP la primera vez. Ya está resuelto (ver
+«Qué lee el script»), pero sirve si el proveedor cambia el esquema en una
+actualización.
+
 
 Para eso está **`explorar_catalogo.sql`**, en esta misma carpeta. Solo hace
 consultas: no modifica nada de la base del ERP.
@@ -249,29 +281,15 @@ qué columna dice si el producto sigue vigente, y si el código está repetido.
 > Nadie da un premio por adivinarlo, y equivocarse aquí se nota meses después
 > en un informe.
 
-### Probar la vista antes de dejarla
-
-Con la vista ya creada, vale la pena verla como la va a ver el portal:
-
-```sql
-SELECT COUNT(*) FROM V_PRODUCTOS_PORTAL;
-SELECT * FROM V_PRODUCTOS_PORTAL WHERE ROWNUM <= 10;
-```
-
-Y con el usuario de solo lectura, para confirmar que le alcanzan los permisos
-y que **no** alcanza nada más:
-
-```
-sqlplus PORTAL_LECTURA/clave@localhost:1521/XE
-SQL> SELECT COUNT(*) FROM SYSTEM.V_PRODUCTOS_PORTAL;
-```
-
 ## Qué se copia y qué no
 
-Solo **código, nombre y presentación**. Nada de precios, costos ni
-existencias — y no es solo que no se envíen: la tabla del portal no tiene
-esas columnas, así que no hay forma de que salgan por el buscador público
-aunque alguien se equivoque.
+De productos: **código, nombre, presentación, grupo y fecha de la última
+venta**. Nada de precios, costos ni existencias — y no es solo que no se
+envíen: la tabla del portal no tiene esas columnas, así que no hay forma de
+que salgan por el buscador público aunque alguien se equivoque. El buscador
+público sigue devolviendo solo código, nombre y presentación.
+
+De clientes: **nada**, solo la huella de cada NIT.
 
 ## Si algo falla
 
@@ -328,7 +346,7 @@ modificación más reciente. Las `TMP` y `HIST` no.
 ### Sincronizando
 
 **El script dice que sqlplus falló** → usuario, clave o cadena de conexión.
-Pruébalo a mano: `sqlplus PORTAL_LECTURA/clave@localhost:1521/XE`
+Pruébalo a mano: `sqlplus USR_LECTURA@//MORFEO.ppal.protokimica.com:1521/XE`
 
 **Responde 403** → la clave del script no coincide con `CLAVE_SINCRONIZACION`
 del `.env`. Ojo con los espacios al copiar.
@@ -339,3 +357,19 @@ reinició con `restart` en vez de `up -d` y no la releyó.
 **Responde 400 diciendo que el lote llegó vacío** → la consulta no devolvió
 nada. El portal lo rechaza a propósito: un error en la consulta dejaría el
 buscador sin ningún producto, y es peor que quedarse con el catálogo de ayer.
+
+**Responde 409 hablando de `CLAVE_HUELLA_NIT`** → la clave de huellas del
+script no es la del `.env`. El portal lo rechaza a propósito: con claves
+distintas ningún NIT coincidiría y todos los clientes saldrían «No aparece en
+el ERP», sin ningún error.
+
+**Las tildes o la Ñ llegan rotas («ÃCIDO»)** → sqlplus no está escribiendo en
+UTF-8. El script fija `NLS_LANG=AMERICAN_AMERICA.AL32UTF8`; si alguien lo
+quitó, ahí está.
+
+**`ORA-28001: the password has expired`** → el perfil del usuario sigue
+venciendo la contraseña. Ver «El usuario de solo lectura».
+
+**El Programador de tareas dice que corrió bien pero nada cambia** → mira
+`sincronizar_erp.log`. El script sale con código 1 si algo falló, así que la
+tarea debería aparecer como fallida.

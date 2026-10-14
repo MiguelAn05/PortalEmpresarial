@@ -583,7 +583,23 @@ export default function PQRSDetail() {
                    accion={puedeEditarDatos && <BotonEditar onClick={() => setEditandoDatos(true)} etiqueta="Editar los datos del cliente" />}>
             <div className="space-y-2.5">
               <Dato etiqueta="Empresa">{pqrs.empresa}</Dato>
-              <Dato etiqueta="NIT / CC"><span className="cifra">{pqrs.nit_cedula}</span></Dato>
+              <Dato etiqueta="NIT / CC">
+                {pqrs.nit_cedula && (
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                    <span className="cifra">{pqrs.nit_cedula}</span>
+                    {/* Lo dice el servidor (`catalogo/clientes.py`). Sin dato
+                        no se pinta nada: «no aparece» sería afirmar algo que
+                        nadie revisó. Y no aparecer no es un error —cliente
+                        nuevo, persona natural, NIT mal escrito—: va en gris. */}
+                    {pqrs.cliente_en_erp === true && <Insignia tono="positivo">Cliente en el ERP</Insignia>}
+                    {pqrs.cliente_en_erp === false && (
+                      <span title="Puede ser un cliente nuevo, una persona natural o un NIT mal escrito. No impide nada.">
+                        <Insignia tono="neutro">No aparece en el ERP</Insignia>
+                      </span>
+                    )}
+                  </span>
+                )}
+              </Dato>
               <Dato etiqueta="Contacto">{pqrs.cliente_nombre}</Dato>
               <Dato etiqueta="Teléfono">{pqrs.cliente_telefono && <span className="cifra">{pqrs.cliente_telefono}</span>}</Dato>
               <Dato etiqueta="Email">{pqrs.cliente_email}</Dato>

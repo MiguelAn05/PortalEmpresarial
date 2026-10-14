@@ -152,6 +152,7 @@ SIN_DEPENDENCIA_DE_ROUTER = {
     # El ERP sincroniza con una clave, sin sesión de usuario: el contrato se
     # revisa adentro, contra la empresa del portal.
     "/catalogo/sincronizar",
+    "/catalogo/sincronizar-clientes",
 }
 
 

@@ -248,6 +248,10 @@ class PQRSDetailOut(PQRSOut):
     # una función (`cierre_automatico.plazo_confirmacion`), no de una
     # columna.
     plazo_confirmacion: datetime | None = None
+    # Si el NIT escrito está entre los clientes del ERP. None = no se pudo
+    # saber (sin NIT, o sin la lista sincronizada). Solo va en el detalle
+    # interno: al cliente nunca se le dice. Ver `catalogo/clientes.py`.
+    cliente_en_erp: bool | None = None
 
 
 class PQRSEditarDatos(BaseModel):
