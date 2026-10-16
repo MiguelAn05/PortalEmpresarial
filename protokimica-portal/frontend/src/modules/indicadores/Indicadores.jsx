@@ -7,6 +7,7 @@ import ComoVamos from "./components/ComoVamos"
 import ElAno from "./components/ElAno"
 import IndicadorDetalle from "./components/IndicadorDetalle"
 import { useAbrirDesdeUrl } from "../../core/abrirDesdeUrl.js"
+import { useFiltrosEnUrl } from "../../core/useFiltrosEnUrl.js"
 import FormIndicador from "./components/FormIndicador"
 import GestionOmpEnAreas from "./components/GestionOmpEnAreas"
 import { ChipSemaforo } from "./components/Graficas"
@@ -21,7 +22,7 @@ import { puedeEditar } from "../masterPlanner/constants"
 import { useAuth } from "../../core/useAuth.js"
 import {
   PESTANAS, coincideBusqueda, periodoPorDefecto, periodoAnterior,
-  periodoSiguiente, pestanaInicial,
+  periodoDeTexto, periodoSiguiente, pestanaInicial, textoDePeriodo,
 } from "./constants"
 
 /**
@@ -51,12 +52,21 @@ export default function Indicadores() {
   const { user } = useAuth()
   const editable = puedeEditar(user)
 
-  const [pestana, setPestana] = useState(() => pestanaInicial(user))
-  const [periodo, setPeriodo] = useState(periodoPorDefecto)
-  const [alcance, setAlcance] = useState('empresa')
-  const [area, setArea] = useState("")
-  const [busqueda, setBusqueda] = useState("")
-  const [filtro, setFiltro] = useState(null)        // semáforo elegido en los KPI
+  // El contexto —pestaña, mes, alcance, área, búsqueda y el semáforo de los
+  // KPI— vive en la URL: abrir otro módulo y volver no lo borra.
+  const [contexto, cambiarContexto] = useFiltrosEnUrl({
+    pestana: pestanaInicial(user), periodo: textoDePeriodo(periodoPorDefecto()),
+    alcance: 'empresa', area: '', busqueda: '', semaforo: '',
+  })
+  const { pestana, alcance, area, busqueda } = contexto
+  const periodo = useMemo(() => periodoDeTexto(contexto.periodo), [contexto.periodo])
+  const filtro = contexto.semaforo || null              // semáforo elegido en los KPI
+  const setPestana = useCallback((v) => cambiarContexto({ pestana: v }), [cambiarContexto])
+  const setPeriodo = (p) => cambiarContexto({ periodo: textoDePeriodo(p) })
+  const setAlcance = (v) => cambiarContexto({ alcance: v })
+  const setArea = (v) => cambiarContexto({ area: v })
+  const setBusqueda = (v) => cambiarContexto({ busqueda: v })
+  const setFiltro = (v) => cambiarContexto({ semaforo: v || '' })
   const [abierto, setAbierto] = useState(null)      // id del indicador en detalle
   const [editando, setEditando] = useState(null)    // null | 'nuevo' | indicador
 
@@ -65,7 +75,7 @@ export default function Indicadores() {
   const abrirIndicadorDeUrl = useCallback((id) => {
     setAbierto(id)
     setPestana('tablero')   // al cerrar queda donde se registra
-  }, [])
+  }, [setPestana])
   const { limpiar: limpiarIndicadorDeUrl } = useAbrirDesdeUrl("indicador", abrirIndicadorDeUrl)
 
   const cerrarIndicador = () => {

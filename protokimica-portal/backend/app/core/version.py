@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.55.0"
-FECHA = "2026-10-14"
+VERSION = "0.56.0"
+FECHA = "2026-10-16"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,31 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.56.0",
+        "fecha": "2026-10-16",
+        "titulo": "El portal recuerda tus filtros",
+        "cambios": [
+            ("mejora", "Los filtros ya no se pierden: si filtras las PQRS cerradas, abres una y "
+                       "vuelves, la lista sigue como la dejaste. Lo mismo en Indicadores (el mes, "
+                       "el área y la pestaña), Master Planner, Mejora, Notas crédito y Encuestas, "
+                       "también al irte a otro módulo y regresar."),
+            ("nuevo", "Un enlace filtrado se puede copiar y mandar: quien lo abra ve la misma "
+                      "lista con los mismos filtros. Los filtros se olvidan al cerrar la pestaña "
+                      "o la sesión."),
+        ],
+    },
+    {
+        "version": "0.55.1",
+        "fecha": "2026-10-16",
+        "titulo": "El estado y los conceptos de una PQRS, solo quien reparte",
+        "cambios": [
+            ("correccion", "Cambiar el estado de una PQRS, pedir conceptos y asignarla a una persona "
+                           "vuelve a ser solo de Servicio al Cliente. Las demás áreas siguen "
+                           "comentando, adjuntando evidencia y respondiendo los conceptos que les "
+                           "piden: Servicio al Cliente lee eso y mueve el caso."),
+        ],
+    },
     {
         "version": "0.55.0",
         "fecha": "2026-10-14",

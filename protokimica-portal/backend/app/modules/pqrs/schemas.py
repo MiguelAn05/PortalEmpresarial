@@ -214,11 +214,15 @@ class AlcancePQRS(BaseModel):
     sí estaba permitido. Aquí llegan ya resueltas y la interfaz solo esconde
     lo que no aplica.
     """
-    # Escribir cualquier cosa: comentario, estado o evidencia. Es falso para
-    # 'lectura' y 'gerencia', que no escriben nada en el portal.
+    # Escribir en el caso: comentario y evidencia. Es falso para 'lectura' y
+    # 'gerencia', que no escriben nada en el portal.
     puede_gestionar: bool
     # Mover el área responsable. Es de Servicio al Cliente, que reparte.
     puede_cambiar_area: bool
+    # Mover el estado a mano y pedir conceptos: también de quien reparte
+    # (`permisos.puede_cambiar_estado` / `puede_pedir_conceptos`).
+    puede_cambiar_estado: bool = False
+    puede_pedir_conceptos: bool = False
     # Cerrar dispara la encuesta al cliente y congela la PQRS para los
     # indicadores; por eso va aparte de gestionar.
     puede_cerrar: bool

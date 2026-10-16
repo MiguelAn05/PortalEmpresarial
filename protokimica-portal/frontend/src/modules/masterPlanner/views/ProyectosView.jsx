@@ -6,6 +6,7 @@ import { ESTADOS_PROYECTO, puedeEditar, perteneceAlArea, parametrosListaProyecto
 import { useAuth } from "../../../core/useAuth.js"
 import { mensajeDeError } from '../../../core/errores.js'
 import { useAreas } from '../../../core/areas.js'
+import { useFiltrosEnUrl } from '../../../core/useFiltrosEnUrl.js'
 
 const FILTROS_VACIOS = { busqueda: "", estado: "", area: "" }
 
@@ -14,8 +15,13 @@ export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEdit
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const editable = puedeEditar(user)
-  const [filtros, setFiltros] = useState(FILTROS_VACIOS)
-  const [verArchivados, setVerArchivados] = useState(false)
+  // En la URL, con prefijo propio: el `estado` de un proyecto no es el de
+  // una tarea, y las dos listas comparten la ruta.
+  const [filtrosUrl, cambiarFiltros] = useFiltrosEnUrl({ ...FILTROS_VACIOS, archivados: '' }, { prefijo: 'p_' })
+  const filtros = filtrosUrl
+  const setFiltros = (nuevos) => cambiarFiltros(nuevos)
+  const verArchivados = filtrosUrl.archivados === 'si'
+  const setVerArchivados = (si) => cambiarFiltros({ archivados: si ? 'si' : '' })
   const [error, setError] = useState(null)
 
   // Un estado terminal viaja al servidor: esos proyectos están archivados y

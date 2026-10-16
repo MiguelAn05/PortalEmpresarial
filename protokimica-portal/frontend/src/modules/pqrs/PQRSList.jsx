@@ -5,6 +5,7 @@ import api from '../../core/api.js'
 import { puedeVerModulo } from '../../core/modulos.js'
 import { useAuth } from '../../core/useAuth.js'
 import { useAreas } from '../../core/areas.js'
+import { useFiltrosEnUrl } from '../../core/useFiltrosEnUrl.js'
 import {
   SIN_CAUSA, agruparAsociados, coincideAsociado, etiquetaAsociado, useAsociados,
 } from './asociados.js'
@@ -17,7 +18,7 @@ import {
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 import {
-  AREA_SIN_ASIGNAR, DEPARTAMENTOS, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES, VISTAS,
+  AREA_SIN_ASIGNAR, DEPARTAMENTOS, FILTROS_LISTA, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES, VISTAS,
   areasParaFiltrar, avancePlazo, coincideAreaAsignada, contarPorFoco, cumpleFoco, cumpleVista,
   estadoDelPlazo, faltaEnProductos, nombrePrincipal, productoVacio, productosParaEnviar, tiempoEnArea,
   ESTADOS, PRIORIDADES, TIPOS,
@@ -417,21 +418,33 @@ export default function PQRSList() {
 
   // Qué PARTE se mira (Abiertas, De mi área, Cerradas, Todas) y, dentro de
   // ella, qué tarjeta recorta. Son dos cosas: «vencidas de mi área» es una
-  // pregunta legítima.
-  const [vista, setVista] = useState('abiertas')
-  const [foco, setFoco] = useState(null)
-  const [busqueda, setBusqueda] = useState('')
-  const [filtroArea, setFiltroArea] = useState('')
-  const [filtroTipo, setFiltroTipo] = useState('')
+  // pregunta legítima. Todo vive en la URL (`useFiltrosEnUrl`): abrir una
+  // PQRS y volver no puede obligar a filtrar otra vez.
+  const [filtros, cambiarFiltros] = useFiltrosEnUrl(FILTROS_LISTA)
+  const {
+    vista, busqueda, area: filtroArea, tipo: filtroTipo,
+    estado: filtroEstado, punto: filtroPuntoVenta, asociado: filtroAsociado,
+    desde: filtroFechaDesde, hasta: filtroFechaHasta,
+  } = filtros
+  const foco = filtros.foco || null
+  const setVista = (v) => cambiarFiltros({ vista: v })
+  const setFoco = (f) => cambiarFiltros({ foco: f || '' })
+  const setBusqueda = (v) => cambiarFiltros({ busqueda: v })
+  const setFiltroArea = (v) => cambiarFiltros({ area: v })
+  const setFiltroTipo = (v) => cambiarFiltros({ tipo: v })
+  const setFiltroEstado = (v) => cambiarFiltros({ estado: v })
+  const setFiltroPuntoVenta = (v) => cambiarFiltros({ punto: v })
+  const setFiltroAsociado = (v) => cambiarFiltros({ asociado: v })
+  const setFiltroFechaDesde = (v) => cambiarFiltros({ desde: v })
+  const setFiltroFechaHasta = (v) => cambiarFiltros({ hasta: v })
   const [modalCrear, setModalCrear] = useState(false)
 
-  // Lo que se pide menos va en el panel: estado, sede, causa y fechas.
-  const [panelFiltrosAbierto, setPanelFiltrosAbierto] = useState(false)
-  const [filtroEstado, setFiltroEstado] = useState('')
-  const [filtroPuntoVenta, setFiltroPuntoVenta] = useState('')
-  const [filtroAsociado, setFiltroAsociado] = useState('')
-  const [filtroFechaDesde, setFiltroFechaDesde] = useState('')
-  const [filtroFechaHasta, setFiltroFechaHasta] = useState('')
+  // Lo que se pide menos va en el panel: estado, sede, causa y fechas. Si
+  // al volver trae alguno puesto, se abre: un filtro activo que no se ve se
+  // lee como PQRS que faltan.
+  const [panelFiltrosAbierto, setPanelFiltrosAbierto] = useState(
+    () => Boolean(filtroEstado || filtroPuntoVenta || filtroAsociado || filtroFechaDesde || filtroFechaHasta),
+  )
 
   const { data: pqrsList = [], isLoading, isError } = useQuery({
     queryKey: ['pqrs', filtroEstado, filtroTipo],
@@ -492,17 +505,15 @@ export default function PQRSList() {
 
   const filtrosDelPanel = [filtroEstado, filtroPuntoVenta, filtroAsociado, filtroFechaDesde, filtroFechaHasta].filter(Boolean).length
   const hayFiltros = Boolean(foco || busqueda || filtroArea || filtroTipo || filtrosDelPanel)
-  const limpiarTodo = () => {
-    setFoco(null); setBusqueda(''); setFiltroArea(''); setFiltroTipo('')
-    setFiltroEstado(''); setFiltroPuntoVenta(''); setFiltroAsociado('')
-    setFiltroFechaDesde(''); setFiltroFechaHasta('')
-  }
+  // La vista no es un filtro: «Limpiar» deja la que se está mirando.
+  const limpiarTodo = () => cambiarFiltros({
+    foco: '', busqueda: '', area: '', tipo: '', estado: '', punto: '', asociado: '', desde: '', hasta: '',
+  })
   // Una tarjeta de plazo sobre las cerradas siempre da cero: pulsarla vuelve
   // a las abiertas, que es donde esa pregunta tiene respuesta.
   const enfocar = (clave) => {
     if (foco === clave) { setFoco(null); return }
-    if (vista === 'cerradas') setVista('abiertas')
-    setFoco(clave)
+    cambiarFiltros(vista === 'cerradas' ? { vista: 'abiertas', foco: clave } : { foco: clave })
   }
   const nombreVista = vistas.find(v => v.clave === vista)?.label.toLowerCase()
 
@@ -556,7 +567,7 @@ export default function PQRSList() {
           { label: 'Abiertas', value: abiertasTotal,
             nota: `de ${base.length} radicadas${cerradasTotal ? ` · ${cerradasTotal} cerradas` : ''}`,
             activa: vista === 'abiertas' && !foco,
-            onClick: () => { setVista('abiertas'); setFoco(null) } },
+            onClick: () => cambiarFiltros({ vista: 'abiertas', foco: '' }) },
           { label: 'Plazo vencido', value: conteos.vencidas, punto: 'negativo',
             alerta: conteos.vencidas > 0,
             nota: conteos.vencidas > 0 ? 'fuera del plazo de ley' : 'todas en término',
@@ -764,7 +775,7 @@ export default function PQRSList() {
                 : `${lista.length} de ${enVista.length} ${nombreVista}`}
             </span>
             {vista === 'abiertas' && cerradasTotal > 0 && (
-              <button type="button" onClick={() => { setVista('cerradas'); setFoco(null) }}
+              <button type="button" onClick={() => cambiarFiltros({ vista: 'cerradas', foco: '' })}
                       className="font-semibold text-acento hover:underline">
                 Ver las {cerradasTotal} cerradas →
               </button>

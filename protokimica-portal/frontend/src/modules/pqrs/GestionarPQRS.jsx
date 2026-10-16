@@ -177,32 +177,39 @@ function ModoAvanzar({ pqrs, alcance, hayPendiente, esperando, puedeResponder, o
         </Efecto>
       ))}
 
-      <div className="grid sm:grid-cols-2 gap-3">
-        <Campo id="gestion-estado" etiqueta="Estado" opcional={`hoy: ${ESTADOS[pqrs.estado]?.label}`}>
-          <select id="gestion-estado" value={estado} onChange={(e) => setEstado(e.target.value)} disabled={hayPendiente}
-                  className={`${claseCampo} disabled:bg-superficie-2 disabled:text-texto-3`}>
-            <option value="">{quedaAsignada ? 'Pasa a Asignado (por el cambio de área)' : 'Sin cambio'}</option>
-            {Object.entries(ESTADOS)
-              .filter(([clave]) => clave !== pqrs.estado)
-              // «Cerrado» solo para quien puede cerrar: mejor no ofrecerlo
-              // que dar un 403 al guardar.
-              .filter(([clave]) => clave !== 'cerrado' || alcance?.puede_cerrar)
-              .map(([clave, { label }]) => <option key={clave} value={clave}>{label}</option>)}
-          </select>
-        </Campo>
-        {alcance?.puede_cambiar_area ? (
-          <Campo id="gestion-area" etiqueta="Área responsable" opcional={`hoy: ${pqrs.area_responsable || 'sin asignar'}`}>
-            <select id="gestion-area" value={area} onChange={(e) => setArea(e.target.value)} className={claseCampo}>
-              <option value="">Sin cambio</option>
-              {listaAreas.filter(a => a !== pqrs.area_responsable).map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </Campo>
-        ) : (
-          <p className="text-xs text-texto-2 bg-superficie-2 rounded-lg px-3 py-2 self-end">
-            El área la reparte Servicio al Cliente. Si este caso no es de tu área, escríbelo y ellos lo mueven.
-          </p>
-        )}
-      </div>
+      {/* El estado y el área los mueve quien reparte; los demás dejan aquí
+          su avance y Servicio al Cliente lo lee y actualiza. */}
+      {(alcance?.puede_cambiar_estado || alcance?.puede_cambiar_area) ? (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {alcance?.puede_cambiar_estado && (
+            <Campo id="gestion-estado" etiqueta="Estado" opcional={`hoy: ${ESTADOS[pqrs.estado]?.label}`}>
+              <select id="gestion-estado" value={estado} onChange={(e) => setEstado(e.target.value)} disabled={hayPendiente}
+                      className={`${claseCampo} disabled:bg-superficie-2 disabled:text-texto-3`}>
+                <option value="">{quedaAsignada ? 'Pasa a Asignado (por el cambio de área)' : 'Sin cambio'}</option>
+                {Object.entries(ESTADOS)
+                  .filter(([clave]) => clave !== pqrs.estado)
+                  // «Cerrado» solo para quien puede cerrar: mejor no ofrecerlo
+                  // que dar un 403 al guardar.
+                  .filter(([clave]) => clave !== 'cerrado' || alcance?.puede_cerrar)
+                  .map(([clave, { label }]) => <option key={clave} value={clave}>{label}</option>)}
+              </select>
+            </Campo>
+          )}
+          {alcance?.puede_cambiar_area && (
+            <Campo id="gestion-area" etiqueta="Área responsable" opcional={`hoy: ${pqrs.area_responsable || 'sin asignar'}`}>
+              <select id="gestion-area" value={area} onChange={(e) => setArea(e.target.value)} className={claseCampo}>
+                <option value="">Sin cambio</option>
+                {listaAreas.filter(a => a !== pqrs.area_responsable).map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </Campo>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-texto-2 bg-superficie-2 rounded-lg px-3 py-2">
+          El estado, el área y los conceptos los maneja Servicio al Cliente. Escribe qué hiciste, qué falta o si ya
+          está resuelta, y ellos la mueven.
+        </p>
+      )}
 
       {/* La solución solo aparece al elegir «Resuelto»: es lo que se le manda
           al cliente pidiéndole que confirme, y el servidor la exige. */}
@@ -250,7 +257,7 @@ function ModoAvanzar({ pqrs, alcance, hayPendiente, esperando, puedeResponder, o
           Tiene 3 días hábiles para moverlo; su reloj empieza en cero.
         </Efecto>
       )}
-      {!alcance?.puede_cerrar && (
+      {alcance?.puede_cambiar_estado && !alcance?.puede_cerrar && (
         <p className="text-xs text-texto-3">
           Márcala como <strong>Resuelto</strong> cuando termines: el cierre lo hace Servicio al Cliente, que revisa y clasifica.
         </p>
@@ -581,12 +588,12 @@ export default function GestionarPQRS({
 }) {
   const { data: flujo } = useFlujo(pqrs.id)
   const alcance = pqrs.alcance
-  // Quién pide autorizaciones es regla del rol, igual que antes en la tarjeta.
-  const puedeSolicitar = ['admin', 'lider', 'agente'].includes(user?.rol)
+  // Pedir conceptos es de quien reparte: lo dice el servidor, no el rol.
+  const puedeSolicitar = Boolean(alcance?.puede_pedir_conceptos)
   // Lo que ESTA persona puede firmar ya: el servidor lo dice en cada concepto.
   const porResponder = autorizaciones.filter(a => a.estado === 'pendiente' && a.puede_responder)
   const esperando = autorizaciones.find(a => a.estado === 'pendiente')
-  const modos = modosDeGestion(pqrs, puedeSolicitar, porResponder.length > 0)
+  const modos = modosDeGestion(pqrs, porResponder.length > 0)
   const actual = modoActual(modo, modos)
   const soloLectura = modos.length === 1 && modos[0] === 'clasificar'
 

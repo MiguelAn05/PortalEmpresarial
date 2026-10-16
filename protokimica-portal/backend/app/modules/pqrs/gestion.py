@@ -33,6 +33,7 @@ from app.models.user import User
 from app.modules.pqrs import tiempo_en_area
 from app.modules.pqrs.permisos import (
     CAPACIDAD_GESTION, puede_gestionar_pqrs, obtener_visible, puede_cambiar_area,
+    puede_cambiar_estado,
 )
 from app.modules.pqrs.notificaciones import (
     avisos_reasignacion, avisos_cierre, avisos_resuelta,
@@ -146,6 +147,18 @@ def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
         raise HTTPException(
             status_code=400,
             detail=f"Estado inválido. Usa uno de: {', '.join(ESTADOS_VALIDOS)}.",
+        )
+
+    # El estado lo mueve quien reparte (`permisos.puede_cambiar_estado`). Las
+    # áreas dejan su avance en un comentario.
+    if not puede_cambiar_estado(usuario):
+        quien = capacidades.quienes_lo_hacen(db, usuario.tenant_id, CAPACIDAD_GESTION)
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"El estado de una PQRS lo cambia {quien}. Escribe en el "
+                "comentario qué hiciste o que ya está resuelta, y lo actualizan."
+            ),
         )
 
     # Marcarla "resuelto" sin decir QUÉ se solucionó es la mitad del trabajo:

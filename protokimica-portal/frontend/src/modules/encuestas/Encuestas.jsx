@@ -4,6 +4,7 @@ import { obtenerPanel, listarPlantillas } from "./api"
 import { ESCALA_MAX, NIVELES, formatNota, nivelCalificacion, urlPublica } from "./constants"
 import FormPlantilla from "./components/FormPlantilla"
 import { useAuth } from "../../core/useAuth.js"
+import { useFiltrosEnUrl } from "../../core/useFiltrosEnUrl.js"
 import { puedeEditar } from "../masterPlanner/constants"
 import { IconoEstrella } from '../../core/components/Iconos.jsx'
 
@@ -20,8 +21,10 @@ export default function Encuestas() {
   const { user } = useAuth()
   const editable = puedeEditar(user)
 
-  const [pestana, setPestana] = useState('respuestas')
-  const [origen, setOrigen] = useState('')
+  // En la URL: abrir otro módulo y volver no borra la pestaña ni el origen.
+  const [{ pestana, origen }, cambiar] = useFiltrosEnUrl({ pestana: 'respuestas', origen: '' })
+  const setPestana = (v) => cambiar({ pestana: v })
+  const setOrigen = (v) => cambiar({ origen: v })
   const [editando, setEditando] = useState(null)   // null | 'nueva' | plantilla
 
   const { data: panel, isLoading } = useQuery({

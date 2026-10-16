@@ -113,6 +113,21 @@ export function periodoPorDefecto() {
   return periodoAnterior(hoy.getFullYear(), hoy.getMonth() + 1)
 }
 
+/**
+ * El periodo en la URL: `?periodo=2026-09`. Un texto que no es un mes
+ * (un enlace mal copiado) cae en el último mes cerrado, no en una pantalla
+ * vacía.
+ */
+export function textoDePeriodo({ anio, mes }) {
+  return `${anio}-${String(mes).padStart(2, '0')}`
+}
+
+export function periodoDeTexto(texto) {
+  const m = /^(\d{4})-(\d{2})$/.exec(texto || '')
+  const mes = m ? Number(m[2]) : 0
+  return m && mes >= 1 && mes <= 12 ? { anio: Number(m[1]), mes } : periodoPorDefecto()
+}
+
 // ── Las tres pestañas ─────────────────────────────────────────
 /**
  * El módulo hace tres cosas distintas y cada una necesita su pantalla:

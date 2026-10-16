@@ -1,7 +1,7 @@
 """
 Módulo de autorizaciones.
 - Admin y Líderes pueden crear tipos de autorización
-- Agentes pueden solicitar autorización para una PQRS
+- Quien reparte las PQRS (`pqrs.cerrar`, más admin) pide la autorización
 - Quien pertenece al área autorizadora aprueba, rechaza o DEVUELVE (por
   área, no por cargo)
 - Una PQRS con autorización pendiente queda bloqueada
@@ -48,7 +48,7 @@ from app.modules.autorizaciones.schemas import (
     TipoAutorizacionCreate, TipoAutorizacionOut, AutorizacionOut,
 )
 from app.core import capacidades
-from app.modules.pqrs.permisos import CAPACIDAD_GESTION, obtener_visible
+from app.modules.pqrs.permisos import CAPACIDAD_GESTION, obtener_visible, puede_pedir_conceptos
 from app.core.archivos import guardar_archivo
 from app.core.notificaciones import enviar_avisos
 from app.modules.pqrs import tiempo_en_area
@@ -164,18 +164,29 @@ async def solicitar_autorizacion(
     adjunto: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(solo_lectura_no),
 ):
     """
     Solicita una autorización. La PQRS queda bloqueada y pasa al área que firma.
+
+    La pide quien reparte (`pqrs.permisos.puede_pedir_conceptos`). Antes
+    bastaba el rol, así que cualquier líder o agente movía el caso a otra
+    área pidiendo un concepto que quien reparte no había decidido.
 
     El soporte va adjunto aquí, con la pregunta. Mandarlo por correo aparte
     obligaba a quien firma a buscar en dos sitios lo que necesita para decidir,
     y dejaba la autorización aprobada sin nada que la sustentara para cuando
     alguien la audite.
     """
-    if current_user.rol not in ("admin", "lider", "agente"):
-        raise HTTPException(status_code=403, detail="Sin permisos.")
+    if not puede_pedir_conceptos(current_user):
+        quien = capacidades.quienes_lo_hacen(db, tenant_id, CAPACIDAD_GESTION)
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Los conceptos los pide {quien}. Si este caso necesita uno, "
+                "escríbelo en un comentario de la PQRS y lo piden."
+            ),
+        )
 
     pqrs = obtener_visible(db, tenant_id, pqrs_id, current_user)
 

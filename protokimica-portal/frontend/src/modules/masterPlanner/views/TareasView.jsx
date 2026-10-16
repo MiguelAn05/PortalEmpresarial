@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import KPICards from "../components/KPICards"
 import Filters from "../components/Filters"
@@ -8,14 +8,23 @@ import GanttView from "../components/GanttView"
 import { listarTareas, actualizarTarea } from "../api"
 import { FILTROS_TAREAS_VACIOS, filtrarTareas, puedeEditar } from "../constants"
 import { useAuth } from "../../../core/useAuth.js"
+import { useFiltrosEnUrl } from '../../../core/useFiltrosEnUrl.js'
 
 /** Vista global: todas las tareas de todos los proyectos activos. */
 export default function TareasView({ proyectos, usuarios, onSelectTarea, onNuevaTarea }) {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const editable = puedeEditar(user)
-  const [vista, setVista] = useState("kanban")
-  const [filtros, setFiltros] = useState(FILTROS_TAREAS_VACIOS)
+  // En la URL, con prefijo propio (ver ProyectosView).
+  const [filtrosUrl, cambiarFiltros] = useFiltrosEnUrl({ ...FILTROS_TAREAS_VACIOS, vista: 'kanban' }, { prefijo: 't_' })
+  const vista = filtrosUrl.vista
+  // Solo los filtros: el panel cuenta sus claves para saber si hay alguno puesto.
+  const filtros = useMemo(
+    () => Object.fromEntries(Object.keys(FILTROS_TAREAS_VACIOS).map(k => [k, filtrosUrl[k]])),
+    [filtrosUrl],
+  )
+  const setVista = (v) => cambiarFiltros({ vista: v })
+  const setFiltros = (nuevos) => cambiarFiltros(nuevos)
 
   const { data: tareas = [], isLoading, isError } = useQuery({
     queryKey: ["mp-tareas"],

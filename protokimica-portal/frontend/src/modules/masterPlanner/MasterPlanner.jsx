@@ -9,6 +9,7 @@ import CalendarioView from "./views/CalendarioView"
 import ActividadesView from "./views/ActividadesView"
 import TareaDetailModal from "./components/TareaDetailModal"
 import { useAbrirDesdeUrl } from "../../core/abrirDesdeUrl.js"
+import { useFiltrosEnUrl } from "../../core/useFiltrosEnUrl.js"
 import ProyectoFormModal from "./components/ProyectoFormModal"
 import TareaFormModal from "./components/TareaFormModal"
 import { listarProyectos, listarUsuariosAsignables } from "./api"
@@ -28,7 +29,10 @@ import { useAuth } from "../../core/useAuth.js"
 export default function MasterPlanner() {
   const { user } = useAuth()
   const editable = puedeEditar(user)
-  const [vista, setVista] = useState("resumen")
+  // La pestaña va en la URL, como los filtros de cada vista: abrir otro
+  // módulo y volver deja a la persona donde estaba.
+  const [{ vista }, cambiarVistaUrl] = useFiltrosEnUrl({ vista: "resumen" })
+  const setVista = useCallback((v) => cambiarVistaUrl({ vista: v }), [cambiarVistaUrl])
   const [proyectoAbierto, setProyectoAbierto] = useState(null)
   const [tareaSeleccionadaId, setTareaSeleccionadaId] = useState(null)
   const [proyectoEnEdicion, setProyectoEnEdicion] = useState(null)
@@ -40,7 +44,7 @@ export default function MasterPlanner() {
   const abrirTareaDeUrl = useCallback((id) => {
     setTareaSeleccionadaId(id)
     setVista("tareas")   // al cerrar el modal queda en la lista, no en el resumen
-  }, [])
+  }, [setVista])
   const { limpiar: limpiarTareaDeUrl } = useAbrirDesdeUrl("tarea", abrirTareaDeUrl)
 
   // Y `?proyecto=7` abre la ficha del proyecto, que es como se entra desde
@@ -48,7 +52,7 @@ export default function MasterPlanner() {
   const abrirProyectoDeUrl = useCallback((id) => {
     setProyectoAbierto(id)
     setVista("proyectos")
-  }, [])
+  }, [setVista])
   useAbrirDesdeUrl("proyecto", abrirProyectoDeUrl)
 
   const cerrarTarea = () => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from './api.js'
+import { olvidarFiltros } from './filtrosEnUrl.js'
 import {
   actualizarUsuarioGuardado, guardarSesion, limpiarSesion, usuarioGuardado,
 } from './sesion.js'
@@ -37,6 +38,8 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     limpiarSesion()
+    // Quien entre después en esta pestaña no hereda los filtros del anterior.
+    olvidarFiltros()
     setUser(null)
   }
 

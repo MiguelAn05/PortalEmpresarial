@@ -7,7 +7,8 @@ Lo que se defiende aquí:
     texto de la persona escrito una sola vez;
   - ese evento se sigue llamando `cambio_estado`, que es de donde sale el
     historial que ve el cliente;
-  - el área la reparte Servicio al Cliente, no cualquiera;
+  - el área, el estado y los conceptos los maneja quien reparte
+    (Servicio al Cliente); las demás áreas comentan;
   - pedir una autorización mueve el caso al área que firma, y responderla lo
     devuelve a Servicio al Cliente;
   - el `alcance` que viaja con el detalle dice la verdad sobre lo que el
@@ -242,6 +243,8 @@ def test_el_agente_ve_el_area_aunque_no_pueda_moverla(entorno, v):
     alcance = detalle["alcance"]
     v.check("puede gestionar", alcance["puede_gestionar"] is True, alcance)
     v.check("pero no mover el área", alcance["puede_cambiar_area"] is False, alcance)
+    v.check("ni el estado", alcance["puede_cambiar_estado"] is False, alcance)
+    v.check("ni pedir conceptos", alcance["puede_pedir_conceptos"] is False, alcance)
     v.check("ni cerrar", alcance["puede_cerrar"] is False, alcance)
 
 
@@ -253,6 +256,8 @@ def test_el_alcance_de_servicio_al_cliente(entorno, v):
     portal.como("calidad")
     alcance = portal.get(f"/pqrs/{pid}").json()["alcance"]
     v.check("mueve el área", alcance["puede_cambiar_area"] is True, alcance)
+    v.check("mueve el estado", alcance["puede_cambiar_estado"] is True, alcance)
+    v.check("pide conceptos", alcance["puede_pedir_conceptos"] is True, alcance)
     v.check("cierra", alcance["puede_cerrar"] is True, alcance)
     v.check("y reclasifica", alcance["puede_reclasificar"] is True, alcance)
 
@@ -268,6 +273,57 @@ def test_gerencia_no_gestiona_nada(entorno, v):
     v.check("no mueve el área", alcance["puede_cambiar_area"] is False, alcance)
 
 
+def test_un_agente_no_mueve_el_estado_pero_comenta(entorno, v):
+    """
+    Hasta la 0.55.0 cualquier líder o agente pasaba una PQRS ajena a «en
+    proceso» o «resuelto» —y «resuelto» le escribe al cliente—. El estado lo
+    mueve quien reparte; las áreas dejan su avance en un comentario.
+    """
+    portal = entorno
+    pid = _crear_pqrs(portal, area="Logística", estado="asignado")
+
+    portal.como("logistica")
+    r = portal.patch(f"/pqrs/{pid}/gestion", data={"estado": "en_proceso"})
+    v.check("no puede -> 403", r.status_code == 403, r.status_code)
+    v.check("y le dice qué hacer en su lugar",
+            "comentario" in r.json().get("detail", "").lower(), r.json())
+    r = portal.patch(f"/pqrs/{pid}/gestion",
+                     data={"estado": "resuelto", "solucion": "Se cambió el producto."})
+    v.check("tampoco resolver", r.status_code == 403, r.status_code)
+    v.check("el estado no cambió", portal.get(f"/pqrs/{pid}").json()["estado"] == "asignado")
+
+    r = portal.patch(f"/pqrs/{pid}/gestion", data={"comentario": "Ya revisé el lote, está bien."})
+    v.check("pero sí comenta", r.status_code == 200, r.text[:200])
+
+
+def test_un_agente_no_pide_conceptos(entorno, v):
+    """
+    Pedir un concepto mueve el caso al área que firma y congela el estado:
+    desde cualquier área era mover el caso sin que quien reparte lo decidiera.
+    """
+    portal = entorno
+    pid = _crear_pqrs(portal, area="Logística", estado="en_proceso")
+    tid = _crear_tipo(portal, area_autorizadora="Calidad")
+
+    portal.como("logistica")
+    r = portal.post(f"/autorizaciones/pqrs/{pid}/solicitar", data={"tipo_id": tid})
+    v.check("no puede -> 403", r.status_code == 403, r.status_code)
+    v.check("y dice quién lo pide y qué hacer",
+            AREA_SC in r.json().get("detail", "") and "comentario" in r.json()["detail"], r.json())
+    v.check("la PQRS no se movió", portal.get(f"/pqrs/{pid}").json()["area_responsable"] == "Logística")
+
+
+def test_un_agente_no_asigna_la_pqrs_a_una_persona(entorno, v):
+    """Darle el caso a alguien es repartir, igual que moverle el área."""
+    portal = entorno
+    pid = _crear_pqrs(portal, area="Logística", estado="recibido")
+
+    portal.como("logistica")
+    r = portal.patch(f"/pqrs/{pid}/asignar", json={"usuario_id": portal.ids["logistica"]})
+    v.check("no puede -> 403", r.status_code == 403, r.status_code)
+    v.check("sigue recibida", portal.get(f"/pqrs/{pid}").json()["estado"] == "recibido")
+
+
 # ── El área viaja con la autorización ────────────────────────────────────
 
 def test_pedir_autorizacion_mueve_la_pqrs_al_area_que_firma(entorno, v):
@@ -280,7 +336,7 @@ def test_pedir_autorizacion_mueve_la_pqrs_al_area_que_firma(entorno, v):
     pid = _crear_pqrs(portal, area="Logística", estado="en_proceso")
     tid = _crear_tipo(portal, area_autorizadora="Calidad")
 
-    portal.como("logistica")
+    portal.como("admin")      # quien reparte pide el concepto
     r = portal.post(f"/autorizaciones/pqrs/{pid}/solicitar",
                     data={"tipo_id": tid, "comentario_solicitud": "Va nota crédito"})
     v.check("se solicita", r.status_code == 201, r.text[:250])
@@ -298,7 +354,7 @@ def test_responder_la_devuelve_a_servicio_al_cliente(entorno, v):
     pid = _crear_pqrs(portal, area="Logística", estado="en_proceso")
     tid = _crear_tipo(portal, area_autorizadora="Calidad")
 
-    portal.como("logistica")
+    portal.como("admin")      # quien reparte pide el concepto
     aut_id = portal.post(f"/autorizaciones/pqrs/{pid}/solicitar",
                          data={"tipo_id": tid}).json()["id"]
 
@@ -324,7 +380,7 @@ def test_el_soporte_se_adjunta_a_la_solicitud(entorno, v):
     pid = _crear_pqrs(portal, estado="en_proceso")
     tid = _crear_tipo(portal, area_autorizadora="Calidad")
 
-    portal.como("logistica")
+    portal.como("admin")      # quien reparte pide el concepto
     r = portal.post(
         f"/autorizaciones/pqrs/{pid}/solicitar",
         data={"tipo_id": tid, "comentario_solicitud": "Adjunto la factura"},
@@ -474,7 +530,7 @@ def test_un_area_sin_gente_no_revienta_la_solicitud(entorno, v):
     pid = _crear_pqrs(portal, estado="en_proceso")
     tid = _crear_tipo(portal, area_autorizadora="Tesorería")   # nadie en esa área
 
-    portal.como("logistica")
+    portal.como("admin")      # quien reparte pide el concepto
     r = portal.post(f"/autorizaciones/pqrs/{pid}/solicitar", data={"tipo_id": tid})
     v.check("se solicita igual", r.status_code == 201, r.text[:250])
     v.check("y la PQRS quedó en Tesorería",

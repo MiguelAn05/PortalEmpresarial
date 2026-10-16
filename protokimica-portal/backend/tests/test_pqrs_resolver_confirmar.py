@@ -69,7 +69,7 @@ def test_sin_solucion_no_pasa_a_resuelto(entorno, v):
     portal = entorno
     pid = _crear_pqrs(portal)
 
-    portal.como("logistica")
+    portal.como("admin")
     r = portal.patch(f"/pqrs/{pid}/gestion", data={"estado": "resuelto"})
     v.check("no entra", r.status_code == 400, r.status_code)
     v.check("el mensaje dice qué hacer",
@@ -82,7 +82,7 @@ def test_solo_espacios_tampoco_cuenta(entorno, v):
     portal = entorno
     pid = _crear_pqrs(portal)
 
-    portal.como("logistica")
+    portal.como("admin")
     r = portal.patch(f"/pqrs/{pid}/gestion", data={"estado": "resuelto", "solucion": "   "})
     v.check("no entra", r.status_code == 400, r.status_code)
 
@@ -91,7 +91,7 @@ def test_con_solucion_si_pasa_y_arranca_el_plazo(entorno, v):
     portal = entorno
     pid = _crear_pqrs(portal)
 
-    portal.como("logistica")
+    portal.como("admin")
     r = portal.patch(f"/pqrs/{pid}/gestion",
                      data={"estado": "resuelto", "solucion": "Se cambió el producto."})
     v.check("se registra", r.status_code == 200, r.text[:200])
@@ -109,7 +109,7 @@ def test_varios_adjuntos_quedan_todos_asociados(entorno, v):
     portal = entorno
     pid = _crear_pqrs(portal)
 
-    portal.como("logistica")
+    portal.como("admin")
     # Varios archivos bajo la misma llave: hay que armar el multipart a mano,
     # `data=` solo alcanza para un valor por campo.
     import io
@@ -137,7 +137,7 @@ def test_reabrir_borra_fecha_resuelto(entorno, v):
     portal = entorno
     pid = _crear_pqrs(portal)
 
-    portal.como("logistica")
+    portal.como("admin")
     portal.patch(f"/pqrs/{pid}/gestion", data={"estado": "resuelto", "solucion": "x"})
     v.check("tiene fecha_resuelto", _detalle(portal, pid)["fecha_resuelto"] is not None)
 
@@ -192,7 +192,7 @@ def test_confirmar_codigo_inexistente_da_404(entorno, v):
 def test_confirmar_disponible_trae_la_solucion(entorno, v):
     portal = entorno
     pid = _crear_pqrs(portal)
-    portal.como("logistica")
+    portal.como("admin")
     portal.patch(f"/pqrs/{pid}/gestion",
                 data={"estado": "resuelto", "solucion": "Cambiamos el lote."})
 
@@ -211,7 +211,7 @@ def test_confirmar_disponible_trae_la_solucion(entorno, v):
 def test_confirmar_que_si_cierra_la_pqrs(entorno, v):
     portal = entorno
     pid = _crear_pqrs(portal)
-    portal.como("logistica")
+    portal.como("admin")
     portal.patch(f"/pqrs/{pid}/gestion", data={"estado": "resuelto", "solucion": "x"})
 
     db = portal.Session()
@@ -238,7 +238,7 @@ def test_confirmar_que_si_cierra_la_pqrs(entorno, v):
 def test_rechazar_sin_comentario_no_pasa(entorno, v):
     portal = entorno
     pid = _crear_pqrs(portal)
-    portal.como("logistica")
+    portal.como("admin")
     portal.patch(f"/pqrs/{pid}/gestion", data={"estado": "resuelto", "solucion": "x"})
 
     db = portal.Session()
@@ -254,7 +254,7 @@ def test_rechazar_sin_comentario_no_pasa(entorno, v):
 def test_rechazar_reabre_con_el_comentario_del_cliente(entorno, v):
     portal = entorno
     pid = _crear_pqrs(portal, area="Logística")
-    portal.como("logistica")
+    portal.como("admin")
     portal.patch(f"/pqrs/{pid}/gestion", data={"estado": "resuelto", "solucion": "x"})
 
     db = portal.Session()

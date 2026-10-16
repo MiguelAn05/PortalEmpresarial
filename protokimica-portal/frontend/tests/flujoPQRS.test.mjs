@@ -95,15 +95,15 @@ check('sin flujo, nada', resumenCadena('sin_flujo', []) === null && resumenCaden
 
 console.log('\n== El panel Gestionar ==')
 const conAlcance = (estado, alcance) => ({ estado, alcance })
-const reparte = { puede_gestionar: true, puede_reclasificar: true, puede_marcar_causa: true }
+const reparte = { puede_gestionar: true, puede_cambiar_estado: true, puede_pedir_conceptos: true, puede_reclasificar: true, puede_marcar_causa: true }
 const agente = { puede_gestionar: true }
 const lectura = { puede_gestionar: false }
 check('quien reparte ve tres modos (Comentar ya es parte de Avanzar)',
-  JSON.stringify(modosDeGestion(conAlcance('asignado', reparte), true)) === JSON.stringify(['avanzar', 'conceptos', 'clasificar']))
+  JSON.stringify(modosDeGestion(conAlcance('asignado', reparte))) === JSON.stringify(['avanzar', 'conceptos', 'clasificar']))
 check('si le toca firmar, «Responder concepto» va PRIMERO',
-  modosDeGestion(conAlcance('asignado', reparte), true, true)[0] === 'responder')
+  modosDeGestion(conAlcance('asignado', reparte), true)[0] === 'responder')
 check('con la PQRS cerrada no hay nada que responder',
-  !modosDeGestion(conAlcance('cerrado', reparte), true, true).includes('responder'))
+  !modosDeGestion(conAlcance('cerrado', reparte), true).includes('responder'))
 const modos = ['responder', 'avanzar', 'conceptos', 'clasificar']
 check('sin modo elegido abre en el primero', modoActual(null, modos) === 'responder')
 check('el elegido, si existe', modoActual('clasificar', modos) === 'clasificar')
@@ -123,11 +123,12 @@ const GESTION_PY = readFileSync(new URL('../../backend/app/modules/pqrs/gestion.
 check('los estados son los mismos del servidor',
   JSON.stringify(tupla(GESTION_PY, 'ESTADOS_QUE_PASAN_A_ASIGNADO')) === JSON.stringify(ESTADOS_QUE_PASAN_A_ASIGNADO),
   tupla(GESTION_PY, 'ESTADOS_QUE_PASAN_A_ASIGNADO'))
-check('un agente pide conceptos por su rol', modosDeGestion(conAlcance('asignado', agente), true).includes('conceptos'))
-check('sin pedir ni repartir, no hay modo conceptos', !modosDeGestion(conAlcance('asignado', agente), false).includes('conceptos'))
-check('lectura solo ve la clasificación', JSON.stringify(modosDeGestion(conAlcance('asignado', lectura), false)) === '["clasificar"]')
+check('un agente NO pide conceptos: es de quien reparte', !modosDeGestion(conAlcance('asignado', agente)).includes('conceptos'))
+check('un agente comenta en Avanzar', modosDeGestion(conAlcance('asignado', agente)).includes('avanzar'))
+check('un agente que firma un concepto lo responde', modosDeGestion(conAlcance('asignado', agente), true)[0] === 'responder')
+check('lectura solo ve la clasificación', JSON.stringify(modosDeGestion(conAlcance('asignado', lectura))) === '["clasificar"]')
 check('cerrada: solo clasificar (la causa se corrige después)',
-  JSON.stringify(modosDeGestion(conAlcance('cerrado', reparte), true)) === '["clasificar"]')
+  JSON.stringify(modosDeGestion(conAlcance('cerrado', reparte))) === '["clasificar"]')
 check('cada modo tiene nombre', modosDeGestion(conAlcance('asignado', reparte), true).every(m => MODOS_GESTION[m]?.label))
 
 console.log('\n== Para cerrar ==')

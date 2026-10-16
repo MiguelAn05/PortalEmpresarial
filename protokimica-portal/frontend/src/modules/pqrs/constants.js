@@ -392,6 +392,17 @@ export const VISTAS = [
   { clave: 'todas', label: 'Todas', cumple: () => true },
 ]
 
+/**
+ * Los filtros de la lista y su valor por defecto. Viven en la URL
+ * (`core/useFiltrosEnUrl.js`) con estos nombres: son lo que se ve en
+ * `/pqrs?vista=cerradas&area=Calidad`, así que cambiar uno rompe los enlaces
+ * que alguien ya haya copiado.
+ */
+export const FILTROS_LISTA = {
+  vista: 'abiertas', foco: '', busqueda: '', area: '', tipo: '',
+  estado: '', punto: '', asociado: '', desde: '', hasta: '',
+}
+
 export function cumpleVista(pqrs, clave, contexto = {}) {
   const vista = VISTAS.find(v => v.clave === clave)
   return vista ? vista.cumple(pqrs, contexto) : true
@@ -535,8 +546,13 @@ export const MODOS_GESTION = {
 /**
  * Qué modos ve esta persona en esta PQRS, en orden. Los permisos llegan
  * resueltos del servidor: `alcance` en la PQRS y `puede_responder` en cada
- * concepto. `puedeSolicitar` es si su rol pide autorizaciones.
+ * concepto.
  *
+ * - **Conceptos es de quien reparte** (`alcance.puede_pedir_conceptos`).
+ *   Hasta la 0.55.0 bastaba el rol, y cualquier líder o agente pedía un
+ *   concepto y movía el caso a otra área.
+ * - **Avanzar** lo ve quien escribe, pero solo quien reparte cambia el
+ *   estado ahí (`alcance.puede_cambiar_estado`); los demás comentan.
  * - **Responder concepto va PRIMERO** cuando hay uno pendiente que esta
  *   persona puede firmar: es lo que más se hace, y con la respuesta abajo en
  *   otra tarjeta la gente escribía en «Avanzar», guardaba un comentario y la
@@ -544,13 +560,13 @@ export const MODOS_GESTION = {
  * - Clasificar siempre está —quien no puede marcar la causa la ve— y es lo
  *   único que queda con la PQRS cerrada: la causa se corrige después.
  */
-export function modosDeGestion(pqrs, puedeSolicitar, puedeResponder = false) {
+export function modosDeGestion(pqrs, puedeResponder = false) {
   const alcance = pqrs.alcance || {}
   const abierta = pqrs.estado !== 'cerrado'
   const modos = []
   if (puedeResponder && abierta) modos.push('responder')
   if (alcance.puede_gestionar && abierta) modos.push('avanzar')
-  if (abierta && (puedeSolicitar || alcance.puede_reclasificar)) modos.push('conceptos')
+  if (abierta && alcance.puede_pedir_conceptos) modos.push('conceptos')
   modos.push('clasificar')
   return modos
 }

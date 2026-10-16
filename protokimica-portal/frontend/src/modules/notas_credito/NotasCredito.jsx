@@ -15,6 +15,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../core/api.js'
 import { puedeVerModulo } from '../../core/modulos.js'
 import { useAuth } from '../../core/useAuth.js'
+import { useFiltrosEnUrl } from '../../core/useFiltrosEnUrl.js'
 import { nombresDe, useCanales } from '../../core/canales.js'
 import { nombresDeBodegas, useBodegas } from '../../core/bodegas.js'
 import {
@@ -469,7 +470,9 @@ export default function NotasCredito() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const [modal, setModal] = useState(false)
-  const [filtro, setFiltro] = useState('')
+  // En la URL: abrir otro módulo y volver no borra el filtro.
+  const [{ estado: filtro }, cambiarFiltro] = useFiltrosEnUrl({ estado: '' })
+  const setFiltro = (estado) => cambiarFiltro({ estado })
 
   const { data: solicitudes = [], isLoading } = useQuery({
     queryKey: ['notas-credito', filtro],

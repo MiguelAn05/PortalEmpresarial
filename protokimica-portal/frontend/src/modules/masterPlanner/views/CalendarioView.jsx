@@ -4,6 +4,7 @@ import CalendarioTareas from "../components/CalendarioTareas"
 import { listarTareas, listarEventosOutlook } from "../api"
 import { ESTADOS_TAREA, filtrarTareas } from "../constants"
 import { useAreas } from '../../../core/areas.js'
+import { useFiltrosEnUrl } from '../../../core/useFiltrosEnUrl.js'
 
 // Se pide una ventana amplia de una sola vez (mes anterior y tres
 // siguientes) en vez de recargar cada vez que alguien pasa de mes: moverse
@@ -40,8 +41,16 @@ const FILTROS_VACIOS = { busqueda: "", proyecto_id: "", asignado_a: "", area: ""
 
 export default function CalendarioView({ proyectos, usuarios, onSelectTarea }) {
   const listaAreas = useAreas()
-  const [filtros, setFiltros] = useState(FILTROS_VACIOS)
-  const [ocultarCompletadas, setOcultarCompletadas] = useState(false)
+  // En la URL, con prefijo propio (ver ProyectosView).
+  const [filtrosUrl, cambiarFiltros] = useFiltrosEnUrl({ ...FILTROS_VACIOS, ocultar: '' }, { prefijo: 'c_' })
+  const ocultar = filtrosUrl.ocultar
+  const filtros = useMemo(
+    () => Object.fromEntries(Object.keys(FILTROS_VACIOS).map(k => [k, filtrosUrl[k]])),
+    [filtrosUrl],
+  )
+  const setFiltros = (nuevos) => cambiarFiltros(nuevos)
+  const ocultarCompletadas = ocultar === 'si'
+  const setOcultarCompletadas = (si) => cambiarFiltros({ ocultar: si ? 'si' : '' })
   const [verOutlook, setVerOutlook] = useState(true)
   const ventana = useMemo(() => ventanaConsulta(), [])
 

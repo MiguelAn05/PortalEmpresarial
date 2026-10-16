@@ -1,17 +1,18 @@
-import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import TarjetasKPI from "../../../core/components/TarjetasKPI.jsx"
 import HistorialPanel from "../components/HistorialPanel"
 import { obtenerResumen, listarHistorialGeneral } from "../api"
 import { SALUD, TONOS, lecturaAvancePlazo, formatFecha, formatMoneda } from "../constants"
 import { IconoAlerta } from '../../../core/components/Iconos.jsx'
+import { useFiltrosEnUrl } from '../../../core/useFiltrosEnUrl.js'
 
 /**
  * Vista para gerencia: los números primero. Todo llega ya calculado del
  * endpoint /resumen — el frontend no recalcula nada, solo lo presenta.
  */
 export default function ResumenView({ onAbrirProyecto }) {
-  const [area, setArea] = useState("")
+  const [{ area }, cambiar] = useFiltrosEnUrl({ area: "" }, { prefijo: "r_" })
+  const setArea = (v) => cambiar({ area: v })
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["mp-resumen", area],

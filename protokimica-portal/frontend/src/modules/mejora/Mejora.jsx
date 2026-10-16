@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../core/useAuth.js'
 import { useAreas } from '../../core/areas.js'
+import { useFiltrosEnUrl } from '../../core/useFiltrosEnUrl.js'
 import {
   IconoAlerta, IconoBuscar, IconoIdea, IconoPersonas, IconoReloj,
 } from '../../core/components/Iconos.jsx'
@@ -88,8 +89,12 @@ function Fila({ omp, onAbrir, usuarioId }) {
 export default function Mejora() {
   const listaAreas = useAreas()
   const { user } = useAuth()
-  const [filtros, setFiltros] = useState({ estado: '', area: '', texto: '' })
-  const [verCerradas, setVerCerradas] = useState(false)
+  // En la URL: abrir otro módulo y volver no borra los filtros.
+  const [filtrosUrl, cambiarFiltros] = useFiltrosEnUrl({ estado: '', area: '', texto: '', cerradas: '' })
+  const filtros = filtrosUrl
+  const setFiltros = ({ estado, area, texto }) => cambiarFiltros({ estado, area, texto })
+  const verCerradas = filtrosUrl.cerradas === 'si'
+  const setVerCerradas = (si) => cambiarFiltros({ cerradas: si ? 'si' : '' })
   const [abierta, setAbierta] = useState(null)
   const [creando, setCreando] = useState(false)
 

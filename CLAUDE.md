@@ -305,6 +305,19 @@ capacidad reparte el área de los casos, recibe el aviso de cada PQRS nueva y
 es a quien vuelve una PQRS cuando se responde una autorización (el área que
 la tiene hace más tiempo, `capacidades.area_principal`). Ver
 `modules/pqrs/permisos.py` y «Permisos: por área, no por cargo».
+
+**PQRS — el estado y los conceptos también son de quien reparte** (desde
+la 0.55.1). Mover el estado a mano (`puede_cambiar_estado`), pedir un
+concepto (`puede_pedir_conceptos`) y asignar a una persona (`/asignar`) son
+de `pqrs.cerrar`, más `admin`, como mover el área. Hasta la 0.55.0 bastaba el
+rol: cualquier líder o agente pasaba una PQRS ajena a «resuelto» —que le
+escribe al cliente— o pedía un concepto que movía el caso a otra área. El
+rediseño del detalle no lo causó, pero lo dejó a la vista de todos. Las
+demás áreas **comentan, adjuntan evidencia y responden los conceptos de su
+área**; en «Avanzar» ven solo eso y el modo «Conceptos» no les aparece. Lo
+que mueve el propio portal (asignar un área, pedir y responder conceptos, el
+cliente al confirmar, el cierre automático) no pasa por estas reglas.
+
 El tipo (petición/queja/reclamo/…) se corrige **antes de cerrar**: el cliente
 casi nunca acierta al radicar y esa clasificación alimenta los indicadores.
 Al reclasificar se recalcula el SLA **desde la radicación** y la prioridad se
@@ -1153,6 +1166,27 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
 - Radios: `rounded-md` en badges, `rounded-lg` en controles, `rounded-xl` en
   tarjetas. Espaciado en la escala de 4 (`gap-2`/`gap-3` dentro de un bloque,
   `gap-6` entre bloques).
+- **Los filtros de una lista van en la URL, nunca solo en `useState`**
+  (`useFiltrosEnUrl` de `core/useFiltrosEnUrl.js`; la regla, sin React, en
+  `core/filtrosEnUrl.js`). En `useState` vivían en la memoria de la
+  pantalla: abrir el detalle de una PQRS la desmontaba, y volver obligaba a
+  poner otra vez «Cerradas», el área y la fecha — en todo el portal. En la
+  URL (`/pqrs?vista=cerradas`) los conservan «atrás», F5 y un enlace
+  copiado, y `sessionStorage` los recuerda por ruta para cuando se vuelve
+  por el menú. Reglas:
+  - Solo se escribe lo que difiere del valor por defecto, con `replace`:
+    cada letra del buscador no es una entrada del historial.
+  - Los valores son texto; un booleano es `'si'`/`''`.
+  - **Dos listas en la misma ruta llevan `prefijo`** (las vistas de Master
+    Planner: `p_`, `t_`, `c_`, `r_`), o se pisan el `estado`.
+  - Los nombres de los parámetros son parte de enlaces que alguien ya copió:
+    no se renombran a la ligera.
+  - «Limpiar» borra también lo guardado, y cerrar sesión lo olvida todo
+    (`olvidarFiltros`).
+  - `tests/filtrosEnUrl.test.mjs` tiene la lista de pantallas que deben
+    usarlo; una lista nueva con filtros se agrega ahí.
+  - Lo que NO es un filtro se queda en `useState`: modales abiertos, lo
+    escrito en un formulario, el detalle de proyecto de Master Planner.
 - Formularios en modal: usar `useCierreSeguro` de
   `core/components/cierreSeguro.jsx` para que un clic fuera no borre lo escrito.
 - **Esperar tiene cuatro capas, y cada una es para un momento distinto**

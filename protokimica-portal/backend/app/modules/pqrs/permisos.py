@@ -69,6 +69,36 @@ def puede_cambiar_area(usuario: User) -> bool:
     return puede_gestionar_pqrs(usuario)
 
 
+def puede_cambiar_estado(usuario: User) -> bool:
+    """
+    Quién mueve el estado a mano: también quien reparte, más admin.
+
+    Hasta la 0.55.0 cualquier líder o agente podía pasar una PQRS a «en
+    proceso» o a «resuelto» —y «resuelto» le escribe al cliente—, aunque el
+    caso no fuera de su área. El rediseño del detalle lo dejó a la vista de
+    todos y se notó. Las áreas comentan, adjuntan y responden sus conceptos;
+    quien reparte lee eso y mueve el estado.
+
+    Los cambios que hace el propio portal no pasan por aquí: asignar un área,
+    pedir o responder un concepto, la confirmación del cliente y el cierre
+    automático.
+    """
+    return puede_gestionar_pqrs(usuario)
+
+
+def puede_pedir_conceptos(usuario: User) -> bool:
+    """
+    Quién pide un concepto (autorización): quien reparte, más admin.
+
+    El análisis del flujo real lo mostró: cada concepto sale de Servicio al
+    Cliente y vuelve ahí. Pedirlo mueve la PQRS al área que firma y congela el
+    estado, así que pedirlo desde cualquier área era mover el caso sin que
+    quien reparte lo decidiera. Si un área necesita otro concepto, lo escribe
+    en un comentario.
+    """
+    return puede_gestionar_pqrs(usuario)
+
+
 # ── Qué PQRS ve cada quien ─────────────────────────────────────────────
 #
 # Todo el portal ve todas las PQRS, MENOS el área «Puntos de Venta». A una

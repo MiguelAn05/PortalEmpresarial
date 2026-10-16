@@ -25,7 +25,7 @@ from app.modules.pqrs.schemas import (
 )
 from app.modules.pqrs.permisos import (
     solo_gestion_pqrs, puede_gestionar_pqrs, puede_cambiar_area,
-    filtrar_visibles, obtener_visible, puntos_visibles, area_de_entrada,
+    puede_cambiar_estado, puede_pedir_conceptos, filtrar_visibles, obtener_visible, puntos_visibles, area_de_entrada,
 )
 from app.modules.pqrs import asociados, edicion, informe, pendientes, tiempo_en_area
 from app.modules.pqrs.permisos import CAPACIDAD_GESTION
@@ -319,6 +319,8 @@ def obtener_pqrs(
     detalle.alcance = AlcancePQRS(
         puede_gestionar=escribe,
         puede_cambiar_area=escribe and puede_cambiar_area(current_user),
+        puede_cambiar_estado=escribe and puede_cambiar_estado(current_user),
+        puede_pedir_conceptos=escribe and puede_pedir_conceptos(current_user),
         puede_cerrar=escribe and servicio_cliente,
         puede_reclasificar=escribe and servicio_cliente,
         puede_editar_datos=escribe and solicitud.estado != "cerrado",
@@ -341,6 +343,13 @@ def asignar_pqrs(
     current_user: User = Depends(get_current_user),
     _: User = Depends(solo_lectura_no),
 ):
+    # Darle el caso a una persona es repartir, igual que moverle el área.
+    if not puede_cambiar_area(current_user):
+        quien = capacidades.quienes_lo_hacen(db, tenant_id, CAPACIDAD_GESTION)
+        raise HTTPException(
+            status_code=403,
+            detail=f"Las PQRS las reparte {quien}. Pídeles que se la asignen a quien corresponde.",
+        )
     solicitud = obtener_visible(db, tenant_id, pqrs_id, current_user)
 
     solicitud.asignado_a = payload.usuario_id
