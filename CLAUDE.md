@@ -181,8 +181,9 @@ que el historial no termine siendo un `git log`.
   - **Lo que un módulo le aporta a otro lo declara en su propio paquete**,
     con nombre fijo, y el otro lo reúne con `core/registro.py`:
     `fuentes_indicador.py` (fuentes automáticas para Indicadores), `inicio.py`
-    (sus tarjetas y cifras de Inicio) y `origen_encuesta.py` (respuestas que
-    muestra Encuestas). Antes Indicadores importaba las tablas de cuatro
+    (sus tarjetas y cifras de Inicio), `origen_encuesta.py` (respuestas que
+    muestra Encuestas) y `origen_omp.py` (registros de los que nace una
+    OMP). Antes Indicadores importaba las tablas de cuatro
     módulos, Inicio las de tres y Encuestas la de PQRS.
   `tests/test_modularidad.py` falla ante cualquier dependencia que no esté en
   su `DEPENDENCIAS_PERMITIDAS`, que hoy son solo las de un mismo paquete de
@@ -362,7 +363,18 @@ se edita en Administración y no se borra: se desactiva). La PQRS guarda
 - **«En proceso» y «Anulada» no son causas** y no están en el catálogo: la
   primera es dejarlo vacío, la segunda no es un motivo.
 - El `codigo` NO es único (el formato repite `ME` y `N`): la identidad es el
-  id. Es también la base para enrutar las PQRS automáticamente más adelante.
+  id.
+- **«Puede volverse OMP» (`sugiere_omp`) abre la puerta a Mejora** (desde la
+  0.57). La casilla existió desde que llegó el catálogo y nada la leía. Con
+  ella marcada en la causa, el detalle muestra «Abrir OMP» a quien abre
+  Mejora (admin y líderes) y lleva a `/mejora?desde=pqrs&desde_id=N`, donde
+  el formulario arranca con la propuesta de `GET /mejora/desde/pqrs/{id}`:
+  radicado, descripción y el área **causante** (la que tiene que cambiar
+  algo), más las OMP que ya nacieron de esa PQRS, para no abrir dos. Mejora
+  no importa PQRS: lo lee por el contrato `core/origenes_omp.py`, que PQRS
+  cumple en `pqrs/origen_omp.py` con `obtener_visible` (una sede no abre OMP
+  de lo que no ve). Al crear, `pqrs_id` se valida por ese mismo contrato: la
+  llave foránea solo dice que existe, no que sea de la empresa. Es también la base para enrutar las PQRS automáticamente más adelante.
 
 **PQRS — el informe gerencial** (`/pqrs/informe`, botón «Generar
 informe»). Lo calcula `modules/pqrs/informe.py` y la pantalla

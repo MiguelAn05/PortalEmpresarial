@@ -20,13 +20,14 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/useAuth.js'
+import { puedeVerModulo } from '../../core/modulos.js'
 import api from '../../core/api.js'
 import { Esqueleto } from '../../core/components/Cargando.jsx'
 import Boton from '../../core/components/Boton.jsx'
 import {
   IconoAlDia, IconoAlerta, IconoBuscar, IconoCandado, IconoCheck, IconoClip,
   IconoComentario, IconoEditar, IconoEmpresa, IconoEscalar, IconoEstrella,
-  IconoEtiqueta, IconoRecargar, IconoRecibo, IconoReloj, IconoUsuario,
+  IconoEtiqueta, IconoIdea, IconoRecargar, IconoRecibo, IconoReloj, IconoUsuario,
 } from '../../core/components/Iconos.jsx'
 import {
   DESTINO_REQUISITO, ESTADOS, FILTROS_HISTORIAL, PRIORIDADES, TIPOS,
@@ -121,6 +122,28 @@ function LineaDeVida({ pqrs, autorizaciones }) {
 }
 
 // ── Para cerrar ───────────────────────────────────────────────────
+
+/**
+ * La causa marcada pide una OMP («Asociado a» con «puede volverse OMP»): se
+ * dice aquí, donde se está mirando el caso, y se abre en Mejora con lo que
+ * ya se sabe. Solo para quien abre Mejora (admin y líderes); el formulario
+ * de allá avisa si este caso ya tiene una.
+ */
+function SugiereOmp({ pqrs, onAbrir }) {
+  return (
+    <section aria-label="Sugiere una OMP"
+             className="flex flex-wrap items-center gap-3 bg-superficie rounded-xl border border-borde border-l-[3px] border-l-acento shadow-sm px-4 py-3">
+      <IconoIdea tam={18} className="text-acento flex-shrink-0" />
+      <div className="flex-1 min-w-48">
+        <p className="text-sm font-semibold text-texto">Esta PQRS puede volverse una OMP</p>
+        <p className="text-xs text-texto-3 mt-0.5">
+          La causa «{pqrs.asociado.nombre}» está marcada para trabajarse como oportunidad de mejora.
+        </p>
+      </div>
+      <Boton tam="sm" tono="primario" icono={IconoIdea} onClick={onAbrir}>Abrir OMP</Boton>
+    </section>
+  )
+}
 
 /**
  * Qué falta para poder cerrar, a la vista y no como un 400 al guardar. Los
@@ -548,6 +571,9 @@ export default function PQRSDetail() {
         <div className="space-y-5 min-w-0">
           {/* Lo que falta para cerrar y el único lugar donde se actúa. */}
           <ParaCerrar pqrs={pqrs} onIr={irARequisito} />
+          {pqrs.asociado?.sugiere_omp && puedeVerModulo(user, 'mejora') && (
+            <SugiereOmp pqrs={pqrs} onAbrir={() => navigate(`/mejora?desde=pqrs&desde_id=${pqrs.id}`)} />
+          )}
           <GestionarPQRS pqrs={pqrs} user={user} tipos={tipos} autorizaciones={autorizaciones}
                          hayPendiente={hayPendiente} modo={modo} onModo={setModo} invalidar={invalidar} />
 

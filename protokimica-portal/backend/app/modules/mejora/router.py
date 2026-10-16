@@ -24,11 +24,11 @@ from app.models.mejora import (
 )
 from app.models.user import User
 from app.modules.mejora import catalogos as cat
-from app.modules.mejora import permisos, service
+from app.modules.mejora import origenes, permisos, service
 from app.modules.mejora.schemas import (
     AccionActualizar, AccionCrear, AccionOut, CambioEstado, CambioOut, CatalogosOut,
     ItemCatalogoActualizar, ItemCatalogoCrear, ItemCatalogoOut, OportunidadActualizar,
-    OportunidadCrear, OportunidadDetalleOut, OportunidadOut, ResponsableCrear,
+    OportunidadCrear, OportunidadDetalleOut, OportunidadOut, PropuestaDesdeOrigenOut, ResponsableCrear,
     ResponsableOut, SeguimientoCrear, SeguimientoOut, ValidacionSGC, Verificacion,
 )
 
@@ -201,6 +201,52 @@ def listar(
     return query.order_by(Oportunidad.creado_en.desc()).all()
 
 
+# Los registros de otros módulos que pueden volverse OMP, y la columna que
+# guarda de cuál nació. Hoy solo PQRS (`pqrs/origen_omp.py`).
+COLUMNA_DE_ORIGEN = {"pqrs": "pqrs_id"}
+
+
+def _propuesta_o_404(db: Session, origen: str, origen_id: int, usuario: User):
+    propuesta = origenes.propuesta(db, origen, origen_id, usuario)
+    if propuesta is None:
+        raise HTTPException(
+            status_code=404,
+            detail=("No se encontró ese registro para abrir la OMP. Puede que no "
+                    "exista o que no lo puedas ver; ábrela desde su detalle."),
+        )
+    return propuesta
+
+
+@router.get("/desde/{origen}/{origen_id}", response_model=PropuestaDesdeOrigenOut)
+def propuesta_desde_origen(
+    origen: str,
+    origen_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    usuario: User = Depends(get_current_user),
+):
+    """
+    Con qué arranca una OMP que nace de una PQRS (u otro origen declarado),
+    más las OMP que ya nacieron de ella y esta persona puede ver.
+
+    Va antes que `/{omp_id}` por la misma razón que los catálogos.
+    """
+    if origen not in COLUMNA_DE_ORIGEN:
+        raise HTTPException(status_code=404, detail="Una OMP no nace de ese tipo de registro.")
+    propuesta = _propuesta_o_404(db, origen, origen_id, usuario)
+    columna = getattr(Oportunidad, COLUMNA_DE_ORIGEN[origen])
+    existentes = permisos.aplicar_filtro_area(
+        db.query(Oportunidad).filter(Oportunidad.tenant_id == tenant_id, columna == origen_id),
+        usuario, Oportunidad,
+    ).order_by(Oportunidad.creado_en.desc()).all()
+    return PropuestaDesdeOrigenOut(
+        origen=origen, origen_id=origen_id, referencia=propuesta.referencia,
+        titulo=propuesta.titulo, descripcion=propuesta.descripcion, area=propuesta.area,
+        sugiere=propuesta.sugiere, motivo=propuesta.motivo,
+        existentes=[OportunidadOut.model_validate(o) for o in existentes],
+    )
+
+
 @router.post("", response_model=OportunidadDetalleOut, status_code=status.HTTP_201_CREATED)
 def crear(
     payload: OportunidadCrear,
@@ -221,6 +267,16 @@ def crear(
                     "disparó la oportunidad, y es contra el que se compara "
                     "después para saber si funcionó."),
         )
+
+    # La PQRS de origen tiene que existir y verla quien abre la OMP: la
+    # llave foránea solo dice que existe, y podría ser de otra empresa.
+    if payload.pqrs_id is not None:
+        if payload.origen != "pqrs":
+            raise HTTPException(
+                status_code=400,
+                detail="Si la OMP nace de una PQRS, su origen tiene que ser «Una PQRS».",
+            )
+        _propuesta_o_404(db, "pqrs", payload.pqrs_id, usuario)
 
     datos = payload.model_dump(exclude={"area", "responsables"})
     _validar_catalogos(db, tenant_id, datos)

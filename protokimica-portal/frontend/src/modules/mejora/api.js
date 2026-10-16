@@ -12,6 +12,13 @@ export const listarOportunidades = (params = {}) =>
 export const obtenerOportunidad = (id) =>
   api.get(`/mejora/${id}`).then(r => r.data)
 
+/**
+ * Con qué arranca una OMP que nace de una PQRS, y las que ya nacieron de
+ * ella. Lo arma el servidor con lo que declara PQRS (`pqrs/origen_omp.py`).
+ */
+export const propuestaDesdeOrigen = (origen, id) =>
+  api.get(`/mejora/desde/${origen}/${id}`).then(r => r.data)
+
 export const crearOportunidad = (datos) =>
   api.post('/mejora', datos).then(r => r.data)
 

@@ -28,14 +28,17 @@ import { mensajeDeError } from '../../../core/errores.js'
  * al archivo de otro proceso.
  */
 export default function FormOportunidad({ indicador = null, periodo = null,
-                                          valorInicial = null, onCerrar, onCreada }) {
+                                          valorInicial = null, desde = null,
+                                          onCerrar, onCreada, onAbrirExistente }) {
   const listaAreas = useAreas()
   const hoy = new Date()
   const { user } = useAuth()
   const [form, setForm] = useState({
-    titulo: '',
-    descripcion: '',
-    origen: indicador ? 'indicador' : 'otro',
+    // `desde`: la propuesta del servidor cuando nace de una PQRS. Todo se
+    // puede cambiar; lo que no se escoge es de cuál PQRS viene.
+    titulo: desde?.titulo ?? '',
+    descripcion: desde?.descripcion ?? '',
+    origen: indicador ? 'indicador' : (desde?.origen ?? 'otro'),
     indicador_id: indicador?.id ?? '',
     periodo_anio: periodo?.anio ?? hoy.getFullYear(),
     periodo_mes: periodo?.mes ?? hoy.getMonth() + 1,
@@ -44,7 +47,8 @@ export default function FormOportunidad({ indicador = null, periodo = null,
     // La del indicador si nace de uno; si no, la propia. Lo normal es
     // mejorar lo de uno, y dejarlo en blanco no significa «sin definir»:
     // significa de toda la empresa, que la ve todo el mundo.
-    area: indicador?.area ?? user?.area ?? '',
+    // Si nace de una PQRS, el área CAUSANTE: la que tiene que cambiar algo.
+    area: indicador?.area ?? (desde ? (desde.area ?? '') : (user?.area ?? '')),
     prioridad: 'media',
     fecha_limite: '',
     // Los catálogos del formato. En blanco = «que lo proponga el servidor»,
@@ -85,6 +89,7 @@ export default function FormOportunidad({ indicador = null, periodo = null,
         ? Number(form.indicador_id) : null,
       periodo_anio: form.origen === 'indicador' ? Number(form.periodo_anio) : null,
       periodo_mes: form.origen === 'indicador' ? Number(form.periodo_mes) : null,
+      pqrs_id: form.origen === 'pqrs' && desde?.origen === 'pqrs' ? desde.origen_id : null,
       valor_inicial: form.valor_inicial === '' ? null : Number(form.valor_inicial),
       meta_esperada: form.meta_esperada === '' ? null : Number(form.meta_esperada),
       area: form.area || null,
@@ -140,7 +145,9 @@ export default function FormOportunidad({ indicador = null, periodo = null,
               <p className="text-xs text-texto-2 mt-0.5">
                 {indicador
                   ? `Nace de: ${indicador.nombre}`
-                  : 'Queda abierta; la causa raíz se escribe en el análisis.'}
+                  : desde
+                    ? `Nace de la ${desde.referencia}`
+                    : 'Queda abierta; la causa raíz se escribe en el análisis.'}
               </p>
             </div>
             <button
@@ -153,6 +160,23 @@ export default function FormOportunidad({ indicador = null, periodo = null,
           </header>
 
           <div className="px-6 py-5 space-y-4">
+            {/* Dos OMP para el mismo caso parten el seguimiento en dos y
+                ninguna se cierra bien: si ya hay una, se dice antes de
+                escribir la segunda. */}
+            {desde?.existentes?.length > 0 && (
+              <div className="rounded-lg bg-alerta-bg px-3 py-2.5 text-xs text-alerta space-y-1.5">
+                <p className="font-semibold">
+                  Esta PQRS ya tiene {desde.existentes.length === 1 ? 'una OMP' : `${desde.existentes.length} OMP`}.
+                  Revísala antes de abrir otra.
+                </p>
+                {desde.existentes.map(o => (
+                  <button key={o.id} type="button" onClick={() => onAbrirExistente?.(o.id)}
+                          className="block text-left font-medium underline hover:no-underline">
+                    {o.codigo || `#${o.id}`} · {o.titulo}
+                  </button>
+                ))}
+              </div>
+            )}
             <div>
               <label className="etiqueta block mb-1.5">
                 Qué se va a mejorar <span className="text-negativo">*</span>

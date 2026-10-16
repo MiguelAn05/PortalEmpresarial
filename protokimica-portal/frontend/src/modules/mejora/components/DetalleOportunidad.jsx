@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { tieneCapacidad } from '../../../core/capacidades.js'
 import { useAuth } from '../../../core/useAuth.js'
+import { Link } from 'react-router-dom'
 import {
   IconoAlDia, IconoAlerta, IconoCerrar, IconoCheck, IconoHistorial,
-  IconoIndicadores, IconoRechazo, IconoReloj,
+  IconoIndicadores, IconoPQRS, IconoRechazo, IconoReloj,
 } from '../../../core/components/Iconos.jsx'
 import {
   actualizarAccion, actualizarOportunidad, agregarAccion, agregarSeguimiento,
@@ -722,6 +723,16 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
 
           {omp.descripcion && (
             <p className="text-sm text-texto-2 whitespace-pre-line">{omp.descripcion}</p>
+          )}
+
+          {omp.pqrs_id && (
+            <div className="flex items-center gap-2 text-sm text-texto-2">
+              <IconoPQRS tam={16} className="text-texto-3" />
+              Nace de una PQRS:
+              <Link to={`/pqrs/${omp.pqrs_id}`} className="text-acento font-medium hover:underline">
+                ver el caso
+              </Link>
+            </div>
           )}
 
           {omp.indicador_nombre && (

@@ -15,6 +15,7 @@ paquete, y quien reúne recorre los módulos instalados y toma lo que haya:
 | `fuentes_indicador.py`  | Indicadores   | `FUENTES` y, si aplica, `DINAMICAS` |
 | `inicio.py`             | Inicio        | `APORTE` (ver `core/inicio.py`)     |
 | `origen_encuesta.py`    | Encuestas     | `ORIGENES` (ver `core/origenes_encuesta.py`) |
+| `origen_omp.py`         | Mejora        | `ORIGENES` (ver `core/origenes_omp.py`) |
 
 Un módulo que no está instalado simplemente no aporta. Un error DENTRO de una
 pieza sí revienta, a propósito: esconderlo dejaría un indicador sin calcular

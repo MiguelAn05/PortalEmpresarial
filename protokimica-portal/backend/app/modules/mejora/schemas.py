@@ -257,6 +257,23 @@ class ValidacionSGC(BaseModel):
     nota: str | None = Field(default=None, max_length=MAX_TEXTO_LARGO)
 
 
+class PropuestaDesdeOrigenOut(BaseModel):
+    """
+    Con qué arranca una OMP que nace de otro módulo (una PQRS), y las que ya
+    nacieron de ese mismo registro: dos OMP para el mismo caso parten el
+    seguimiento en dos y ninguna se cierra bien.
+    """
+    origen: str
+    origen_id: int
+    referencia: str
+    titulo: str
+    descripcion: str
+    area: str | None
+    sugiere: bool
+    motivo: str | None
+    existentes: list["OportunidadOut"] = []
+
+
 class OportunidadOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -338,3 +355,6 @@ class OportunidadDetalleOut(OportunidadOut):
     acciones: list[AccionOut] = []
     seguimientos: list[SeguimientoOut] = []
     responsables: list[ResponsableOut] = []
+
+
+PropuestaDesdeOrigenOut.model_rebuild()

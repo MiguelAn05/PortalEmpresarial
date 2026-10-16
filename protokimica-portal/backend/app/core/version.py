@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.56.0"
+VERSION = "0.57.0"
 FECHA = "2026-10-16"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,19 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.57.0",
+        "fecha": "2026-10-16",
+        "titulo": "Una PQRS se vuelve OMP",
+        "cambios": [
+            ("nuevo", "Cuando la causa de una PQRS está marcada como «puede volverse OMP», su "
+                      "detalle lo dice y ofrece «Abrir OMP». El formulario de Mejora llega con el "
+                      "radicado, lo que contó el cliente y el área causante, y la OMP queda "
+                      "enlazada al caso."),
+            ("mejora", "Si esa PQRS ya tiene una OMP, el formulario lo avisa antes de abrir otra, "
+                       "con el enlace para revisarla."),
+        ],
+    },
     {
         "version": "0.56.0",
         "fecha": "2026-10-16",

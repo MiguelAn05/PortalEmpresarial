@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../core/useAuth.js'
 import { useAreas } from '../../core/areas.js'
 import { useFiltrosEnUrl } from '../../core/useFiltrosEnUrl.js'
@@ -7,7 +8,8 @@ import {
   IconoAlerta, IconoBuscar, IconoIdea, IconoPersonas, IconoReloj,
 } from '../../core/components/Iconos.jsx'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
-import { listarOportunidades } from './api.js'
+import { listarOportunidades, propuestaDesdeOrigen } from './api.js'
+import { mensajeDeError } from '../../core/errores.js'
 import { CICLO, ESTADOS, esEstadoTerminal, estadoDelPlazo } from './constants.js'
 import DetalleOportunidad from './components/DetalleOportunidad.jsx'
 import FormOportunidad from './components/FormOportunidad.jsx'
@@ -97,6 +99,25 @@ export default function Mejora() {
   const setVerCerradas = (si) => cambiarFiltros({ cerradas: si ? 'si' : '' })
   const [abierta, setAbierta] = useState(null)
   const [creando, setCreando] = useState(false)
+
+  // `/mejora?desde=pqrs&desde_id=12`: así llega quien pulsa «Abrir OMP» en
+  // una PQRS. El formulario arranca con lo que el servidor propone, y la
+  // marca se quita al cerrar para que no vuelva a abrirse sola.
+  const [params, setParams] = useSearchParams()
+  const desdeOrigen = params.get('desde')
+  const desdeId = Number(params.get('desde_id'))
+  const hayOrigen = Boolean(desdeOrigen) && Number.isInteger(desdeId) && desdeId > 0
+  const { data: propuesta, error: errorPropuesta } = useQuery({
+    queryKey: ['omp-desde', desdeOrigen, desdeId],
+    queryFn: () => propuestaDesdeOrigen(desdeOrigen, desdeId),
+    enabled: hayOrigen,
+    retry: false,
+  })
+  const olvidarOrigen = () => setParams((actuales) => {
+    const siguientes = new URLSearchParams(actuales)
+    siguientes.delete('desde'); siguientes.delete('desde_id')
+    return siguientes
+  }, { replace: true })
 
   // Elegir un estado terminal en el filtro manda sobre el interruptor: si
   // alguien pide ver las descartadas, es que quiere verlas. Antes las dos
@@ -272,6 +293,22 @@ export default function Mejora() {
 
       {abierta && (
         <DetalleOportunidad ompId={abierta} onCerrar={() => setAbierta(null)} />
+      )}
+
+      {hayOrigen && errorPropuesta && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-negativo/25 bg-negativo-bg px-4 py-3 text-sm text-negativo">
+          <span className="flex-1">{mensajeDeError(errorPropuesta, 'No se pudo preparar la OMP desde la PQRS.')}</span>
+          <button type="button" onClick={olvidarOrigen} className="text-xs font-semibold hover:underline">Cerrar</button>
+        </div>
+      )}
+
+      {hayOrigen && propuesta && !abierta && (
+        <FormOportunidad
+          desde={propuesta}
+          onCerrar={olvidarOrigen}
+          onCreada={(id) => { olvidarOrigen(); setAbierta(id) }}
+          onAbrirExistente={(id) => { olvidarOrigen(); setAbierta(id) }}
+        />
       )}
 
       {creando && (
