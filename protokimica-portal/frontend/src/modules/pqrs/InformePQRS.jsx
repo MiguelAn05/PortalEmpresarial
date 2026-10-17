@@ -19,7 +19,7 @@ import { mensajeDeError } from '../../core/errores.js'
 import { Atenuado, Esqueleto } from '../../core/components/Cargando.jsx'
 import { IconoAlerta, IconoAlDia, IconoCalendario, IconoRecibo } from '../../core/components/Iconos.jsx'
 import { formatFecha, formatFechaHora } from '../masterPlanner/constants.js'
-import { conOtros, estadoATiempo, marcasEje, periodosRapidos, textoVariacion } from './informe.js'
+import { conOtros, estadoATiempo, formatoPromedio, marcasEje, periodosRapidos, textoVariacion } from './informe.js'
 
 const TONO_TEXTO = { positivo: 'text-positivo', alerta: 'text-alerta', negativo: 'text-negativo', neutro: 'text-texto-2' }
 const TONO_PUNTO = { positivo: 'bg-positivo-vivo', alerta: 'bg-ambar', negativo: 'bg-negativo-vivo', neutro: 'bg-texto-3' }
@@ -73,10 +73,16 @@ function Barras({ filas, sobre = 'del total', vacio = 'Sin datos en el periodo.'
           </span>
           <span className="cifra text-texto font-semibold text-right min-w-[5.5rem]">
             {f.n} <span className="text-texto-2 font-normal">· {f.pct ?? 0}%</span>
+            {/* El promedio por día hábil, cuando la fila lo trae: es lo que
+                se lleva al informe de gestión. */}
+            {'por_dia_habil' in f && (
+              <span className="text-texto-3 font-normal"> · {formatoPromedio(f.por_dia_habil)}/día</span>
+            )}
           </span>
           <span role="tooltip" className="pointer-events-none absolute left-1/3 -top-8 z-10 hidden group-hover:block print:hidden
                                           whitespace-nowrap rounded-md bg-texto text-white text-xs px-2 py-1 shadow-md">
             {f.etiqueta}: {f.n} PQRS · {f.pct ?? 0}% {sobre}
+            {'por_dia_habil' in f && ` · ${formatoPromedio(f.por_dia_habil)} por día hábil`}
           </span>
         </li>
       ))}
@@ -186,14 +192,25 @@ function Hoja({ inf, alcance }) {
             {alcance} · Radicadas entre el {formatFecha(inf.periodo.desde)} y el {formatFecha(inf.periodo.hasta)} ·
             Generado el {formatFechaHora(inf.periodo.generado)}
           </p>
+          {/* Cómo leer los «/día»: sin esto, alguien los divide por días corridos. */}
+          <p className="text-xs text-texto-2 mt-0.5">
+            Los promedios son por día hábil: <span className="cifra">{r.dias_habiles}</span> en el periodo, sin
+            fines de semana ni festivos y sin contar los días que todavía no pasan.
+          </p>
         </div>
         <img src={LOGO} alt={NOMBRE_EMPRESA} className="h-10 w-auto object-contain flex-shrink-0" />
       </div>
 
       {/* Lo que se pregunta primero */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:grid-cols-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 print:grid-cols-5">
         <Tarjeta titulo="Radicadas" valor={r.total}
                  detalle={variacion?.texto || 'Sin periodo anterior para comparar'} tono={variacion?.tono} />
+        {/* El anterior se promedia con SUS días hábiles: comparar los totales
+            de dos periodos con distintos festivos no compara lo mismo. */}
+        <Tarjeta titulo="Por día hábil" valor={formatoPromedio(r.promedio_dia_habil)}
+                 detalle={r.promedio_dia_habil_anterior == null
+                   ? `En ${r.dias_habiles} días hábiles`
+                   : `En ${r.dias_habiles} días hábiles · antes ${formatoPromedio(r.promedio_dia_habil_anterior)}`} />
         <Tarjeta titulo="Respondidas a tiempo" valor={r.pct_a_tiempo == null ? '—' : `${r.pct_a_tiempo}%`}
                  detalle={r.con_plazo ? `${aTiempo.etiqueta} · ${r.a_tiempo} de ${r.con_plazo}` : aTiempo.etiqueta}
                  tono={aTiempo.tono} />

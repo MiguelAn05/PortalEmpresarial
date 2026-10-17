@@ -388,6 +388,17 @@ informe»). Lo calcula `modules/pqrs/informe.py` y la pantalla
   de los puntos de venta.
 - **La causa se mide sobre las que TIENEN causa**, y las sin clasificar se
   dicen aparte; si no, «sin clasificar» se comería los porcentajes.
+- **Cada conteo trae su promedio por DÍA HÁBIL** (`por_dia_habil` en las
+  filas de tipo, causa, área causante, canal, quién radica y productos, y
+  `promedio_dia_habil` en el resumen), que es lo que pide el informe de
+  gestión: dos meses con distintos festivos no se comparan por el total.
+  Los días salen de `core/dias_habiles.py`, de `desde` a `hasta` incluidos y
+  **sin pasar de hoy** (`dias_habiles_del_periodo`): si no, el mes en curso
+  se promediaría sobre días que no han pasado. El periodo anterior se
+  promedia con SUS días hábiles. «Estado actual» y «Dónde están las
+  abiertas» no lo llevan: son una foto de hoy, no lo que entró. Los
+  porcentajes y los tiempos ya son promedios y tampoco. Dos decimales: 3
+  PQRS en 60 días son 0,05, no 0.
 - **«Quién la radicó»** sale del primer evento del historial: el cliente por
   el formulario web, o el ÁREA de quien la registró por dentro.
 - **El PDF es la hoja de imprimir del navegador** (`window.print()`): nada

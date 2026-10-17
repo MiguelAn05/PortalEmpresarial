@@ -20,11 +20,18 @@ export const SIN_CAUSA = '__sin_causa__'
 
 const SIN_ASOCIADOS = []
 
-/** Los activos, en el orden del catálogo. Vacío mientras llegan. */
-export function useAsociados() {
+/**
+ * Los activos, en el orden del catálogo. Vacío mientras llegan.
+ *
+ * `incluirInactivos` es para NOMBRAR, no para ofrecer: la lista de PQRS
+ * tiene que poder decir la causa de una vieja aunque ese asociado ya se
+ * haya desactivado. Los desplegables usan solo los activos.
+ */
+export function useAsociados({ incluirInactivos = false } = {}) {
   const { data } = useQuery({
-    queryKey: ['pqrs', 'asociados'],
-    queryFn: () => api.get('/pqrs/asociados').then(r => r.data),
+    queryKey: ['pqrs', 'asociados', incluirInactivos ? 'todos' : 'activos'],
+    queryFn: () => api.get('/pqrs/asociados', { params: incluirInactivos ? { incluir_inactivos: true } : {} })
+      .then(r => r.data),
     staleTime: 10 * 60 * 1000,
   })
   return data ?? SIN_ASOCIADOS
@@ -33,6 +40,23 @@ export function useAsociados() {
 /** Sin tildes ni mayúsculas: nadie las escribe en un buscador. */
 export function sinTildes(texto) {
   return (texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
+
+/**
+ * La causa de una fila de la lista, para la columna «Causa».
+ *
+ * - `null` si no tiene: la columna dice «Sin causa», que es lo que se busca
+ *   de un vistazo antes de cerrar.
+ * - Con causa, el asociado del catálogo. Si el catálogo todavía no llegó o
+ *   ese id no está, `pendiente`: mejor no decir nada que decir «Sin causa»
+ *   de una que sí la tiene.
+ */
+export function causaDeFila(pqrs, asociados) {
+  if (!pqrs?.asociado_id) return null
+  const asociado = (asociados || []).find(a => a.id === pqrs.asociado_id)
+  return asociado
+    ? { codigo: asociado.codigo, nombre: asociado.nombre, activo: asociado.activo !== false }
+    : { pendiente: true }
 }
 
 /** «(ME) Mala Entrega (CEDI)», como lo imprime el formato de Calidad. */

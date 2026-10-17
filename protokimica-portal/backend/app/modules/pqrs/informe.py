@@ -12,6 +12,15 @@ octubre» son las que entraron en octubre, aunque se hayan cerrado en
 noviembre; y el día empieza a medianoche en Colombia, no en UTC (si no, las
 que entran después de las 7 p. m. del 31 contarían para el mes siguiente).
 
+**Cada conteo trae su promedio por DÍA HÁBIL** (`por_dia_habil`), que es lo
+que pide el informe de gestión: «36 reclamos» no se compara entre un mes de
+19 días hábiles y uno de 22, «1,6 por día hábil» sí. Los días se cuentan con
+el calendario de festivos de `core/dias_habiles.py`, de `desde` a `hasta`
+ambos incluidos, y **sin pasar de hoy**: el mes en curso se promedia sobre
+los días que ya pasaron, o los que faltan bajarían el promedio. Una PQRS
+radicada un sábado cuenta en el total, pero el sábado no suma días. Los
+porcentajes y los tiempos de respuesta ya son promedios: no llevan otro.
+
 **Cada quien ve el informe de lo que puede ver** (`filtrar_visibles`): un
 punto de venta, el de sus PQRS; el resto, el de toda la empresa. Un informe
 que mostrara más que la lista sería la forma de saltarse esa regla.
@@ -76,11 +85,31 @@ def _pct(n: int, total: int) -> float | None:
     return round(n * 100 / total, 1) if total else None
 
 
-def _filas(conteo: Counter, total: int, etiquetas: dict | None = None, extra: dict | None = None) -> list[dict]:
-    """Una fila por categoría, de mayor a menor, con su porcentaje sobre `total`."""
+def dias_habiles_del_periodo(desde: date, hasta: date) -> int:
+    """Días hábiles de `desde` a `hasta`, los dos incluidos, sin pasar de hoy."""
+    fin = min(hasta, hoy())
+    if fin < desde:
+        return 0
+    # `contar_habiles` no cuenta el día de partida: se parte del anterior.
+    return contar_habiles(desde - timedelta(days=1), fin)
+
+
+def _por_dia(n: int, dias: int) -> float | None:
+    """Promedio por día hábil, con dos decimales: 3 en 60 días es 0,05, no 0."""
+    return round(n / dias, 2) if dias else None
+
+
+def _filas(conteo: Counter, total: int, etiquetas: dict | None = None, extra: dict | None = None,
+           dias: int | None = None) -> list[dict]:
+    """
+    Una fila por categoría, de mayor a menor, con su porcentaje sobre `total`
+    y, si se pasan los `dias` hábiles, su promedio por día hábil.
+    """
     filas = []
     for clave, n in sorted(conteo.items(), key=lambda kv: (-kv[1], str(kv[0]))):
         fila = {"clave": clave, "etiqueta": (etiquetas or {}).get(clave, clave), "n": n, "pct": _pct(n, total)}
+        if dias is not None:
+            fila["por_dia_habil"] = _por_dia(n, dias)
         fila.update((extra or {}).get(clave, {}))
         filas.append(fila)
     return filas
@@ -185,6 +214,8 @@ def construir(db: Session, usuario: User, desde: date | None = None, hasta: date
     ant_hasta = desde - timedelta(days=1)
     ant_desde = ant_hasta - timedelta(days=largo - 1)
     total_anterior = len(_solicitudes(db, usuario, ant_desde, ant_hasta))
+    dias = dias_habiles_del_periodo(desde, hasta)
+    dias_anterior = dias_habiles_del_periodo(ant_desde, ant_hasta)
 
     # ── Cómo se respondieron ──
     abiertas = [s for s in solicitudes if s.estado in ESTADOS_ABIERTOS]
@@ -251,11 +282,18 @@ def construir(db: Session, usuario: User, desde: date | None = None, hasta: date
             "pct_a_tiempo": _pct(len(a_tiempo), len(con_plazo)),
             "dias_respuesta_promedio": (round(sum(dias_respuesta) / len(dias_respuesta), 1)
                                         if dias_respuesta else None),
+            # Promedios por día hábil (ver el docstring del módulo). El del
+            # periodo anterior se calcula con SUS días hábiles: dos periodos
+            # del mismo largo pueden tener distintos festivos.
+            "dias_habiles": dias,
+            "promedio_dia_habil": _por_dia(total, dias),
+            "dias_habiles_anterior": dias_anterior,
+            "promedio_dia_habil_anterior": _por_dia(total_anterior, dias_anterior),
             "con_causa": len(con_causa),
             "sin_causa": total - len(con_causa),
             "pct_con_causa": _pct(len(con_causa), total),
         },
-        "por_tipo": _filas(Counter(s.tipo for s in solicitudes), total, TIPOS),
+        "por_tipo": _filas(Counter(s.tipo for s in solicitudes), total, TIPOS, dias=dias),
         "por_estado": _filas(Counter(s.estado for s in solicitudes), total, ESTADOS),
         # La causa se mide sobre las que TIENEN causa: si no, el «sin
         # clasificar» se comería los porcentajes y no se sabría qué pesa más.
@@ -263,18 +301,21 @@ def construir(db: Session, usuario: User, desde: date | None = None, hasta: date
             por_asociado, len(con_causa),
             {i: f"({a.codigo}) {a.nombre}" for i, a in catalogo.items()},
             {i: {"grupo": a.grupo} for i, a in catalogo.items()},
+            dias=dias,
         ),
-        "por_grupo_causa": _filas(por_grupo, len(con_causa)),
+        "por_grupo_causa": _filas(por_grupo, len(con_causa), dias=dias),
         "por_area_causante": _filas(
             Counter(s.area_causante for s in solicitudes if s.area_causante),
             sum(1 for s in solicitudes if s.area_causante),
+            dias=dias,
         ),
         "por_canal": _filas(por_canal, total, extra={
             nombre: {"tipo": tipos_canal.get(nombre)} for nombre in por_canal
-        }),
-        "por_origen": _filas(Counter(origen.values()), total),
+        }, dias=dias),
+        "por_origen": _filas(Counter(origen.values()), total, dias=dias),
         "por_area_actual": _filas(Counter(s.area_responsable or "Sin asignar" for s in abiertas), len(abiertas)),
-        "top_productos": _filas(Counter(dict(productos.most_common(TOP_PRODUCTOS))), sum(productos.values())),
+        "top_productos": _filas(Counter(dict(productos.most_common(TOP_PRODUCTOS))), sum(productos.values()),
+                                dias=dias),
         "productos_distintos": len(productos),
         "tiempo_por_area": tiempo_por_area,
         "tendencia": _tendencia(solicitudes, desde, hasta),

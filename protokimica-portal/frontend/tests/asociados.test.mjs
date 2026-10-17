@@ -5,7 +5,7 @@
 // proponer el área sin pisar la que alguien eligió a propósito.
 import { readFileSync } from 'node:fs'
 import {
-  LIMITES_ASOCIADO, SIN_CAUSA, agruparAsociados, areaPropuesta, coincideAsociado,
+  LIMITES_ASOCIADO, SIN_CAUSA, agruparAsociados, areaPropuesta, causaDeFila, coincideAsociado,
   etiquetaAsociado, tipoDeCanal,
 } from '../src/modules/pqrs/asociados.js'
 
@@ -23,6 +23,15 @@ const LISTA = [
   { id: 5, codigo: 'TR', nombre: 'Transportadora', grupo: 'Entrega', area_sugerida: 'Logística', aplica_a: null },
 ]
 const nombres = (grupos) => grupos.flatMap(g => g.items.map(a => a.nombre))
+
+console.log('\n== La columna «Causa» de la lista ==')
+check('sin asociado, «Sin causa» (null)', causaDeFila({ asociado_id: null }, LISTA) === null)
+check('con asociado, su nombre y código',
+  causaDeFila({ asociado_id: 3 }, LISTA)?.nombre === 'Mala Entrega (CEDI)' && causaDeFila({ asociado_id: 3 }, LISTA)?.codigo === 'ME')
+check('un desactivado se nombra igual, marcado',
+  causaDeFila({ asociado_id: 9 }, [{ id: 9, codigo: 'X', nombre: 'Vieja', activo: false }])?.activo === false)
+check('sin catálogo todavía, pendiente: nunca «Sin causa» de una que sí la tiene',
+  causaDeFila({ asociado_id: 3 }, [])?.pendiente === true)
 
 console.log('\n== Agrupar y buscar ==')
 const todos = agruparAsociados(LISTA)

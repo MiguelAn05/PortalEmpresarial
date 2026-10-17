@@ -96,6 +96,12 @@ def test_solo_admin_administra_el_catalogo(entorno, v):
     v.check("se desactiva", r.status_code == 200 and r.json()["activo"] is False, r.text[:200])
     v.check("y deja de ofrecerse", "Precio errado" not in _catalogo(entorno))
 
+    # Pero la lista de PQRS tiene que poder nombrarla en las viejas que la tienen.
+    entorno.como("logistica")
+    todos = {a["nombre"]: a for a in entorno.get("/pqrs/asociados", params={"incluir_inactivos": True}).json()}
+    v.check("con incluir_inactivos sí llega, marcada",
+            todos.get("Precio errado", {}).get("activo") is False, list(todos)[:5])
+
 
 # ── Marcar la causa ──────────────────────────────────────────────────────
 

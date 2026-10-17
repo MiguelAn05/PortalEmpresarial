@@ -42,6 +42,9 @@ class AsociadoOut(BaseModel):
     sugiere_omp: bool = False
     # El concepto técnico que pide el flujo para esta causa. Ver `pqrs/flujo.py`.
     concepto_tecnico_id: int | None = None
+    # Solo llega en False con `incluir_inactivos`: lo usa la lista de PQRS
+    # para nombrar la causa de una vieja con un asociado ya desactivado.
+    activo: bool = True
 
     class Config:
         from_attributes = True
@@ -124,8 +127,8 @@ def _salida(db: Session, asociado: PQRSAsociado) -> AsociadoAdminOut:
     n = db.query(func.count(PQRSSolicitud.id)).filter(
         PQRSSolicitud.asociado_id == asociado.id,
     ).scalar()
-    return AsociadoAdminOut(**AsociadoOut.model_validate(asociado).model_dump(),
-                            activo=asociado.activo, pqrs=n or 0)
+    # `activo` ya viene en AsociadoOut: no se pasa dos veces.
+    return AsociadoAdminOut(**AsociadoOut.model_validate(asociado).model_dump(), pqrs=n or 0)
 
 
 @router.get("", response_model=list[AsociadoOut])
@@ -133,9 +136,14 @@ def listar(
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(get_current_user),
+    incluir_inactivos: bool = False,
 ):
-    """Los activos, en el orden en que se ofrecen."""
-    return asociados.del_tenant(db, tenant_id)
+    """
+    Los activos, en el orden en que se ofrecen. Con `incluir_inactivos`,
+    también los desactivados: no se ofrecen para marcar, pero la lista de
+    PQRS tiene que poder nombrar la causa que una vieja ya tenía.
+    """
+    return asociados.del_tenant(db, tenant_id, incluir_inactivos=incluir_inactivos)
 
 
 @router.get("/todos", response_model=list[AsociadoAdminOut])

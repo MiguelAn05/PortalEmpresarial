@@ -7,7 +7,7 @@ import { useAuth } from '../../core/useAuth.js'
 import { useAreas } from '../../core/areas.js'
 import { useFiltrosEnUrl } from '../../core/useFiltrosEnUrl.js'
 import {
-  SIN_CAUSA, agruparAsociados, coincideAsociado, etiquetaAsociado, useAsociados,
+  SIN_CAUSA, agruparAsociados, causaDeFila, coincideAsociado, etiquetaAsociado, useAsociados,
 } from './asociados.js'
 import { canalesConPrefijo, nombresDe, useCanales } from '../../core/canales.js'
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
@@ -403,6 +403,22 @@ function ModalCrear({ onClose, onCreated, canalInicial = '' }) {
   )
 }
 
+/**
+ * «Asociado a» en la lista: saber sin entrar si ya se clasificó. «Sin
+ * causa» va sin color —no es un error todavía: es obligatoria solo para
+ * cerrar— y el filtro «Sin causa» de «Más filtros» las junta.
+ */
+function CeldaCausa({ causa }) {
+  if (causa === null) return <span className="text-xs text-texto-3">Sin causa</span>
+  if (causa.pendiente) return null
+  return (
+    <div className="min-w-0" title={`(${causa.codigo}) ${causa.nombre}${causa.activo ? '' : ' — desactivada'}`}>
+      <div className="text-texto-2 truncate max-w-[11rem]">{causa.nombre}</div>
+      <div className="text-xs text-texto-3">{causa.codigo}{causa.activo ? '' : ' · desactivada'}</div>
+    </div>
+  )
+}
+
 // ── Pantalla principal ─────────────────────────────────────────────
 const claseSelect = 'h-9 px-3 rounded-lg border border-borde-fuerte text-sm text-texto bg-superficie focus:outline-none focus:ring-2 focus:ring-acento'
 const claseCampo = 'w-full px-3 py-2 rounded-lg border border-borde text-sm text-texto bg-white focus:outline-none focus:ring-2 focus:ring-acento'
@@ -411,6 +427,9 @@ export default function PQRSList() {
   const listaAreas = useAreas()
   const listaCanales = useCanales()
   const listaAsociados = useAsociados()
+  // Para la columna «Causa»: también los desactivados, que una PQRS vieja
+  // puede tener. El filtro sigue ofreciendo solo los activos.
+  const todosLosAsociados = useAsociados({ incluirInactivos: true })
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -439,11 +458,11 @@ export default function PQRSList() {
   const setFiltroFechaHasta = (v) => cambiarFiltros({ hasta: v })
   const [modalCrear, setModalCrear] = useState(false)
 
-  // Lo que se pide menos va en el panel: estado, sede, causa y fechas. Si
+  // Lo que se pide menos va en el panel: estado, sede y fechas. Si
   // al volver trae alguno puesto, se abre: un filtro activo que no se ve se
   // lee como PQRS que faltan.
   const [panelFiltrosAbierto, setPanelFiltrosAbierto] = useState(
-    () => Boolean(filtroEstado || filtroPuntoVenta || filtroAsociado || filtroFechaDesde || filtroFechaHasta),
+    () => Boolean(filtroEstado || filtroPuntoVenta || filtroFechaDesde || filtroFechaHasta),
   )
 
   const { data: pqrsList = [], isLoading, isError } = useQuery({
@@ -503,8 +522,8 @@ export default function PQRSList() {
   const cerradasTotal = base.length - abiertasTotal
   const lista = enVista.filter(p => cumpleFoco(p, foco))
 
-  const filtrosDelPanel = [filtroEstado, filtroPuntoVenta, filtroAsociado, filtroFechaDesde, filtroFechaHasta].filter(Boolean).length
-  const hayFiltros = Boolean(foco || busqueda || filtroArea || filtroTipo || filtrosDelPanel)
+  const filtrosDelPanel = [filtroEstado, filtroPuntoVenta, filtroFechaDesde, filtroFechaHasta].filter(Boolean).length
+  const hayFiltros = Boolean(foco || busqueda || filtroArea || filtroTipo || filtroAsociado || filtrosDelPanel)
   // La vista no es un filtro: «Limpiar» deja la que se está mirando.
   const limpiarTodo = () => cambiarFiltros({
     foco: '', busqueda: '', area: '', tipo: '', estado: '', punto: '', asociado: '', desde: '', hasta: '',
@@ -618,6 +637,21 @@ export default function PQRSList() {
           {Object.entries(TIPOS).map(([clave, { label }]) => <option key={clave} value={clave}>{label}</option>)}
         </select>
 
+        {/* La causa va a la vista, no en «Más filtros»: es lo que se revisa
+            antes de cerrar y de lo que salen el informe y las OMP. «Sin
+            causa» junta las que faltan, sobre todo las que cerró el cliente
+            sin pasar por Servicio al Cliente. */}
+        <select value={filtroAsociado} onChange={(e) => setFiltroAsociado(e.target.value)} aria-label="Causa"
+                className={`${claseSelect} max-w-[15rem]`}>
+          <option value="">Todas las causas</option>
+          <option value={SIN_CAUSA}>Sin causa (falta clasificar)</option>
+          {agruparAsociados(listaAsociados).map(({ grupo, items }) => (
+            <optgroup key={grupo} label={grupo}>
+              {items.map(a => <option key={a.id} value={a.id}>{etiquetaAsociado(a)}</option>)}
+            </optgroup>
+          ))}
+        </select>
+
         <button type="button" onClick={() => setPanelFiltrosAbierto(v => !v)} aria-expanded={panelFiltrosAbierto}
                 className={`inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-sm font-semibold transition ${
                   panelFiltrosAbierto || filtrosDelPanel ? 'border-acento text-acento bg-acento-suave' : 'border-borde-fuerte text-texto-2 bg-superficie hover:bg-superficie-2'
@@ -641,7 +675,7 @@ export default function PQRSList() {
       </div>
 
       {panelFiltrosAbierto && (
-        <div className="mb-3 p-4 bg-superficie rounded-xl border border-borde shadow-sm grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="mb-3 p-4 bg-superficie rounded-xl border border-borde shadow-sm grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label htmlFor="filtro-estado" className="etiqueta block mb-1.5">Estado</label>
             <select id="filtro-estado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className={claseCampo}>
@@ -660,20 +694,6 @@ export default function PQRSList() {
               </select>
             </div>
           )}
-          {/* «Sin causa» encuentra las que faltan por clasificar, sobre todo
-              las que cerró el cliente sin pasar por Servicio al Cliente. */}
-          <div>
-            <label htmlFor="filtro-asociado" className="etiqueta block mb-1.5">Asociado a</label>
-            <select id="filtro-asociado" value={filtroAsociado} onChange={(e) => setFiltroAsociado(e.target.value)} className={claseCampo}>
-              <option value="">Todos</option>
-              <option value={SIN_CAUSA}>Sin causa (falta clasificar)</option>
-              {agruparAsociados(listaAsociados).map(({ grupo, items }) => (
-                <optgroup key={grupo} label={grupo}>
-                  {items.map(a => <option key={a.id} value={a.id}>{etiquetaAsociado(a)}</option>)}
-                </optgroup>
-              ))}
-            </select>
-          </div>
           <div>
             <label htmlFor="filtro-desde" className="etiqueta block mb-1.5">Radicada desde</label>
             <input id="filtro-desde" type="date" value={filtroFechaDesde} onChange={(e) => setFiltroFechaDesde(e.target.value)} className={claseCampo} />
@@ -715,6 +735,7 @@ export default function PQRSList() {
                 <th className="etiqueta text-left px-4 py-2.5 w-36">Radicado</th>
                 <th className="etiqueta text-left px-4 py-2.5">Cliente</th>
                 <th className="etiqueta text-left px-4 py-2.5 w-52">Área · en cola</th>
+                <th className="etiqueta text-left px-4 py-2.5 w-48">Causa</th>
                 <th className="etiqueta text-left px-4 py-2.5 w-36">Plazo</th>
                 <th className="etiqueta text-left px-4 py-2.5 w-32">Estado</th>
                 <th className="w-8" aria-hidden="true" />
@@ -756,6 +777,7 @@ export default function PQRSList() {
                         </div>
                       )}
                     </td>
+                    <td className="px-4 py-3"><CeldaCausa causa={causaDeFila(pqrs, todosLosAsociados)} /></td>
                     <td className="px-4 py-3"><Plazo pqrs={pqrs} /></td>
                     <td className="px-4 py-3"><InsigniaDe mapa={ESTADOS} valor={pqrs.estado} /></td>
                     <td className="pr-3 text-texto-3">

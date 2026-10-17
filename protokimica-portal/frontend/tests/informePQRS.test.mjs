@@ -4,7 +4,7 @@
 // ofrecen (en fechas LOCALES), cómo se dice la comparación, el semáforo de
 // «a tiempo» con su etiqueta, y que «Otros» sume lo que ya llegó.
 import { readFileSync } from 'node:fs'
-import { conOtros, estadoATiempo, marcasEje, periodosRapidos, textoVariacion } from '../src/modules/pqrs/informe.js'
+import { conOtros, estadoATiempo, formatoPromedio, marcasEje, periodosRapidos, textoVariacion } from '../src/modules/pqrs/informe.js'
 
 let fallos = []
 const check = (n, cond, extra = '') => {
@@ -46,6 +46,15 @@ check('ocho filas', cortas.length === 8, cortas.length)
 check('la última es Otros con lo que sobra', cortas[7].etiqueta === 'Otros (3)' && cortas[7].n === 3 + 2 + 1, cortas[7])
 check('una lista corta no se toca', conOtros(filas.slice(0, 3), 8).length === 3)
 check('vacía tampoco revienta', conOtros(undefined).length === 0)
+const conPromedio = filas.map(f => ({ ...f, por_dia_habil: f.n / 20 }))
+check('«Otros» suma también el promedio por día hábil', conOtros(conPromedio, 8)[7].por_dia_habil === 0.3, conOtros(conPromedio, 8)[7])
+check('sin promedio en las filas, «Otros» tampoco lo inventa', !('por_dia_habil' in cortas[7]))
+
+console.log('\n== El promedio por día hábil, escrito ==')
+check('con coma', formatoPromedio(1.6) === '1,6', formatoPromedio(1.6))
+check('lo poco no se vuelve cero', formatoPromedio(0.05) === '0,05', formatoPromedio(0.05))
+check('sin ceros de más', formatoPromedio(2) === '2', formatoPromedio(2))
+check('sin días hábiles, guion', formatoPromedio(null) === '—')
 
 console.log('\n== Eje de la tendencia ==')
 check('0, la mitad y el máximo', JSON.stringify(marcasEje(10)) === '[0,5,10]', marcasEje(10))

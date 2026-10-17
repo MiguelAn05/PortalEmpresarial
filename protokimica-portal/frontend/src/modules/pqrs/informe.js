@@ -63,7 +63,22 @@ export function conOtros(filas, max = 8) {
   const resto = filas.slice(max - 1)
   const n = resto.reduce((s, f) => s + f.n, 0)
   const pct = Math.round(resto.reduce((s, f) => s + (f.pct || 0), 0) * 10) / 10
-  return [...filas.slice(0, max - 1), { clave: '__otros__', etiqueta: `Otros (${resto.length})`, n, pct }]
+  const otros = { clave: '__otros__', etiqueta: `Otros (${resto.length})`, n, pct }
+  // El promedio por día hábil de «Otros» es la suma de los suyos, como el %.
+  if (resto.some(f => f.por_dia_habil != null)) {
+    otros.por_dia_habil = Math.round(resto.reduce((s, f) => s + (f.por_dia_habil || 0), 0) * 100) / 100
+  }
+  return [...filas.slice(0, max - 1), otros]
+}
+
+/**
+ * El promedio por día hábil como se lee: «1,6», «0,05». Lo calcula el
+ * servidor; aquí solo se escribe con coma y sin ceros de más. Sin días
+ * hábiles en el periodo (un fin de semana) no hay promedio: «—».
+ */
+export function formatoPromedio(valor) {
+  if (valor == null) return '—'
+  return Number(valor).toLocaleString('es-CO', { maximumFractionDigits: 2 })
 }
 
 /** Marcas del eje de la tendencia: 0, la mitad y el máximo, en enteros. */

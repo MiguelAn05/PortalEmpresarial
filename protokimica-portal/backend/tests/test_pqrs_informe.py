@@ -149,3 +149,48 @@ def test_lectura_tambien_lo_ve(entorno, v):
     entorno.como("lectura")
     r = entorno.get("/pqrs/informe")
     v.check("lectura -> 200", r.status_code == 200, r.status_code)
+
+
+# ── Promedio por día hábil ───────────────────────────────────────────────
+
+def test_cada_conteo_trae_su_promedio_por_dia_habil(entorno, v):
+    """
+    Lo que pide el informe de gestión: «22 reclamos» no se compara entre un
+    mes de 19 días hábiles y uno de 22; «1 por día hábil», sí.
+    """
+    for _ in range(11):
+        _pqrs(entorno, tipo="reclamo", canal="WhatsApp")
+    for _ in range(11):
+        _pqrs(entorno, tipo="queja", canal="WhatsApp")
+    for _ in range(19):
+        _pqrs(entorno, fecha=AGO)
+
+    r = _informe(entorno)["resumen"]
+    v.check("septiembre de 2026 tiene 22 días hábiles", r["dias_habiles"] == 22, r)
+    v.check("22 PQRS en 22 días: 1 por día hábil", r["promedio_dia_habil"] == 1.0, r)
+    v.check("el periodo anterior (2 al 31 de agosto) descuenta sus dos festivos: 19 días",
+            r["dias_habiles_anterior"] == 19, r)
+    v.check("y se promedia con SUS días: 19 en 19 = 1", r["promedio_dia_habil_anterior"] == 1.0, r)
+
+    inf = _informe(entorno)
+    v.check("cada tipo trae el suyo", _fila(inf["por_tipo"], "Reclamo")["por_dia_habil"] == 0.5, inf["por_tipo"])
+    v.check("y cada canal", _fila(inf["por_canal"], "WhatsApp")["por_dia_habil"] == 1.0, inf["por_canal"])
+    v.check("el estado actual no: es una foto de hoy, no un flujo",
+            "por_dia_habil" not in inf["por_estado"][0], inf["por_estado"])
+
+
+def test_dos_decimales_para_lo_poco(entorno, v):
+    _pqrs(entorno)
+    inf = _informe(entorno)
+    v.check("1 en 22 días: 0,05, no 0", inf["resumen"]["promedio_dia_habil"] == 0.05, inf["resumen"])
+
+
+def test_los_dias_habiles_del_periodo():
+    from datetime import date
+    from app.core.dias_habiles import hoy
+    from app.modules.pqrs.informe import dias_habiles_del_periodo
+
+    assert dias_habiles_del_periodo(date(2026, 8, 1), date(2026, 8, 31)) == 19, "agosto sin sus dos festivos"
+    assert dias_habiles_del_periodo(date(2026, 8, 1), date(2026, 8, 2)) == 0, "un fin de semana: cero, sin promedio"
+    # Lo que todavía no pasó no cuenta: si no, el mes en curso bajaría el promedio.
+    assert dias_habiles_del_periodo(hoy() + timedelta(days=1), hoy() + timedelta(days=40)) == 0
