@@ -14,6 +14,16 @@ from app.core.fechas import con_zona
 # autorización—. Ver `modules/pqrs/tiempo_en_area.py`.
 MAX_DIAS_HABILES_EN_AREA = 3
 
+# Los estados en que una PQRS TERMINÓ. «Cerrado» es un caso atendido;
+# «anulado» es uno que no debía existir —duplicado, radicado por error,
+# spam—: no exige causa ni producto, no lleva encuesta, no le escribe al
+# cliente (él la ve como cerrada) y el informe la cuenta aparte. Todo lo que
+# antes preguntaba «¿está cerrada?» para BLOQUEAR algo —editar, mover el
+# área, pedir conceptos— pregunta `terminada`. Lo que es solo del cierre
+# (encuesta, requisitos, correo, `fecha_cierre`) sigue mirando «cerrado».
+# Gemelo: `ESTADOS_TERMINADOS` de `frontend/src/modules/pqrs/constants.js`.
+ESTADOS_TERMINADOS = ("cerrado", "anulado")
+
 # Atados a `ASOCIADO_*` de `frontend/src/modules/pqrs/constants.js`.
 MAX_CODIGO_ASOCIADO = 20
 MAX_NOMBRE_ASOCIADO = 150
@@ -100,6 +110,11 @@ class PQRSSolicitud(Base):
         'PQRSProducto', back_populates='pqrs', cascade='all, delete-orphan',
         order_by='PQRSProducto.orden',
     )
+
+    @property
+    def terminada(self) -> bool:
+        """Cerrada o anulada: ya no se gestiona. Ver `ESTADOS_TERMINADOS`."""
+        return self.estado in ESTADOS_TERMINADOS
 
     # ── Cuánto lleva en su área (lo calcula el servidor, no la pantalla) ──
 

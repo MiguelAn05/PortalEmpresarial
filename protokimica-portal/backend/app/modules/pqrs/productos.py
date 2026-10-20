@@ -141,7 +141,7 @@ def _detalle(producto: PQRSProducto) -> str:
 
 
 def _no_cerrada(solicitud: PQRSSolicitud, accion: str) -> None:
-    if solicitud.estado == "cerrado":
+    if solicitud.terminada:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -243,7 +243,7 @@ def confirmar(db: Session, tenant_id: int, solicitud: PQRSSolicitud, usuario: Us
     El nombre NO se recibe: se toma del catálogo a partir del código. Si se
     aceptara escrito, volveríamos al mismo problema que esto viene a resolver.
     """
-    if solicitud.estado == "cerrado":
+    if solicitud.terminada:
         raise HTTPException(
             status_code=400,
             detail=(

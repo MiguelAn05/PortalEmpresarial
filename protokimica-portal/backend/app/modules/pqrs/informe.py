@@ -21,6 +21,11 @@ los días que ya pasaron, o los que faltan bajarían el promedio. Una PQRS
 radicada un sábado cuenta en el total, pero el sábado no suma días. Los
 porcentajes y los tiempos de respuesta ya son promedios: no llevan otro.
 
+**Las anuladas no cuentan** (duplicadas, radicadas por error): no son casos
+que hayan entrado de verdad, y un día con spam no puede subir el total, los
+tipos, las causas ni el promedio por día hábil. Solo aparecen en «Estado
+actual», que es lo que ellas son, y en `resumen.anuladas`.
+
 **Cada quien ve el informe de lo que puede ver** (`filtrar_visibles`): un
 punto de venta, el de sus PQRS; el resto, el de toda la empresa. Un informe
 que mostrara más que la lista sería la forma de saltarse esa regla.
@@ -56,6 +61,7 @@ ESTADOS = {
     "en_proceso": "En proceso",
     "resuelto": "Resuelta",
     "cerrado": "Cerrada",
+    "anulado": "Anulada",
 }
 # Un año y un poco: alcanza para comparar un año contra el anterior sin
 # pedirle a la base el histórico completo de una vez.
@@ -203,7 +209,9 @@ def _tendencia(solicitudes: list[PQRSSolicitud], desde: date, hasta: date) -> di
 
 def construir(db: Session, usuario: User, desde: date | None = None, hasta: date | None = None) -> dict:
     desde, hasta = resolver_periodo(desde, hasta)
-    solicitudes = _solicitudes(db, usuario, desde, hasta)
+    todas = _solicitudes(db, usuario, desde, hasta)
+    anuladas = [s for s in todas if s.estado == "anulado"]
+    solicitudes = [s for s in todas if s.estado != "anulado"]
     total = len(solicitudes)
     ids = [s.id for s in solicitudes]
     ahora = datetime.now(timezone.utc)
@@ -213,7 +221,7 @@ def construir(db: Session, usuario: User, desde: date | None = None, hasta: date
     largo = (hasta - desde).days + 1
     ant_hasta = desde - timedelta(days=1)
     ant_desde = ant_hasta - timedelta(days=largo - 1)
-    total_anterior = len(_solicitudes(db, usuario, ant_desde, ant_hasta))
+    total_anterior = sum(1 for s in _solicitudes(db, usuario, ant_desde, ant_hasta) if s.estado != "anulado")
     dias = dias_habiles_del_periodo(desde, hasta)
     dias_anterior = dias_habiles_del_periodo(ant_desde, ant_hasta)
 
@@ -289,12 +297,15 @@ def construir(db: Session, usuario: User, desde: date | None = None, hasta: date
             "promedio_dia_habil": _por_dia(total, dias),
             "dias_habiles_anterior": dias_anterior,
             "promedio_dia_habil_anterior": _por_dia(total_anterior, dias_anterior),
+            "anuladas": len(anuladas),
             "con_causa": len(con_causa),
             "sin_causa": total - len(con_causa),
             "pct_con_causa": _pct(len(con_causa), total),
         },
         "por_tipo": _filas(Counter(s.tipo for s in solicitudes), total, TIPOS, dias=dias),
-        "por_estado": _filas(Counter(s.estado for s in solicitudes), total, ESTADOS),
+        # La única que suma las anuladas: es una foto de en qué quedó todo lo
+        # que entró, y «anulada» es justamente uno de esos estados.
+        "por_estado": _filas(Counter(s.estado for s in todas), len(todas), ESTADOS),
         # La causa se mide sobre las que TIENEN causa: si no, el «sin
         # clasificar» se comería los porcentajes y no se sabría qué pesa más.
         "por_asociado": _filas(

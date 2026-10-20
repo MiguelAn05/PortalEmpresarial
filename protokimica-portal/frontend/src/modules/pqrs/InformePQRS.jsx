@@ -228,28 +228,35 @@ function Hoja({ inf, alcance }) {
 
       <div className="grid lg:grid-cols-2 gap-5 print:grid-cols-2">
         <Seccion titulo="Por tipo"><Barras filas={inf.por_tipo} /></Seccion>
-        <Seccion titulo="Estado actual"><Barras filas={inf.por_estado} /></Seccion>
+        {/* La única que suma las anuladas: el resto del informe cuenta solo
+            los casos reales, y sin decirlo aquí las cifras no cuadrarían. */}
+        <Seccion titulo="Estado actual"
+                 nota={r.anuladas
+                   ? `Incluye ${r.anuladas === 1 ? '1 anulada' : `${r.anuladas} anuladas`} (duplicadas o por error), que no cuentan en las demás cifras.`
+                   : null}>
+          <Barras filas={inf.por_estado} sobre="de todo lo que entró" />
+        </Seccion>
       </div>
 
-      <Seccion
-        titulo="Asociado a: por qué llegan"
-        nota={r.total
-          ? `Sobre las ${r.con_causa} que ya tienen causa (${r.pct_con_causa ?? 0}%).${r.sin_causa ? ` ${r.sin_causa} están sin clasificar.` : ''}`
-          : null}
-      >
-        <div className="grid lg:grid-cols-2 gap-6 print:grid-cols-2">
-          <div>
-            <div className="text-xs font-semibold text-texto-2 uppercase tracking-wide mb-3">Causa</div>
-            <Barras filas={inf.por_asociado} sobre="de las clasificadas"
-                    vacio="Ninguna clasificada todavía. Se marca en «Causa de la PQRS»." />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-texto-2 uppercase tracking-wide mb-3">Área causante</div>
-            <Barras filas={inf.por_area_causante} sobre="de las que tienen área causante"
-                    vacio="Ninguna tiene área causante todavía." />
-          </div>
-        </div>
-      </Seccion>
+      {/* La causa y el área causante en recuadros aparte: son dos preguntas
+          distintas —por qué llegan y de dónde salió el problema— y en uno
+          solo se leían como una sola lista. */}
+      <div className="grid lg:grid-cols-2 gap-5 print:grid-cols-2">
+        <Seccion
+          titulo="Asociado a: por qué llegan"
+          nota={r.total
+            ? `Sobre las ${r.con_causa} que ya tienen causa (${r.pct_con_causa ?? 0}%).${r.sin_causa ? ` ${r.sin_causa} están sin clasificar.` : ''}`
+            : null}
+        >
+          <Barras filas={inf.por_asociado} sobre="de las clasificadas"
+                  vacio="Ninguna clasificada todavía. Se marca en «Causa de la PQRS»." />
+        </Seccion>
+        <Seccion titulo="Área causante: de dónde salió el problema"
+                 nota="Puede no ser el área que gestionó la PQRS.">
+          <Barras filas={inf.por_area_causante} sobre="de las que tienen área causante"
+                  vacio="Ninguna tiene área causante todavía." />
+        </Seccion>
+      </div>
 
       <div className="grid lg:grid-cols-2 gap-5 print:grid-cols-2">
         <Seccion titulo="Por dónde entran" nota="Canal de atención: punto de venta, venta institucional, WhatsApp…">

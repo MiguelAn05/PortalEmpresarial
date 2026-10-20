@@ -57,7 +57,7 @@ ADJUNTOS = {
 
 
 def _no_cerrada(solicitud: PQRSSolicitud) -> None:
-    if solicitud.estado == "cerrado":
+    if solicitud.terminada:
         raise HTTPException(
             status_code=400,
             detail=(

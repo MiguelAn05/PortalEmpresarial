@@ -31,7 +31,7 @@ import {
 } from '../../core/components/Iconos.jsx'
 import {
   DESTINO_REQUISITO, ESTADOS, FILTROS_HISTORIAL, PRIORIDADES, TIPOS,
-  avanceDeCierre, estadoDelPlazo, filtrarHistorial, iniciales, lineaDeVida, nombrePrincipal, tiempoEnArea,
+  avanceDeCierre, estadoDelPlazo, filtrarHistorial, iniciales, lineaDeVida, nombrePrincipal, tiempoEnArea, estaTerminada,
 } from './constants.js'
 import { resumenCadena } from './flujo.js'
 import { BotonEditar, ModalEditarDatos, PanelAdjuntos } from './EdicionDatos.jsx'
@@ -324,7 +324,7 @@ function Historial({ seguimientos }) {
         <ol className="py-2">
           {mostrados.map((seg, i) => {
             const evento = EVENTOS[seg.tipo_evento] || { Icono: IconoEtiqueta, label: seg.tipo_evento }
-            const avance = EVENTOS_DE_AVANCE.has(seg.tipo_evento) || ['resuelto', 'cerrado'].includes(seg.estado_nuevo)
+            const avance = EVENTOS_DE_AVANCE.has(seg.tipo_evento) || ['resuelto', 'cerrado', 'anulado'].includes(seg.estado_nuevo)
             return (
               <li key={seg.id} className="relative flex gap-3 px-5 py-2.5 hover:bg-superficie-2 transition-colors">
                 <span aria-hidden="true" className={`absolute left-[31px] w-px bg-borde ${i === 0 ? 'top-5' : 'top-0'} ${i === mostrados.length - 1 ? 'h-5' : 'bottom-0'}`} />
@@ -504,7 +504,7 @@ export default function PQRSDetail() {
   const esServicioCliente = Boolean(alcance?.puede_reclasificar)
   // Corregir datos y adjuntos: el servidor ya descartó la PQRS cerrada.
   const puedeEditarDatos = Boolean(alcance?.puede_editar_datos)
-  const gestionable = Boolean(alcance?.puede_gestionar) && pqrs.estado !== 'cerrado'
+  const gestionable = Boolean(alcance?.puede_gestionar) && !estaTerminada(pqrs)
   const { titulo, subtitulo } = nombrePrincipal(pqrs)
   const tiempo = tiempoEnArea(pqrs)
   const refrescarDetalle = () => queryClient.invalidateQueries({ queryKey: ['pqrs'] })
@@ -644,7 +644,7 @@ export default function PQRSDetail() {
             <ListaProductos
               pqrs={pqrs}
               puedeEditar={puedeEditarDatos}
-              puedeConfirmar={esServicioCliente && pqrs.estado !== 'cerrado'}
+              puedeConfirmar={esServicioCliente && !estaTerminada(pqrs)}
               onCambio={refrescarDetalle}
             />
             {(pqrs.factura_numero || pqrs.canal_atencion) && (

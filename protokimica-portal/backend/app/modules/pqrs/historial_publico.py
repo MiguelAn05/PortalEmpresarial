@@ -18,7 +18,17 @@ MOVIMIENTOS = {
     "en_proceso": "Estamos trabajando en tu solicitud",
     "resuelto":   "Tu solicitud fue resuelta",
     "cerrado":    "Tu solicitud fue cerrada",
+    # Al cliente no se le dice que se anuló: la ve cerrada, como cualquier
+    # otra que terminó. El motivo es interno, como los comentarios.
+    "anulado":    "Tu solicitud fue cerrada",
 }
+
+# Cómo se le nombra el estado al cliente. Solo cambia el que no debe ver.
+ESTADO_PUBLICO = {"anulado": "cerrado"}
+
+
+def estado_publico(estado: str) -> str:
+    return ESTADO_PUBLICO.get(estado, estado)
 
 # Rótulo para los seguimientos viejos, anteriores a que se guardara el estado.
 # Es preferible a inventarse el movimiento leyendo el texto libre.

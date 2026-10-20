@@ -319,6 +319,29 @@ demás áreas **comentan, adjuntan evidencia y responden los conceptos de su
 que mueve el propio portal (asignar un área, pedir y responder conceptos, el
 cliente al confirmar, el cierre automático) no pasa por estas reglas.
 
+**PQRS — anular: lo que no debía existir** (desde la 0.59). Un duplicado,
+una radicada por error o spam no tenía a dónde ir: quedaba abierta o se
+cerraba como si se hubiera atendido, y «Anulada» venía en el Excel de causas,
+donde no es un motivo. Hoy es un **estado** (`anulado`), y `cerrado` +
+`anulado` son `ESTADOS_TERMINADOS` de `models/pqrs.py` (propiedad
+`terminada`, gemelo `estaTerminada()` en `pqrs/constants.js` con prueba).
+
+- **Todo lo que preguntaba «¿está cerrada?» para BLOQUEAR** —editar datos y
+  productos, mover el área, reclasificar, pedir o seguir conceptos— pregunta
+  `terminada`. **Lo que es solo del cierre** —encuesta, requisitos, correo,
+  `fecha_cierre`, el cierre automático— sigue mirando `cerrado`. Un cambio
+  nuevo tiene que decidir cuál de las dos es.
+- La anula quien reparte (`pqrs.cerrar`, más admin), con **motivo
+  obligatorio** en el comentario. No pide causa ni producto. No se anula con
+  un concepto esperando firma (que lo devuelvan primero).
+- **El cliente la ve CERRADA** (decisión del usuario): `estado_publico()` de
+  `historial_publico.py` la traduce en la consulta pública, con la fecha del
+  seguimiento en que se anuló, y el motivo no viaja.
+- **No cuenta**: ni en el informe (salvo «Estado actual», que dice cuántas
+  incluye), ni en la fuente «PQRS recibidas», ni en las abiertas de Inicio.
+  No tiene `fecha_cierre`, así que tampoco entra en las medidas de cierre.
+- Se reabre como una cerrada, eligiendo otro estado.
+
 El tipo (petición/queja/reclamo/…) se corrige **antes de cerrar**: el cliente
 casi nunca acierta al radicar y esa clasificación alimenta los indicadores.
 Al reclasificar se recalcula el SLA **desde la radicación** y la prioridad se

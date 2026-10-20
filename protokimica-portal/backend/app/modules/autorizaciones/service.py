@@ -32,7 +32,7 @@ def registrar_solicitud(
     días) y deja el renglón en el historial. `nota_flujo` dice, cuando la
     pidió el flujo, por qué paso va.
     """
-    if pqrs.estado == "cerrado":
+    if pqrs.terminada:
         raise HTTPException(status_code=400, detail="No se puede solicitar autorización en una PQRS cerrada.")
 
     existente = db.query(AutorizacionPQRS).filter(

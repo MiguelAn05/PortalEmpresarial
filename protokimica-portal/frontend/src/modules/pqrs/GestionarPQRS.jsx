@@ -33,7 +33,7 @@ import {
   IconoRechazo, IconoReloj,
 } from '../../core/components/Iconos.jsx'
 import {
-  ESTADOS, MODOS_GESTION, TIPOS, avanceDeCierre, modoActual, modosDeGestion, pasaAAsignado,
+  ESTADOS, MODOS_GESTION, TIPOS, avanceDeCierre, modoActual, modosDeGestion, pasaAAsignado, ESTADOS_TERMINADOS, estaTerminada,
 } from './constants.js'
 import CausaPQRS from './CausaPQRS.jsx'
 import FlujoPQRS from './FlujoPQRS.jsx'
@@ -121,6 +121,9 @@ function ModoAvanzar({ pqrs, alcance, hayPendiente, esperando, puedeResponder, o
   const archivosSolucionRef = useRef(null)
 
   const esResuelto = estado === 'resuelto'
+  // Anular exige el motivo (el servidor también): sin él, quien la encuentre
+  // después no sabe si fue un duplicado o alguien la escondió.
+  const esAnulada = estado === 'anulado'
   const { faltan } = avanceDeCierre(pqrs.requisitos_cierre)
   const cierreBloqueado = estado === 'cerrado' && faltan.length > 0
 
@@ -151,6 +154,7 @@ function ModoAvanzar({ pqrs, alcance, hayPendiente, esperando, puedeResponder, o
 
   const hayAlgo = Boolean(area || estado || comentario.trim() || evidencia)
   const listo = hayAlgo && (!esResuelto || solucion.trim() !== '') && !cierreBloqueado
+    && (!esAnulada || comentario.trim() !== '')
   // El servidor la deja «asignada» al cambiarle el área; aquí solo se anuncia.
   const quedaAsignada = pasaAAsignado(pqrs, area, estado, hayPendiente)
   // El botón dice qué se va a guardar: un comentario solo no es «gestión».
@@ -190,7 +194,7 @@ function ModoAvanzar({ pqrs, alcance, hayPendiente, esperando, puedeResponder, o
                   .filter(([clave]) => clave !== pqrs.estado)
                   // «Cerrado» solo para quien puede cerrar: mejor no ofrecerlo
                   // que dar un 403 al guardar.
-                  .filter(([clave]) => clave !== 'cerrado' || alcance?.puede_cerrar)
+                  .filter(([clave]) => !ESTADOS_TERMINADOS.includes(clave) || alcance?.puede_cerrar)
                   .map(([clave, { label }]) => <option key={clave} value={clave}>{label}</option>)}
               </select>
             </Campo>
@@ -246,6 +250,13 @@ function ModoAvanzar({ pqrs, alcance, hayPendiente, esperando, puedeResponder, o
         <Efecto tono="alerta">
           Todavía no se puede cerrar. Falta: {faltan.map(r => r.etiqueta.toLowerCase()).join(', ')}.
           Está arriba, en «Para cerrar».
+        </Efecto>
+      )}
+      {esAnulada && (
+        <Efecto tono="alerta">
+          Anular es para lo que no debía existir: un duplicado, una radicada por error. No pide causa ni producto,
+          no se le manda la encuesta y no cuenta en el informe. <strong>Escribe el motivo abajo</strong>; queda en el
+          historial interno y el cliente la ve como cerrada, sin el motivo.
         </Efecto>
       )}
       {estado === 'cerrado' && !cierreBloqueado && (
@@ -478,7 +489,7 @@ function Reclasificar({ pqrs }) {
 function ModoClasificar({ pqrs, alcance }) {
   return (
     <div className="space-y-4">
-      {alcance?.puede_reclasificar && pqrs.estado !== 'cerrado' && <Reclasificar pqrs={pqrs} />}
+      {alcance?.puede_reclasificar && !estaTerminada(pqrs) && <Reclasificar pqrs={pqrs} />}
       <CausaPQRS pqrs={pqrs} puedeMarcar={Boolean(alcance?.puede_marcar_causa)} />
     </div>
   )

@@ -24,7 +24,7 @@ from app.modules.pqrs import productos as pqrs_productos
 from app.modules.pqrs.cierre_automatico import (
     confirmar_solucion, plazo_confirmacion, rechazar_solucion,
 )
-from app.modules.pqrs.historial_publico import construir as historial_publico_de
+from app.modules.pqrs.historial_publico import construir as historial_publico_de, estado_publico
 from app.core.archivos import (
     EXTENSIONES_VIDEO_PERMITIDAS, MAX_TAMANIO_VIDEO_MB, guardar_archivo,
 )
@@ -341,14 +341,21 @@ def consultar_pqrs_publica(codigo: str, db: Session = Depends(get_db)):
         for movimiento in historial_publico_de(solicitud.seguimientos)
     ]
 
+    # Una anulada se le muestra CERRADA, con la fecha en que se anuló:
+    # «anulada» es una decisión interna y el motivo no le corresponde.
+    fecha_cierre = solicitud.fecha_cierre
+    if solicitud.estado == "anulado":
+        fecha_cierre = max((s.fecha for s in solicitud.seguimientos
+                            if s.estado_nuevo == "anulado" and s.fecha), default=None)
+
     return PQRSConsultaOut(
         codigo_seguimiento=solicitud.codigo_seguimiento,
         tipo=solicitud.tipo,
-        estado=solicitud.estado,
+        estado=estado_publico(solicitud.estado),
         prioridad=solicitud.prioridad,
         empresa=solicitud.empresa,
         fecha_creacion=solicitud.fecha_creacion,
-        fecha_cierre=solicitud.fecha_cierre,
+        fecha_cierre=fecha_cierre,
         historial=historial_publico,
     )
     
@@ -454,7 +461,7 @@ def consultar_confirmacion(codigo: str, db: Session = Depends(get_db)):
     if not solicitud:
         raise HTTPException(status_code=404, detail="No encontramos ninguna solicitud con ese código.")
 
-    if solicitud.estado == "cerrado":
+    if solicitud.terminada:
         return ConfirmarEstadoOut(
             disponible=False, ya_decidido=True,
             mensaje="Esta solicitud ya está cerrada. ¡Gracias por su tiempo!",

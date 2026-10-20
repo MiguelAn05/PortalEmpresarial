@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core import inicio as base
 from app.core.fechas import con_zona
-from app.models.pqrs import PQRSSolicitud
+from app.models.pqrs import ESTADOS_TERMINADOS, PQRSSolicitud
 from app.models.user import User
 from app.modules.pqrs.pendientes import ESTADOS_ABIERTOS as ESTADOS_CON_PLAZO
 
@@ -20,7 +20,7 @@ def _mis_pqrs(db: Session, usuario: User) -> dict:
         .filter(
             PQRSSolicitud.tenant_id == usuario.tenant_id,
             PQRSSolicitud.asignado_a == usuario.id,
-            PQRSSolicitud.estado != "cerrado",
+            PQRSSolicitud.estado.notin_(ESTADOS_TERMINADOS),
         )
         .all()
     )
@@ -61,7 +61,7 @@ def _titular(db: Session, usuario: User, momento: datetime) -> dict:
     pqrs_abiertas = (
         db.query(PQRSSolicitud)
         .filter(PQRSSolicitud.tenant_id == usuario.tenant_id,
-                PQRSSolicitud.estado != "cerrado")
+                PQRSSolicitud.estado.notin_(ESTADOS_TERMINADOS))
         .count()
     )
 

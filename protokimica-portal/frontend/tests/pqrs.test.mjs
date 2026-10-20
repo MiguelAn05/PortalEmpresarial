@@ -7,7 +7,7 @@ import {
   AREA_SIN_ASIGNAR, areasParaFiltrar, coincideAreaAsignada,
   ESTADOS_CON_PLAZO, plazoCorriendo, estadoDelPlazo, estaVencida,
   FOCOS, cumpleFoco, contarPorFoco, tiempoEnArea,
-  VISTAS, cumpleVista, avancePlazo, lineaDeVida, filtrarHistorial, iniciales,
+  VISTAS, cumpleVista, avancePlazo, lineaDeVida, filtrarHistorial, iniciales, ESTADOS, ESTADOS_TERMINADOS, estaTerminada,
 } from '../src/modules/pqrs/constants.js'
 // Las areas son de cada empresa y llegan del servidor; aqui, unas de ejemplo.
 const AREAS = ['TICS', 'Calidad', 'Servicio al Cliente']
@@ -269,6 +269,25 @@ console.log('\n== Iniciales de quien firma ==')
 check('nombre y apellido', iniciales('Ana María Vargas') === 'AV')
 check('un solo nombre', iniciales('Calidad') === 'CA')
 check('vacio no revienta', iniciales('') === '?')
+
+console.log('\n== Anulada: terminó, pero no es un cierre ==')
+const MODELO_PQRS = readFileSync(new URL('../../backend/app/models/pqrs.py', import.meta.url), 'utf8')
+const delModelo = (/ESTADOS_TERMINADOS = \(([^)]*)\)/.exec(MODELO_PQRS)?.[1] || '').match(/"([a-z_]+)"/g)?.map(x => x.slice(1, -1))
+check('los estados terminados son los mismos del servidor',
+  JSON.stringify(delModelo) === JSON.stringify(ESTADOS_TERMINADOS), delModelo)
+check('tiene su nombre', ESTADOS.anulado?.label === 'Anulada')
+check('una anulada está terminada', estaTerminada({ estado: 'anulado' }) && !estaTerminada({ estado: 'resuelto' }))
+check('no está en Abiertas', !cumpleVista({ estado: 'anulado' }, 'abiertas'))
+check('ni en De mi área', !cumpleVista({ estado: 'anulado', area_responsable: 'Calidad' }, 'mi_area', { area: 'Calidad' }))
+check('está en Cerradas', cumpleVista({ estado: 'anulado' }, 'cerradas'))
+const anulada = lineaDeVida(caso({
+  estado: 'anulado',
+  seguimientos: [{ id: 1, fecha: '2026-09-25T15:09:00', estado_nuevo: 'recibido' },
+                 { id: 2, fecha: '2026-09-26T10:00:00', estado_nuevo: 'anulado' }],
+}))
+check('la línea de vida termina en «Anulada», sin Resuelta ni Cerrada',
+  anulada.map(p => p.clave).join(' ') === 'recibida gestion anulada', anulada.map(p => p.clave))
+check('con la fecha en que se anuló', anulada[2].fecha === '2026-09-26T10:00:00' && anulada[2].estado === 'hecho', anulada[2])
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

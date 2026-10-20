@@ -323,10 +323,10 @@ def obtener_pqrs(
         puede_pedir_conceptos=escribe and puede_pedir_conceptos(current_user),
         puede_cerrar=escribe and servicio_cliente,
         puede_reclasificar=escribe and servicio_cliente,
-        puede_editar_datos=escribe and solicitud.estado != "cerrado",
+        puede_editar_datos=escribe and not solicitud.terminada,
         puede_marcar_causa=escribe and servicio_cliente,
     )
-    if solicitud.estado != "cerrado":
+    if not solicitud.terminada:
         detalle.requisitos_cierre = requisitos_para_cerrar(db, solicitud)
     if solicitud.estado == "resuelto" and solicitud.fecha_resuelto:
         detalle.plazo_confirmacion = plazo_confirmacion(solicitud.fecha_resuelto)
@@ -690,11 +690,11 @@ def reclasificar_tipo_pqrs(
 
     # Una PQRS cerrada ya se reporto y su tipo entro en los indicadores del
     # mes. Reclasificar despues cambiaria cifras ya presentadas.
-    if solicitud.estado == "cerrado":
+    if solicitud.terminada:
         raise HTTPException(
             status_code=400,
             detail=(
-                "No se puede reclasificar una PQRS cerrada. El tipo se corrige "
+                "No se puede reclasificar una PQRS cerrada o anulada. El tipo se corrige "
                 "antes de cerrarla."
             ),
         )

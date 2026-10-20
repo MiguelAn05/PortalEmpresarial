@@ -16,7 +16,9 @@ def _pqrs_del_mes(db: Session, tenant_id: int, anio: int, mes: int):
     return (
         db.query(PQRSSolicitud)
         .filter(PQRSSolicitud.tenant_id == tenant_id,
-                PQRSSolicitud.fecha_creacion >= desde, PQRSSolicitud.fecha_creacion <= hasta)
+                PQRSSolicitud.fecha_creacion >= desde, PQRSSolicitud.fecha_creacion <= hasta,
+                # Una anulada (duplicada, por error) no es una PQRS recibida.
+                PQRSSolicitud.estado != "anulado")
         .all()
     )
 

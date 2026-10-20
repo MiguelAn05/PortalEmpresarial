@@ -40,7 +40,7 @@ from app.modules.pqrs.notificaciones import (
 )
 from app.modules.pqrs.service import generar_radicado_calidad
 
-ESTADOS_VALIDOS = ("recibido", "asignado", "en_proceso", "resuelto", "cerrado")
+ESTADOS_VALIDOS = ("recibido", "asignado", "en_proceso", "resuelto", "cerrado", "anulado")
 
 # Cómo se nombra cada estado dentro del comentario del historial. El historial
 # interno lo leen personas, no el código: "en proceso" y no "en_proceso".
@@ -50,6 +50,7 @@ ESTADO_LEGIBLE = {
     "en_proceso": "en proceso",
     "resuelto": "resuelto",
     "cerrado": "cerrado",
+    "anulado": "anulado",
 }
 
 
@@ -108,7 +109,8 @@ def requisitos_para_cerrar(db: Session, solicitud: PQRSSolicitud) -> list[dict]:
 
 
 def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
-             area: str | None, estado: str | None, solucion: str | None) -> None:
+             area: str | None, estado: str | None, solucion: str | None,
+             comentario: str | None = None) -> None:
     """
     Todo lo que puede impedir el guardado, ANTES de tocar la solicitud.
 
@@ -131,12 +133,12 @@ def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
                 status_code=400,
                 detail=f"'{area}' no es un área del portal. Elige una de la lista.",
             )
-        if solicitud.estado == "cerrado":
+        if solicitud.terminada:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "No se puede mover de área una PQRS cerrada. Si hay que "
-                    "retomarla, cámbiale primero el estado."
+                    "No se puede mover de área una PQRS cerrada o anulada. Si "
+                    "hay que retomarla, cámbiale primero el estado."
                 ),
             )
 
@@ -171,6 +173,32 @@ def _validar(db: Session, solicitud: PQRSSolicitud, usuario: User,
             detail=(
                 "Escribe qué se le solucionó al cliente: es lo que se le va a "
                 "enviar por correo pidiéndole que confirme."
+            ),
+        )
+
+    # Anular es decir que el caso no debía existir: sin el motivo, quien la
+    # encuentre después no sabe si fue un duplicado o alguien la escondió.
+    # No exige causa ni producto: no es un caso que se haya atendido.
+    if estado == "anulado" and not (comentario or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Escribe por qué se anula (por ejemplo, «duplicada de PVG0040» o "
+                "«radicada por error»). Queda en el historial interno; el cliente "
+                "no lo ve."
+            ),
+        )
+
+    # Con un concepto esperando firma, el área que lo tiene seguiría viendo
+    # pendiente algo sobre un caso que ya no existe. Igual que al cerrar.
+    if estado == "anulado" and db.query(AutorizacionPQRS.id).filter(
+        AutorizacionPQRS.pqrs_id == solicitud.id, AutorizacionPQRS.estado == "pendiente",
+    ).first():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Hay un concepto esperando respuesta. Pídele al área que lo tiene "
+                "que lo devuelva (no le corresponde) y después anúlala."
             ),
         )
 
@@ -254,7 +282,7 @@ def aplicar_gestion(
     if not estado:
         estado = estado_al_asignar(db, solicitud, area)
 
-    _validar(db, solicitud, usuario, area, estado, solucion)
+    _validar(db, solicitud, usuario, area, estado, solucion, comentario)
 
     area_anterior = solicitud.area_responsable
     estado_anterior = solicitud.estado

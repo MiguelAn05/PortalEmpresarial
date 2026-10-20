@@ -306,7 +306,7 @@ async def responder_autorizacion(
     # Si la autorización es un paso del flujo, se marca y se sabe qué sigue
     # (todavía sin pedirlo: primero queda el renglón de esta respuesta).
     resultado = flujo.registrar_respuesta(db, pqrs, autorizacion, decision)
-    sigue = resultado["sigue"] if pqrs.estado != "cerrado" else None
+    sigue = resultado["sigue"] if not pqrs.terminada else None
 
     if sigue:
         # El flujo sigue: el caso pasa DIRECTO a la siguiente área, sin
@@ -326,7 +326,7 @@ async def responder_autorizacion(
                 else "El flujo quedó detenido: Servicio al Cliente decide si se vuelve a pedir, se sigue o se termina."
             )
         reparte = capacidades.area_principal(db, tenant_id, CAPACIDAD_GESTION)
-        if pqrs.estado != "cerrado" and reparte and pqrs.area_responsable != reparte:
+        if not pqrs.terminada and reparte and pqrs.area_responsable != reparte:
             detalle.append(f"Área: {pqrs.area_responsable or 'sin asignar'} -> {reparte}.")
             area_que_firmo = pqrs.area_responsable
             pqrs.area_responsable = reparte

@@ -315,7 +315,7 @@ export const FOCOS = [
   {
     clave: 'abiertas',
     label: 'Abiertas',
-    cumple: (pqrs) => pqrs?.estado !== 'cerrado',
+    cumple: (pqrs) => !estaTerminada(pqrs),
   },
   {
     clave: 'vencidas',
@@ -383,12 +383,13 @@ export function avancePlazo(pqrs, ahora = new Date()) {
  * consulta, no se trabaja.
  */
 export const VISTAS = [
-  { clave: 'abiertas', label: 'Abiertas', cumple: (p) => p?.estado !== 'cerrado' },
+  { clave: 'abiertas', label: 'Abiertas', cumple: (p) => !estaTerminada(p) },
   {
     clave: 'mi_area', label: 'De mi área',
-    cumple: (p, { area } = {}) => p?.estado !== 'cerrado' && Boolean(area) && p?.area_responsable === area,
+    cumple: (p, { area } = {}) => !estaTerminada(p) && Boolean(area) && p?.area_responsable === area,
   },
-  { clave: 'cerradas', label: 'Cerradas', cumple: (p) => p?.estado === 'cerrado' },
+  // «Cerradas» incluye las anuladas: las dos terminaron, y la insignia dice cuál es cuál.
+  { clave: 'cerradas', label: 'Cerradas', cumple: (p) => estaTerminada(p) },
   { clave: 'todas', label: 'Todas', cumple: () => true },
 ]
 
@@ -409,7 +410,7 @@ export function cumpleVista(pqrs, clave, contexto = {}) {
 }
 
 // En qué punto del recorrido queda cada estado.
-const RANGO_ESTADO = { recibido: 0, asignado: 1, en_proceso: 1, resuelto: 3, cerrado: 4 }
+const RANGO_ESTADO = { recibido: 0, asignado: 1, en_proceso: 1, resuelto: 3, cerrado: 4, anulado: 4 }
 
 const plural = (n, palabra) => `${n} ${palabra}${n === 1 ? '' : 's'}`
 
@@ -447,10 +448,16 @@ export function lineaDeVida(pqrs, autorizaciones = []) {
       hecho: pendientes === 0,
     })
   }
-  pasos.push(
-    { clave: 'resuelta', titulo: 'Resuelta', fecha: pqrs.fecha_resuelto || primera(['resuelto']), hecho: rango >= 3 },
-    { clave: 'cerrada', titulo: 'Cerrada', fecha: pqrs.fecha_cierre, hecho: rango >= 4 },
-  )
+  // Una anulada no se resolvió ni se cerró: termina en «Anulada», con la
+  // fecha en que se anuló (no tiene `fecha_cierre`).
+  if (pqrs.estado === 'anulado') {
+    pasos.push({ clave: 'anulada', titulo: 'Anulada', fecha: primera(['anulado']), hecho: true })
+  } else {
+    pasos.push(
+      { clave: 'resuelta', titulo: 'Resuelta', fecha: pqrs.fecha_resuelto || primera(['resuelto']), hecho: rango >= 3 },
+      { clave: 'cerrada', titulo: 'Cerrada', fecha: pqrs.fecha_cierre, hecho: rango >= 4 },
+    )
+  }
 
   // Dónde está ahora: la autorización que se espera, o el primer paso que falta.
   const actual = pendientes ? 'autorizaciones' : (pasos.find(p => !p.hecho)?.clave ?? null)
@@ -515,6 +522,19 @@ export const ESTADOS = {
   en_proceso: { label: 'En proceso', tono: 'alerta'   },
   resuelto:   { label: 'Resuelto',   tono: 'positivo' },
   cerrado:    { label: 'Cerrado',    tono: 'neutro'   },
+  anulado:    { label: 'Anulada',    tono: 'neutro'   },
+}
+
+/**
+ * Los estados en que una PQRS TERMINÓ: cerrada (se atendió) o anulada (no
+ * debía existir: duplicada, por error). Todo lo que pregunta «¿se puede
+ * seguir gestionando?» usa `estaTerminada`, no «=== 'cerrado'». Gemelo de
+ * `ESTADOS_TERMINADOS` de `backend/app/models/pqrs.py`, con prueba que los ata.
+ */
+export const ESTADOS_TERMINADOS = ['cerrado', 'anulado']
+
+export function estaTerminada(pqrs) {
+  return ESTADOS_TERMINADOS.includes(pqrs?.estado)
 }
 
 export const PRIORIDADES = {
@@ -562,7 +582,7 @@ export const MODOS_GESTION = {
  */
 export function modosDeGestion(pqrs, puedeResponder = false) {
   const alcance = pqrs.alcance || {}
-  const abierta = pqrs.estado !== 'cerrado'
+  const abierta = !estaTerminada(pqrs)
   const modos = []
   if (puedeResponder && abierta) modos.push('responder')
   if (alcance.puede_gestionar && abierta) modos.push('avanzar')

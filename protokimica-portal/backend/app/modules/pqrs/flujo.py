@@ -300,7 +300,7 @@ def _nota(db: Session, pqrs: PQRSSolicitud, texto: str, usuario_id: int | None) 
 
 
 def _exigir_abierta(pqrs: PQRSSolicitud) -> None:
-    if pqrs.estado == "cerrado":
+    if pqrs.terminada:
         raise HTTPException(status_code=400, detail="La PQRS está cerrada: su flujo ya no se mueve.")
 
 
@@ -496,6 +496,6 @@ def resumen(db: Session, pqrs: PQRSSolicitud, puede_gestionar: bool) -> dict:
         "propuesta": propuesta(db, pqrs) if estado in ("sin_flujo", "completa") else None,
         "bodega_despacho_id": pqrs.bodega_despacho_id,
         "bodegas": [{"id": b.id, "nombre": b.nombre} for b in activas],
-        "puede_gestionar": puede_gestionar and pqrs.estado != "cerrado",
+        "puede_gestionar": puede_gestionar and not pqrs.terminada,
     }
 

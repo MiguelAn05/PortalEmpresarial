@@ -6,6 +6,7 @@ import { puedeVerModulo } from '../../core/modulos.js'
 import { useAuth } from '../../core/useAuth.js'
 import { useAreas } from '../../core/areas.js'
 import { useFiltrosEnUrl } from '../../core/useFiltrosEnUrl.js'
+import { formatFecha, formatHora } from '../masterPlanner/constants.js'
 import {
   SIN_CAUSA, agruparAsociados, causaDeFila, coincideAsociado, etiquetaAsociado, useAsociados,
 } from './asociados.js'
@@ -21,7 +22,7 @@ import {
   AREA_SIN_ASIGNAR, DEPARTAMENTOS, FILTROS_LISTA, LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES, VISTAS,
   areasParaFiltrar, avancePlazo, coincideAreaAsignada, contarPorFoco, cumpleFoco, cumpleVista,
   estadoDelPlazo, faltaEnProductos, nombrePrincipal, productoVacio, productosParaEnviar, tiempoEnArea,
-  ESTADOS, PRIORIDADES, TIPOS,
+  ESTADOS, PRIORIDADES, TIPOS, estaTerminada,
 } from './constants.js'
 import { InsigniaDe } from './piezas.jsx'
 
@@ -518,7 +519,7 @@ export default function PQRSList() {
   // que muestra al pulsarla.
   const enVista = base.filter(p => cumpleVista(p, vista, contextoVista))
   const conteos = contarPorFoco(enVista)
-  const abiertasTotal = base.filter(p => p.estado !== 'cerrado').length
+  const abiertasTotal = base.filter(p => !estaTerminada(p)).length
   const cerradasTotal = base.length - abiertasTotal
   const lista = enVista.filter(p => cumpleFoco(p, foco))
 
@@ -706,7 +707,10 @@ export default function PQRSList() {
       )}
 
       {/* Tabla */}
-      <div className="bg-superficie rounded-xl border border-borde shadow-sm overflow-hidden">
+      {/* `overflow-clip` y no `overflow-hidden`: los dos recortan las esquinas,
+          pero `hidden` vuelve la caja un contenedor de scroll y el encabezado
+          de la tabla dejaba de quedarse fijo. */}
+      <div className="bg-superficie rounded-xl border border-borde shadow-sm overflow-clip">
         {isLoading ? (
           <EsqueletoFilas filas={6} />
         ) : isError ? (
@@ -730,9 +734,16 @@ export default function PQRSList() {
           </div>
         ) : (
           <table className="w-full text-sm">
+            {/* El encabezado se queda fijo bajo la cabecera del portal (60 px)
+                al bajar por la lista: con el histórico, al llegar a la fila 40
+                ya nadie recuerda qué columna es «Plazo» y cuál «Causa». Cada
+                celda lleva su fondo y su línea inferior como sombra, porque un
+                borde no viaja con una celda fija. En la hoja impresa no se fija. */}
             <thead>
-              <tr className="bg-superficie-2 border-b border-borde">
+              <tr className="[&>th]:sticky [&>th]:top-[60px] [&>th]:z-10 [&>th]:bg-superficie-2
+                             [&>th]:shadow-[inset_0_-1px_0_var(--color-borde)] print:[&>th]:static">
                 <th className="etiqueta text-left px-4 py-2.5 w-36">Radicado</th>
+                <th className="etiqueta text-left px-4 py-2.5 w-32">Fecha</th>
                 <th className="etiqueta text-left px-4 py-2.5">Cliente</th>
                 <th className="etiqueta text-left px-4 py-2.5 w-52">Área · en cola</th>
                 <th className="etiqueta text-left px-4 py-2.5 w-48">Causa</th>
@@ -762,6 +773,13 @@ export default function PQRSList() {
                           </span>
                         )}
                       </div>
+                    </td>
+                    {/* Cuándo se radicó, con la hora debajo: de ahí corre el
+                        plazo, y dos del mismo cliente el mismo día se
+                        distinguen por la hora. */}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="cifra text-texto-2">{formatFecha(pqrs.fecha_creacion)}</div>
+                      <div className="cifra text-xs text-texto-3 mt-0.5">{formatHora(new Date(pqrs.fecha_creacion))}</div>
                     </td>
                     {/* La empresa arriba —así se reconoce el cliente de un
                         vistazo— y el contacto debajo. Ver `nombrePrincipal`. */}
