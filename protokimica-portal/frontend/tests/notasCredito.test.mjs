@@ -121,15 +121,17 @@ console.log('\n== Los filtros van en el orden del flujo ==')
 // es una afirmacion sobre el proceso aunque nadie la escriba, y esa decia que
 // el flujo empieza por Contabilidad.
 const esperando = FILTROS.find(f => f.grupo === 'Esperando a').opciones.map(o => o.clave)
-check('bodega, comercial, contabilidad, emitir, corregir',
+// Desde la 0.60 Comercial va antes que la bodega: la bodega confirma solo lo
+// que Comercial ya aprobó.
+check('comercial, bodega, contabilidad, emitir, corregir',
   JSON.stringify(esperando) ===
-  JSON.stringify(['bodega', 'comercial', 'contabilidad', 'por_emitir', 'devueltas']), esperando)
+  JSON.stringify(['comercial', 'bodega', 'contabilidad', 'por_emitir', 'devueltas']), esperando)
 
 const estadosEnOrden = Object.keys(ESTADOS)
-check('y los estados tambien: la bodega antes que Comercial',
-  estadosEnOrden.indexOf('en_bodega') < estadosEnOrden.indexOf('en_comercial'), estadosEnOrden)
-check('y Comercial antes que Contabilidad',
-  estadosEnOrden.indexOf('en_comercial') < estadosEnOrden.indexOf('en_contabilidad'), estadosEnOrden)
+check('y los estados tambien: Comercial antes que la bodega',
+  estadosEnOrden.indexOf('en_comercial') < estadosEnOrden.indexOf('en_bodega'), estadosEnOrden)
+check('y la bodega antes que Contabilidad',
+  estadosEnOrden.indexOf('en_bodega') < estadosEnOrden.indexOf('en_contabilidad'), estadosEnOrden)
 
 console.log('\n== Cada filtro existe en el servidor ==')
 const gruposPy = [...PY_FLUJO.match(/^GRUPOS_FILTRO: dict\[str, tuple\[str, \.\.\.\]\] = \{(.*?)^\}/ms)[1]

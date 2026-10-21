@@ -18,15 +18,20 @@ Lo que cambia entre ramas es qué pasa DESPUÉS de Comercial:
     Punto de venta ──► COMERCIAL aprueba
                     ──► el punto emite y registra el número
 
-    Ventas Institucionales
+    Ventas Institucionales ──► COMERCIAL aprueba
         └─(si el motivo implica producto)─► BODEGA confirma que llegó
-                                         ──► COMERCIAL aprueba
                                          ──► CONTABILIDAD verifica en la DIAN
                                          ──► quien emite registra el número
 
-Lo único que agrega el producto es la confirmación de la bodega al principio:
-sin producto no hay nada que confirmar y pedirlo sería una firma que no mira
+Lo único que agrega el producto es la confirmación de la bodega: sin
+producto no hay nada que confirmar y pedirlo sería una firma que no mira
 nada, de las que la gente aprende a dar sin leer.
+
+**La bodega va DESPUÉS de Comercial** (desde la 0.60; hasta la 0.59 iba
+primero). Si Comercial la rechaza, la bodega no tenía nada que revisar: ir
+primero la ponía a confirmar mercancía de notas crédito que nunca iban a
+existir. La migración `nc_comercial_antes_que_bodega` movió las que estaban
+esperando a la bodega sin haber pasado por Comercial.
 
 **En la rama del mostrador Contabilidad ya no autoriza.** Tenía un turno
 —el estado `solicitada`— entre Comercial y la emisión, y era una firma de
@@ -122,8 +127,8 @@ GRUPO_MI_TURNO = "mi_turno"       # se resuelve contra el usuario, no contra una
 
 GRUPOS_FILTRO: dict[str, tuple[str, ...]] = {
     "abiertas":     (),   # se llena abajo con ESTADOS_ABIERTOS
-    "bodega":       (ESTADO_EN_BODEGA,),
     "comercial":    (ESTADO_EN_COMERCIAL,),
+    "bodega":       (ESTADO_EN_BODEGA,),
     # Solo la rama institucional: en la del mostrador Contabilidad ya no
     # tiene turno. El grupo se queda porque el turno de la DIAN sigue ahí.
     "contabilidad": (ESTADO_EN_CONTABILIDAD,),
@@ -161,8 +166,10 @@ def cadena(institucional: bool, requiere_bodega: bool = False) -> tuple[str, ...
     # comercial ya está tomada.
     if not institucional:
         return (ESTADO_EN_COMERCIAL, ESTADO_APROBADA)
+    # Comercial decide primero también aquí; la bodega confirma solo lo que
+    # Comercial ya aprobó.
     if requiere_bodega:
-        return (ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)
+        return (ESTADO_EN_COMERCIAL, ESTADO_EN_BODEGA, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)
     return (ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)
 
 

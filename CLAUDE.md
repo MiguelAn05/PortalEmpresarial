@@ -1540,7 +1540,18 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   |---|---|
   | Un punto de venta | Comercial aprueba → el punto emite |
   | Ventas Institucionales | Comercial aprueba → Contabilidad verifica en la DIAN → se emite |
-  | Ventas Institucionales, motivo con producto | **La bodega confirma que llegó** y después lo anterior |
+  | Ventas Institucionales, motivo con producto | Comercial aprueba → **la bodega confirma que llegó** → Contabilidad verifica en la DIAN → se emite |
+
+  **Comercial va antes que la bodega** (desde la 0.60; hasta la 0.59 la
+  bodega iba primero). Si Comercial la rechaza, la bodega no tenía nada que
+  confirmar: ir primero la ponía a revisar mercancía de notas crédito que
+  nunca iban a existir. La migración `d8f3a6c2e917` movió a Comercial las que
+  esperaban a la bodega sin haber pasado por él —dejadas ahí, al confirmar
+  la bodega habrían saltado a Contabilidad **sin la firma de Comercial**—, con
+  su renglón en el historial. Las que ya esperaban a Comercial con la bodega
+  confirmada se dejaron: al aprobar vuelven a la bodega, una firma de más
+  pero nunca un paso saltado. Cuando el turno siguiente es la bodega, en
+  copia van los responsables de ESA bodega, no todos los del permiso.
 
   Antes las del punto de venta entraban directo a Contabilidad —era el flujo
   heredado de cuando esto se pedía por correo— y el resultado era que
@@ -1622,7 +1633,7 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
     tiene que ver con producto (`nc_motivos.requiere_bodega`, que incluye
     «Otro» por decisión del usuario); los puntos de venta no la llevan. Es
     **de dónde salió el producto**, y su responsable confirma que está bien
-    antes de Comercial.
+    después de que Comercial la aprueba.
   - **Quién confirma** (`bodegas.puede_confirmar`): los responsables de esa
     bodega, aunque su área no tenga el permiso —nombrarlo responsable ya lo
     es—. Si la bodega no tiene responsables, quien tenga

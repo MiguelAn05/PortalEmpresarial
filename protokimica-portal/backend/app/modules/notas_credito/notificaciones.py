@@ -212,8 +212,14 @@ def _aviso_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
     )
     if turno_siguiente and turno_siguiente != ESTADO_APROBADA:
         capacidad_siguiente = flujo.capacidad_de(turno_siguiente)
-        en_copia = [c for c in correos_de(db, tenant_id, capacidad_siguiente)
-                    if c not in destinatarios]
+        copia = correos_de(db, tenant_id, capacidad_siguiente)
+        if turno_siguiente == ESTADO_EN_BODEGA:
+            # Lo que sigue es la bodega: en copia van los responsables de ESA
+            # bodega, como cuando le toca. Con el permiso general irían los de
+            # todas, y Guayabal se enteraría de lo que tiene que confirmar La 65.
+            copia = sorted({u.email for u in bodegas.responsables(db, tenant_id, solicitud.bodega)
+                            if u.email}) or copia
+        en_copia = [c for c in copia if c not in destinatarios]
 
     es_el_primer_turno = solicitud.estado == flujo.estado_inicial(
         solicitud.institucional, bool(solicitud.bodega),

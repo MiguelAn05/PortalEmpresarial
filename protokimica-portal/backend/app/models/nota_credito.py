@@ -17,12 +17,11 @@ menos deben estar.
 **Hay dos ciclos, según quién la pida** (la cadena vive en
 `modules/notas_credito/flujo.py`):
 
-- **Un punto de venta**: la autoriza Contabilidad y la emite el punto. Es el
-  ciclo de siempre y no cambió.
-- **Ventas Institucionales**: pasa por Comercial y después por Contabilidad,
-  que verifica ante la DIAN si la factura tiene saldo a favor; y si el motivo
-  implica producto, antes que nadie la bodega confirma que llegó y en qué
-  estado. La emite quien tenga la capacidad de registrar.
+- **Un punto de venta**: la aprueba Comercial y la emite el punto.
+- **Ventas Institucionales**: la aprueba Comercial; si el motivo implica
+  producto, después la bodega confirma que llegó y en qué estado; y por
+  último Contabilidad verifica ante la DIAN si la factura tiene saldo a
+  favor. La emite quien tenga la capacidad de registrar.
 
 Las dos se cierran igual: cuando alguien registra el NÚMERO de la nota crédito
 que se emitió. Ese paso es el que permite auditar la cadena completa y, sobre
@@ -79,7 +78,7 @@ ESTADO_DEVUELTA = "devuelta"
 ESTADO_CANCELADA = "cancelada"
 
 ESTADOS = (
-    ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL,
+    ESTADO_EN_COMERCIAL, ESTADO_EN_BODEGA,
     ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA, ESTADO_DEVUELTA,
     ESTADO_RECHAZADA, ESTADO_APLICADA, ESTADO_CANCELADA,
 )
@@ -88,7 +87,7 @@ ESTADOS = (
 # Una devuelta SÍ está abierta — está esperando a que el solicitante la
 # corrija, que es trabajo pendiente como cualquier otro.
 ESTADOS_ABIERTOS = (
-    ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL,
+    ESTADO_EN_COMERCIAL, ESTADO_EN_BODEGA,
     ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA, ESTADO_DEVUELTA,
 )
 

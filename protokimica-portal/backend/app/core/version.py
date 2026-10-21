@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.59.0"
-FECHA = "2026-10-20"
+VERSION = "0.60.0"
+FECHA = "2026-10-21"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,22 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.60.0",
+        "fecha": "2026-10-21",
+        "titulo": "Nota crédito institucional: primero Comercial, después la bodega",
+        "cambios": [
+            ("mejora", "En las notas crédito de venta institucional con producto, Coordinación "
+                       "Comercial aprueba primero y después la bodega confirma que el producto "
+                       "llegó. Si Comercial la rechaza, a la bodega ya no le llega nada que revisar."),
+            ("mejora", "Las que estaban esperando a la bodega sin haber pasado por Comercial "
+                       "volvieron a Comercial, y su historial dice por qué se movieron."),
+            ("mejora", "El correo que avisa a Comercial lleva en copia solo a los responsables de "
+                       "la bodega de esa nota crédito, no a los de todas."),
+            ("mejora", "El correo de PQRS nueva dice el nombre de la empresa del cliente, con la "
+                       "persona de contacto al lado; si es persona natural, solo su nombre."),
+        ],
+    },
     {
         "version": "0.59.0",
         "fecha": "2026-10-20",

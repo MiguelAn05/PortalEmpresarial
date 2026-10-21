@@ -5,8 +5,9 @@ Un punto de venta pide y Contabilidad autoriza: eso es un trámite entre dos.
 Una venta institucional es otra cosa — hay producto que vuelve a una bodega,
 una decisión comercial sobre si la devolución procede, y una verificación
 ante la DIAN de si la factura tiene saldo a favor. Son cuatro manos, y el
-orden importa: aprobar comercialmente algo que la bodega todavía no ha visto
-es firmar sin mirar.
+orden importa: **Comercial decide primero** y la bodega confirma solo lo que
+Comercial ya aprobó (desde la 0.60; antes la bodega iba primero y confirmaba
+mercancía de notas crédito que Comercial después rechazaba).
 
 Lo que se defiende aquí:
 
@@ -104,6 +105,13 @@ def _responder(entorno, sid, decision, comentario=None):
     return entorno.post(f"/notas-credito/{sid}/responder", json=cuerpo)
 
 
+def _pasa_comercial(entorno, sid):
+    """Comercial aprueba: con producto, eso la deja esperando a la bodega."""
+    entorno.como("comercial")
+    r = _responder(entorno, sid, "aprobar")
+    assert r.status_code == 200, r.text[:300]
+
+
 def _escenario(entorno, con_producto=True, bodega=GUAYABAL):
     """Una institucional recién radicada, con toda la gente montada."""
     _montar_la_cadena(entorno)
@@ -122,9 +130,12 @@ def _escenario(entorno, con_producto=True, bodega=GUAYABAL):
 
 # ── Por dónde entra cada una ─────────────────────────────────────────────
 
-def test_con_producto_empieza_en_la_bodega(entorno, v):
+def test_con_producto_empieza_en_comercial_y_sigue_la_bodega(entorno, v):
     sid = _escenario(entorno)
-    v.check("nace esperando a la bodega", _estado(entorno, sid) == "en_bodega",
+    v.check("nace esperando a Comercial", _estado(entorno, sid) == "en_comercial",
+            _estado(entorno, sid))
+    _pasa_comercial(entorno, sid)
+    v.check("y al aprobar pasa a la bodega", _estado(entorno, sid) == "en_bodega",
             _estado(entorno, sid))
 
 
@@ -173,27 +184,41 @@ def test_con_producto_hay_que_decir_a_que_bodega(entorno, v):
 
 # ── El orden lo impone el servidor ───────────────────────────────────────
 
-def test_comercial_no_puede_adelantarse_a_la_bodega(entorno, v):
+def test_la_bodega_no_puede_adelantarse_a_comercial(entorno, v):
     """
     El caso que justifica que sea UN endpoint y no uno por etapa: no hay URL
     que escribir para saltarse un paso.
     """
     sid = _escenario(entorno)
-    entorno.como("comercial")
+    entorno.como("opera")
     r = _responder(entorno, sid, "aprobar")
     v.check("no es su turno", r.status_code == 403, r.status_code)
-    v.check("sigue en la bodega", _estado(entorno, sid) == "en_bodega", _estado(entorno, sid))
+    v.check("sigue en Comercial", _estado(entorno, sid) == "en_comercial", _estado(entorno, sid))
+
+
+def test_si_comercial_la_rechaza_la_bodega_no_hace_nada(entorno, v):
+    """
+    La razón de que Comercial vaya primero: la bodega no confirma mercancía de
+    una nota crédito que nunca va a existir.
+    """
+    sid = _escenario(entorno)
+    entorno.como("comercial")
+    _responder(entorno, sid, "rechazar", "No procede: la factura ya tiene nota crédito.")
+    v.check("queda rechazada", _estado(entorno, sid) == "rechazada", _estado(entorno, sid))
+    entorno.como("opera")
+    v.check("y a la bodega nunca le llegó",
+            entorno.get("/notas-credito?estado=mi_turno").json() == [])
 
 
 def test_la_cadena_completa_de_punta_a_punta(entorno, v):
     sid = _escenario(entorno)
 
-    entorno.como("opera")
-    v.check("la bodega confirma", _responder(entorno, sid, "aprobar").status_code == 200)
-    v.check("pasa a Comercial", _estado(entorno, sid) == "en_comercial", _estado(entorno, sid))
-
     entorno.como("comercial")
     v.check("Comercial aprueba", _responder(entorno, sid, "aprobar").status_code == 200)
+    v.check("pasa a la bodega", _estado(entorno, sid) == "en_bodega", _estado(entorno, sid))
+
+    entorno.como("opera")
+    v.check("la bodega confirma", _responder(entorno, sid, "aprobar").status_code == 200)
     v.check("pasa a la DIAN", _estado(entorno, sid) == "en_contabilidad", _estado(entorno, sid))
 
     entorno.como("conta")
@@ -210,7 +235,7 @@ def test_la_cadena_completa_de_punta_a_punta(entorno, v):
             acciones == ["creada", "aprobar", "aprobar", "aprobar", "aplicada"], acciones)
     etapas = [h["etapa"] for h in detalle["historial"]]
     v.check("cada una en su etapa",
-            etapas == ["en_bodega", "en_bodega", "en_comercial", "en_contabilidad", "aprobada"],
+            etapas == ["en_comercial", "en_comercial", "en_bodega", "en_contabilidad", "aprobada"],
             etapas)
 
 
@@ -222,6 +247,7 @@ def test_la_otra_bodega_no_confirma_lo_ajeno(entorno, v):
     portal: un 403 confirmaría que esa solicitud existe.
     """
     sid = _escenario(entorno, bodega=GUAYABAL)
+    _pasa_comercial(entorno, sid)
     entorno.como("logis65")
     r = _responder(entorno, sid, "aprobar")
     v.check("La 65 no confirma lo de Guayabal", r.status_code == 404, r.status_code)
@@ -236,6 +262,7 @@ def test_el_coordinador_de_las_dos_es_responsable_de_las_dos(entorno, v):
     ya no confirma lo de una bodega que tiene su propio responsable.
     """
     sid = _escenario(entorno, bodega=LA_65)
+    _pasa_comercial(entorno, sid)
     _usuario(entorno, "jefelog", "Logística", bodega=[GUAYABAL, LA_65])
     _usuario(entorno, "auxlog", "Logística")   # con el permiso, sin bodega
     entorno.como("auxlog")
@@ -247,6 +274,7 @@ def test_el_coordinador_de_las_dos_es_responsable_de_las_dos(entorno, v):
 def test_una_bodega_sin_responsables_la_confirma_quien_tenga_el_permiso(entorno, v):
     """Una bodega recién creada no puede dejar solicitudes sin nadie que las atienda."""
     sid = _escenario(entorno, bodega="CD")   # el CD no tiene responsables en el escenario
+    _pasa_comercial(entorno, sid)
     _usuario(entorno, "auxlog", "Logística")
     entorno.como("auxlog")
     v.check("quien tiene el permiso confirma", _responder(entorno, sid, "aprobar").status_code == 200)
@@ -255,6 +283,7 @@ def test_una_bodega_sin_responsables_la_confirma_quien_tenga_el_permiso(entorno,
 def test_el_responsable_confirma_aunque_su_area_no_tenga_el_permiso(entorno, v):
     """Nombrarlo responsable de la bodega ya es el permiso."""
     sid = _escenario(entorno, bodega=GUAYABAL)
+    _pasa_comercial(entorno, sid)
     _usuario(entorno, "bodeguero", "Abastecimiento", bodega=GUAYABAL)
     entorno.como("bodeguero")
     v.check("la ve", entorno.get(f"/notas-credito/{sid}").status_code == 200)
@@ -303,6 +332,7 @@ def test_comercial_ve_las_dos_ramas_porque_abre_las_dos(entorno, v):
 
 def test_devolver_la_deja_viva_en_manos_del_vendedor(entorno, v):
     sid = _escenario(entorno)
+    _pasa_comercial(entorno, sid)
     entorno.como("opera")
     r = _responder(entorno, sid, "devolver", "Llegó una caneca, no dos. Revisa la cantidad.")
     v.check("se devuelve", r.status_code == 200, r.text[:200])
@@ -316,7 +346,7 @@ def test_devolver_la_deja_viva_en_manos_del_vendedor(entorno, v):
 def test_devolver_sin_decir_qué_corregir_no_pasa(entorno, v):
     """Una devolución muda obliga a una llamada: justo el ir y venir que sobra."""
     sid = _escenario(entorno)
-    entorno.como("opera")
+    entorno.como("comercial")
     r = _responder(entorno, sid, "devolver")
     v.check("lo rechaza el servidor", r.status_code == 400, r.status_code)
 
@@ -334,32 +364,29 @@ def test_al_reenviarla_vuelve_al_principio(entorno, v):
     con el parámetro que de verdad viaja.
     """
     sid = _escenario(entorno)
+    _pasa_comercial(entorno, sid)
     entorno.como("opera")
-    _responder(entorno, sid, "aprobar")
-    entorno.como("comercial")
-    _responder(entorno, sid, "devolver", "Falta el soporte de la devolución.")
+    _responder(entorno, sid, "devolver", "Llegó una caneca, no dos.")
 
     entorno.como("vendedor")
     r = entorno.post(f"/notas-credito/{sid}/reenviar", json={})
     v.check("la reenvía", r.status_code == 200, r.text[:200])
-    v.check("y vuelve a la bodega, no a Comercial",
-            _estado(entorno, sid) == "en_bodega", _estado(entorno, sid))
+    v.check("y vuelve a Comercial, aunque la devolvió la bodega",
+            _estado(entorno, sid) == "en_comercial", _estado(entorno, sid))
 
 
 def test_solo_quien_la_pidio_la_reenvia(entorno, v):
     sid = _escenario(entorno)
-    entorno.como("opera")
+    entorno.como("comercial")
     _responder(entorno, sid, "devolver", "Corrige la cantidad.")
 
-    entorno.como("comercial")
+    entorno.como("opera")
     r = entorno.post(f"/notas-credito/{sid}/reenviar", json={})
     v.check("otro no puede", r.status_code in (403, 404), r.status_code)
 
 
 def test_rechazar_la_cierra(entorno, v):
     sid = _escenario(entorno)
-    entorno.como("opera")
-    _responder(entorno, sid, "aprobar")
     entorno.como("comercial")
     v.check("Comercial la rechaza",
             _responder(entorno, sid, "rechazar", "No procede.").status_code == 200)
@@ -385,26 +412,31 @@ def test_el_vendedor_la_retira_y_eso_no_es_un_rechazo(entorno, v):
 def test_el_detalle_dice_en_qué_paso_va_y_qué_sigue(entorno, v):
     """Lo redacta el servidor: «en_contabilidad» no es un texto para nadie."""
     sid = _escenario(entorno)
-    entorno.como("opera")
+    entorno.como("comercial")
     detalle = entorno.get(f"/notas-credito/{sid}").json()
 
     v.check("dice la etapa en palabras",
-            "bodega" in (detalle["etapa_nombre"] or "").lower(), detalle["etapa_nombre"])
+            "Comercial" in (detalle["etapa_nombre"] or ""), detalle["etapa_nombre"])
     v.check("dice qué hacer", bool(detalle["que_hacer"]), detalle)
-    v.check("y quién sigue",
-            "Comercial" in (detalle["etapa_siguiente"] or ""), detalle["etapa_siguiente"])
+    v.check("y quién sigue: la bodega",
+            "bodega" in (detalle["etapa_siguiente"] or "").lower(), detalle["etapa_siguiente"])
     v.check("es su turno", detalle["alcance"]["puede_responder"] is True, detalle["alcance"])
 
 
 def test_mi_turno_trae_solo_lo_que_le_toca_a_cada_uno(entorno, v):
     sid = _escenario(entorno)
-    entorno.como("comercial")
-    v.check("Comercial no tiene nada todavía",
+    entorno.como("opera")
+    v.check("la bodega no tiene nada todavía",
             entorno.get("/notas-credito?estado=mi_turno").json() == [], )
 
+    entorno.como("comercial")
+    mias = [s["id"] for s in entorno.get("/notas-credito?estado=mi_turno").json()]
+    v.check("Comercial sí", mias == [sid], mias)
+
+    _pasa_comercial(entorno, sid)
     entorno.como("opera")
     mias = [s["id"] for s in entorno.get("/notas-credito?estado=mi_turno").json()]
-    v.check("la bodega sí", mias == [sid], mias)
+    v.check("después de Comercial, la bodega", mias == [sid], mias)
 
 
 # ── La cadena, sin pasar por la API ──────────────────────────────────────
@@ -422,8 +454,8 @@ def test_la_cadena_declara_los_pasos_de_cada_rama(v):
     v.check("institucional sin producto: comercial, DIAN y emitir",
             flujo.cadena(True) == ("en_comercial", "en_contabilidad", "aprobada"),
             flujo.cadena(True))
-    v.check("con producto, la bodega va primero",
-            flujo.cadena(True, True)[0] == "en_bodega",
+    v.check("con producto: Comercial, la bodega, la DIAN y emitir",
+            flujo.cadena(True, True) == ("en_comercial", "en_bodega", "en_contabilidad", "aprobada"),
             flujo.cadena(True, True))
     v.check("el último paso de la cadena no tiene siguiente",
             flujo.siguiente("aprobada", INSTITUCIONAL, True) is None)
@@ -442,3 +474,22 @@ def test_cada_turno_tiene_quien_lo_atienda(v):
             v.check(f"«{paso}» tiene capacidad", flujo.capacidad_de(paso) is not None, paso)
             v.check(f"«{paso}» se dice en palabras",
                     paso in flujo.ETIQUETA_ESTADO and paso in flujo.QUE_HACER, paso)
+
+
+# ── Quién va en copia ────────────────────────────────────────────────────
+
+def test_cuando_llega_a_comercial_va_en_copia_la_bodega_de_esa_solicitud(entorno, v):
+    """
+    El siguiente turno es la bodega: en copia van SUS responsables, no todos
+    los que tienen el permiso de confirmar producto (Guayabal no tiene por qué
+    enterarse de lo que va a confirmar La 65).
+    """
+    from app.modules.notas_credito.notificaciones import avisos_en_turno
+    sid = _escenario(entorno, bodega=GUAYABAL)
+    db = entorno.Session()
+    avisos = dict(avisos_en_turno(db, entorno.tenant_id, db.get(SolicitudNotaCredito, sid)))
+    db.close()
+    datos = avisos["nc-en-turno"]
+    v.check("el turno es de Comercial", datos["destinatarios"] == ["comercial@p.com"], datos["destinatarios"])
+    v.check("en copia, el responsable de Guayabal", "opera@p.com" in datos["en_copia"], datos["en_copia"])
+    v.check("y no el de La 65", "logis65@p.com" not in datos["en_copia"], datos["en_copia"])
