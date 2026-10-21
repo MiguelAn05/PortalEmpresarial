@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.60.0"
+VERSION = "0.61.0"
 FECHA = "2026-10-21"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,31 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.61.0",
+        "fecha": "2026-10-21",
+        "titulo": "Informe gerencial de Master Planner",
+        "cambios": [
+            ("nuevo", "Master Planner tiene su informe, como el de PQRS: botón «Generar informe». "
+                      "Se pide por mes, trimestre, año o fechas a la medida, se compara con el "
+                      "periodo anterior y se descarga en PDF."),
+            ("nuevo", "Dice cuántas tareas que vencían en el periodo se entregaron a tiempo, tarde "
+                      "o siguen sin entregar; cuántas veces se movieron fechas; qué proyectos se "
+                      "finalizaron o se cancelaron, con lo que entregaron o el motivo; y cuáles "
+                      "están en riesgo hoy, cada uno con el porqué."),
+            ("nuevo", "Una tabla compara a todas las áreas en la misma hoja, y el informe se puede "
+                      "filtrar por área. También trae los proyectos que no tuvieron ningún "
+                      "movimiento, el cumplimiento de las actividades diarias y el presupuesto "
+                      "aprobado y pagado en el periodo."),
+            ("nuevo", "Cada quien ve el informe de lo que ve en el módulo. La tabla por persona la "
+                      "ve quien ve toda la empresa, y cada líder la de su gente; el presupuesto, "
+                      "quien ya lo ve en los proyectos."),
+            ("mejora", "Los informes de PQRS y de Master Planner comparan mes contra mes y "
+                       "trimestre contra trimestre: septiembre contra agosto completo, el tercer "
+                       "trimestre contra el segundo. Antes se comparaban contra «los mismos días "
+                       "hacia atrás»."),
+        ],
+    },
     {
         "version": "0.60.0",
         "fecha": "2026-10-21",

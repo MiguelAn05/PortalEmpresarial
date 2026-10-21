@@ -31,16 +31,20 @@ punto de venta, el de sus PQRS; el resto, el de toda la empresa. Un informe
 que mostrara más que la lista sería la forma de saltarse esa regla.
 """
 from collections import Counter, defaultdict
-from datetime import date, datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo
+from datetime import date, datetime, timedelta, timezone
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core import canales
-from app.core.config import settings
-from app.core.dias_habiles import contar_habiles, hoy
+from app.core.dias_habiles import contar_habiles
 from app.core.fechas import con_zona
+# El periodo vive en `core/periodos.py`, compartido con el informe de Master
+# Planner. Se reexportan los nombres que ya se usaban desde aquí.
+from app.core.periodos import (  # noqa: F401
+    MAX_DIAS_PERIODO, MESES, describir, dia_local as _dia_local,
+    dias_habiles_del_periodo, etiqueta_periodo, inicio_del_dia as _inicio,
+    periodo_anterior, resolver_periodo, serie,
+)
 from app.models.pqrs import (
     PQRSAsociado, PQRSPasoArea, PQRSProducto, PQRSSeguimiento, PQRSSolicitud,
 )
@@ -63,41 +67,11 @@ ESTADOS = {
     "cerrado": "Cerrada",
     "anulado": "Anulada",
 }
-# Un año y un poco: alcanza para comparar un año contra el anterior sin
-# pedirle a la base el histórico completo de una vez.
-MAX_DIAS_PERIODO = 400
-# Hasta dos meses la tendencia va día por día; más largo, por mes.
-MAX_DIAS_TENDENCIA_DIARIA = 62
 TOP_PRODUCTOS = 8
-
-MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
-         "agosto", "septiembre", "octubre", "noviembre", "diciembre")
-
-
-def _zona() -> ZoneInfo:
-    return ZoneInfo(settings.ZONA_HORARIA)
-
-
-def _inicio(dia: date) -> datetime:
-    """Medianoche de ese día en la hora de la empresa, en UTC."""
-    return datetime.combine(dia, time.min, tzinfo=_zona()).astimezone(timezone.utc)
-
-
-def _dia_local(momento: datetime) -> date:
-    return con_zona(momento).astimezone(_zona()).date()
 
 
 def _pct(n: int, total: int) -> float | None:
     return round(n * 100 / total, 1) if total else None
-
-
-def dias_habiles_del_periodo(desde: date, hasta: date) -> int:
-    """Días hábiles de `desde` a `hasta`, los dos incluidos, sin pasar de hoy."""
-    fin = min(hasta, hoy())
-    if fin < desde:
-        return 0
-    # `contar_habiles` no cuenta el día de partida: se parte del anterior.
-    return contar_habiles(desde - timedelta(days=1), fin)
 
 
 def _por_dia(n: int, dias: int) -> float | None:
@@ -119,28 +93,6 @@ def _filas(conteo: Counter, total: int, etiquetas: dict | None = None, extra: di
         fila.update((extra or {}).get(clave, {}))
         filas.append(fila)
     return filas
-
-
-def etiqueta_periodo(desde: date, hasta: date) -> str:
-    if desde.day == 1 and desde.year == hasta.year and desde.month == hasta.month:
-        return f"{MESES[desde.month - 1].capitalize()} de {desde.year}"
-    return f"Del {desde.day} de {MESES[desde.month - 1]} de {desde.year} " \
-           f"al {hasta.day} de {MESES[hasta.month - 1]} de {hasta.year}"
-
-
-def resolver_periodo(desde: date | None, hasta: date | None) -> tuple[date, date]:
-    """Sin fechas, el mes en curso hasta hoy."""
-    hoy_ = hoy()
-    desde = desde or hoy_.replace(day=1)
-    hasta = hasta or hoy_
-    if desde > hasta:
-        raise HTTPException(status_code=400, detail="La fecha inicial es posterior a la final. Revisa el periodo.")
-    if (hasta - desde).days > MAX_DIAS_PERIODO:
-        raise HTTPException(
-            status_code=400,
-            detail=f"El periodo puede ser de hasta {MAX_DIAS_PERIODO} días. Pide el informe por partes.",
-        )
-    return desde, hasta
 
 
 def _solicitudes(db: Session, usuario: User, desde: date, hasta: date) -> list[PQRSSolicitud]:
@@ -186,25 +138,7 @@ def _respuesta(s: PQRSSolicitud) -> datetime | None:
 
 
 def _tendencia(solicitudes: list[PQRSSolicitud], desde: date, hasta: date) -> dict:
-    dias = (hasta - desde).days + 1
-    por_dia = Counter(_dia_local(s.fecha_creacion) for s in solicitudes)
-    if dias <= MAX_DIAS_TENDENCIA_DIARIA:
-        puntos = []
-        for i in range(dias):
-            d = desde + timedelta(days=i)
-            puntos.append({"clave": d.isoformat(), "etiqueta": str(d.day), "n": por_dia.get(d, 0)})
-        return {"escala": "dia", "puntos": puntos}
-
-    por_mes = Counter()
-    for d, n in por_dia.items():
-        por_mes[(d.year, d.month)] += n
-    puntos = []
-    anio, mes = desde.year, desde.month
-    while (anio, mes) <= (hasta.year, hasta.month):
-        puntos.append({"clave": f"{anio}-{mes:02d}", "etiqueta": f"{MESES[mes - 1][:3]} {anio}",
-                       "n": por_mes.get((anio, mes), 0)})
-        anio, mes = (anio + 1, 1) if mes == 12 else (anio, mes + 1)
-    return {"escala": "mes", "puntos": puntos}
+    return serie(Counter(_dia_local(s.fecha_creacion) for s in solicitudes), desde, hasta)
 
 
 def construir(db: Session, usuario: User, desde: date | None = None, hasta: date | None = None) -> dict:
@@ -218,9 +152,7 @@ def construir(db: Session, usuario: User, desde: date | None = None, hasta: date
 
     # El periodo anterior, del mismo largo y pegado a este: «octubre contra
     # septiembre», o «estas dos semanas contra las dos de antes».
-    largo = (hasta - desde).days + 1
-    ant_hasta = desde - timedelta(days=1)
-    ant_desde = ant_hasta - timedelta(days=largo - 1)
+    ant_desde, ant_hasta = periodo_anterior(desde, hasta)
     total_anterior = sum(1 for s in _solicitudes(db, usuario, ant_desde, ant_hasta) if s.estado != "anulado")
     dias = dias_habiles_del_periodo(desde, hasta)
     dias_anterior = dias_habiles_del_periodo(ant_desde, ant_hasta)
@@ -270,13 +202,7 @@ def construir(db: Session, usuario: User, desde: date | None = None, hasta: date
     ), key=lambda f: (-f["tramos"], f["area"]))
 
     return {
-        "periodo": {
-            "desde": desde.isoformat(), "hasta": hasta.isoformat(),
-            "etiqueta": etiqueta_periodo(desde, hasta),
-            "anterior": {"desde": ant_desde.isoformat(), "hasta": ant_hasta.isoformat(),
-                         "etiqueta": etiqueta_periodo(ant_desde, ant_hasta)},
-            "generado": ahora.isoformat(),
-        },
+        "periodo": describir(desde, hasta, ahora),
         "resumen": {
             "total": total,
             "total_anterior": total_anterior,

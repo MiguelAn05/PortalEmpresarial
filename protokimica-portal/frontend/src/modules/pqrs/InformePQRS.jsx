@@ -7,8 +7,8 @@
  * exactamente lo que se ve. Lo que no es informe —el menú, los controles—
  * lleva `print:hidden`.
  *
- * Gráficas a mano, sin librería, como en el resto del portal: una serie, un
- * color; la cifra al lado de cada barra y el detalle al pasar el cursor.
+ * Las piezas de dibujo (tarjeta, barras, tendencia) son las de
+ * `core/components/Informe.jsx`, compartidas con el informe de Master Planner.
  */
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -19,122 +19,10 @@ import { mensajeDeError } from '../../core/errores.js'
 import { Atenuado, Esqueleto } from '../../core/components/Cargando.jsx'
 import { IconoAlerta, IconoAlDia, IconoCalendario, IconoRecibo } from '../../core/components/Iconos.jsx'
 import { formatFecha, formatFechaHora } from '../masterPlanner/constants.js'
-import { conOtros, estadoATiempo, formatoPromedio, marcasEje, periodosRapidos, textoVariacion } from './informe.js'
-
-const TONO_TEXTO = { positivo: 'text-positivo', alerta: 'text-alerta', negativo: 'text-negativo', neutro: 'text-texto-2' }
-const TONO_PUNTO = { positivo: 'bg-positivo-vivo', alerta: 'bg-ambar', negativo: 'bg-negativo-vivo', neutro: 'bg-texto-3' }
+import { Barras, Seccion, Tarjeta, Tendencia } from '../../core/components/Informe.jsx'
+import { estadoATiempo, formatoPromedio, periodosRapidos, textoVariacion } from './informe.js'
 
 // ── Piezas ──────────────────────────────────────────────────────────────
-
-function Seccion({ titulo, nota, children, className = '' }) {
-  return (
-    <section className={`bg-white rounded-xl border border-borde p-5 evitar-corte print:shadow-none ${className}`}>
-      <h3 className="font-semibold text-acento-fuerte text-sm">{titulo}</h3>
-      {nota && <p className="text-xs text-texto-2 mt-0.5">{nota}</p>}
-      <div className="mt-4">{children}</div>
-    </section>
-  )
-}
-
-function Tarjeta({ titulo, valor, detalle, tono }) {
-  return (
-    <div className="bg-white rounded-xl border border-borde p-4 evitar-corte">
-      <div className="text-xs font-semibold text-texto-2 uppercase tracking-wide">{titulo}</div>
-      <div className="text-3xl font-bold text-texto mt-1">{valor}</div>
-      {detalle && (
-        <div className={`text-xs mt-1 flex items-center gap-1.5 ${TONO_TEXTO[tono] || 'text-texto-2'}`}>
-          {tono && tono !== 'neutro' && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${TONO_PUNTO[tono]}`} />}
-          <span>{detalle}</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * Barras horizontales de UNA serie. La barra más larga ocupa todo el ancho;
- * la cifra y el porcentaje van al final de cada una, y al pasar el cursor se
- * dice sobre qué total es el porcentaje.
- */
-function Barras({ filas, sobre = 'del total', vacio = 'Sin datos en el periodo.', max = 8 }) {
-  const visibles = conOtros(filas, max)
-  if (!visibles.length) return <p className="text-sm text-texto-2">{vacio}</p>
-  const mayor = Math.max(...visibles.map(f => f.n), 1)
-  return (
-    <ul className="space-y-2.5">
-      {visibles.map(f => (
-        <li key={f.clave} className="group relative grid grid-cols-[minmax(0,11rem)_1fr_auto] items-center gap-3 text-sm">
-          <span className="truncate text-texto" title={f.etiqueta}>{f.etiqueta}</span>
-          <span className="h-2.5 rounded-full bg-superficie-2 overflow-hidden">
-            <span
-              className="block h-full rounded-full bg-acento group-hover:bg-acento-fuerte transition-colors"
-              style={{ width: `${(f.n / mayor) * 100}%` }}
-            />
-          </span>
-          <span className="cifra text-texto font-semibold text-right min-w-[5.5rem]">
-            {f.n} <span className="text-texto-2 font-normal">· {f.pct ?? 0}%</span>
-            {/* El promedio por día hábil, cuando la fila lo trae: es lo que
-                se lleva al informe de gestión. */}
-            {'por_dia_habil' in f && (
-              <span className="text-texto-3 font-normal"> · {formatoPromedio(f.por_dia_habil)}/día</span>
-            )}
-          </span>
-          <span role="tooltip" className="pointer-events-none absolute left-1/3 -top-8 z-10 hidden group-hover:block print:hidden
-                                          whitespace-nowrap rounded-md bg-texto text-white text-xs px-2 py-1 shadow-md">
-            {f.etiqueta}: {f.n} PQRS · {f.pct ?? 0}% {sobre}
-            {'por_dia_habil' in f && ` · ${formatoPromedio(f.por_dia_habil)} por día hábil`}
-          </span>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-/** Columnas de la tendencia: una serie, eje con tres marcas y detalle al pasar el cursor. */
-function Tendencia({ tendencia }) {
-  const puntos = tendencia?.puntos || []
-  const mayor = Math.max(...puntos.map(p => p.n), 0)
-  const marcas = marcasEje(mayor)
-  const tope = marcas[marcas.length - 1] || 1
-  // En un mes, rotular cada cinco días; por meses, todos.
-  const rotular = (i) => tendencia?.escala === 'mes' || i === 0 || (i + 1) % 5 === 0
-  if (!puntos.length) return null
-  return (
-    <div className="flex gap-2">
-      <div className="relative w-6 h-40 text-[11px] text-texto-3 cifra">
-        {marcas.map(m => (
-          <span key={m} className="absolute right-0 -translate-y-1/2" style={{ bottom: `${(m / tope) * 100}%` }}>{m}</span>
-        ))}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="relative h-40">
-          {marcas.map(m => (
-            <div key={m} className="absolute inset-x-0 border-t border-borde" style={{ bottom: `${(m / tope) * 100}%` }} />
-          ))}
-          <div className="absolute inset-0 flex items-end gap-[2px]">
-            {puntos.map(p => (
-              <div key={p.clave} className="group relative flex-1 h-full flex items-end">
-                <div
-                  className="w-full rounded-t bg-acento group-hover:bg-acento-fuerte transition-colors"
-                  style={{ height: `${(p.n / tope) * 100}%` }}
-                />
-                <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-10 hidden group-hover:block print:hidden
-                                                whitespace-nowrap rounded-md bg-texto text-white text-xs px-2 py-1 shadow-md">
-                  {tendencia.escala === 'dia' ? `Día ${p.etiqueta}` : p.etiqueta}: {p.n} PQRS
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="flex gap-[2px] mt-1.5 text-[11px] text-texto-3 cifra">
-          {puntos.map((p, i) => (
-            <span key={p.clave} className="flex-1 text-center">{rotular(i) ? p.etiqueta : ''}</span>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function TablaTiempos({ filas }) {
   if (!filas?.length) {
@@ -223,18 +111,18 @@ function Hoja({ inf, alcance }) {
 
       <Seccion titulo="Cómo entraron en el periodo"
                nota={inf.tendencia.escala === 'dia' ? 'PQRS radicadas por día.' : 'PQRS radicadas por mes.'}>
-        <Tendencia tendencia={inf.tendencia} />
+        <Tendencia tendencia={inf.tendencia} unidad="PQRS" />
       </Seccion>
 
       <div className="grid lg:grid-cols-2 gap-5 print:grid-cols-2">
-        <Seccion titulo="Por tipo"><Barras filas={inf.por_tipo} /></Seccion>
+        <Seccion titulo="Por tipo"><Barras unidad="PQRS" filas={inf.por_tipo} /></Seccion>
         {/* La única que suma las anuladas: el resto del informe cuenta solo
             los casos reales, y sin decirlo aquí las cifras no cuadrarían. */}
         <Seccion titulo="Estado actual"
                  nota={r.anuladas
                    ? `Incluye ${r.anuladas === 1 ? '1 anulada' : `${r.anuladas} anuladas`} (duplicadas o por error), que no cuentan en las demás cifras.`
                    : null}>
-          <Barras filas={inf.por_estado} sobre="de todo lo que entró" />
+          <Barras unidad="PQRS" filas={inf.por_estado} sobre="de todo lo que entró" />
         </Seccion>
       </div>
 
@@ -248,33 +136,33 @@ function Hoja({ inf, alcance }) {
             ? `Sobre las ${r.con_causa} que ya tienen causa (${r.pct_con_causa ?? 0}%).${r.sin_causa ? ` ${r.sin_causa} están sin clasificar.` : ''}`
             : null}
         >
-          <Barras filas={inf.por_asociado} sobre="de las clasificadas"
+          <Barras unidad="PQRS" filas={inf.por_asociado} sobre="de las clasificadas"
                   vacio="Ninguna clasificada todavía. Se marca en «Causa de la PQRS»." />
         </Seccion>
         <Seccion titulo="Área causante: de dónde salió el problema"
                  nota="Puede no ser el área que gestionó la PQRS.">
-          <Barras filas={inf.por_area_causante} sobre="de las que tienen área causante"
+          <Barras unidad="PQRS" filas={inf.por_area_causante} sobre="de las que tienen área causante"
                   vacio="Ninguna tiene área causante todavía." />
         </Seccion>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-5 print:grid-cols-2">
         <Seccion titulo="Por dónde entran" nota="Canal de atención: punto de venta, venta institucional, WhatsApp…">
-          <Barras filas={inf.por_canal} />
+          <Barras unidad="PQRS" filas={inf.por_canal} />
         </Seccion>
         <Seccion titulo="Quién la radica" nota="El cliente por el formulario web, o el área de quien la registró por dentro.">
-          <Barras filas={inf.por_origen} />
+          <Barras unidad="PQRS" filas={inf.por_origen} />
         </Seccion>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-5 print:grid-cols-2">
         <Seccion titulo="Productos con más PQRS"
                  nota={inf.productos_distintos ? `${inf.productos_distintos} productos distintos en el periodo.` : null}>
-          <Barras filas={inf.top_productos} sobre="de los productos reportados"
+          <Barras unidad="PQRS" filas={inf.top_productos} sobre="de los productos reportados"
                   vacio="Ninguna PQRS del periodo trae producto." />
         </Seccion>
         <Seccion titulo="Dónde están las abiertas" nota="Área que tiene cada PQRS abierta hoy.">
-          <Barras filas={inf.por_area_actual} sobre="de las abiertas" vacio="No hay PQRS abiertas del periodo." />
+          <Barras unidad="PQRS" filas={inf.por_area_actual} sobre="de las abiertas" vacio="No hay PQRS abiertas del periodo." />
         </Seccion>
       </div>
 

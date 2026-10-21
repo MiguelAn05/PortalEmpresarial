@@ -3,7 +3,7 @@ Endpoints del módulo Master Planner.
 Los archivos y los avisos a n8n salen de `core/archivos.py` y
 `core/notificaciones.py`, compartidos con el resto del portal.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session, selectinload
@@ -35,7 +35,7 @@ from app.modules.master_planner.permisos import (
     solo_aprueba_pagos, solo_registra_pagos, puede_cerrar_proyecto,
 )
 from app.modules.master_planner.resumen import construir_resumen
-from app.modules.master_planner import cierre
+from app.modules.master_planner import cierre, informe
 from app.modules.master_planner.notificaciones import (
     avisar_tarea_asignada, avisar_proyecto_creado, avisar_proyecto_cerrado,
 )
@@ -65,6 +65,24 @@ def obtener_resumen(
     signifique lo mismo en pantalla que en cualquier reporte posterior.
     """
     return construir_resumen(db, tenant_id, current_user, area)
+
+
+@router.get("/informe")
+def informe_master_planner(
+    desde: date | None = None,
+    hasta: date | None = None,
+    area: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    El informe gerencial del periodo (por defecto, el mes en curso):
+    compromisos y entregas, aplazamientos, cierres, salud de los proyectos,
+    actividades diarias, presupuesto, por área y por persona. Lo calcula
+    `master_planner/informe.py` sobre lo que esta persona puede ver; `area`
+    acota dentro de eso, nunca lo amplía.
+    """
+    return informe.construir(db, current_user, desde, hasta, area)
 
 
 def _get_proyecto_o_404(

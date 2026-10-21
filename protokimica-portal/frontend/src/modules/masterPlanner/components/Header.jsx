@@ -1,5 +1,6 @@
+import { useNavigate } from 'react-router-dom'
 import {
-  IconoCalendario, IconoCarpeta, IconoOjo, IconoRepetir, IconoTablero, IconoTarea,
+  IconoCalendario, IconoCarpeta, IconoIndicadores, IconoOjo, IconoRepetir, IconoTablero, IconoTarea,
 } from '../../../core/components/Iconos.jsx'
 
 // «Tareas de proyecto» y no «Tareas» a secas desde que existen las
@@ -15,6 +16,7 @@ const PESTANAS = [
 ]
 
 export default function Header({ vista, onChangeVista, onNuevoProyecto, onNuevaTarea, editable = true, rol }) {
+  const navigate = useNavigate()
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap justify-between items-start gap-4">
@@ -26,6 +28,13 @@ export default function Header({ vista, onChangeVista, onNuevoProyecto, onNuevaT
         </div>
 
         <div className="flex gap-3 items-center">
+          {/* Lo genera cualquiera: cada quien ve el informe de lo que ve en el módulo. */}
+          <button
+            onClick={() => navigate('/master-planner/informe')}
+            className="bg-white border border-borde hover:bg-superficie-2 text-acento-fuerte font-semibold px-5 py-3 rounded-xl shadow-sm transition"
+          >
+            <span className="inline-flex items-center gap-2"><IconoIndicadores tam={16} /> Generar informe</span>
+          </button>
           {!editable && (
             <span
               className="text-xs font-semibold text-texto-2 bg-superficie-2 border border-borde rounded-lg px-3 py-2"

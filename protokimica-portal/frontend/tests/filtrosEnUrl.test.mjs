@@ -82,6 +82,8 @@ const DEBEN_USARLO = [
   'modules/masterPlanner/MasterPlanner.jsx', 'modules/masterPlanner/views/ProyectosView.jsx',
   'modules/masterPlanner/views/TareasView.jsx', 'modules/masterPlanner/views/CalendarioView.jsx',
   'modules/masterPlanner/views/ResumenView.jsx',
+  // El periodo y el área del informe: un enlace copiado abre el mismo informe.
+  'modules/masterPlanner/InformeMasterPlanner.jsx',
 ]
 const SRC = new URL('../src/', import.meta.url)
 for (const archivo of DEBEN_USARLO) {

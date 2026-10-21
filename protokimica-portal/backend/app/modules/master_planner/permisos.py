@@ -35,7 +35,7 @@ from sqlalchemy.orm import Session
 from app.core import capacidades, supervision
 from app.core.database import get_db
 from app.core.deps import ROLES_VISION_TOTAL, get_current_user
-from app.models.master_planner import Proyecto, ProyectoArea, Tarea
+from app.models.master_planner import ActividadDiaria, Proyecto, ProyectoArea, Tarea
 from app.models.user import User
 
 
@@ -133,6 +133,27 @@ def aplicar_filtro_proyectos(query, usuario: User):
     """Añade el filtro de visibilidad a una consulta que ya involucra Proyecto."""
     condicion = condicion_proyectos_visibles(usuario)
     return query if condicion is None else query.filter(condicion)
+
+
+def aplicar_filtro_actividades(query, usuario: User):
+    """
+    Las actividades diarias que ve alguien: las suyas, las que creó, y las de
+    su área si la supervisa. Misma regla que el resto del módulo: lo ajeno no
+    se esconde a medias, no aparece.
+
+    Vive aquí y no en el router de actividades porque también la usa el
+    informe: si cada uno armara la suya, el informe contaría actividades que
+    la pestaña no muestra.
+    """
+    if ve_todo(usuario):
+        return query
+    return query.filter(
+        or_(
+            ActividadDiaria.asignado_a == usuario.id,
+            ActividadDiaria.creado_por == usuario.id,
+            ActividadDiaria.area.in_(supervision.areas_visibles(usuario)),
+        )
+    )
 
 
 def puede_ver_proyecto(db: Session, proyecto: Proyecto, usuario: User) -> bool:

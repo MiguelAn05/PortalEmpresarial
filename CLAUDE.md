@@ -13,7 +13,8 @@ protokimica-portal/
       core/         config, database, deps (permisos), security, areas,
                     dias_habiles, rate_limit, graph (Microsoft 365),
                     archivos (subir archivos), notificaciones (n8n),
-                    fechas (con_zona), registro (módulos instalados) y
+                    fechas (con_zona), periodos (de los informes),
+                    registro (módulos instalados) y
                     los contratos que un módulo le aporta a otro:
                     fuentes, inicio, origenes_encuesta
       models/       tablas SQLAlchemy, una por módulo
@@ -405,7 +406,10 @@ informe»). Lo calcula `modules/pqrs/informe.py` y la pantalla
 
 - **El periodo es por fecha de RADICACIÓN en la hora de la empresa**: el día
   empieza a medianoche en Colombia, no en UTC. Se compara contra el periodo
-  anterior del mismo largo.
+  anterior **de calendario** (septiembre contra agosto, el tercer trimestre
+  contra el segundo; lo que va en curso, contra el mismo tramo del
+  anterior). Esa regla y el nombre del periodo viven en `core/periodos.py`,
+  compartido con el informe de Master Planner.
 - **Cada quien ve el informe de lo que puede ver** (`filtrar_visibles`): un
   informe que mostrara más que la lista sería la forma de saltarse la regla
   de los puntos de venta.
@@ -715,6 +719,38 @@ dice en su encabezado qué le corresponde.
   (`esperados_hasta_hoy`), no sobre el mes entero: si no, el primero de
   octubre toda actividad diaria aparecería con un 5% de cumplimiento por los
   días que aún no llegan.
+
+**Master Planner — el informe gerencial** (`/master-planner/informe`, botón
+«Generar informe», desde la 0.61). Lo calcula `master_planner/informe.py` y
+`InformeMasterPlanner.jsx` solo lo dibuja, con las piezas compartidas de
+`core/components/Informe.jsx` (las mismas del de PQRS):
+
+- **Es UN informe de empresa con el área como filtro, no uno por área.** Los
+  proyectos cruzan áreas, y la tabla «Por área» —que compara a todas en la
+  misma hoja— es lo que se viene a ver. La atribución es la de siempre: lo
+  que se promedia o se juzga cuenta para responsable y participantes; la
+  plata y los cierres, solo para la responsable.
+- **Separa lo que PASÓ en el periodo de la FOTO DE HOY**, y cada sección
+  dice cuál es. Compromisos, entregas, aplazamientos, cierres, pagos y
+  actividades salen de datos con fecha; salud, avance y lo pendiente de
+  pago son de hoy, porque el avance de un mes ya pasado no está guardado.
+- **Compromisos del periodo** = tareas cuya fecha de entrega cae en él. Se
+  juzgan las que ya se pueden juzgar (a tiempo, tarde, vencida sin
+  entregar); las que vencen más adelante no bajan el porcentaje. Es
+  distinto de «Entregadas», que es la MISMA cuenta del indicador
+  `mp_cumplimiento_fechas` —lo entregado en el periodo—, y el informe trae
+  las dos con su nombre.
+- **Los aplazamientos salen del historial** (`fecha_fin`, `fecha_fin_estimada`
+  con `valor_anterior`), y los cierres del acta vigente: finalizados y
+  cancelados siempre aparte.
+- **Cada quien ve el de lo que ve en el módulo** (`aplicar_filtro_proyectos`,
+  `aplicar_filtro_actividades` de `permisos.py`, que comparte con la pestaña
+  de actividades). La tabla por persona: quien ve toda la empresa (`ve_todo`)
+  la de todos, un líder la de su gente, los demás no la tienen. El
+  presupuesto: lo de `puede_ver_presupuesto`, diciendo cuántos proyectos
+  quedaron por fuera para que el total no se lea como el de la empresa.
+- Los motivos de «en riesgo» los redacta el servidor; el periodo y el área
+  van en la URL (`useFiltrosEnUrl`).
 
 **Oportunidades de Mejora (OMP)** las manejan los **líderes de área**, que son
 quienes responden por que un indicador vuelva a su meta. Gerencia queda fuera

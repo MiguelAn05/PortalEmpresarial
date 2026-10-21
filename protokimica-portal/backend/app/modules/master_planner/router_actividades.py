@@ -18,7 +18,6 @@ Qué se esperaba de cada día no se guarda: se deduce de la frecuencia (ver
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.modulos import contratado
@@ -30,7 +29,7 @@ from app.models.master_planner import (
 )
 from app.models.user import User
 from app.modules.master_planner import actividades as act
-from app.modules.master_planner.permisos import ve_todo
+from app.modules.master_planner.permisos import aplicar_filtro_actividades
 from app.modules.master_planner.schemas import (
     ActividadActualizar, ActividadCrear, ActividadOut, MesActividadOut,
     CumplimientoActividadOut, RegistroActividadCrear, RegistroActividadOut,
@@ -68,24 +67,8 @@ def _puede_asignar(usuario: User, asignado_a: int | None, db: Session) -> bool:
     return bool(destino and destino.area in supervision.areas_visibles(usuario))
 
 
-def _visibles(query, usuario: User):
-    """
-    Las suyas, las que creó, y las de su área si la supervisa. Misma regla
-    que el resto del módulo: lo ajeno no se esconde a medias, no aparece.
-    """
-    if ve_todo(usuario):
-        return query
-    return query.filter(
-        or_(
-            ActividadDiaria.asignado_a == usuario.id,
-            ActividadDiaria.creado_por == usuario.id,
-            ActividadDiaria.area.in_(supervision.areas_visibles(usuario)),
-        )
-    )
-
-
 def _actividad_o_404(db: Session, actividad_id: int, tenant_id: int, usuario: User):
-    actividad = _visibles(
+    actividad = aplicar_filtro_actividades(
         db.query(ActividadDiaria).filter(
             ActividadDiaria.id == actividad_id,
             ActividadDiaria.tenant_id == tenant_id,
@@ -156,7 +139,7 @@ def listar_actividades(
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
 ):
-    query = _visibles(
+    query = aplicar_filtro_actividades(
         db.query(ActividadDiaria).filter(ActividadDiaria.tenant_id == tenant_id),
         current_user,
     )
