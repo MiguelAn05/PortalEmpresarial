@@ -114,6 +114,24 @@ def _aviso_cliente_creacion(solicitud) -> list[Aviso]:
     })]
 
 
+def nombre_principal(solicitud) -> tuple[str, str | None]:
+    """
+    Con qué nombre se reconoce al cliente, y su contacto si aporta.
+
+    La empresa, con la persona aparte; si es persona natural (escribió su
+    propio nombre en «Empresa / Persona», o la empresa viene vacía), su
+    nombre una sola vez. Gemelo de `nombrePrincipal()` de
+    `frontend/src/modules/pqrs/constants.js`: el correo nombra al cliente
+    igual que la lista, o Servicio al Cliente buscaría «Miguel Pineda» en
+    una lista que dice «Zona Franca SAS».
+    """
+    empresa = (solicitud.empresa or "").strip()
+    contacto = (solicitud.cliente_nombre or "").strip()
+    if empresa and " ".join(empresa.lower().split()) != " ".join(contacto.lower().split()):
+        return empresa, contacto or None
+    return contacto or empresa, None
+
+
 def _aviso_servicio_cliente(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
     """
     Avisa SIEMPRE a quien gestiona las PQRS cuando entra una nueva — a
@@ -138,12 +156,18 @@ def _aviso_servicio_cliente(db: Session, tenant_id: int, solicitud) -> list[Avis
         )
         return []
 
+    cliente, contacto = nombre_principal(solicitud)
     return [(EVENTO_SERVICIO_CLIENTE, {
         "pqrs_id": solicitud.id,
         "codigo_seguimiento": solicitud.codigo_seguimiento,
         "radicado_calidad": solicitud.radicado_calidad,
         "tipo": solicitud.tipo,
         "area_responsable": solicitud.area_responsable,
+        # `cliente` es el nombre con que se reconoce (la empresa, o la persona
+        # natural) y `contacto` la persona cuando es distinta. `cliente_nombre`
+        # se queda: un flujo importado antes de este cambio lo sigue leyendo.
+        "cliente": cliente,
+        "contacto": contacto,
         "cliente_nombre": solicitud.cliente_nombre,
         "canal_atencion": solicitud.canal_atencion,
         "descripcion": (solicitud.descripcion or "")[:280],

@@ -165,3 +165,46 @@ def test_el_area_sin_gente_no_es_un_error(entorno, n8n):
 
     assert avisos_creacion(db, entorno.tenant_id, p) == []
     db.close()
+
+
+# ── Cómo se nombra al cliente en el aviso a Servicio al Cliente ──────────
+
+def test_el_cliente_se_nombra_como_en_la_lista():
+    """
+    Gemelo de `nombrePrincipal()` del frontend: la empresa, con la persona
+    aparte; una persona natural, una sola vez.
+    """
+    from types import SimpleNamespace
+    from app.modules.pqrs.notificaciones import nombre_principal
+
+    def pqrs(empresa, cliente):
+        return SimpleNamespace(empresa=empresa, cliente_nombre=cliente)
+
+    assert nombre_principal(pqrs("Zona Franca SAS", "Miguel Pineda")) == ("Zona Franca SAS", "Miguel Pineda")
+    assert nombre_principal(pqrs("Miguel Pineda", "Miguel Pineda")) == ("Miguel Pineda", None), "persona natural"
+    assert nombre_principal(pqrs(" miguel  pineda ", "Miguel Pineda")) == ("Miguel Pineda", None), "sin importar mayúsculas ni espacios"
+    assert nombre_principal(pqrs(None, "Miguel Pineda")) == ("Miguel Pineda", None), "sin empresa"
+    assert nombre_principal(pqrs("Zona Franca SAS", None)) == ("Zona Franca SAS", None)
+
+
+def test_el_aviso_de_pqrs_nueva_trae_la_empresa(entorno, n8n):
+    n8n("http://n8n:5678/webhook")
+    from app.models.pqrs import PQRSSolicitud
+    from app.models.user import User
+
+    db = entorno.Session()
+    db.get(User, entorno.ids["calidad"]).area = "Servicio al Cliente"   # alguien que reparte
+    p = PQRSSolicitud(
+        tenant_id=entorno.tenant_id, tipo="peticion", empresa="Zona Franca SAS",
+        cliente_nombre="Miguel Pineda Gaviria", descripcion="Cambio de factura",
+        estado="recibido", area_responsable="Servicio al Cliente",
+    )
+    db.add(p)
+    db.commit()
+
+    avisos = dict(avisos_creacion(db, entorno.tenant_id, p))
+    datos = avisos["pqrs-nueva-servicio-cliente"]
+    db.close()
+    assert datos["cliente"] == "Zona Franca SAS", datos
+    assert datos["contacto"] == "Miguel Pineda Gaviria", datos
+    assert datos["cliente_nombre"] == "Miguel Pineda Gaviria", "un flujo viejo lo sigue leyendo"

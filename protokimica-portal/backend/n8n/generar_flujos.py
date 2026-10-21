@@ -186,7 +186,11 @@ FLUJOS = [
             cuerpo=(
                 dato("Código", f"{{{{ {B}.codigo_seguimiento }}}}")
                 + dato("Tipo", f"{{{{ {B}.tipo }}}}")
-                + dato("Cliente", f"{{{{ {B}.cliente_nombre }}}}")
+                # La empresa, y la persona de contacto al lado si es otra;
+                # una persona natural sale una sola vez. Lo decide el backend
+                # (`notificaciones.nombre_principal`), no esta expresión.
+                + dato("Cliente", f"{{{{ {B}.cliente || {B}.cliente_nombre }}}}"
+                                  f"{{{{ {B}.contacto ? ' · ' + {B}.contacto : '' }}}}")
                 + dato("Canal", f"{{{{ {B}.canal_atencion || 'No indicado' }}}}")
                 + dato("Área asignada", f"{{{{ {B}.area_responsable || 'Sin asignar' }}}}")
                 + f'<p style="margin:14px 0 0 0;padding:12px;background:#EFF3F9;'
