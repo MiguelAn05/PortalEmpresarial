@@ -5,12 +5,14 @@ sincronización y la verificación del NIT por huellas.
 
 Lo de seguridad del buscador público y de la clave está en `test_catalogo.py`.
 """
+import json
 from datetime import date
 
+from app.core import dias_habiles
 from app.core.config import settings
 from app.models.catalogo import HuellaClienteERP, ProductoCatalogo
 from app.models.pqrs import PQRSSolicitud
-from app.modules.catalogo import clientes
+from app.modules.catalogo import clientes, presentaciones, reglas
 from app.modules.pqrs.router_public import PQRSConsultaOut, PQRSPublicaOut
 
 CLAVE = "clave-de-prueba-para-sincronizar"
@@ -50,7 +52,9 @@ def _huellas(portal, nits, clave=CLAVE_HUELLA, control=None):
 
 
 def _buscar(portal, q):
-    return [p["codigo"] for p in portal.get("/public/catalogo/productos", params={"q": q}).json()]
+    # El de Servicio al Cliente, que busca en todo lo activo: aquí se prueba
+    # cómo busca, no qué se le ofrece al cliente (eso, en «Qué ve el cliente»).
+    return [p["codigo"] for p in portal.get("/catalogo/productos", params={"q": q}).json()]
 
 
 def _pqrs(portal, nit):
@@ -269,3 +273,174 @@ def test_sin_la_clave_de_sincronizacion_no_entra(entorno, v):
         r = entorno.post("/catalogo/sincronizar-clientes", json={"huellas": [], "control": ""},
                          headers={"X-Clave-Sincronizacion": "otra"})
         v.check("403", r.status_code == 403, r.status_code)
+
+
+# ── La presentación del ERP, traducida al formulario ─────────────────────
+
+def test_las_presentaciones_del_erp_se_traducen(v):
+    """Las que de verdad trae el ERP de Protokimica (análisis del 14/10/2026)."""
+    casos = {
+        "KILO  GRANEL": ("Kilo", "1"),
+        "UNIDAD": ("Unidad", "1"),
+        "FCOS X 500 CC": ("Mililitro", "500"),
+        "LIBRA": ("Gramo", "500"),
+        "1/2 LIBRA": ("Gramo", "250"),
+        "30GR": ("Gramo", "30"),
+        "GALON": ("Galón", "1"),
+        "MG- M/ GALON": ("Galón", "0,5"),
+        "FCO 150 ML": ("Mililitro", "150"),
+        "LITRO": ("Litro", "1"),
+        "FCOS DE 250 ML. 1": ("Mililitro", "250"),
+        "PAQ X KILO": ("Kilo", "1"),
+        "PAQ X 5 KIL": ("Kilo", "5"),
+        "25 kg": ("Kilo", "25"),
+        "TX250 KILOS": ("Kilo", "250"),
+        "ENV 2.5 LT": ("Litro", "2,5"),
+        "15 MLT": ("Mililitro", "15"),
+        "GFA X 4 K": ("Kilo", "4"),
+        "2000ml": ("Mililitro", "2000"),
+        "Gfa x 5 Litros": ("Litro", "5"),
+        "100 grm": ("Gramo", "100"),
+        "25 UNID": ("Unidad", "25"),
+    }
+    for erp, esperado in casos.items():
+        obtenido = presentaciones.interpretar(erp)
+        v.check(f"«{erp}» → {esperado}", obtenido == esperado, obtenido)
+
+
+def test_el_garrafon_se_lee_del_nombre(v):
+    """GFON no dice cuánto trae: el contenido está en el nombre, y varía."""
+    v.check("x 20L", presentaciones.interpretar("GFON", "DESINFECTANTE IND DE SUPERFICIES x 20L**")
+            == ("Litro", "20"))
+    v.check("GX18Kg", presentaciones.interpretar("GFON", "ACEITE RICINO (HIGUER)  GX18Kg")
+            == ("Kilo", "18"))
+    v.check("Gx19K", presentaciones.interpretar("GFON", "JABON ANTIBACTERIAL FRUTOS ROJOS Gx19K")
+            == ("Kilo", "19"))
+    v.check("sin contenido en el nombre, vacío",
+            presentaciones.interpretar("GFON", "JABON NEUTRO") == (None, None))
+
+
+def test_lo_que_no_se_entiende_queda_vacio(v):
+    """Una presentación adivinada entraría a los informes como si fuera cierta."""
+    for erp in ("", None, "CAJA", "BULTO GRANDE"):
+        v.check(f"«{erp}» vacío", presentaciones.interpretar(erp) == (None, None))
+    v.check("un número del nombre no se usa si la presentación no es GFON",
+            presentaciones.interpretar("CAJA", "ACIDO 37% x 20L") == (None, None))
+
+
+# ── Qué ve el cliente ────────────────────────────────────────────────────
+
+def test_la_regla_del_formulario(v):
+    hoy = date(2026, 10, 22)
+    reciente = date(2026, 3, 1)
+    v.check("materia prima vendida hace poco: sí",
+            reglas.va_al_formulario("MP10957094", "QUIMICOS GRAV. 19%", reciente, hoy))
+    v.check("envase (prefijo ET): no",
+            not reglas.va_al_formulario("ET50076093", "ENVASES GRAV. 19%", reciente, hoy))
+    v.check("familia de producto con grupo de envases: no",
+            not reglas.va_al_formulario("MP10000093", "EMPAQUES Y BOLSAS", reciente, hoy))
+    v.check("familia que no está en la lista (SV chatarra): no",
+            not reglas.va_al_formulario("SV00021", "QUIMICOS GRAV. 19%", reciente, hoy))
+    v.check("nunca vendido: no",
+            not reglas.va_al_formulario("MP10957094", "QUIMICOS GRAV. 19%", None, hoy))
+    v.check("vendido justo hace 24 meses: sí",
+            reglas.va_al_formulario("LR1", None, date(2024, 10, 22), hoy))
+    v.check("un día antes de los 24 meses: no",
+            not reglas.va_al_formulario("LR1", None, date(2024, 10, 21), hoy))
+
+
+def _catalogo_mixto(portal):
+    hoy = dias_habiles.hoy().isoformat()
+    return _productos(portal, [
+        {"codigo": "MP10957094", "nombre": "PAC SOLIDO", "presentacion": "KILO  GRANEL",
+         "grupo": "QUIMICOS GRAV. 19%", "fecha_ultima_venta": hoy},
+        {"codigo": "ET50076093", "nombre": "CANECA VACIA DE CLORO", "presentacion": "UNIDAD",
+         "grupo": "ENVASES GRAV. 19%", "fecha_ultima_venta": hoy},
+        {"codigo": "MP10000081", "nombre": "PAC LIQUIDO VIEJO", "presentacion": "FCOS X 500 CC",
+         "grupo": "QUIMICOS GRAV. 19%", "fecha_ultima_venta": "2015-01-01"},
+    ])
+
+
+def test_el_cliente_solo_ve_lo_del_formulario_y_servicio_al_cliente_todo(entorno, v):
+    with _Claves():
+        r = _catalogo_mixto(entorno)
+        v.check("la sincronización dice cuántos van al formulario",
+                r.json()["en_formulario"] == 1, r.json())
+
+        publico = [p["codigo"] for p in entorno.get(
+            "/public/catalogo/productos", params={"q": "pac"}).json()]
+        v.check("el cliente ve el que se vende", publico == ["MP10957094"], publico)
+        v.check("el envase no le aparece", entorno.get(
+            "/public/catalogo/productos", params={"q": "caneca"}).json() == [])
+
+        interno = _buscar(entorno, "pac")
+        v.check("Servicio al Cliente encuentra también el viejo",
+                sorted(interno) == ["MP10000081", "MP10957094"], interno)
+
+
+def test_la_busqueda_trae_la_presentacion_traducida(entorno, v):
+    with _Claves():
+        _catalogo_mixto(entorno)
+        p = entorno.get("/public/catalogo/productos", params={"q": "pac solido"}).json()[0]
+        v.check("unidad", p["unidad"] == "Kilo", p)
+        v.check("cantidad", p["cantidad_unidad"] == "1", p)
+        v.check("y la del ERP tal cual", p["presentacion"] == "KILO  GRANEL", p)
+
+
+def _radicar_publico(portal, producto):
+    return portal.post("/public/pqrs", data={
+        "tipo": "reclamo", "descripcion": "Llegó dañado", "cliente_nombre": "Juan",
+        "factura_numero": "FV-1", "productos": json.dumps([producto]),
+    })
+
+
+def _ultimo_producto(portal):
+    db = portal.Session()
+    producto = db.query(PQRSSolicitud).order_by(PQRSSolicitud.id.desc()).first().productos[0]
+    salida = (producto.presentacion, producto.cantidad_presentacion)
+    db.close()
+    return salida
+
+
+def test_al_radicar_la_presentacion_es_la_del_catalogo(entorno, v):
+    """Lo que mande la pantalla se ignora: el código ya dice la presentación."""
+    with _Claves():
+        _catalogo_mixto(entorno)
+        r = _radicar_publico(entorno, {
+            "producto_codigo": "MP10957094", "producto_nombre": "PAC SOLIDO",
+            "presentacion": "Litro", "cantidad_presentacion": "99",
+            "lote": "L1", "cantidad_factura": "2",
+        })
+        v.check("radica", r.status_code == 201, r.text[:300])
+        v.check("Kilo × 1, no Litro × 99", _ultimo_producto(entorno) == ("Kilo", "1"),
+                _ultimo_producto(entorno))
+
+
+def test_escrito_a_mano_conserva_lo_que_dijo_el_cliente(entorno, v):
+    with _Claves():
+        _catalogo_mixto(entorno)
+        _radicar_publico(entorno, {
+            "producto_nombre": "el pac de siempre", "presentacion": "Kilo",
+            "cantidad_presentacion": "25", "lote": "L1", "cantidad_factura": "2",
+        })
+        v.check("se respeta", _ultimo_producto(entorno) == ("Kilo", "25"), _ultimo_producto(entorno))
+
+
+def test_al_confirmar_pasa_a_la_del_catalogo_y_queda_en_el_historial(entorno, v):
+    with _Claves():
+        _catalogo_mixto(entorno)
+        datos = entorno.post("/pqrs", data={
+            "tipo": "reclamo", "descripcion": "Llegó dañado", "cliente_nombre": "Juan",
+            "productos": json.dumps([{"producto_nombre": "pac", "presentacion": "Litro",
+                                      "cantidad_presentacion": "20"}]),
+        }).json()
+        r = entorno.patch(f"/pqrs/{datos['id']}/productos/{datos['productos'][0]['id']}/confirmar",
+                          data={"producto_codigo": "MP10957094"})
+        v.check("confirma", r.status_code == 200, r.text[:300])
+        producto = r.json()["productos"][0]
+        v.check("presentación del catálogo",
+                (producto["presentacion"], producto["cantidad_presentacion"]) == ("Kilo", "1"), producto)
+        historial = [s["comentario"] for s in entorno.get(f"/pqrs/{datos['id']}").json()["seguimientos"]
+                     if s["tipo_evento"] == "confirmacion_producto"]
+        v.check("el historial dice cuál tenía",
+                any("Litro 20 -> Kilo 1" in (c or "") for c in historial), historial)

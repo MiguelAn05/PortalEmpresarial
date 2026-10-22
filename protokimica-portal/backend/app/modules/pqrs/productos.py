@@ -111,6 +111,35 @@ def leer_productos(productos_json: str | None, legado: dict) -> list[dict]:
     return filas
 
 
+def fijar_presentacion(db: Session, tenant_id: int, filas: list[dict]) -> None:
+    """
+    A un producto del catálogo se le pone la presentación del catálogo.
+
+    El código ya la dice: «FCOS X 500 CC» es «Mililitro · 500», y el
+    formulario la muestra fija. Lo que mande la pantalla se ignora —un
+    formulario cacheado, o uno escrito a mano contra la API, podría decir otra
+    cosa— y el informe por presentación tiene que coincidir con el ERP. Si el
+    portal no entendió la presentación de ese producto, se respeta la que
+    escribió el cliente: para eso se la preguntaron.
+    """
+    codigos = {f["producto_codigo"] for f in filas if f["producto_codigo"]}
+    if not codigos:
+        return
+    catalogo = {
+        p.codigo: p
+        for p in db.query(ProductoCatalogo).filter(
+            ProductoCatalogo.tenant_id == tenant_id,
+            ProductoCatalogo.codigo.in_(codigos),
+            ProductoCatalogo.activo.is_(True),
+        )
+    }
+    for fila in filas:
+        producto = catalogo.get(fila["producto_codigo"])
+        if producto and producto.unidad:
+            fila["presentacion"] = producto.unidad
+            fila["cantidad_presentacion"] = producto.cantidad_unidad
+
+
 def _nuevo(fila: dict, orden: int) -> PQRSProducto:
     return PQRSProducto(
         orden=orden,
@@ -182,6 +211,7 @@ def agregar(db: Session, solicitud: PQRSSolicitud, usuario: User, datos: dict) -
     fila = _normalizar(datos, len(solicitud.productos) + 1)
     if not fila:
         raise HTTPException(status_code=400, detail="Escribe al menos cuál es el producto.")
+    fijar_presentacion(db, solicitud.tenant_id, [fila])
 
     orden = max((p.orden for p in solicitud.productos), default=-1) + 1
     producto = _nuevo(fila, orden)
@@ -277,12 +307,24 @@ def confirmar(db: Session, tenant_id: int, solicitud: PQRSSolicitud, usuario: Us
     producto.producto_nombre = catalogo.nombre
     producto.por_confirmar = False
 
+    # La presentación también pasa a ser la del catálogo, como al radicar
+    # (`fijar_presentacion`). La que había escrito el cliente queda en el
+    # historial, por si no coincide con lo que dijo por teléfono.
+    cambio_presentacion = ""
+    if catalogo.unidad:
+        antes = " ".join(filter(None, [producto.presentacion, producto.cantidad_presentacion])) or "sin presentación"
+        producto.presentacion = catalogo.unidad
+        producto.cantidad_presentacion = catalogo.cantidad_unidad
+        ahora = " ".join(filter(None, [catalogo.unidad, catalogo.cantidad_unidad]))
+        if antes != ahora:
+            cambio_presentacion = f" Presentación: {antes} -> {ahora}."
+
     # Queda qué escribió el cliente: si mucha gente pide el mismo producto
     # con un nombre que no está en el catálogo, eso es una señal sobre el
     # catálogo, no sobre los clientes.
     _anotar(db, solicitud, usuario, "confirmacion_producto", (
         f"Producto confirmado: «{escrito_por_el_cliente}» (escrito por el "
-        f"cliente) -> {catalogo.codigo} {catalogo.nombre}."
+        f"cliente) -> {catalogo.codigo} {catalogo.nombre}.{cambio_presentacion}"
     ))
     db.commit()
     db.refresh(solicitud)

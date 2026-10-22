@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.61.0"
-FECHA = "2026-10-21"
+VERSION = "0.62.0"
+FECHA = "2026-10-22"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,23 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.62.0",
+        "fecha": "2026-10-22",
+        "titulo": "El formulario ofrece solo productos, con su presentación",
+        "cambios": [
+            ("mejora", "El buscador del formulario de PQRS ofrece solo productos que se venden: "
+                       "materias primas, laboratorio, perfumería, seguridad, equipos y Salvak "
+                       "vendidos en los últimos dos años. Ya no aparecen envases, etiquetas, "
+                       "cuentas de costos ni productos que no se venden hace años."),
+            ("mejora", "Al escoger un producto, la presentación se llena sola con la del ERP "
+                       "(por ejemplo «Mililitro × 500») y no hay que adivinarla. Si el producto "
+                       "se escribe a mano, se sigue preguntando."),
+            ("nuevo", "«Galón» se agregó a las presentaciones."),
+            ("mejora", "Servicio al Cliente sigue encontrando todos los productos al confirmar "
+                       "uno que el cliente escribió, aunque no se ofrezca en el formulario."),
+        ],
+    },
     {
         "version": "0.61.0",
         "fecha": "2026-10-21",

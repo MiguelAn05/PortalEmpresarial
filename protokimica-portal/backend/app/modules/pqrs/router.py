@@ -100,6 +100,7 @@ async def crear_pqrs(
         "lote": lote, "cantidad_factura": cantidad_factura,
         "cantidad_reclamo": cantidad_reclamo,
     })
+    pqrs_productos.fijar_presentacion(db, tenant_id, filas_productos)
 
     ruta_producto = None
     ruta_factura = None

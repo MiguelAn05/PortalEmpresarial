@@ -6,12 +6,17 @@ buscador está abierto a internet, y la sincronización reemplaza el catálogo
 entero de una sola vez.
 """
 from app.core.config import settings
+from app.core.dias_habiles import hoy
 from app.models.catalogo import ProductoCatalogo
 
 CLAVE = "clave-de-prueba-para-sincronizar"
 
 
 def _sincronizar(portal, productos, clave=CLAVE):
+    # Vendidos hoy, para que los que tienen prefijo de familia salgan en el
+    # formulario público (ver `catalogo/reglas.py`). Lo de qué se ofrece y qué
+    # no se prueba en `test_catalogo_erp.py`.
+    productos = [{"fecha_ultima_venta": hoy().isoformat(), **p} for p in productos]
     return portal.post(
         "/catalogo/sincronizar",
         json={"productos": productos},
@@ -132,7 +137,7 @@ def test_las_filas_sin_codigo_o_sin_nombre_se_ignoran(entorno, v):
 
 def test_el_buscador_publico_no_pide_sesion(entorno, v):
     def probar():
-        _sincronizar(entorno, [{"codigo": "PK-001", "nombre": "Hipoclorito de sodio"}])
+        _sincronizar(entorno, [{"codigo": "MP-001", "nombre": "Hipoclorito de sodio"}])
         r = entorno.get("/public/catalogo/productos", params={"q": "hipo"})
         v.check("responde sin autenticación", r.status_code == 200, r.status_code)
         v.check("y encuentra el producto", len(r.json()) == 1, r.json())
@@ -142,15 +147,16 @@ def test_el_buscador_publico_no_pide_sesion(entorno, v):
 def test_solo_devuelve_codigo_nombre_y_presentacion(entorno, v):
     """
     Lo consume el formulario público. Aunque el catálogo creciera, de aquí no
-    puede salir nada más que esto.
+    puede salir nada más que esto: código, nombre, la presentación del ERP y
+    su traducción al formulario.
     """
     def probar():
         _sincronizar(entorno, [
-            {"codigo": "PK-001", "nombre": "Hipoclorito", "presentacion": "20L"},
+            {"codigo": "MP-001", "nombre": "Hipoclorito", "presentacion": "20L"},
         ])
         producto = entorno.get("/public/catalogo/productos", params={"q": "hipo"}).json()[0]
-        v.check("exactamente tres campos",
-                sorted(producto.keys()) == ["codigo", "nombre", "presentacion"],
+        v.check("exactamente estos campos",
+                sorted(producto.keys()) == ["cantidad_unidad", "codigo", "nombre", "presentacion", "unidad"],
                 sorted(producto.keys()))
     _con_clave(probar)
 
@@ -158,7 +164,7 @@ def test_solo_devuelve_codigo_nombre_y_presentacion(entorno, v):
 def test_no_se_puede_recorrer_el_catalogo_letra_por_letra(entorno, v):
     """Con una sola letra no se busca: sería una forma de descargarse todo."""
     def probar():
-        _sincronizar(entorno, [{"codigo": "PK-001", "nombre": "Hipoclorito"}])
+        _sincronizar(entorno, [{"codigo": "MP-001", "nombre": "Hipoclorito"}])
         v.check("una letra no devuelve nada",
                 entorno.get("/public/catalogo/productos", params={"q": "h"}).json() == [])
         v.check("vacío tampoco",
@@ -184,7 +190,7 @@ def test_el_buscador_limita_cuantos_devuelve(entorno, v):
     """Otro freno a la enumeración: no se devuelve el catálogo completo."""
     def probar():
         _sincronizar(entorno, [
-            {"codigo": f"PK-{i:03d}", "nombre": f"Producto de prueba {i}"}
+            {"codigo": f"MP-{i:03d}", "nombre": f"Producto de prueba {i}"}
             for i in range(40)
         ])
         r = entorno.get("/public/catalogo/productos", params={"q": "prueba"}).json()

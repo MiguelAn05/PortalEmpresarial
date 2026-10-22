@@ -11,7 +11,9 @@ import unicodedata
 from sqlalchemy import case
 from sqlalchemy.orm import Session
 
+from app.core.dias_habiles import hoy
 from app.models.catalogo import ProductoCatalogo, SincronizacionERP
+from app.modules.catalogo import presentaciones, reglas
 
 # Mínimo de caracteres para buscar. Con menos, cualquiera podría recorrer el
 # catálogo entero letra por letra desde el formulario público.
@@ -89,6 +91,8 @@ def sincronizar(db: Session, tenant_id: int, productos: list[dict]) -> dict:
 
     vistos = set()
     nuevos = actualizados = 0
+    # «Hoy» de la empresa, no de UTC: después de las 7 p. m. serían mañana.
+    hoy_ = hoy()
 
     for datos in productos:
         codigo = (datos.get("codigo") or "").strip()
@@ -114,6 +118,12 @@ def sincronizar(db: Session, tenant_id: int, productos: list[dict]) -> dict:
         valores["texto_busqueda"] = texto_de_busqueda(
             codigo, nombre, valores["presentacion"],
         )
+        valores["unidad"], valores["cantidad_unidad"] = presentaciones.interpretar(
+            valores["presentacion"], nombre,
+        )
+        valores["en_formulario"] = reglas.va_al_formulario(
+            codigo, valores["grupo"], valores["fecha_ultima_venta"], hoy_,
+        )
 
         actual = existentes.get(codigo)
         if actual is None:
@@ -132,19 +142,23 @@ def sincronizar(db: Session, tenant_id: int, productos: list[dict]) -> dict:
 
     db.flush()
 
+    activos = db.query(ProductoCatalogo).filter(
+        ProductoCatalogo.tenant_id == tenant_id,
+        ProductoCatalogo.activo.is_(True),
+    )
     return {
         "recibidos": len(productos),
         "nuevos": nuevos,
         "actualizados": actualizados,
         "descontinuados": descontinuados,
-        "total_activos": db.query(ProductoCatalogo).filter(
-            ProductoCatalogo.tenant_id == tenant_id,
-            ProductoCatalogo.activo.is_(True),
-        ).count(),
+        "total_activos": activos.count(),
+        # Cuántos ve el cliente. Si un día baja de golpe, una regla o el ERP
+        # cambiaron: es la cifra que hay que mirar después de tocar `reglas.py`.
+        "en_formulario": activos.filter(ProductoCatalogo.en_formulario.is_(True)).count(),
     }
 
 
-def buscar(db: Session, tenant_id: int, texto: str) -> list[dict]:
+def buscar(db: Session, tenant_id: int, texto: str, *, solo_formulario: bool) -> list[dict]:
     """
     Busca por código, nombre o presentación: cada palabra escrita tiene que
     aparecer en alguna parte, en cualquier orden y sin importar tildes ni
@@ -154,9 +168,13 @@ def buscar(db: Session, tenant_id: int, texto: str) -> list[dict]:
     debería tener que buscarlo en una lista), luego los códigos que empiezan
     así, y después lo vendido más recientemente.
 
-    Devuelve solo código, nombre y presentación. Aunque el catálogo tuviera
-    más columnas, de aquí no sale nada más: este endpoint lo consume el
-    formulario público, sin autenticación.
+    `solo_formulario` es para el formulario público: solo lo que `reglas.py`
+    decide ofrecerle al cliente. Servicio al Cliente busca en todo lo activo,
+    porque confirma productos que el cliente compró hace tiempo.
+
+    Devuelve código, nombre, la presentación del ERP y su traducción al
+    formulario. Aunque el catálogo tuviera más columnas, de aquí no sale nada
+    más: el formulario público lo consume sin autenticación.
     """
     normalizado = texto_de_busqueda(texto)
     if len(normalizado.replace(" ", "")) < MINIMO_BUSQUEDA:
@@ -169,6 +187,8 @@ def buscar(db: Session, tenant_id: int, texto: str) -> list[dict]:
         ProductoCatalogo.tenant_id == tenant_id,
         ProductoCatalogo.activo.is_(True),
     )
+    if solo_formulario:
+        consulta = consulta.filter(ProductoCatalogo.en_formulario.is_(True))
     for palabra in palabras:
         # Los comodines de LIKE escritos por alguien se toman como texto.
         palabra = palabra.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -191,6 +211,9 @@ def buscar(db: Session, tenant_id: int, texto: str) -> list[dict]:
     )
 
     return [
-        {"codigo": p.codigo, "nombre": p.nombre, "presentacion": p.presentacion}
+        {
+            "codigo": p.codigo, "nombre": p.nombre, "presentacion": p.presentacion,
+            "unidad": p.unidad, "cantidad_unidad": p.cantidad_unidad,
+        }
         for p in productos
     ]

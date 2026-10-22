@@ -11,7 +11,8 @@ import {
 } from '../../core/components/Iconos.jsx'
 import { mensajeDeError } from '../../core/errores.js'
 import {
-  LIMITES_RADICACION, MAX_PRODUCTOS, faltaEnProductos, productoVacio, productosParaEnviar,
+  LIMITES_RADICACION, MAX_PRODUCTOS, PRESENTACIONES, faltaEnProductos, productoVacio,
+  productosParaEnviar,
 } from '../pqrs/constants.js'
 
 // ── Constantes ─────────────────────────────────────────────────────
@@ -44,8 +45,6 @@ const DEPARTAMENTOS = [
 // estaban aqui en dos listas, y la de felicitaciones decia «Llamada
 // telefonica» donde esta decia «Linea telefonica»: la misma llamada caia en
 // dos canales y el reporte las contaba aparte.
-
-const PRESENTACIONES = ['Unidad', 'Kilo', 'Gramo', 'Litro', 'Mililitro']
 
 // Mínimo de letras para buscar. Es el mismo que exige el servidor
 // (`MINIMO_BUSQUEDA` en `modules/catalogo/service.py`): con menos, cualquiera
@@ -435,11 +434,19 @@ function FilaProducto({ numero, fila, total, onCambiar, onQuitar }) {
         </div>
       )}
 
+      {/* Un producto del catálogo trae su presentación —el código ya la
+          dice— y queda fija; el servidor la pone igual al radicar
+          (`pqrs/productos.fijar_presentacion`). Si el portal no la entendió,
+          o el cliente escribió el producto a mano, se le pregunta. Cambiar de
+          producto borra la anterior: no puede quedar la de otro. */}
       <BuscadorProducto
         value={fila.producto_nombre ? { codigo: fila.producto_codigo || null, nombre: fila.producto_nombre } : null}
         onChange={(elegido) => onCambiar({
           producto_codigo: elegido?.codigo || '',
           producto_nombre: elegido?.nombre || '',
+          presentacion: elegido?.unidad || '',
+          cantidad_presentacion: elegido?.unidad ? (elegido.cantidad_unidad || '') : '',
+          presentacion_fija: Boolean(elegido?.unidad),
         })}
       />
 
@@ -450,6 +457,12 @@ function FilaProducto({ numero, fila, total, onCambiar, onQuitar }) {
         </div>
         <div>
           <label className={etiqueta}>Presentación</label>
+          {fila.presentacion_fija ? (
+            <div className="px-4 py-3 rounded-xl border border-borde bg-superficie-2 text-sm text-texto">
+              {fila.presentacion}
+              {fila.cantidad_presentacion && <> × <span className="cifra">{fila.cantidad_presentacion}</span></>}
+            </div>
+          ) : (
           <div className="flex gap-2">
             <select name="presentacion" value={fila.presentacion} onChange={cambiar} className={campo}>
               <option value="">Seleccione...</option>
@@ -462,6 +475,7 @@ function FilaProducto({ numero, fila, total, onCambiar, onQuitar }) {
               className="w-20 px-3 py-3 rounded-xl border border-borde text-sm text-texto focus:outline-none focus:ring-2 focus:ring-acento transition disabled:bg-superficie-2 disabled:cursor-not-allowed"
             />
           </div>
+          )}
         </div>
       </div>
 

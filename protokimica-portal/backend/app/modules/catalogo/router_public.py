@@ -2,8 +2,10 @@
 Buscador de productos del formulario público. Sin autenticación.
 
 Lo consume el cliente que va a radicar una PQRS, así que está abierto a
-internet. Tres cosas lo acotan:
+internet. Cuatro cosas lo acotan:
 
+  - Solo ofrece lo que `reglas.py` decide que es producto para un cliente
+    (nada de envases, costos ni lo que no se vende hace dos años).
   - Solo devuelve código, nombre y presentación. En la copia local no hay
     precios ni existencias, así que no hay nada más que pudiera filtrarse.
   - Exige un mínimo de caracteres y devuelve pocos resultados.
@@ -27,4 +29,4 @@ router = APIRouter(
 @router.get("/productos", dependencies=[Depends(limitar_busqueda_publica)])
 def buscar_productos_publico(q: str = "", db: Session = Depends(get_db)):
     tenant = tenant_publico(db)
-    return service.buscar(db, tenant.id, q)
+    return service.buscar(db, tenant.id, q, solo_formulario=True)

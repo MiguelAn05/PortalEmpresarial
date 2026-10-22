@@ -47,6 +47,16 @@ class ProductoCatalogo(Base):
     # lleva un índice de trigramas para que buscar no recorra la tabla.
     texto_busqueda = Column(String(500), nullable=True)
 
+    # La presentación traducida a la del formulario («Mililitro», «500»).
+    # Vacías cuando no se entiende: el formulario se la pregunta al cliente.
+    # Ver `modules/catalogo/presentaciones.py`.
+    unidad = Column(String(20), nullable=True)
+    cantidad_unidad = Column(String(20), nullable=True)
+
+    # Si se le ofrece al cliente en el formulario público. Servicio al
+    # Cliente busca en TODOS los activos. Ver `modules/catalogo/reglas.py`.
+    en_formulario = Column(Boolean, nullable=False, default=False, server_default="false")
+
     # Un producto que deja de venir en la sincronización se marca inactivo en
     # vez de borrarse: deja de aparecer en el buscador, pero si mañana vuelve
     # al catálogo no se pierde nada y las PQRS viejas siguen teniendo sentido.

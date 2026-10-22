@@ -181,5 +181,10 @@ def buscar_productos(
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(get_current_user),
 ):
-    """Buscador para el formulario interno de PQRS."""
-    return service.buscar(db, tenant_id, q)
+    """
+    Buscador de Servicio al Cliente, para confirmar el producto que un
+    cliente escribió a mano. Busca en TODO lo activo, no solo en lo que se
+    ofrece en el formulario: un reclamo por algo comprado hace tres años
+    también hay que poder cerrarlo.
+    """
+    return service.buscar(db, tenant_id, q, solo_formulario=False)

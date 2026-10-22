@@ -120,7 +120,11 @@ export const DEPARTAMENTOS = [
   'Santander', 'Sucre', 'Tolima', 'Valle del Cauca', 'Vaupés', 'Vichada',
 ]
 
-export const PRESENTACIONES = ['Unidad', 'Kilo', 'Gramo', 'Litro', 'Mililitro']
+// Las unidades de la presentación. ATADO a `UNIDADES` de
+// `backend/app/modules/catalogo/presentaciones.py`, que traduce a estas la
+// presentación del ERP (tests/presentaciones.test.mjs lo verifica): una que
+// estuviera solo en el servidor llegaría a un desplegable que no la tiene.
+export const PRESENTACIONES = ['Unidad', 'Kilo', 'Gramo', 'Litro', 'Mililitro', 'Galón']
 
 const normalizar = (texto) => (texto ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
 

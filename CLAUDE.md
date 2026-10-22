@@ -1539,8 +1539,24 @@ petición: si Microsoft, n8n o el ERP están caídos, el portal sigue trabajando
   - **Productos** (`cat_productos`): código, nombre, presentación, grupo y
     última venta. El buscador exige cada palabra en cualquier orden, sin
     tildes (`texto_busqueda`, con índice de trigramas), y ordena código exacto
-    → código que empieza así → vendido más reciente. Lo viejo NO se esconde:
-    también se reclama.
+    → código que empieza así → vendido más reciente.
+  - **Qué ve el CLIENTE lo decide `catalogo/reglas.py`** (`en_formulario`,
+    desde la 0.62): familias de producto por prefijo (lista de las que SÍ:
+    `MP DI LR FS AE IP SK`), grupo que no sea de envases ni costos, y vendido
+    en 24 meses. Salieron del notebook `integraciones/erp/analisis/`.
+    **El filtro NO va en la consulta a Oracle**: el catálogo guarda todo lo
+    activo porque Servicio al Cliente confirma contra TODO (`/catalogo/productos`
+    con `solo_formulario=False`) — si un producto viejo no estuviera, su PQRS
+    no se podría cerrar nunca.
+  - **La presentación se traduce al sincronizar** (`catalogo/presentaciones.py`:
+    «FCOS X 500 CC» → Mililitro · 500) y el formulario la muestra FIJA. Por
+    el TEXTO, no por los tres dígitos finales del código (no siempre
+    coinciden). El garrafón (`GFON`) se lee del nombre: su contenido varía.
+    Lo que no se entiende queda vacío y se le pregunta al cliente, nunca se
+    adivina. El servidor la impone al radicar, agregar y confirmar
+    (`pqrs/productos.fijar_presentacion`): lo que mande la pantalla se
+    ignora. `UNIDADES` es gemelo de `PRESENTACIONES` de `pqrs/constants.js`
+    (`tests/presentaciones.test.mjs`).
   - **Clientes: no se copian.** Llega solo la HUELLA de cada NIT
     (HMAC-SHA256 con `CLAVE_HUELLA_NIT`, calculada en MORFEO) y el detalle de
     la PQRS dice «Cliente en el ERP» / «No aparece» (`cliente_en_erp`,

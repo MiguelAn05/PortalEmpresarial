@@ -99,7 +99,7 @@ def resolver_periodo(desde: date | None, hasta: date | None) -> tuple[date, date
     return desde, hasta
 
 
-def _meses_atras(dia: date, meses: int) -> date:
+def meses_atras(dia: date, meses: int) -> date:
     """El mismo día `meses` atrás; si ese mes es más corto, su último día."""
     anio, mes = divmod(dia.year * 12 + dia.month - 1 - meses, 12)
     ultimo = _ultimo_del_mes(anio, mes + 1)
@@ -128,13 +128,13 @@ def periodo_anterior(desde: date, hasta: date) -> tuple[date, date]:
         elif hasta.year == desde.year and hasta.month == desde.month:
             meses = 1                                   # el mes, o lo que va de él
         if meses:
-            ant_desde = _meses_atras(desde, meses)
+            ant_desde = meses_atras(desde, meses)
             # Un periodo que llega al último día de su mes se compara con el
             # anterior también completo (febrero termina el 28, no el 30).
             if hasta == _ultimo_del_mes(hasta.year, hasta.month):
-                fin_mes = _meses_atras(hasta.replace(day=1), meses)
+                fin_mes = meses_atras(hasta.replace(day=1), meses)
                 return ant_desde, _ultimo_del_mes(fin_mes.year, fin_mes.month)
-            return ant_desde, _meses_atras(hasta, meses)
+            return ant_desde, meses_atras(hasta, meses)
 
     largo = (hasta - desde).days + 1
     ant_hasta = desde - timedelta(days=1)

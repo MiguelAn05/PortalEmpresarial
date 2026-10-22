@@ -281,6 +281,26 @@ qué columna dice si el producto sigue vigente, y si el código está repetido.
 > Nadie da un premio por adivinarlo, y equivocarse aquí se nota meses después
 > en un informe.
 
+## Qué ve el cliente y qué no
+
+El script trae **todos** los productos activos, y el portal decide cuáles se le
+ofrecen al cliente en el formulario (`backend/app/modules/catalogo/reglas.py`):
+familias de producto (`MP DI LR FS AE IP SK`), grupo que no sea de envases ni
+costos, y vendido en los últimos 24 meses. Con los datos del 22/10/2026 son
+1.270 de 7.852; el script lo imprime al final («En el formulario: N»).
+
+El filtro **no** va en la consulta a Oracle a propósito: Servicio al Cliente
+confirma contra todo el catálogo los productos que un cliente escribió a mano,
+y una PQRS con un producto sin confirmar no se puede cerrar.
+
+Las reglas salieron de `analisis/explorar_productos.ipynb`, que sirve para
+volver a mirarlas con datos nuevos.
+
+La **presentación** del ERP («FCOS X 500 CC») se traduce a la del formulario
+(«Mililitro · 500») en `catalogo/presentaciones.py`, y el formulario la llena
+sola. Si una presentación nueva del ERP no se entiende, queda vacía y se le
+pregunta al cliente: se agrega a `CONOCIDAS` o se ajusta el patrón.
+
 ## Qué se copia y qué no
 
 De productos: **código, nombre, presentación, grupo y fecha de la última

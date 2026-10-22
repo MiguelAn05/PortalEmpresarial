@@ -237,6 +237,7 @@ async def radicar_pqrs_publica(
     })
 
     tenant = tenant_publico(db)
+    pqrs_productos.fijar_presentacion(db, tenant.id, filas_productos)
 
     # Guardar archivos si vienen
     ruta_producto = None

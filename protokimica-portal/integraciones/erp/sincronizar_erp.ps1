@@ -190,7 +190,7 @@ WHERE p.PR_ESTADO = 'A'
 
         $cuerpo = @{ productos = $productos } | ConvertTo-Json -Depth 4 -Compress
         $r = Enviar "/catalogo/sincronizar" $cuerpo
-        Write-Host "Productos listos. Nuevos: $($r.nuevos) · Actualizados: $($r.actualizados) · Descontinuados: $($r.descontinuados) · Activos: $($r.total_activos)"
+        Write-Host "Productos listos. Nuevos: $($r.nuevos) · Actualizados: $($r.actualizados) · Descontinuados: $($r.descontinuados) · Activos: $($r.total_activos) · En el formulario: $($r.en_formulario)"
     }
     catch {
         $todoBien = $false
