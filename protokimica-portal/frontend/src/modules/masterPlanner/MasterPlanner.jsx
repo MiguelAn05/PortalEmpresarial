@@ -99,7 +99,7 @@ export default function MasterPlanner() {
       />
 
       {vista === "resumen" && !proyectoAbierto && (
-        <ResumenView onAbrirProyecto={abrirProyectoDesdeResumen} />
+        <ResumenView onAbrirProyecto={abrirProyectoDesdeResumen} onIrA={cambiarVista} />
       )}
 
       {(vista === "proyectos" || (vista === "resumen" && proyectoAbierto)) && (

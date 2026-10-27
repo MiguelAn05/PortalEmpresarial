@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.62.0"
-FECHA = "2026-10-22"
+VERSION = "0.63.0"
+FECHA = "2026-10-27"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,19 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.63.0",
+        "fecha": "2026-10-27",
+        "titulo": "Las tarjetas de Master Planner llevan a lo que cuentan",
+        "cambios": [
+            ("mejora", "En «Tareas de proyecto» y en cada proyecto, las tarjetas Abiertas, Alta "
+                       "prioridad y Vencidas filtran la lista de abajo, como en PQRS. «Total tareas» "
+                       "o volver a pulsar la tarjeta quita el filtro, y «Limpiar filtros» también."),
+            ("mejora", "En el Resumen, «Proyectos en riesgo» deja la tabla de estado solo con esos "
+                       "proyectos, y Proyectos, Tareas abiertas, Alta prioridad y Vencidas abren su "
+                       "pestaña ya filtrada, con el área que se estaba mirando."),
+        ],
+    },
     {
         "version": "0.62.0",
         "fecha": "2026-10-22",

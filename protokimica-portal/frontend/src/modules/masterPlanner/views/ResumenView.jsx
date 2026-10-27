@@ -2,17 +2,42 @@ import { useQuery } from "@tanstack/react-query"
 import TarjetasKPI from "../../../core/components/TarjetasKPI.jsx"
 import HistorialPanel from "../components/HistorialPanel"
 import { obtenerResumen, listarHistorialGeneral } from "../api"
-import { SALUD, TONOS, lecturaAvancePlazo, formatFecha, formatMoneda } from "../constants"
+import {
+  FILTROS_PROYECTOS_VACIOS, FILTROS_TAREAS_VACIOS, SALUD, SALUD_EN_RIESGO, TONOS,
+  lecturaAvancePlazo, formatFecha, formatMoneda,
+} from "../constants"
 import { IconoAlerta } from '../../../core/components/Iconos.jsx'
 import { useFiltrosEnUrl } from '../../../core/useFiltrosEnUrl.js'
 
 /**
  * Vista para gerencia: los números primero. Todo llega ya calculado del
  * endpoint /resumen — el frontend no recalcula nada, solo lo presenta.
+ *
+ * Las tarjetas llevan a donde están esas cifras, como en PQRS:
+ *  - «Proyectos en riesgo» recorta aquí mismo la tabla de estado (`foco`).
+ *  - Las demás abren su pestaña YA filtrada, con los demás filtros de esa
+ *    pestaña limpios y el área del resumen: es lo que hace que la lista
+ *    muestre el mismo número que la tarjeta. Las tareas viajan con
+ *    `de_area` y no con `area`, porque el resumen cuenta las tareas de los
+ *    PROYECTOS del área (responsable o participante), no las marcadas con
+ *    ella.
  */
-export default function ResumenView({ onAbrirProyecto }) {
-  const [{ area }, cambiar] = useFiltrosEnUrl({ area: "" }, { prefijo: "r_" })
+export default function ResumenView({ onAbrirProyecto, onIrA }) {
+  // El de `r_` va primero: la prueba de prefijos lee el primero de cada vista.
+  const [{ area, foco }, cambiar] = useFiltrosEnUrl({ area: "", foco: "" }, { prefijo: "r_" })
+  const [, cambiarTareas] = useFiltrosEnUrl(FILTROS_TAREAS_VACIOS, { prefijo: "t_" })
+  const [, cambiarProyectos] = useFiltrosEnUrl({ ...FILTROS_PROYECTOS_VACIOS, archivados: "" }, { prefijo: "p_" })
   const setArea = (v) => cambiar({ area: v })
+  const enRiesgo = foco === "riesgo"
+
+  const verTareas = (focoTareas) => {
+    cambiarTareas({ ...FILTROS_TAREAS_VACIOS, foco: focoTareas, de_area: area })
+    onIrA("tareas")
+  }
+  const verProyectos = () => {
+    cambiarProyectos({ ...FILTROS_PROYECTOS_VACIOS, archivados: "", area })
+    onIrA("proyectos")
+  }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["mp-resumen", area],
@@ -57,24 +82,34 @@ export default function ResumenView({ onAbrirProyecto }) {
 
       <TarjetasKPI tarjetas={[
         { label: 'Proyectos', value: kpis.proyectos_total,
-          nota: `${kpis.proyectos_en_ejecucion} en ejecución` },
+          nota: `${kpis.proyectos_en_ejecucion} en ejecución`, onClick: verProyectos },
         { label: 'Tareas abiertas', value: kpis.tareas_abiertas,
           nota: kpis.tareas_sin_asignar > 0
             ? `${kpis.tareas_sin_asignar} sin asignar`
-            : 'todas con responsable' },
+            : 'todas con responsable',
+          onClick: () => verTareas('abiertas') },
         { label: 'Alta prioridad', value: kpis.tareas_alta_prioridad,
-          nota: kpis.tareas_alta_prioridad > 0 ? 'atender primero' : 'ninguna' },
+          nota: kpis.tareas_alta_prioridad > 0 ? 'atender primero' : 'ninguna',
+          onClick: () => verTareas('alta_prioridad') },
         { label: 'Vencidas', value: kpis.tareas_vencidas,
           alerta: kpis.tareas_vencidas > 0,
-          nota: kpis.tareas_vencidas > 0 ? 'fuera de plazo' : 'ninguna fuera de plazo' },
+          nota: kpis.tareas_vencidas > 0 ? 'fuera de plazo' : 'ninguna fuera de plazo',
+          onClick: () => verTareas('vencidas') },
+        // Esta se queda aquí: recorta la tabla de estado, que es donde están.
         { label: 'Proyectos en riesgo', value: kpis.proyectos_en_riesgo,
           alerta: kpis.proyectos_en_riesgo > 0,
-          nota: kpis.proyectos_en_riesgo > 0 ? 'revisar el cronograma' : 'ninguno en riesgo' },
+          nota: kpis.proyectos_en_riesgo > 0 ? 'revisar el cronograma' : 'ninguno en riesgo',
+          activa: enRiesgo, onClick: () => cambiar({ foco: enRiesgo ? "" : "riesgo" }) },
       ]} />
 
       <Presupuesto total={presupuesto} porArea={presupuesto_por_area} />
 
-      <EstadoProyectos proyectos={proyectos} onAbrirProyecto={onAbrirProyecto} />
+      <EstadoProyectos
+        proyectos={enRiesgo ? proyectos.filter(p => SALUD_EN_RIESGO.includes(p.salud)) : proyectos}
+        enRiesgo={enRiesgo}
+        onVerTodos={() => cambiar({ foco: "" })}
+        onAbrirProyecto={onAbrirProyecto}
+      />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Cumplimiento areas={cumplimiento_por_area} global={kpis} />
@@ -203,18 +238,29 @@ function BarraEjecucion({ pct, sobrepasado }) {
   )
 }
 
-function EstadoProyectos({ proyectos, onAbrirProyecto }) {
+function EstadoProyectos({ proyectos, enRiesgo, onVerTodos, onAbrirProyecto }) {
+  // Recortada por la tarjeta: se dice, y se ofrece cómo soltarla.
+  const verTodos = enRiesgo && (
+    <button onClick={onVerTodos} className="text-xs font-semibold text-acento hover:underline">
+      Ver todos los proyectos
+    </button>
+  )
+  const titulo = enRiesgo ? "Proyectos en riesgo" : "Estado de los proyectos"
+
   if (proyectos.length === 0) {
     return (
-      <Panel titulo="Estado de los proyectos">
-        <p className="px-5 py-10 text-center text-sm text-texto-3">No hay proyectos activos.</p>
+      <Panel titulo={titulo} accion={verTodos}>
+        <p className="px-5 py-10 text-center text-sm text-texto-3">
+          {enRiesgo ? "Ningún proyecto activo en riesgo." : "No hay proyectos activos."}
+        </p>
       </Panel>
     )
   }
 
   return (
     <Panel
-      titulo="Estado de los proyectos"
+      titulo={titulo}
+      accion={verTodos}
       subtitulo="Ordenados por riesgo. La barra es el avance real; la marca vertical (│) es dónde debería ir hoy según el tiempo transcurrido."
     >
       <div className="overflow-x-auto">

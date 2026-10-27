@@ -6,7 +6,7 @@ import KanbanBoard from "../components/KanbanBoard"
 import TareasTable from "../components/TareasTable"
 import GanttView from "../components/GanttView"
 import { listarTareas, actualizarTarea } from "../api"
-import { FILTROS_TAREAS_VACIOS, filtrarTareas, puedeEditar } from "../constants"
+import { FILTROS_TAREAS_VACIOS, cumpleFocoTarea, filtrarTareas, puedeEditar } from "../constants"
 import { useAuth } from "../../../core/useAuth.js"
 import { useFiltrosEnUrl } from '../../../core/useFiltrosEnUrl.js'
 
@@ -39,7 +39,10 @@ export default function TareasView({ proyectos, usuarios, onSelectTarea, onNueva
     },
   })
 
-  const visibles = useMemo(() => filtrarTareas(tareas, filtros), [tareas, filtros])
+  // Las tarjetas cuentan sobre lo filtrado SIN su propio recorte; la lista,
+  // con él. Si no, pulsar «Vencidas» dejaría todas las demás tarjetas en cero.
+  const base = useMemo(() => filtrarTareas(tareas, { ...filtros, foco: '' }, proyectos), [tareas, filtros, proyectos])
+  const visibles = useMemo(() => base.filter(t => cumpleFocoTarea(t, filtros.foco)), [base, filtros.foco])
 
   if (isError) {
     return (
@@ -65,7 +68,20 @@ export default function TareasView({ proyectos, usuarios, onSelectTarea, onNueva
 
   return (
     <div className="space-y-5">
-      <KPICards tareas={tareas} />
+      <KPICards tareas={base} foco={filtros.foco} onFoco={(foco) => setFiltros({ foco })} />
+
+      {/* Llega desde el Resumen: sin decirlo, la lista se vería recortada sin
+          ningún filtro puesto en el panel. */}
+      {filtros.de_area && (
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-acento-suave text-acento-fuerte text-sm rounded-xl px-4 py-2.5">
+          <span>
+            Tareas de los proyectos de <strong>{filtros.de_area}</strong>, como responsable o participante.
+          </span>
+          <button onClick={() => setFiltros({ de_area: '' })} className="text-xs font-semibold hover:underline">
+            Ver todas las áreas
+          </button>
+        </div>
+      )}
 
       <Filters
         filtros={filtros}

@@ -2,13 +2,13 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import ProyectoCard from "../components/ProyectoCard"
 import { listarProyectos, archivarProyecto, eliminarProyecto } from "../api"
-import { ESTADOS_PROYECTO, puedeEditar, perteneceAlArea, parametrosListaProyectos } from "../constants"
+import {
+  ESTADOS_PROYECTO, FILTROS_PROYECTOS_VACIOS as FILTROS_VACIOS, puedeEditar, perteneceAlArea, parametrosListaProyectos,
+} from "../constants"
 import { useAuth } from "../../../core/useAuth.js"
 import { mensajeDeError } from '../../../core/errores.js'
 import { useAreas } from '../../../core/areas.js'
 import { useFiltrosEnUrl } from '../../../core/useFiltrosEnUrl.js'
-
-const FILTROS_VACIOS = { busqueda: "", estado: "", area: "" }
 
 export default function ProyectosView({ onAbrirProyecto, onNuevoProyecto, onEditarProyecto }) {
   const listaAreas = useAreas()

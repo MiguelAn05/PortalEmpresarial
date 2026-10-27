@@ -251,13 +251,57 @@ export function diasDesplazados(entrada) {
 // ── Filtrado de tareas ────────────────────────────────────────
 // Mismo criterio para el tablero, la tabla, el cronograma y el calendario,
 // para que "12 de 30 tareas" signifique lo mismo en todas las vistas.
+// `foco` es la tarjeta pulsada (ver `FOCOS_TAREAS`) y `de_area` llega desde
+// el Resumen: las tareas de los proyectos de un área, responsable o
+// participante, que es como el Resumen cuenta. No es lo mismo que `area`, que
+// es el área de la TAREA. Van aquí para que «Limpiar filtros» los apague
+// también: un recorte que no se sabe cómo quitar se lee como tareas que faltan.
 export const FILTROS_TAREAS_VACIOS = {
   busqueda: "", proyecto_id: "", asignado_a: "", area: "", estado: "", prioridad: "", vencimiento: "",
+  foco: "", de_area: "",
 }
 
-export function filtrarTareas(tareas, filtros) {
+/**
+ * Las tarjetas de tareas que se pueden pulsar. **La cifra de la tarjeta y el
+ * filtro salen de la misma función** (`cumple`), como en PQRS: escritas
+ * aparte, el día que una condición cambie la tarjeta dice un número y la
+ * lista muestra otro. Son las mismas reglas del Resumen del servidor
+ * (`master_planner/resumen.py`), para que pulsar «4 vencidas» allá muestre
+ * esas cuatro aquí.
+ */
+export const FOCOS_TAREAS = [
+  { clave: 'abiertas', label: 'Abiertas', cumple: (t) => t.estado !== 'completada' },
+  {
+    clave: 'alta_prioridad', label: 'Alta prioridad',
+    cumple: (t) => t.estado !== 'completada' && (t.prioridad === 'alta' || t.prioridad === 'critica'),
+  },
+  { clave: 'vencidas', label: 'Vencidas', cumple: (t) => alertaVencimiento(t) === 'vencida' },
+]
+
+export function cumpleFocoTarea(tarea, clave) {
+  if (!clave) return true
+  const foco = FOCOS_TAREAS.find(f => f.clave === clave)
+  // Un foco que no existe (un enlace viejo) no esconde nada.
+  return foco ? foco.cumple(tarea) : true
+}
+
+/** Cuántas hay en cada tarjeta, sobre la lista que se le pase (ya filtrada). */
+export function contarFocosTareas(tareas) {
+  return Object.fromEntries(FOCOS_TAREAS.map(f => [f.clave, (tareas || []).filter(f.cumple).length]))
+}
+
+/**
+ * `proyectos` solo hace falta para `de_area`: la tarea no trae las áreas de
+ * su proyecto, la lista de proyectos sí.
+ */
+export function filtrarTareas(tareas, filtros, proyectos = []) {
   const busqueda = (filtros.busqueda || "").trim().toLowerCase()
+  const delArea = filtros.de_area
+    ? new Set(proyectos.filter(p => perteneceAlArea(p, filtros.de_area)).map(p => p.id))
+    : null
   return tareas.filter(t => {
+    if (delArea && !delArea.has(t.proyecto_id)) return false
+    if (!cumpleFocoTarea(t, filtros.foco)) return false
     if (filtros.proyecto_id && String(t.proyecto_id) !== String(filtros.proyecto_id)) return false
     if (filtros.area && t.area !== filtros.area) return false
     if (filtros.estado && t.estado !== filtros.estado) return false
@@ -445,6 +489,12 @@ export function tareaOcupaDia(tarea, dia) {
  * solo al área responsable, o un proyecto con tres áreas contaría su plata
  * tres veces en los totales.
  */
+/** Los filtros de la lista de proyectos (`p_` en la URL). */
+export const FILTROS_PROYECTOS_VACIOS = { busqueda: "", estado: "", area: "" }
+
+/** La tarjeta «Proyectos en riesgo» del Resumen recorta la tabla a estos semáforos. */
+export const SALUD_EN_RIESGO = ['rojo', 'amarillo']
+
 export function perteneceAlArea(proyecto, area) {
   if (!area) return true
   if (proyecto?.area === area) return true

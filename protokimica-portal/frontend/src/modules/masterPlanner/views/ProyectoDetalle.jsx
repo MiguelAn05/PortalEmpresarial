@@ -23,7 +23,7 @@ import {
 } from '../../../core/components/Iconos.jsx'
 import {
   ESTADOS_PROYECTO, ESTADOS_TAREA, PRIORIDADES,
-  FILTROS_TAREAS_VACIOS, filtrarTareas, alertaVencimiento,
+  FILTROS_TAREAS_VACIOS, cumpleFocoTarea, filtrarTareas, alertaVencimiento,
   colorAvance, formatFecha, formatMoneda, puedeEditar,
 } from "../constants"
 
@@ -87,7 +87,9 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
     onSuccess: () => { invalidar(); setConfirmacion(null) },
   })
 
-  const visibles = useMemo(() => filtrarTareas(tareas, filtros), [tareas, filtros])
+  // Como en la vista de tareas: las tarjetas cuentan sin su propio recorte.
+  const base = useMemo(() => filtrarTareas(tareas, { ...filtros, foco: '' }), [tareas, filtros])
+  const visibles = useMemo(() => base.filter(t => cumpleFocoTarea(t, filtros.foco)), [base, filtros.foco])
   const set = (campo) => (e) => setFiltros({ ...filtros, [campo]: e.target.value })
   const hayFiltros = Object.values(filtros).some(v => v !== "")
 
@@ -281,7 +283,8 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
         <>
           {subvista === 'tablero' && (
             <div className="space-y-5">
-              <KPICards tareas={tareas} />
+              <KPICards tareas={base} foco={filtros.foco}
+                        onFoco={(foco) => setFiltros(f => ({ ...f, foco }))} />
               <KanbanBoard
                 tareas={visibles}
                 mostrarProyecto={false}

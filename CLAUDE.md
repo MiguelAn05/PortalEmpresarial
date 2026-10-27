@@ -1238,6 +1238,14 @@ portal: no hay servicio de terceros que se pueda caer ni cobrar.
   - **Pulsar la tarjeta activa la suelta**, y «Limpiar filtros» también la
     apaga: un recorte que no se sabe cómo quitar se lee como PQRS que
     faltan.
+  - **En Master Planner** (desde la 0.63) la regla es `FOCOS_TAREAS` de
+    `masterPlanner/constants.js` (`t_foco` en la URL). En las vistas de
+    tareas filtran la lista; en el Resumen, «Proyectos en riesgo» recorta su
+    tabla (`r_foco`) y las demás abren su pestaña con los otros filtros
+    limpios. Las tareas viajan con `de_area` (proyectos del área,
+    responsable o participante), no con `area` (el área de la tarea),
+    porque así cuenta el Resumen del servidor: con `area` la lista mostraría
+    otro número que la tarjeta.
   - `onClick` es opcional: sin él se pinta un `<article>` como siempre.
     Donde la cifra no lleva a ninguna parte, una tarjeta pulsable solo genera
     la pregunta de qué hace.
