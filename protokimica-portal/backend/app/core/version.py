@@ -40,7 +40,7 @@ HISTORIAL = [
         "titulo": "Los avances de una tarea se pueden corregir",
         "cambios": [
             ("nuevo", "En las tareas de Master Planner, quien escribió un avance o una respuesta "
-                      "puede corregir el texto con «Corregir». Queda marcado como «Editado» y el "
+                      "puede corregir el texto con «Editar». Queda marcado como «Editado» y el "
                       "texto anterior se ve en el historial de la tarea."),
             ("mejora", "Solo se corrige lo que uno mismo escribió, y solo el texto: el porcentaje "
                        "de avance y la evidencia adjunta no cambian. Para señalar un error en el "

@@ -29,7 +29,7 @@ const CAMPOS_CONFIRMABLES = {
 }
 
 /**
- * El texto de un avance o de una respuesta, con «Corregir» si quien mira lo
+ * El texto de un avance o de una respuesta, con «Editar» si quien mira lo
  * escribió (`puede_corregir` lo decide el servidor). Uno se equivoca
  * escribiendo, y sin esto la única salida era otro avance que dijera «donde
  * dice X léase Y».
@@ -52,9 +52,14 @@ function TextoCorregible({ entrada, onCorregir, guardando, permitirVacio = false
   if (editando) {
     return (
       <div className="space-y-2 mt-1">
+        {/* Amplia desde el principio y crece con el texto: corregir un avance
+            largo en dos renglones obliga a hacerlo a ciegas. Se puede estirar
+            a mano si hace falta más. */}
         <textarea
-          value={texto} onChange={(e) => setTexto(e.target.value)} rows={2} autoFocus
-          className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none"
+          value={texto} onChange={(e) => setTexto(e.target.value)} autoFocus
+          rows={Math.min(14, Math.max(6, texto.split("\n").length + 1, Math.ceil(texto.length / 70) + 1))}
+          className="w-full min-h-[9rem] rounded-lg border border-borde px-3 py-2 text-sm leading-relaxed resize-y
+            focus:outline-none focus:ring-2 focus:ring-acento"
         />
         <div className="flex gap-2">
           <button
