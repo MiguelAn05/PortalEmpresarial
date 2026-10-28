@@ -546,6 +546,30 @@ export function textoHoras(horas) {
 // prueba que los ata.
 export const MAX_TITULO_ACTIVIDAD = 200
 
+// Cuánto toma una actividad cada vez. Gemelo de `MAX_MINUTOS_ACTIVIDAD` en
+// `master_planner/schemas.py` (doce horas), con prueba que los ata.
+export const MAX_MINUTOS_ACTIVIDAD = 720
+
+// Lo escrito en el formulario («30» minutos, «1,5» horas) en minutos
+// enteros, que es lo que viaja. Vacío es `null`: «no se sabe», nunca cero.
+export function aMinutos(valor, unidad = 'min') {
+  if (valor === null || valor === undefined || String(valor).trim() === '') return null
+  const n = Number(String(valor).replace(',', '.'))
+  if (Number.isNaN(n) || n <= 0) return null
+  return Math.round(unidad === 'h' ? n * 60 : n)
+}
+
+// «15 min», «1 h», «1 h 30 min». Sin dato, `null`: no se pinta nada.
+export function textoMinutos(minutos) {
+  if (minutos === null || minutos === undefined || minutos === '') return null
+  const n = Number(minutos)
+  if (!Number.isFinite(n) || n <= 0) return null
+  const h = Math.floor(n / 60)
+  const m = n % 60
+  if (!h) return `${m} min`
+  return m ? `${h} h ${m} min` : `${h} h`
+}
+
 export const FRECUENCIAS = {
   diaria: 'Todos los días',
   semanal: 'Algunos días de la semana',

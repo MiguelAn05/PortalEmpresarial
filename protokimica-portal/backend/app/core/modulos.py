@@ -21,6 +21,7 @@ from fastapi import Depends, HTTPException, status
 
 from sqlalchemy.orm import Session
 
+from app.core import capacidades
 from app.core.deps import get_current_user
 from app.models.tenant import Tenant, TenantModulo
 from app.models.user import User
@@ -166,11 +167,28 @@ def contratar(db: Session, tenant_id: int, modulos: list[str] | tuple[str, ...])
     return activados
 
 
+# Una capacidad que abre el módulo aunque el rol no lo abra. Es para un área
+# entera que necesita entrar sin que a nadie haya que cambiarle el cargo
+# —Servicio al Cliente en Mejora—: el rol sigue siendo la regla general y
+# esto, la excepción que se otorga en Administración › Capacidades.
+# Gemelo de `CAPACIDAD_QUE_ABRE` en `frontend/src/core/modulos.js`.
+CAPACIDAD_QUE_ABRE: dict[str, str] = {
+    "mejora": "mejora.trabajar",
+}
+
+
 def puede_ver_modulo(usuario: User, modulo: str) -> bool:
     permitidos = ACCESO_POR_MODULO.get(modulo)
     if permitidos is None:
         raise ValueError(f"Módulo desconocido: '{modulo}'")
-    return usuario.rol in permitidos and esta_contratado(usuario, modulo)
+    if not esta_contratado(usuario, modulo):
+        return False
+    if usuario.rol in permitidos:
+        return True
+    capacidad = CAPACIDAD_QUE_ABRE.get(modulo)
+    # `lectura` no escribe nada en ningún lado; abrirle un módulo de trabajo
+    # por su área sería darle una pantalla llena de botones que no puede usar.
+    return bool(capacidad) and usuario.rol != "lectura" and capacidades.del_usuario(usuario, capacidad)
 
 
 def _no_contratado(modulo: str) -> HTTPException:
@@ -216,7 +234,7 @@ def requiere_modulo(modulo: str):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
-                    f"Tu rol no tiene acceso al módulo de {ETIQUETAS.get(modulo, modulo)}. "
+                    f"No tienes acceso al módulo de {ETIQUETAS.get(modulo, modulo)}. "
                     "Si necesitas entrar, solicítalo a un administrador."
                 ),
             )

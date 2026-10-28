@@ -31,13 +31,20 @@ ROLES_QUE_VEN_TODO = ("admin", "gerencia")
 # autonomía de la que ya tienen.
 ROLES_QUE_GESTIONAN = ("admin", "lider")
 
+# Y quien tenga la capacidad, aunque su rol no sea de líder (Servicio al
+# Cliente en Protokimica). Entra y trabaja como un líder: ver sin poder abrir
+# una OMP desde la PQRS que la origina no le serviría de nada.
+CAPACIDAD_TRABAJAR = "mejora.trabajar"
+
 
 def ve_todas(usuario: User) -> bool:
     return usuario.rol in ROLES_QUE_VEN_TODO
 
 
 def puede_gestionar(usuario: User) -> bool:
-    return usuario.rol in ROLES_QUE_GESTIONAN
+    if usuario.rol in ROLES_QUE_GESTIONAN:
+        return True
+    return usuario.rol not in ("gerencia", "lectura") and capacidades.del_usuario(usuario, CAPACIDAD_TRABAJAR)
 
 
 def aplicar_filtro_area(query, usuario: User, modelo):

@@ -10,7 +10,7 @@ import {
 import TarjetasKPI from '../../core/components/TarjetasKPI.jsx'
 import { listarOportunidades, propuestaDesdeOrigen } from './api.js'
 import { mensajeDeError } from '../../core/errores.js'
-import { CICLO, ESTADOS, esEstadoTerminal, estadoDelPlazo } from './constants.js'
+import { CICLO, ESTADOS, esEstadoTerminal, estadoDelPlazo, puedeGestionarMejora } from './constants.js'
 import DetalleOportunidad from './components/DetalleOportunidad.jsx'
 import FormOportunidad from './components/FormOportunidad.jsx'
 
@@ -129,7 +129,7 @@ export default function Mejora() {
     queryFn: () => listarOportunidades(soloAbiertas ? { abiertas: true } : {}),
   })
 
-  const puedeCrear = user?.rol === 'admin' || user?.rol === 'lider'
+  const puedeCrear = puedeGestionarMejora(user)
 
   const visibles = oportunidades.filter(o => (
     (!filtros.estado || o.estado === filtros.estado)

@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   mesDeActividad, registrarActividad, quitarRegistroActividad,
 } from "../api"
-import { DIAS_SEMANA, comoFecha, formatFecha } from "../constants"
+import { DIAS_SEMANA, comoFecha, formatFecha, textoMinutos } from "../constants"
 import { mensajeDeError } from "../../../core/errores.js"
 import {
   IconoCerrar, IconoChevron, IconoRepetir,
@@ -110,6 +110,7 @@ export default function RegistroActividadModal({ actividad, onClose, onCambio, o
           <h2 className="text-lg font-bold pr-8">{actividad.titulo}</h2>
           <p className="text-xs text-white/80 mt-1">
             {actividad.frecuencia_texto} · {actividad.asignado_nombre}
+            {textoMinutos(actividad.minutos_estimados) && ` · ${textoMinutos(actividad.minutos_estimados)} cada vez`}
           </p>
         </header>
 

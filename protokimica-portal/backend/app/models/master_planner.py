@@ -633,6 +633,13 @@ class ActividadDiaria(Base):
     # cuáles son los festivos colombianos.
     solo_dias_habiles = Column(Boolean, nullable=False, default=True)
 
+    # Cuánto le toma a la persona CADA VEZ, en minutos. Es la estimación de
+    # quien la planea, como `horas_estimadas` de una tarea: sirve para ver si
+    # a alguien le cabe la semana. En minutos porque lo diario se mide en
+    # minutos —«15 min» con horas sería 0,25—. Vacío es «no se sabe», nunca
+    # cero.
+    minutos_estimados = Column(Integer, nullable=True)
+
     # Desde cuándo se espera, y hasta cuándo. `hasta` se llena al
     # desactivarla: sin eso, apagar una actividad hoy dejaría el mes entero
     # en rojo por los días que siguen, en los que ya no se espera nada.

@@ -81,6 +81,41 @@ def test_un_lider_abre_una_omp(entorno):
     assert r.json()["estado"] == "abierta"
 
 
+def _mover_a_servicio_al_cliente(entorno, clave):
+    from app.models.user import User
+    db = entorno.Session()
+    db.get(User, entorno.ids[clave]).area = "Servicio al Cliente"
+    db.commit()
+    db.close()
+
+
+def test_un_agente_no_entra_a_mejora(entorno):
+    entorno.como("logistica")
+    assert entorno.get("/mejora").status_code == 403
+
+
+def test_servicio_al_cliente_entra_y_abre_una_omp_sin_ser_lider(entorno):
+    """
+    Es quien ve nacer los problemas en las PQRS. Entra por la capacidad
+    `mejora.trabajar` (que la semilla le da al área), no por el rol: no hay
+    que cambiarle el cargo a nadie.
+    """
+    _mover_a_servicio_al_cliente(entorno, "logistica")
+    entorno.como("logistica")
+    assert entorno.get("/mejora").status_code == 200
+    # La pantalla abre el menú con esto (`CAPACIDAD_QUE_ABRE` de modulos.js).
+    assert "mejora.trabajar" in entorno.get("/auth/me").json()["capacidades"]
+    r = _crear(entorno, area="Servicio al Cliente")
+    assert r.status_code == 201, r.text
+
+
+def test_lectura_no_entra_aunque_su_area_tenga_la_capacidad(entorno):
+    """`lectura` no escribe en ningún lado: un módulo de trabajo no le sirve."""
+    _mover_a_servicio_al_cliente(entorno, "lectura")
+    entorno.como("lectura")
+    assert entorno.get("/mejora").status_code == 403
+
+
 def test_queda_registrado_quien_la_abrio(entorno):
     """En el Excel que usan hoy es una columna: quien la levanta responde."""
     entorno.como("calidad")

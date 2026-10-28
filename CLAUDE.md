@@ -288,6 +288,16 @@ verifica que coincidan).
 | Mejora | ✓ | — | ✓ | — | — |
 | Administración | ✓ | — | — | — | — |
 
+**La excepción: una capacidad que abre el módulo** (`CAPACIDAD_QUE_ABRE`
+de `core/modulos.py`, gemelo en `modulos.js` con prueba). Hoy es una sola:
+`mejora.trabajar` abre Mejora y deja trabajarla como un líder
+(`mejora/permisos.puede_gestionar`, gemelo `puedeGestionarMejora()`) a quien
+la tenga sin ser líder —Servicio al Cliente, que ve nacer los problemas en
+las PQRS (desde la 0.66; la migración `b8e2d5f17c93` se la otorgó)—. Nunca a
+`lectura` ni, para gestionar, a `gerencia`. Lo que ve adentro sigue siendo
+lo de su área, lo que abrió y lo que no tiene área. Así se le abre un módulo
+a un área sin cambiarle el cargo a nadie.
+
 **El rol decide a qué módulo entras; el área decide qué ves dentro.** Un líder
 entra a Indicadores pero solo ve los de su área — el filtro se impone en el
 servidor y mandar otro `?area=` no lo abre. Un indicador ajeno responde 404.
@@ -715,6 +725,12 @@ dice en su encabezado qué le corresponde.
 - Fuente automática `mp_actividades_diarias`, con `acepta_area`. Sin
   actividades programadas el valor es «sin dato», nunca 0%: un cero diría que
   nadie cumplió, y lo cierto es que no había qué cumplir.
+- **Cuánto toma cada vez** (`minutos_estimados`, desde la 0.65): opcional,
+  en MINUTOS y no en horas —lo diario se piensa en «15 min», no en 0,25 h—,
+  con tope `MAX_MINUTOS_ACTIVIDAD` (doce horas) atado al `constants.js`. Es
+  la estimación de quien la planea, como `horas_estimadas` de una tarea;
+  vacío es «no se sabe», nunca cero. El formulario deja escribirlo en
+  minutos u horas y `aMinutos()` lo convierte antes de enviarlo.
 - Una actividad con registros **no se borra** (409): son la constancia de que
   alguien hizo su trabajo. Se desactiva.
 - **El registro es el MES, no una lista.** Una lista de días registrados crece

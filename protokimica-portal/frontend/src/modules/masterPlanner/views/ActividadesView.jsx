@@ -22,7 +22,7 @@ import {
   listarActividades, registrarActividad, quitarRegistroActividad,
   eliminarActividad, actualizarActividad,
 } from "../api"
-import { isoDeHoy, puedeEditar } from "../constants"
+import { isoDeHoy, puedeEditar, textoMinutos } from "../constants"
 import ActividadFormModal from "../components/ActividadFormModal"
 import RegistroActividadModal from "../components/RegistroActividadModal"
 
@@ -166,6 +166,7 @@ export default function ActividadesView({ usuarios = [] }) {
                   </span>
                   <span className="block text-xs text-texto-3">
                     {a.asignado_nombre}{a.area && ` · ${a.area}`}
+                    {textoMinutos(a.minutos_estimados) && ` · ${textoMinutos(a.minutos_estimados)}`}
                   </span>
                 </span>
                 <button
@@ -197,6 +198,7 @@ export default function ActividadesView({ usuarios = [] }) {
                   <span className="block text-sm text-texto">{a.titulo}</span>
                   <span className="block text-xs text-texto-3">
                     {a.frecuencia_texto} · {a.asignado_nombre}
+                    {textoMinutos(a.minutos_estimados) && ` · ${textoMinutos(a.minutos_estimados)}`}
                   </span>
                 </span>
                 <button

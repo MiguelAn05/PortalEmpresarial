@@ -3,7 +3,7 @@
 // que el servidor rechaza con 403, o esconde algo que si se podia abrir.
 import { readFileSync } from 'node:fs'
 import {
-  ACCESO_POR_MODULO, RUTA_DE_MODULO, estaContratado, puedeVerModulo, modulosDe, moduloDeRuta,
+  ACCESO_POR_MODULO, CAPACIDAD_QUE_ABRE, RUTA_DE_MODULO, estaContratado, puedeVerModulo, modulosDe, moduloDeRuta,
 } from '../src/core/modulos.js'
 
 const PY = readFileSync(new URL('../../backend/app/core/modulos.py', import.meta.url), 'utf8')
@@ -91,6 +91,20 @@ check('el contrato no salta el rol',
 // lista: esconder todo la dejaria sin menu, y quien bloquea es el servidor.
 check('sin el dato no se esconde nada', estaContratado({ rol: 'lider' }, 'mejora'))
 check('notas credito tiene su ruta', moduloDeRuta('/notas-credito') === 'notas_credito')
+
+console.log('\n== Una capacidad abre Mejora aunque el rol no ==')
+// Servicio al Cliente entra a Mejora por `mejora.trabajar`, sin ser lider.
+const abrePy = Object.fromEntries([...(PY.match(/CAPACIDAD_QUE_ABRE[^=]*= \{([^}]*)\}/)?.[1] || '')
+  .matchAll(/"([a-z_]+)": "([a-z_.]+)"/g)].map(m => [m[1], m[2]]))
+check('las dos listas dicen lo mismo',
+  JSON.stringify(abrePy) === JSON.stringify(CAPACIDAD_QUE_ABRE), { python: abrePy, js: CAPACIDAD_QUE_ABRE })
+const conCapacidad = (rol) => ({ rol, capacidades: ['mejora.trabajar'] })
+check('un agente con la capacidad entra', puedeVerModulo(conCapacidad('agente'), 'mejora'))
+check('sin ella no', !puedeVerModulo({ rol: 'agente', capacidades: [] }, 'mejora'))
+check('lectura no, aunque la tenga', !puedeVerModulo(conCapacidad('lectura'), 'mejora'))
+check('y no abre otros modulos', !puedeVerModulo(conCapacidad('agente'), 'indicadores'))
+check('el contrato sigue mandando',
+  !puedeVerModulo({ ...conCapacidad('agente'), modulos_contratados: ['pqrs'] }, 'mejora'))
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

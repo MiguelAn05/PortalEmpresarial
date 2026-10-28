@@ -16,6 +16,8 @@
  * (`modulos_contratados`); aquí no hay una lista propia que se pueda quedar
  * atrás.
  */
+import { tieneCapacidad } from './capacidades.js'
+
 export const ACCESO_POR_MODULO = {
   inicio: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
   pqrs: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
@@ -28,6 +30,14 @@ export const ACCESO_POR_MODULO = {
   mejora: ['admin', 'lider'],
   encuestas: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
   admin: ['admin'],
+}
+
+/**
+ * Una capacidad que abre el módulo aunque el rol no lo abra —Servicio al
+ * Cliente en Mejora—. Gemelo de `CAPACIDAD_QUE_ABRE` en `core/modulos.py`.
+ */
+export const CAPACIDAD_QUE_ABRE = {
+  mejora: 'mejora.trabajar',
 }
 
 /** Ruta de cada módulo, para filtrar el menú y proteger las rutas. */
@@ -56,7 +66,10 @@ export function estaContratado(usuario, modulo) {
 export function puedeVerModulo(usuario, modulo) {
   const permitidos = ACCESO_POR_MODULO[modulo]
   if (!permitidos) return false
-  return permitidos.includes(usuario?.rol) && estaContratado(usuario, modulo)
+  if (!estaContratado(usuario, modulo)) return false
+  if (permitidos.includes(usuario?.rol)) return true
+  const capacidad = CAPACIDAD_QUE_ABRE[modulo]
+  return Boolean(capacidad) && usuario?.rol !== 'lectura' && tieneCapacidad(usuario, capacidad)
 }
 
 /** Los módulos que este usuario puede abrir, en orden de menú. */

@@ -1,10 +1,14 @@
 /**
  * Crear una actividad diaria.
  *
- * **Tres campos: qué, quién y cada cuánto.** Es a propósito: una actividad
- * diaria es corta y repetitiva, y pedirle siete campos a algo que se escribe
- * una vez y se marca todos los días es cómo se consigue que nadie la cree.
- * El área se hereda del responsable en el servidor, que es quien la sabe.
+ * **Tres campos: qué, quién y cada cuánto**, más uno opcional: cuánto toma.
+ * Es a propósito: una actividad diaria es corta y repetitiva, y pedirle
+ * siete campos a algo que se escribe una vez y se marca todos los días es
+ * cómo se consigue que nadie la cree. El área se hereda del responsable en
+ * el servidor, que es quien la sabe.
+ *
+ * El tiempo se escribe en minutos u horas y viaja en minutos: «15 min» en
+ * horas sería 0,25, y nadie lo piensa así.
  *
  * Lo que NO tiene, y tampoco por descuido: proyecto (no pertenece a
  * ninguno), fecha de entrega (no termina) y avance (o se hizo ese día o no).
@@ -12,7 +16,7 @@
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { crearActividad } from "../api"
-import { DIAS_ISO, FRECUENCIAS, MAX_TITULO_ACTIVIDAD } from "../constants"
+import { DIAS_ISO, FRECUENCIAS, MAX_MINUTOS_ACTIVIDAD, MAX_TITULO_ACTIVIDAD, aMinutos } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { mensajeDeError } from "../../../core/errores.js"
 import { IconoCerrar } from "../../../core/components/Iconos.jsx"
@@ -24,6 +28,8 @@ export default function ActividadFormModal({ usuarios = [], onClose, onCreada })
   const [dias, setDias] = useState([])
   const [diaMes, setDiaMes] = useState("")
   const [soloHabiles, setSoloHabiles] = useState(true)
+  const [tiempo, setTiempo] = useState("")
+  const [unidad, setUnidad] = useState("min")
   const [error, setError] = useState("")
 
   const hayCambios = Boolean(titulo.trim())
@@ -31,6 +37,9 @@ export default function ActividadFormModal({ usuarios = [], onClose, onCreada })
 
   const alternarDia = (n) =>
     setDias(dias.includes(n) ? dias.filter(d => d !== n) : [...dias, n].sort())
+
+  const minutos = aMinutos(tiempo, unidad)
+  const tiempoDeMas = minutos !== null && minutos > MAX_MINUTOS_ACTIVIDAD
 
   const mutCrear = useMutation({
     mutationFn: () => crearActividad({
@@ -40,6 +49,7 @@ export default function ActividadFormModal({ usuarios = [], onClose, onCreada })
       dias_semana: frecuencia === "semanal" ? dias : [],
       dia_mes: frecuencia === "mensual" && diaMes ? Number(diaMes) : null,
       solo_dias_habiles: soloHabiles,
+      minutos_estimados: minutos,
     }),
     onSuccess: () => { onCreada?.(); onClose() },
     onError: (err) => setError(mensajeDeError(err, 'No se pudo crear la actividad.')),
@@ -50,6 +60,7 @@ export default function ActividadFormModal({ usuarios = [], onClose, onCreada })
   const listo = titulo.trim().length >= 3
     && (frecuencia !== "semanal" || dias.length > 0)
     && (frecuencia !== "mensual" || Boolean(diaMes))
+    && !tiempoDeMas
 
   const campo = "w-full rounded-lg border border-borde px-3 py-2 text-sm"
 
@@ -169,6 +180,33 @@ export default function ActividadFormModal({ usuarios = [], onClose, onCreada })
                 </p>
               </div>
             )}
+
+            <div>
+              <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">
+                Tiempo que toma
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number" min="1" step={unidad === "h" ? "0.5" : "5"}
+                  max={unidad === "h" ? MAX_MINUTOS_ACTIVIDAD / 60 : MAX_MINUTOS_ACTIVIDAD}
+                  value={tiempo} onChange={(e) => setTiempo(e.target.value)}
+                  className={`${campo} cifra`} placeholder={unidad === "h" ? "Ej: 1,5" : "Ej: 30"}
+                />
+                <select
+                  value={unidad} onChange={(e) => setUnidad(e.target.value)}
+                  aria-label="Unidad del tiempo"
+                  className="rounded-lg border border-borde px-3 py-2 text-sm"
+                >
+                  <option value="min">minutos</option>
+                  <option value="h">horas</option>
+                </select>
+              </div>
+              <p className={`text-xs mt-1 ${tiempoDeMas ? "text-negativo" : "text-texto-3"}`}>
+                {tiempoDeMas
+                  ? `Máximo ${MAX_MINUTOS_ACTIVIDAD / 60} horas cada vez.`
+                  : "Cuánto le toma a la persona cada vez. Opcional."}
+              </p>
+            </div>
 
             {error && (
               <p role="alert" className="text-sm text-negativo bg-negativo-bg

@@ -21,7 +21,7 @@ from app.models.capacidad import CapacidadOtorgada
 from app.models.user import User
 
 # Las reglas reales de cada módulo: la prueba pregunta lo mismo que ellos.
-from app.modules.mejora.permisos import es_sgc
+from app.modules.mejora.permisos import es_sgc, puede_gestionar
 from app.modules.master_planner.permisos import (
     puede_aprobar_pagos, puede_registrar_pagos, ve_todo,
 )
@@ -31,6 +31,7 @@ from app.modules.pqrs.permisos import puede_gestionar_pqrs
 REGLAS = [
     ("pqrs.cerrar",         "Servicio al Cliente", puede_gestionar_pqrs),
     ("mejora.validar_sgc",  "Calidad",             es_sgc),
+    ("mejora.trabajar",     "Servicio al Cliente", puede_gestionar),
     ("presupuesto.aprobar", "Administración",      puede_aprobar_pagos),
     ("presupuesto.pagar",   "Tesorería",           puede_registrar_pagos),
 ]

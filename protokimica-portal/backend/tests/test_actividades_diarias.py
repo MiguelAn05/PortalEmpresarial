@@ -139,6 +139,45 @@ def test_una_actividad_nace_con_responsable_y_area(entorno, v):
             r.json()["frecuencia_texto"] == "Todos los días hábiles", r.json())
 
 
+def test_se_dice_cuanto_toma_cada_vez(entorno, v):
+    """
+    Opcional, en minutos. Sin dato es «no se sabe» y no cero: un 0 diría que
+    la actividad no le cuesta nada a nadie.
+    """
+    entorno.como("calidad")
+    r = _crear(entorno, minutos_estimados=45)
+    v.check("se crea con su tiempo", r.status_code == 201 and r.json()["minutos_estimados"] == 45, r.text[:250])
+    aid = r.json()["id"]
+    r = entorno.patch(f"/master-planner/actividades/{aid}", json={"minutos_estimados": 30})
+    v.check("se cambia", r.json()["minutos_estimados"] == 30, r.json())
+    r = entorno.patch(f"/master-planner/actividades/{aid}", json={"minutos_estimados": None})
+    v.check("y se borra", r.json()["minutos_estimados"] is None, r.json())
+
+    v.check("sin decirlo queda vacío", _crear(entorno).json()["minutos_estimados"] is None)
+    v.check("cero no", _crear(entorno, minutos_estimados=0).status_code == 422)
+    v.check("ni más de doce horas", _crear(entorno, minutos_estimados=721).status_code == 422)
+
+
+def test_se_dice_cuanto_toma_cada_vez(entorno, v):
+    """
+    Opcional, en minutos. Sin dato es «no se sabe» y no cero: un 0 diría que
+    la actividad no le cuesta nada a nadie.
+    """
+    entorno.como("calidad")
+    r = _crear(entorno, minutos_estimados=45)
+    v.check("se crea con su tiempo",
+            r.status_code == 201 and r.json()["minutos_estimados"] == 45, r.text[:250])
+    aid = r.json()["id"]
+    r = entorno.patch(f"/master-planner/actividades/{aid}", json={"minutos_estimados": 30})
+    v.check("se cambia", r.json()["minutos_estimados"] == 30, r.json())
+    r = entorno.patch(f"/master-planner/actividades/{aid}", json={"minutos_estimados": None})
+    v.check("y se borra", r.json()["minutos_estimados"] is None, r.json())
+
+    v.check("sin decirlo queda vacío", _crear(entorno).json()["minutos_estimados"] is None)
+    v.check("cero no", _crear(entorno, minutos_estimados=0).status_code == 422)
+    v.check("ni más de doce horas", _crear(entorno, minutos_estimados=721).status_code == 422)
+
+
 def test_no_arranca_antes_de_existir(entorno, v):
     entorno.como("calidad")
     r = _crear(entorno)

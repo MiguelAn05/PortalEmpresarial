@@ -18,7 +18,7 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.64.0"
+VERSION = "0.66.0"
 FECHA = "2026-10-28"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
@@ -34,6 +34,29 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.66.0",
+        "fecha": "2026-10-28",
+        "titulo": "Servicio al Cliente entra a Oportunidades de Mejora",
+        "cambios": [
+            ("nuevo", "Servicio al Cliente ya puede entrar a Oportunidades de Mejora y abrir y "
+                      "trabajar OMP como un líder, también con «Abrir OMP» desde una PQRS. Ve las de "
+                      "su área, las que abre y las que no tienen área."),
+            ("mejora", "El acceso se da por área en Administración › Capacidades («Entrar a "
+                       "Oportunidades de Mejora…»), sin cambiarle el rol a nadie. Se puede dar a "
+                       "otra área o a una persona de la misma forma."),
+        ],
+    },
+    {
+        "version": "0.65.0",
+        "fecha": "2026-10-28",
+        "titulo": "Las actividades diarias dicen cuánto toman",
+        "cambios": [
+            ("nuevo", "Al crear una actividad diaria se puede anotar cuánto tiempo le toma a la "
+                      "persona cada vez, en minutos o en horas. Es opcional y se ve junto a la "
+                      "actividad en la lista y en su registro."),
+        ],
+    },
     {
         "version": "0.64.0",
         "fecha": "2026-10-28",

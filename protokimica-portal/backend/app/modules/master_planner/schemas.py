@@ -350,6 +350,9 @@ class CorreccionActualizacion(BaseModel):
 
 MAX_TITULO_ACTIVIDAD = 200
 MAX_COMENTARIO_REGISTRO = 500
+# Cuánto toma cada vez. Doce horas: más que eso no es una actividad del día,
+# y un dedo de más convierte «30» en «300».
+MAX_MINUTOS_ACTIVIDAD = 720
 
 
 class ActividadCrear(BaseModel):
@@ -368,6 +371,7 @@ class ActividadCrear(BaseModel):
     dias_semana: list[int] = []
     dia_mes: int | None = Field(default=None, ge=1, le=31)
     solo_dias_habiles: bool = True
+    minutos_estimados: int | None = Field(default=None, ge=1, le=MAX_MINUTOS_ACTIVIDAD)
     desde: date | None = None
 
 
@@ -379,6 +383,7 @@ class ActividadActualizar(BaseModel):
     dias_semana: list[int] | None = None
     dia_mes: int | None = Field(default=None, ge=1, le=31)
     solo_dias_habiles: bool | None = None
+    minutos_estimados: int | None = Field(default=None, ge=1, le=MAX_MINUTOS_ACTIVIDAD)
     activa: bool | None = None
 
 
@@ -415,6 +420,7 @@ class ActividadOut(BaseModel):
     dias_semana: list[int] = []
     dia_mes: int | None
     solo_dias_habiles: bool
+    minutos_estimados: int | None = None
     desde: date
     hasta: date | None
     activa: bool

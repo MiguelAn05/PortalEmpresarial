@@ -36,6 +36,10 @@ from app.models.user import User
 CAPACIDADES = {
     "pqrs.cerrar":             "Cerrar y reclasificar una PQRS",
     "mejora.validar_sgc":      "Validar la eficacia de una oportunidad de mejora (visto bueno del SGC)",
+    # Mejora la abren por rol `admin` y `lider`. Esto la abre a un área
+    # entera sin cambiarle el cargo a nadie: Servicio al Cliente es quien ve
+    # nacer los problemas en las PQRS. Ver `core/modulos.CAPACIDAD_QUE_ABRE`.
+    "mejora.trabajar":         "Entrar a Oportunidades de Mejora y trabajarlas como un líder, aunque el rol no lo abra",
     "presupuesto.aprobar":     "Aprobar el presupuesto de un proyecto",
     "presupuesto.pagar":       "Registrar el pago de un ítem de presupuesto",
     # `autorizar` ya no atiende ningún turno: era el de Contabilidad en las
@@ -349,6 +353,7 @@ def revocar(db: Session, tenant_id: int, otorgamiento_id: int) -> None:
 SEMILLA_INICIAL = [
     ("pqrs.cerrar",             "Servicio al Cliente", "antes AREA_SERVICIO_CLIENTE en pqrs/permisos.py"),
     ("mejora.validar_sgc",      "Calidad",              "antes AREA_SGC en mejora/permisos.py"),
+    ("mejora.trabajar",         "Servicio al Cliente",  "abre OMP desde las PQRS — ver core/modulos.py"),
     ("presupuesto.aprobar",     "Administración",       "antes AREA_APRUEBA_PAGOS en master_planner/permisos.py"),
     ("presupuesto.pagar",       "Tesorería",             "antes AREA_REGISTRA_PAGOS en master_planner/permisos.py"),
     ("notas_credito.autorizar", "Contabilidad",          "ya migrado — ver notas_credito/permisos.py"),

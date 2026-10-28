@@ -102,6 +102,7 @@ def _salida(db: Session, actividad: ActividadDiaria, hoy: date) -> ActividadOut:
         dias_semana=act.leer_dias(actividad.dias_semana),
         dia_mes=actividad.dia_mes,
         solo_dias_habiles=actividad.solo_dias_habiles,
+        minutos_estimados=actividad.minutos_estimados,
         desde=actividad.desde,
         hasta=actividad.hasta,
         activa=actividad.activa,
@@ -185,6 +186,7 @@ def crear_actividad(
         dias_semana=act.escribir_dias(payload.dias_semana),
         dia_mes=payload.dia_mes if payload.frecuencia == "mensual" else None,
         solo_dias_habiles=payload.solo_dias_habiles,
+        minutos_estimados=payload.minutos_estimados,
         # Desde hoy salvo que se diga otra cosa. **Nunca antes de existir**:
         # si arrancara el primero del mes, una actividad creada hoy nacería
         # con todos los días anteriores incumplidos.

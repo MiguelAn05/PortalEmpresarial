@@ -15,7 +15,7 @@ import {
 import {
   CAMPOS_6M, CICLO, ESTADOS, ESTADOS_ACCION, MAX_ACCION, MAX_SEGUIMIENTO,
   MAX_TEXTO_LARGO, MAX_TITULO, MIN_TITULO, estaCerrada, loQueFaltaPara, resumen6M, siguienteEstado,
-  textoDeAvance, textoFechaAccion,
+  puedeGestionarMejora, textoDeAvance, textoFechaAccion,
 } from '../constants.js'
 import { mensajeDeError } from '../../../core/errores.js'
 
@@ -602,7 +602,7 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false)
   const [error, setError] = useState('')
 
-  const puedeGestionar = user?.rol === 'admin' || user?.rol === 'lider'
+  const puedeGestionar = puedeGestionarMejora(user)
   // Quién valida el cierre lo decide la capacidad `mejora.validar_sgc` que
   // manda el servidor (Calidad en Protokimica). Esto solo esconde un botón;
   // el permiso de verdad lo impone la API.

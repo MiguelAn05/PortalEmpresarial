@@ -1,3 +1,4 @@
+import { tieneCapacidad } from '../../core/capacidades.js'
 /**
  * El vocabulario de las Oportunidades de Mejora.
  *
@@ -270,3 +271,14 @@ export const MIN_TITULO = 5
 export const MAX_TEXTO_LARGO = 4000
 export const MAX_SEGUIMIENTO = 6000
 export const MAX_NOMBRE = 150
+
+/**
+ * Quién abre, mueve y cierra una OMP: `admin`, los líderes y quien tenga la
+ * capacidad `mejora.trabajar` (Servicio al Cliente en Protokimica). Gemelo
+ * de `puede_gestionar` en `mejora/permisos.py`. Solo esconde botones: el
+ * permiso lo impone la API.
+ */
+export function puedeGestionarMejora(usuario) {
+  if (['admin', 'lider'].includes(usuario?.rol)) return true
+  return !['gerencia', 'lectura'].includes(usuario?.rol) && tieneCapacidad(usuario, 'mejora.trabajar')
+}

@@ -6,8 +6,8 @@
 // silencio del lado del navegador — los gemelos y el vocabulario.
 import { readFileSync } from 'node:fs'
 import {
-  DIAS_ISO, DIAS_SEMANA, FRECUENCIAS, MAX_TITULO_ACTIVIDAD,
-  comoFecha, formatFecha, isoDeHoy,
+  DIAS_ISO, DIAS_SEMANA, FRECUENCIAS, MAX_TITULO_ACTIVIDAD, MAX_MINUTOS_ACTIVIDAD,
+  aMinutos, comoFecha, formatFecha, isoDeHoy, textoMinutos,
 } from '../src/modules/masterPlanner/constants.js'
 
 const PY_ACT = readFileSync(
@@ -63,6 +63,19 @@ check('coincide con el schema', MAX_TITULO_ACTIVIDAD === topePy, [MAX_TITULO_ACT
 check('y cabe en su columna',
   new RegExp(`titulo = Column\\(String\\(${MAX_TITULO_ACTIVIDAD}\\)`).test(PY_MODELO))
 check('el formulario lo aplica', /maxLength=\{MAX_TITULO_ACTIVIDAD\}/.test(FORM))
+
+console.log('\n== Cuanto toma cada vez ==')
+const topeMinPy = Number(PY_SCHEMAS.match(/^MAX_MINUTOS_ACTIVIDAD = (\d+)/m)?.[1])
+check('el tope coincide con el schema', MAX_MINUTOS_ACTIVIDAD === topeMinPy, [MAX_MINUTOS_ACTIVIDAD, topeMinPy])
+check('el formulario lo manda', /minutos_estimados: minutos/.test(FORM))
+check('30 minutos son 30', aMinutos('30') === 30)
+check('1,5 horas son 90 minutos', aMinutos('1,5', 'h') === 90, aMinutos('1,5', 'h'))
+check('vacio es «no se sabe», no cero', aMinutos('') === null && aMinutos('0') === null)
+check('se dice en minutos', textoMinutos(15) === '15 min', textoMinutos(15))
+check('y en horas cuando pasa de una', textoMinutos(90) === '1 h 30 min' && textoMinutos(120) === '2 h',
+  [textoMinutos(90), textoMinutos(120)])
+check('sin dato no se pinta nada', textoMinutos(null) === null)
+check('la lista lo muestra', /textoMinutos\(a\.minutos_estimados\)/.test(VISTA))
 
 console.log('\n== Tareas y actividades no suenan a lo mismo ==')
 // «Actividad» ya estaba ocupada: en el Excel que reemplaza el modulo, una
