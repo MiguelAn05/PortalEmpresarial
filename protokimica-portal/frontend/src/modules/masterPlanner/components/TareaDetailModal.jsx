@@ -89,7 +89,7 @@ function TextoCorregible({ entrada, onCorregir, guardando, permitirVacio = false
           {entrada.puede_corregir && (
             <button onClick={() => setTexto(entrada.comentario || "")}
                     className="font-semibold text-acento hover:underline">
-              Corregir
+              Editar
             </button>
           )}
         </p>
