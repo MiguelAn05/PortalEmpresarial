@@ -116,6 +116,14 @@ export const responderActualizacion = (tareaId, actualizacionId, comentario) =>
     { comentario },
   ).then(r => r.data)
 
+// Corregir el texto de un avance o de una respuesta (los dos son la misma
+// tabla). Solo viaja el texto: el porcentaje y la evidencia no se corrigen.
+export const corregirActualizacion = (tareaId, actualizacionId, comentario) =>
+  api.patch(
+    `/master-planner/tareas/${tareaId}/actualizaciones/${actualizacionId}`,
+    { comentario },
+  ).then(r => r.data)
+
 // ── Usuarios asignables ──────────────────────────────────────
 export const listarUsuariosAsignables = () =>
   api.get('/master-planner/usuarios-asignables').then(r => r.data)

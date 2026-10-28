@@ -431,6 +431,10 @@ class TareaActualizacion(Base):
     adjunto_evidencia = Column(String(255), nullable=True)
 
     fecha = Column(DateTime(timezone=True), server_default=func.now())
+    # Cuándo se corrigió el texto por última vez. La pantalla lo dice
+    # («editado») y el texto anterior queda en `mp_historial`: un avance que
+    # cambia sin dejar rastro deja de servir como constancia.
+    editado_en = Column(DateTime(timezone=True), nullable=True)
 
     tarea = relationship("Tarea", back_populates="actualizaciones")
     usuario = relationship("User")

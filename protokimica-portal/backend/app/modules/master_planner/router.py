@@ -25,6 +25,7 @@ from app.modules.master_planner.schemas import (
     AprobacionIn, PagoOut,
     TareaCreate, TareaUpdate, TareaOut, SubtareaCreate,
     TareaActualizacionOut, RespuestaActualizacionCrear, RespuestaActualizacionOut,
+    CorreccionActualizacion,
     UsuarioAsignableOut, HistorialCambioOut,
 )
 from app.modules.master_planner.historial import (
@@ -1132,7 +1133,7 @@ async def agregar_actualizacion(
 
     db.commit()
     db.refresh(actualizacion)
-    return actualizacion
+    return _con_permisos(actualizacion, current_user)
 
 
 @router.post(
@@ -1195,7 +1196,98 @@ def responder_actualizacion(
     db.add(respuesta)
     db.commit()
     db.refresh(respuesta)
-    return respuesta
+    return _con_permisos(respuesta, current_user)
+
+
+def puede_corregir(entrada: TareaActualizacion, usuario: User) -> bool:
+    """
+    Un avance o una respuesta lo corrige SOLO quien lo escribió.
+
+    Ni el líder del proyecto ni admin: corregir el texto de otro es ponerle
+    palabras en la boca, y lo que queda firmado con su nombre tiene que ser lo
+    que él dijo. Para señalarle un error a otro está «Responder».
+    `lectura` no escribe nada, tampoco aquí.
+    """
+    return (
+        usuario.rol != "lectura"
+        and entrada.usuario_id is not None
+        and entrada.usuario_id == usuario.id
+    )
+
+
+@router.patch(
+    "/tareas/{tarea_id}/actualizaciones/{actualizacion_id}",
+    response_model=TareaActualizacionOut,
+)
+def corregir_actualizacion(
+    tarea_id: int,
+    actualizacion_id: int,
+    payload: CorreccionActualizacion,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(puede_comentar),
+):
+    """
+    Corregir el texto de un avance o de una respuesta: uno se equivoca
+    escribiendo, y sin esto la única salida era otro avance que dijera
+    «donde dice X léase Y».
+
+    Sirve para los dos porque son la misma tabla; el texto anterior queda en
+    el historial de la tarea y la entrada se marca `editado_en`. Un avance
+    corregido que no deja rastro deja de servir como constancia.
+    """
+    tarea = _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
+    entrada = (
+        db.query(TareaActualizacion)
+        .filter(
+            TareaActualizacion.id == actualizacion_id,
+            TareaActualizacion.tarea_id == tarea_id,
+        )
+        .first()
+    )
+    if not entrada:
+        raise HTTPException(status_code=404, detail="Ese avance no existe en esta tarea.")
+    if not puede_corregir(entrada, current_user):
+        raise HTTPException(
+            status_code=403,
+            detail=("Solo quien lo escribió puede corregirlo. Si ves un error en lo "
+                    "que reportó otra persona, respóndele para que lo corrija."),
+        )
+
+    nuevo = (payload.comentario or "").strip() or None
+    # Sin texto solo puede quedar un avance que dice algo más: un porcentaje o
+    # una evidencia. Una respuesta o un avance que era solo texto quedarían
+    # como una entrada vacía con un nombre y una fecha.
+    if nuevo is None and (entrada.parent_id is not None
+                          or (entrada.avance_pct_nuevo is None and not entrada.adjunto_evidencia)):
+        raise HTTPException(
+            status_code=400,
+            detail="Escribe el texto corregido: la entrada no puede quedar vacía.",
+        )
+
+    anterior = entrada.comentario
+    if (anterior or None) == nuevo:
+        return _con_permisos(entrada, current_user)
+
+    entrada.comentario = nuevo
+    entrada.editado_en = datetime.now(timezone.utc)
+    registrar_evento(
+        db, "tarea", tarea.id, tarea.proyecto_id,
+        "respuesta_corregida" if entrada.parent_id is not None else "avance_corregido",
+        current_user.id, valor_anterior=anterior, valor_nuevo=nuevo,
+        entidad_nombre=tarea.titulo,
+    )
+    db.commit()
+    db.refresh(entrada)
+    return _con_permisos(entrada, current_user)
+
+
+def _con_permisos(entrada: TareaActualizacion, usuario: User) -> TareaActualizacion:
+    """Le pone a la entrada, y a sus respuestas, si esta persona la puede corregir."""
+    entrada.puede_corregir = puede_corregir(entrada, usuario)
+    for respuesta in entrada.respuestas:
+        respuesta.puede_corregir = puede_corregir(respuesta, usuario)
+    return entrada
 
 
 @router.get("/tareas/{tarea_id}/actualizaciones", response_model=list[TareaActualizacionOut])
@@ -1213,7 +1305,7 @@ def listar_actualizaciones(
     —una de ellas sin decir a qué contestaba—.
     """
     _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
-    return (
+    avances = (
         db.query(TareaActualizacion)
         .filter(
             TareaActualizacion.tarea_id == tarea_id,
@@ -1222,3 +1314,4 @@ def listar_actualizaciones(
         .order_by(TareaActualizacion.fecha.desc())
         .all()
     )
+    return [_con_permisos(a, current_user) for a in avances]

@@ -659,6 +659,16 @@ observaciones de quien usa el módulo:
   `puede_comentar` y no con `solo_lectura_no`: **gerencia sí pregunta**, que
   es el caso que lo motivó — quien lee el avance y necesita una aclaración es
   justamente quien no mueve el avance.
+- **El texto de un avance o de una respuesta se corrige** (`PATCH
+  /tareas/{id}/actualizaciones/{id}`, desde la 0.64). **Solo quien lo
+  escribió** —ni el líder ni admin: lo que va firmado con su nombre tiene que
+  ser lo que él dijo; para señalar un error está «Responder»— y **solo el
+  texto**: el porcentaje ya movió la tarea y la evidencia es la constancia.
+  Queda `editado_en` y el texto anterior va a `mp_historial`
+  (`avance_corregido` / `respuesta_corregida`), que el informe no cuenta
+  como movimiento del proyecto (`EVENTOS_SIN_MOVIMIENTO`). `puede_corregir`
+  llega del servidor en cada entrada. Un avance con porcentaje o evidencia
+  puede quedar sin texto; uno que era solo texto, no.
 - **Cuántas veces se movió la fecha** (`Tarea.veces_aplazada`), como en los
   proyectos. Sale del HISTORIAL, no de un contador que alguien tenga que
   acordarse de incrementar, y va como `column_property` porque **hay siete

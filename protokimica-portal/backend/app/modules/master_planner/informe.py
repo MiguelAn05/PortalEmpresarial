@@ -209,6 +209,11 @@ def _aplazamientos(db: Session, ids: list[int], desde_utc: datetime) -> list[His
 
 # ── Movimiento: qué proyectos tuvieron vida en el periodo ────────────
 
+# Corregir la frase de un avance no es mover el proyecto: si contara, un
+# proyecto quieto saldría «con movimiento» por arreglar una tilde.
+EVENTOS_SIN_MOVIMIENTO = ("avance_corregido", "respuesta_corregida")
+
+
 def _con_movimiento(db: Session, ids: list[int], tareas: list[Tarea],
                     ini: datetime, fin: datetime) -> set[int]:
     """
@@ -219,7 +224,8 @@ def _con_movimiento(db: Session, ids: list[int], tareas: list[Tarea],
         return set()
     movidos = {
         pid for (pid, fecha) in db.query(HistorialCambio.proyecto_id, HistorialCambio.fecha)
-        .filter(HistorialCambio.proyecto_id.in_(ids), HistorialCambio.fecha >= ini)
+        .filter(HistorialCambio.proyecto_id.in_(ids), HistorialCambio.fecha >= ini,
+                HistorialCambio.campo.notin_(EVENTOS_SIN_MOVIMIENTO))
         if _en(fecha, ini, fin)
     }
     movidos |= {
@@ -247,7 +253,8 @@ def _ultimo_movimiento(db: Session, ids: list[int], tareas: list[Tarea],
 
     if ids:
         for pid, fecha in (db.query(HistorialCambio.proyecto_id, func.max(HistorialCambio.fecha))
-                           .filter(HistorialCambio.proyecto_id.in_(ids))
+                           .filter(HistorialCambio.proyecto_id.in_(ids),
+                                   HistorialCambio.campo.notin_(EVENTOS_SIN_MOVIMIENTO))
                            .group_by(HistorialCambio.proyecto_id)):
             _subir(pid, fecha)
         for pid, fecha in (db.query(Tarea.proyecto_id, func.max(TareaActualizacion.fecha))

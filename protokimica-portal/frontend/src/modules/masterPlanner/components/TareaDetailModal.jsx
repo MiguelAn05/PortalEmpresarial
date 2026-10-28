@@ -9,7 +9,7 @@ import { calcularCambios } from "../cambiosFormulario"
 import { useAuth } from "../../../core/useAuth.js"
 import {
   obtenerTarea, listarActualizaciones, agregarActualizacion, actualizarTarea,
-  eliminarTarea, listarHistorialTarea, responderActualizacion,
+  eliminarTarea, listarHistorialTarea, responderActualizacion, corregirActualizacion,
 } from "../api"
 import { mensajeDeError } from "../../../core/errores.js"
 import {
@@ -29,6 +29,76 @@ const CAMPOS_CONFIRMABLES = {
 }
 
 /**
+ * El texto de un avance o de una respuesta, con «Corregir» si quien mira lo
+ * escribió (`puede_corregir` lo decide el servidor). Uno se equivoca
+ * escribiendo, y sin esto la única salida era otro avance que dijera «donde
+ * dice X léase Y».
+ *
+ * Solo el texto: el porcentaje ya movió la tarea y la evidencia es la
+ * constancia. Lo corregido se marca «editado», y el texto anterior queda en el
+ * historial de la tarea. Un avance que también trae porcentaje o evidencia
+ * puede quedar sin texto (`permitirVacio`); uno que era solo texto, no.
+ */
+function TextoCorregible({ entrada, onCorregir, guardando, permitirVacio = false }) {
+  const [texto, setTexto] = useState(null)   // null = no se está corrigiendo
+  const editando = texto !== null
+  const limpio = (texto || "").trim()
+
+  const guardar = () => {
+    if (!limpio && !permitirVacio) return
+    onCorregir(limpio, () => setTexto(null))
+  }
+
+  if (editando) {
+    return (
+      <div className="space-y-2 mt-1">
+        <textarea
+          value={texto} onChange={(e) => setTexto(e.target.value)} rows={2} autoFocus
+          className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={guardar}
+            disabled={(!limpio && !permitirVacio) || guardando}
+            className="px-3 py-1.5 rounded-lg bg-acento hover:bg-acento-fuerte
+              disabled:opacity-40 text-white text-xs font-semibold transition"
+          >
+            {guardando ? 'Guardando…' : 'Guardar corrección'}
+          </button>
+          <button
+            onClick={() => setTexto(null)}
+            className="px-3 py-1.5 rounded-lg border border-borde text-xs font-semibold text-texto-2"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {entrada.comentario && <p className="text-sm text-texto whitespace-pre-line">{entrada.comentario}</p>}
+      {(entrada.editado_en || entrada.puede_corregir) && (
+        <p className="flex items-center gap-2 text-[11px] text-texto-3 mt-0.5">
+          {entrada.editado_en && (
+            <span title={`Corregido el ${formatFechaHora(entrada.editado_en)}. El texto anterior está en el historial.`}>
+              Editado
+            </span>
+          )}
+          {entrada.puede_corregir && (
+            <button onClick={() => setTexto(entrada.comentario || "")}
+                    className="font-semibold text-acento hover:underline">
+              Corregir
+            </button>
+          )}
+        </p>
+      )}
+    </>
+  )
+}
+
+/**
  * Las respuestas a un avance, y la caja para escribir una más.
  *
  * Preguntar «¿esto incluye la revisión de Calidad?» sobre un avance obligaba
@@ -39,7 +109,7 @@ const CAMPOS_CONFIRMABLES = {
  * avances en pantalla, diez cajas de texto convierten la línea de tiempo en
  * un formulario.
  */
-function Respuestas({ avance, puedeResponder, onResponder, guardando }) {
+function Respuestas({ avance, puedeResponder, onResponder, guardando, onCorregir, corrigiendo }) {
   const [abierta, setAbierta] = useState(false)
   const [texto, setTexto] = useState("")
 
@@ -61,7 +131,8 @@ function Respuestas({ avance, puedeResponder, onResponder, guardando }) {
                   {formatFecha(r.fecha, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
-              {r.comentario && <p className="text-sm text-texto">{r.comentario}</p>}
+              <TextoCorregible entrada={r} guardando={corrigiendo}
+                               onCorregir={(texto, listo) => onCorregir(r.id, texto, listo)} />
             </li>
           ))}
         </ul>
@@ -250,6 +321,21 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
     }),
     onError: (err) => alert(mensajeDeError(err, 'No se pudo enviar la respuesta.')),
   })
+
+  // Corregir el texto de un avance o de una respuesta. Se refresca también el
+  // historial, que es donde queda el texto anterior.
+  const mutCorregir = useMutation({
+    mutationFn: ({ actualizacionId, comentario }) =>
+      corregirActualizacion(tareaId, actualizacionId, comentario),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mp-actualizaciones", tareaId] })
+      queryClient.invalidateQueries({ queryKey: ["mp-historial-tarea", tareaId] })
+    },
+    onError: (err) => alert(mensajeDeError(err, 'No se pudo guardar la corrección.')),
+  })
+  const corregir = (actualizacionId, comentario, listo) => mutCorregir.mutate(
+    { actualizacionId, comentario }, { onSuccess: listo },
+  )
 
   const mutEliminar = useMutation({
     mutationFn: () => eliminarTarea(tareaId),
@@ -506,7 +592,12 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                           Avance actualizado a {act.avance_pct_nuevo}%
                         </span>
                       )}
-                      {act.comentario && <p className="text-sm text-texto">{act.comentario}</p>}
+                      <TextoCorregible
+                        entrada={act}
+                        guardando={mutCorregir.isPending}
+                        permitirVacio={act.avance_pct_nuevo != null || Boolean(act.adjunto_evidencia)}
+                        onCorregir={(texto, listo) => corregir(act.id, texto, listo)}
+                      />
                       {act.adjunto_evidencia && (
                         /\.(jpg|jpeg|png|webp)$/i.test(act.adjunto_evidencia) ? (
                           <a href={act.adjunto_evidencia} target="_blank" rel="noreferrer" className="inline-block mt-2">
@@ -523,6 +614,8 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                         avance={act}
                         puedeResponder={puedeResponder}
                         guardando={mutResponder.isPending}
+                        corrigiendo={mutCorregir.isPending}
+                        onCorregir={corregir}
                         onResponder={(texto, listo) => mutResponder.mutate(
                           { actualizacionId: act.id, comentario: texto },
                           { onSuccess: listo },

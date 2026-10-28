@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.63.0"
-FECHA = "2026-10-27"
+VERSION = "0.64.0"
+FECHA = "2026-10-28"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,19 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.64.0",
+        "fecha": "2026-10-28",
+        "titulo": "Los avances de una tarea se pueden corregir",
+        "cambios": [
+            ("nuevo", "En las tareas de Master Planner, quien escribió un avance o una respuesta "
+                      "puede corregir el texto con «Corregir». Queda marcado como «Editado» y el "
+                      "texto anterior se ve en el historial de la tarea."),
+            ("mejora", "Solo se corrige lo que uno mismo escribió, y solo el texto: el porcentaje "
+                       "de avance y la evidencia adjunta no cambian. Para señalar un error en el "
+                       "avance de otra persona, se le responde."),
+        ],
+    },
     {
         "version": "0.63.0",
         "fecha": "2026-10-27",

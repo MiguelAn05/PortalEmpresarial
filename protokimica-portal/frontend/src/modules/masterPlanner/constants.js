@@ -217,6 +217,10 @@ export const CAMPOS_HISTORIAL = {
   presupuesto_agregado:  { label: 'Ítem de presupuesto agregado',  tipo: 'evento' },
   presupuesto_eliminado: { label: 'Ítem de presupuesto eliminado', tipo: 'evento' },
   presupuesto_ejecutado: { label: 'Ejecución de presupuesto',      tipo: 'evento' },
+  // Correcciones del texto de un avance: se muestran antes → después, que es
+  // justo lo que alguien entra a mirar cuando un avance «cambió».
+  avance_corregido:      { label: 'Texto de un avance corregido',    tipo: 'texto' },
+  respuesta_corregida:   { label: 'Texto de una respuesta corregido', tipo: 'texto' },
 }
 
 export function etiquetaCampo(campo) {

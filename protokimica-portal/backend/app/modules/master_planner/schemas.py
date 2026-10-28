@@ -295,6 +295,10 @@ class RespuestaActualizacionOut(BaseModel):
     usuario_nombre: str | None = None
     comentario: str | None
     fecha: datetime
+    editado_en: datetime | None = None
+    # Lo decide el servidor (`puede_corregir` del router): la pantalla solo
+    # muestra el botón.
+    puede_corregir: bool = False
 
     class Config:
         from_attributes = True
@@ -308,6 +312,8 @@ class TareaActualizacionOut(BaseModel):
     avance_pct_nuevo: int | None
     adjunto_evidencia: str | None
     fecha: datetime
+    editado_en: datetime | None = None
+    puede_corregir: bool = False
     # Las respuestas viajan DENTRO del avance que contestan, no como entradas
     # sueltas de la lista: es lo que las hace legibles — se ve a qué
     # contestan sin tener que cruzar fechas a ojo.
@@ -326,6 +332,16 @@ class RespuestaActualizacionCrear(BaseModel):
     campos aceptaría una petición que después nadie sabría explicar, y la
     pantalla tendría que mandar valores inventados para que el servidor la
     aceptara.
+    """
+    comentario: str | None = None
+
+
+class CorreccionActualizacion(BaseModel):
+    """
+    Corregir lo que uno escribió en un avance o en una respuesta: SOLO el
+    texto. El porcentaje ya movió la tarea (y quedó en el historial) y la
+    evidencia es la constancia de lo que se reportó; dejarlos cambiar aquí
+    sería reescribir lo que pasó, no corregir una frase.
     """
     comentario: str | None = None
 
