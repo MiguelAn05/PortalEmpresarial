@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './core/useAuth.js'
 import { moduloDeRuta, puedeVerModulo, RUTA_POR_DEFECTO } from './core/modulos.js'
@@ -16,6 +17,9 @@ import EncuestaPublica from './modules/publico/EncuestaPublica.jsx'
 import Admin from './modules/admin/Admin.jsx'
 import MasterPlanner from './modules/masterPlanner/MasterPlanner.jsx'
 import InformeMasterPlanner from './modules/masterPlanner/InformeMasterPlanner.jsx'
+// Aparte del bundle: pdf.js pesa más que todo el portal junto, y solo lo
+// necesita quien abre un documento para revisarlo.
+const VisorDocumento = lazy(() => import('./modules/masterPlanner/VisorDocumento.jsx'))
 import Indicadores from './modules/indicadores/Indicadores.jsx'
 import Mejora from './modules/mejora/Mejora.jsx'
 import Encuestas from './modules/encuestas/Encuestas.jsx'
@@ -79,6 +83,9 @@ export default function App() {
         <Route path="admin" element={<Admin />} />
         <Route path="master-planner" element={<MasterPlanner />} />
         <Route path="master-planner/informe" element={<InformeMasterPlanner />} />
+        <Route path="master-planner/documento/:versionId" element={
+          <Suspense fallback={null}><VisorDocumento /></Suspense>
+        } />
         <Route path="indicadores" element={<Indicadores />} />
         <Route path="mejora"      element={<Mejora />} />
         <Route path="encuestas" element={<Encuestas />} />

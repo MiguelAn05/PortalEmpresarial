@@ -5,8 +5,10 @@ Sigue el mismo patrón que PQRS: una entidad principal (Proyecto) con
 tablas hijas para desglose (ItemPresupuesto) y trazabilidad
 (TareaActualizacion), en vez de un log narrativo tipo Excel.
 """
+from datetime import datetime, timezone
+
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text,
+    Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text,
     UniqueConstraint, func, select,
 )
 from sqlalchemy.orm import column_property, relationship
@@ -383,6 +385,32 @@ class Tarea(Base):
         "TareaActualizacion", back_populates="tarea",
         cascade="all, delete-orphan", order_by="TareaActualizacion.fecha.desc()",
     )
+    # El flujo de aprobación de su documento (ver `master_planner/revision.py`).
+    # Una tarea lo tiene si tiene pasos: no hay una columna «requiere
+    # aprobación» aparte que pueda decir lo contrario de lo que hay.
+    revision_pasos = relationship(
+        "RevisionPaso", back_populates="tarea",
+        cascade="all, delete-orphan", order_by="RevisionPaso.orden",
+    )
+    versiones = relationship(
+        "DocumentoVersion", back_populates="tarea",
+        cascade="all, delete-orphan", order_by="DocumentoVersion.numero",
+    )
+
+    def sincronizar_cierre(self) -> None:
+        """
+        Mantiene `fecha_completada` alineada con el estado. Se sella al
+        completar y se limpia si la tarea se reabre, para que el cumplimiento
+        no quede midiendo contra un cierre que ya no existe.
+
+        Vive en el modelo porque la completan dos caminos: el router (a mano
+        o con un avance del 100 %) y la última firma de un documento.
+        """
+        if self.estado == "completada":
+            if not self.fecha_completada:
+                self.fecha_completada = datetime.now(timezone.utc)
+        else:
+            self.fecha_completada = None
 
     @property
     def asignado_nombre(self):
@@ -700,3 +728,243 @@ class ActividadRegistro(Base):
     @property
     def usuario_nombre(self):
         return self.usuario.nombre if self.usuario else None
+
+
+# ── Aprobación de documentos ─────────────────────────────────────────
+#
+# Una tarea puede pedir que su documento (un PDF o un Excel) lo aprueben
+# otras personas en orden —en Protokimica, la analista lo sube, el Contador
+# lo revisa y la Revisora Fiscal lo firma— antes de darse por cumplida.
+# La regla vive en `modules/master_planner/revision.py`.
+#
+# No es un módulo aparte: es una tarea con un paso más. Su fecha límite es la
+# `fecha_fin` de la tarea y su fecha de finalización es `fecha_completada`,
+# que se sella sola con la última firma.
+
+# borrador → en_revision → (devuelta | aprobada)
+ESTADOS_DOCUMENTO = ("borrador", "en_revision", "devuelta", "aprobada")
+ACCIONES_REVISION = ("enviado", "aprobado", "devuelto")
+TIPOS_DOCUMENTO = ("pdf", "xlsx")
+
+
+class PlantillaRevision(Base):
+    """
+    Una cadena de revisión con nombre («Revisión contable»): qué pasos hay y
+    en qué orden. NO dice quién: las personas se eligen en cada tarea, porque
+    la misma cadena la recorre gente distinta según el documento.
+    """
+    __tablename__ = "mp_plantillas_revision"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    activa = Column(Boolean, nullable=False, default=True, server_default="true")
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    pasos = relationship(
+        "PlantillaRevisionPaso", back_populates="plantilla",
+        cascade="all, delete-orphan", order_by="PlantillaRevisionPaso.orden",
+    )
+
+
+class PlantillaRevisionPaso(Base):
+    __tablename__ = "mp_plantilla_revision_pasos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    plantilla_id = Column(
+        Integer, ForeignKey("mp_plantillas_revision.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    orden = Column(Integer, nullable=False)
+    # Qué papel cumple quien firma este paso: «Contador», «Revisora Fiscal».
+    nombre = Column(String(100), nullable=False)
+
+    plantilla = relationship("PlantillaRevision", back_populates="pasos")
+
+
+class RevisionPaso(Base):
+    """
+    Quién firma cada paso del documento de UNA tarea.
+
+    La plantilla se COPIA aquí al activar el flujo, como en las cadenas de
+    conceptos de PQRS: cambiar la plantilla después no le mueve los pasos a
+    los documentos que ya van en camino.
+    """
+    __tablename__ = "mp_revision_pasos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tarea_id = Column(
+        Integer, ForeignKey("mp_tareas.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    orden = Column(Integer, nullable=False)
+    nombre = Column(String(100), nullable=False)
+    revisor_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    tarea = relationship("Tarea", back_populates="revision_pasos")
+    revisor = relationship("User", foreign_keys=[revisor_id])
+
+    __table_args__ = (UniqueConstraint("tarea_id", "orden", name="uq_revision_paso_orden"),)
+
+    @property
+    def revisor_nombre(self):
+        return self.revisor.nombre if self.revisor else None
+
+
+class DocumentoVersion(Base):
+    """
+    Una versión del documento de una tarea.
+
+    **El estado del flujo es el de la última versión**: no hay un estado en
+    la tarea que diga lo mismo con otras palabras. Devolver cierra la versión
+    como `devuelta` y la siguiente arranca la cadena desde el primer paso —
+    quien ya había aprobado lo hizo sobre un archivo que acaba de cambiar—.
+
+    El archivo vive en `settings.DOCUMENTOS_DIR`, que NO se publica en
+    `/uploads`: se baja solo por el endpoint, que mira quién lo pide.
+    """
+    __tablename__ = "mp_documento_versiones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tarea_id = Column(
+        Integer, ForeignKey("mp_tareas.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    # 1, 2, 3… dentro de la tarea. Sale del MÁXIMO, nunca de un conteo.
+    numero = Column(Integer, nullable=False)
+
+    nombre_original = Column(String(255), nullable=False)
+    # Relativa a DOCUMENTOS_DIR. Nunca una URL: no hay URL pública que dar.
+    ruta = Column(String(255), nullable=False)
+    tipo = Column(String(10), nullable=False)        # pdf | xlsx
+    tamano = Column(Integer, nullable=False)
+
+    estado = Column(String(20), nullable=False, default="borrador")
+    # El `orden` del paso que tiene el turno, mientras está en revisión.
+    paso_actual = Column(Integer, nullable=True)
+
+    subido_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    subido_en = Column(DateTime(timezone=True), server_default=func.now())
+    enviado_en = Column(DateTime(timezone=True), nullable=True)
+    cerrado_en = Column(DateTime(timezone=True), nullable=True)
+
+    tarea = relationship("Tarea", back_populates="versiones")
+    autor = relationship("User", foreign_keys=[subido_por])
+    eventos = relationship(
+        "RevisionEvento", back_populates="version",
+        cascade="all, delete-orphan", order_by="RevisionEvento.id.asc()",
+    )
+    observaciones = relationship(
+        "ObservacionDocumento", back_populates="version",
+        cascade="all, delete-orphan", order_by="ObservacionDocumento.id.asc()",
+    )
+
+    __table_args__ = (UniqueConstraint("tarea_id", "numero", name="uq_documento_numero"),)
+
+    @property
+    def subido_por_nombre(self):
+        return self.autor.nombre if self.autor else None
+
+
+class RevisionEvento(Base):
+    """
+    Cada movimiento del documento: se envió, se aprobó un paso, se devolvió.
+
+    De aquí sale cuántas veces se devolvió un documento, en vez de un
+    contador que alguien tenga que acordarse de subir.
+    """
+    __tablename__ = "mp_revision_eventos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    version_id = Column(
+        Integer, ForeignKey("mp_documento_versiones.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    accion = Column(String(20), nullable=False)     # enviado | aprobado | devuelto
+    paso_orden = Column(Integer, nullable=True)
+    # Cómo se llamaba el paso: legible aunque la plantilla cambie.
+    paso_nombre = Column(String(100), nullable=True)
+    comentario = Column(Text, nullable=True)
+    usuario_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    fecha = Column(DateTime(timezone=True), server_default=func.now())
+
+    version = relationship("DocumentoVersion", back_populates="eventos")
+    usuario = relationship("User")
+
+    @property
+    def usuario_nombre(self):
+        return self.usuario.nombre if self.usuario else None
+
+
+class ObservacionDocumento(Base):
+    """
+    Lo que un revisor señala en el documento, pegado al lugar exacto.
+
+    `pagina`, `pos_x` y `pos_y` ubican el punto en un PDF, con x e y como
+    fracción de la página (0 a 1) y no en píxeles: así el punto cae en el
+    mismo sitio con cualquier zoom y en cualquier pantalla. En un Excel el
+    lugar es `hoja` + `celda` («Balance», «C14»): la hoja por su NOMBRE, que
+    es como la busca quien corrige en su computador. Sin ninguno de los dos
+    es una observación general.
+
+    Es de la VERSIÓN: la versión siguiente arranca limpia, y las de la
+    anterior quedan como la lista de lo que había que corregir.
+    """
+    __tablename__ = "mp_documento_observaciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    version_id = Column(
+        Integer, ForeignKey("mp_documento_versiones.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    usuario_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    paso_orden = Column(Integer, nullable=True)
+    paso_nombre = Column(String(100), nullable=True)
+
+    pagina = Column(Integer, nullable=True)
+    pos_x = Column(Float, nullable=True)
+    pos_y = Column(Float, nullable=True)
+    hoja = Column(String(100), nullable=True)
+    celda = Column(String(12), nullable=True)
+    texto = Column(Text, nullable=False)
+
+    # Quien corrige marca lo que ya atendió: es su lista de pendientes para
+    # la versión siguiente.
+    atendida = Column(Boolean, nullable=False, default=False, server_default="false")
+    atendida_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    atendida_en = Column(DateTime(timezone=True), nullable=True)
+
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    version = relationship("DocumentoVersion", back_populates="observaciones")
+    usuario = relationship("User", foreign_keys=[usuario_id])
+
+    @property
+    def usuario_nombre(self):
+        return self.usuario.nombre if self.usuario else None
+
+
+# Si la tarea pide aprobación de documento. Viaja en el mismo SELECT de la
+# tarea, como `veces_aplazada`, por la misma razón: siete endpoints la
+# devuelven y ninguno tiene que acordarse de calcularla.
+Tarea.requiere_revision = column_property(
+    select(RevisionPaso.id)
+    .where(RevisionPaso.tarea_id == Tarea.id)
+    .correlate_except(RevisionPaso)
+    .exists(),
+    deferred=False,
+)
+
+# El estado del documento de su ÚLTIMA versión, para el chip de las
+# tarjetas. Nulo si no ha subido ninguno; la pantalla lo junta con
+# `requiere_revision` para decir «sin documento».
+Tarea.estado_documento = column_property(
+    select(DocumentoVersion.estado)
+    .where(DocumentoVersion.tarea_id == Tarea.id)
+    .order_by(DocumentoVersion.numero.desc())
+    .limit(1)
+    .correlate_except(DocumentoVersion)
+    .scalar_subquery(),
+    deferred=False,
+)

@@ -45,6 +45,9 @@ services:
       - ./backend/.env.prod
     volumes:
       - uploads_data:/app/uploads
+      # Los documentos que se aprueban en Master Planner: NO se publican en
+      # /uploads, solo salen por el endpoint que revisa quién los pide.
+      - documentos_data:/app/documentos
     depends_on:
       db:
         condition: service_healthy
@@ -105,3 +108,4 @@ volumes:
   pgdata:
   n8n_data:
   uploads_data:
+  documentos_data:

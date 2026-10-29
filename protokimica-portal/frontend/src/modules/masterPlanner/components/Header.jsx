@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import {
-  IconoCalendario, IconoCarpeta, IconoIndicadores, IconoOjo, IconoRepetir, IconoTablero, IconoTarea,
+  IconoCalendario, IconoCarpeta, IconoFicha, IconoIndicadores, IconoOjo, IconoRepetir, IconoTablero, IconoTarea,
 } from '../../../core/components/Iconos.jsx'
 
 // «Tareas de proyecto» y no «Tareas» a secas desde que existen las
@@ -13,6 +13,8 @@ const PESTANAS = [
   { id: 'tareas',      label: 'Tareas de proyecto',  Icono: IconoTarea      },
   { id: 'actividades', label: 'Actividades diarias', Icono: IconoRepetir    },
   { id: 'calendario',  label: 'Calendario',          Icono: IconoCalendario },
+  // Lo que espera tu firma y lo tuyo que te devolvieron (aprobación de documentos).
+  { id: 'documentos',  label: 'Documentos',          Icono: IconoFicha      },
 ]
 
 export default function Header({ vista, onChangeVista, onNuevoProyecto, onNuevaTarea, editable = true, rol }) {

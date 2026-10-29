@@ -1,7 +1,8 @@
 import StatusBadge from "./StatusBadge"
 import PriorityBadge from "./PriorityBadge"
 import Avatar from "./Avatar"
-import { ALERTAS, alertaVencimiento, colorAvance, formatFecha, formatFechaHora } from "../constants"
+import { ChipDocumento } from "./DocumentoPanel"
+import { ALERTAS, alertaVencimiento, colorAvance, estadoDocumentoDeTarea, formatFecha, formatFechaHora } from "../constants"
 import { IconoTarea } from '../../../core/components/Iconos.jsx'
 
 export default function TareasTable({ tareas, onSelect, mostrarProyecto = true }) {
@@ -60,7 +61,12 @@ export default function TareasTable({ tareas, onSelect, mostrarProyecto = true }
                   </td>
                   <td className="px-5 py-4 text-sm">{tarea.area || '—'}</td>
                   <td className="px-5 py-4"><Avatar name={tarea.asignado_nombre} /></td>
-                  <td className="px-5 py-4"><StatusBadge status={tarea.estado} /></td>
+                  <td className="px-5 py-4">
+                    <div className="flex flex-col items-start gap-1">
+                      <StatusBadge status={tarea.estado} />
+                      {estadoDocumentoDeTarea(tarea) && <ChipDocumento estado={estadoDocumentoDeTarea(tarea)} compacto />}
+                    </div>
+                  </td>
                   <td className="px-5 py-4"><PriorityBadge priority={tarea.prioridad} /></td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">

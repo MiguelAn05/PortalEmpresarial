@@ -7,6 +7,7 @@ import ProyectoDetalle from "./views/ProyectoDetalle"
 import TareasView from "./views/TareasView"
 import CalendarioView from "./views/CalendarioView"
 import ActividadesView from "./views/ActividadesView"
+import DocumentosView from "./views/DocumentosView"
 import TareaDetailModal from "./components/TareaDetailModal"
 import { useAbrirDesdeUrl } from "../../core/abrirDesdeUrl.js"
 import { useFiltrosEnUrl } from "../../core/useFiltrosEnUrl.js"
@@ -134,6 +135,10 @@ export default function MasterPlanner() {
         <ActividadesView usuarios={usuarios} />
       )}
 
+      {vista === "documentos" && (
+        <DocumentosView onSelectTarea={(t) => setTareaSeleccionadaId(t.id)} />
+      )}
+
       {vista === "calendario" && (
         <CalendarioView
           proyectos={proyectos}
@@ -144,9 +149,11 @@ export default function MasterPlanner() {
 
       {tareaSeleccionadaId && (
         <TareaDetailModal
+          key={tareaSeleccionadaId}
           tareaId={tareaSeleccionadaId}
           usuarios={usuarios}
           onClose={cerrarTarea}
+          onAbrirTarea={setTareaSeleccionadaId}
         />
       )}
 

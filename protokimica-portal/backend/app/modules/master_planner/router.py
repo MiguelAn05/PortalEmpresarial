@@ -23,7 +23,7 @@ from app.modules.master_planner.schemas import (
     ProyectoCreate, ProyectoUpdate, ProyectoOut,
     ItemPresupuestoCreate, ItemPresupuestoUpdate, ItemPresupuestoOut,
     AprobacionIn, PagoOut,
-    TareaCreate, TareaUpdate, TareaOut, SubtareaCreate,
+    TareaCreate, TareaUpdate, TareaOut, SubtareaCreate, RepetirTarea,
     TareaActualizacionOut, RespuestaActualizacionCrear, RespuestaActualizacionOut,
     CorreccionActualizacion,
     UsuarioAsignableOut, HistorialCambioOut,
@@ -36,7 +36,7 @@ from app.modules.master_planner.permisos import (
     solo_aprueba_pagos, solo_registra_pagos, puede_cerrar_proyecto,
 )
 from app.modules.master_planner.resumen import construir_resumen
-from app.modules.master_planner import cierre, informe
+from app.modules.master_planner import cierre, informe, revision
 from app.modules.master_planner.notificaciones import (
     avisar_tarea_asignada, avisar_proyecto_creado, avisar_proyecto_cerrado,
 )
@@ -131,19 +131,6 @@ def _get_item_presupuesto_o_404(
     if usuario is not None and not puede_ver_presupuesto(item.proyecto, usuario):
         raise HTTPException(status_code=404, detail="Ítem de presupuesto no encontrado.")
     return item
-
-
-def _sincronizar_cierre(tarea: Tarea) -> None:
-    """
-    Mantiene `fecha_completada` alineada con el estado. Se sella al completar
-    y se limpia si la tarea se reabre, para que el cumplimiento no quede
-    midiendo contra un cierre que ya no existe.
-    """
-    if tarea.estado == "completada":
-        if not tarea.fecha_completada:
-            tarea.fecha_completada = datetime.now(timezone.utc)
-    else:
-        tarea.fecha_completada = None
 
 
 def _get_tarea_o_404(
@@ -859,8 +846,20 @@ def crear_tarea(
     current_user: User = Depends(solo_lectura_no),
 ):
     proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
-    tarea = Tarea(proyecto_id=proyecto_id, **payload.model_dump())
+    tarea = Tarea(proyecto_id=proyecto_id, **payload.model_dump(exclude={"revision"}))
     db.add(tarea)
+    if payload.revision is not None:
+        db.flush()
+        try:
+            revision.configurar(
+                db, tarea, payload.revision.plantilla_id, payload.revision.revisores, current_user,
+            )
+        except HTTPException:
+            # La tarea ya se escribió con el flush: sin esto quedaría creada
+            # sin sus revisores, que es justo lo que va en la misma petición
+            # para evitar.
+            db.rollback()
+            raise
     db.commit()
     db.refresh(tarea)
 
@@ -975,12 +974,25 @@ def actualizar_tarea(
 ):
     tarea = _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
     asignado_anterior = tarea.asignado_a
+    estado_anterior = tarea.estado
     antes = instantanea(tarea, "tarea")
 
     for campo, valor in payload.model_dump(exclude_unset=True).items():
         setattr(tarea, campo, valor)
 
-    _sincronizar_cierre(tarea)
+    # Con un documento por aprobar, «completada» la pone la última firma: a
+    # mano diría que se firmó algo que nadie firmó.
+    if tarea.estado == "completada" and estado_anterior != "completada" and revision.bloquea_completar(tarea):
+        raise HTTPException(status_code=400, detail=revision.mensaje_no_se_completa(tarea))
+    # Y quien firma no puede ser quien tiene la tarea.
+    if tarea.asignado_a != asignado_anterior and revision.es_revisor(tarea, tarea.asignado_a):
+        raise HTTPException(
+            status_code=400,
+            detail="Esa persona firma el documento de esta tarea: no puede ser también quien lo hace. "
+                   "Cambia primero quién revisa.",
+        )
+
+    tarea.sincronizar_cierre()
     registrar_cambios(
         db, "tarea", tarea.id, tarea.proyecto_id,
         antes, instantanea(tarea, "tarea"), current_user.id,
@@ -1011,10 +1023,70 @@ def eliminar_tarea(
     current_user: User = Depends(solo_lectura_no),
 ):
     tarea = _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
+    # Lo que ya pasó por revisión es constancia de quién firmó qué.
+    if any(v.enviado_en for v in tarea.versiones):
+        raise HTTPException(
+            status_code=409,
+            detail="El documento de esta tarea ya pasó por revisión, y borrarla borraría quién lo revisó. "
+                   "Si ya no se necesita, cancela el proyecto o deja la tarea como está.",
+        )
     # Antes del delete: después ya no se sabe de quién era ni qué evento tenía.
     borrar_evento_de_tarea(db, tarea)
     db.delete(tarea)
     db.commit()
+
+
+@router.post(
+    "/tareas/{tarea_id}/repetir",
+    response_model=TareaOut, status_code=status.HTTP_201_CREATED,
+)
+def repetir_tarea(
+    tarea_id: int,
+    payload: RepetirTarea,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_lectura_no),
+):
+    """
+    La misma tarea otra vez, con fechas nuevas: el cierre de cada mes.
+
+    Copia lo que no cambia de una vuelta a la otra —responsable, área,
+    entregable, horas, prioridad y quién firma el documento— y deja atrás lo
+    que es de esa vuelta: avance, estado, avances y el documento mismo. Una
+    tarea que se repite no es una tarea que no termina: cada mes termina, y
+    por eso cada uno es su propia tarea, con su propia fecha y su firma.
+    """
+    origen = _get_tarea_o_404(db, tarea_id, tenant_id, current_user)
+    if origen.parent_id is not None:
+        raise HTTPException(status_code=400, detail="Una subtarea se repite junto con su tarea, no sola.")
+
+    nueva = Tarea(
+        proyecto_id=origen.proyecto_id,
+        titulo=origen.titulo,
+        descripcion=origen.descripcion,
+        area=origen.area,
+        asignado_a=origen.asignado_a,
+        prioridad=origen.prioridad,
+        riesgos=origen.riesgos,
+        entregable=origen.entregable,
+        horas_estimadas=origen.horas_estimadas,
+        fecha_inicio=payload.fecha_inicio,
+        fecha_fin=payload.fecha_fin,
+    )
+    db.add(nueva)
+    revision.copiar_pasos(origen, nueva)
+    db.flush()
+    registrar_evento(
+        db, "tarea", nueva.id, nueva.proyecto_id, "repetida_de", current_user.id,
+        valor_nuevo=f"#{origen.id}", entidad_nombre=nueva.titulo,
+    )
+    db.commit()
+    db.refresh(nueva)
+
+    if nueva.asignado_a:
+        avisar_tarea_asignada(db, nueva, nueva.proyecto.nombre)
+    sincronizar_tarea(db, nueva, nueva.proyecto.nombre)
+    return nueva
 
 
 # ── Historial de cambios ────────────────────────────────────────
@@ -1120,9 +1192,11 @@ async def agregar_actualizacion(
     if avance_pct_nuevo is not None:
         antes = instantanea(tarea, "tarea")
         tarea.avance_pct = avance_pct_nuevo
-        if avance_pct_nuevo >= 100:
+        # Un documento por aprobar no se da por cumplido con un 100 %: eso
+        # lo hace la última firma.
+        if avance_pct_nuevo >= 100 and not revision.bloquea_completar(tarea):
             tarea.estado = "completada"
-        _sincronizar_cierre(tarea)
+        tarea.sincronizar_cierre()
         # También pasa por el historial: llegar al 100% desde aquí mueve el
         # estado igual que hacerlo a mano, y gerencia tiene que verlo igual.
         registrar_cambios(

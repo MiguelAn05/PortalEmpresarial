@@ -3,14 +3,15 @@ Lo que el Master Planner sabe medir solo, para el módulo de Indicadores.
 
 Indicadores las reúne de cada módulo instalado (ver `core/registro.py`).
 """
-from app.core.dias_habiles import hoy as hoy_local
+from app.core.dias_habiles import contar_habiles, hoy as hoy_local
 from app.core.fechas import con_zona
 from app.core.fuentes import Resultado, proporcion, rango_mes
-from app.models.master_planner import ActividadDiaria, Proyecto, Tarea
+from app.core.periodos import dia_local
+from app.models.master_planner import ActividadDiaria, DocumentoVersion, Proyecto, Tarea
 from app.modules.master_planner import actividades as act
 from app.modules.master_planner.permisos import condicion_area
 
-# **Las cuatro se acotan al área del indicador** (`acepta_area`). Un indicador
+# **Todas se acotan al área del indicador** (`acepta_area`). Un indicador
 # de TICS que mide «avance de proyectos» tiene que medir los de TICS: antes
 # promediaba los de toda la empresa, así que cinco indicadores de cinco áreas
 # distintas mostraban exactamente el mismo número y ninguna área podía
@@ -166,6 +167,76 @@ def mp_proyectos_cerrados(db, tenant_id, anio, mes, area=None) -> Resultado:
     return Resultado(valor=cerrados, detalle=f"{cerrados} proyectos cerrados en el periodo")
 
 
+def _aprobaciones_del_mes(db, tenant_id, anio, mes, area) -> list[dict]:
+    """
+    Cada documento que recibió su última firma en el mes, con su VUELTA: las
+    versiones desde la aprobación anterior de la misma tarea (si se reabrió)
+    hasta esta. Las devoluciones y los días se miden sobre la vuelta, no sobre
+    la vida entera de la tarea.
+
+    Lo que se promedia o se divide incluye los proyectos donde el área
+    participa, como `mp_cumplimiento_fechas`.
+    """
+    desde, hasta = rango_mes(anio, mes)
+    query = (
+        db.query(DocumentoVersion)
+        .join(Tarea, DocumentoVersion.tarea_id == Tarea.id)
+        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
+        .filter(Proyecto.tenant_id == tenant_id,
+                DocumentoVersion.estado == "aprobada",
+                DocumentoVersion.cerrado_en >= desde, DocumentoVersion.cerrado_en <= hasta)
+    )
+    aprobaciones = []
+    for aprobada in _proyectos_del_area(query, area, incluir_participantes=True).all():
+        anteriores = [v.numero for v in aprobada.tarea.versiones
+                      if v.estado == "aprobada" and v.numero < aprobada.numero]
+        piso = max(anteriores, default=0)
+        vuelta = [v for v in aprobada.tarea.versiones if piso < v.numero <= aprobada.numero]
+        enviada = min((v.enviado_en for v in vuelta if v.enviado_en), default=None)
+        aprobaciones.append({
+            "devoluciones": sum(1 for v in vuelta for e in v.eventos if e.accion == "devuelto"),
+            "dias": (contar_habiles(dia_local(con_zona(enviada)), dia_local(con_zona(aprobada.cerrado_en)))
+                     if enviada else None),
+        })
+    return aprobaciones
+
+
+def mp_documentos_sin_devolucion(db, tenant_id, anio, mes, area=None) -> Resultado:
+    """
+    % de los documentos aprobados en el mes que pasaron TODAS las firmas a la
+    primera. Cada devolución es una vuelta más de trabajo para quien lo
+    prepara y para quien ya lo había revisado.
+    """
+    aprobaciones = _aprobaciones_del_mes(db, tenant_id, anio, mes, area)
+    if not aprobaciones:
+        return Resultado(valor=None, numerador=0, denominador=0,
+                         detalle="Ningún documento se aprobó en el periodo")
+    limpios = sum(1 for a in aprobaciones if a["devoluciones"] == 0)
+    return proporcion(
+        limpios, len(aprobaciones),
+        f"{limpios} de {len(aprobaciones)} documentos aprobados sin devolverse",
+    )
+
+
+def mp_dias_en_revision(db, tenant_id, anio, mes, area=None) -> Resultado:
+    """
+    Días hábiles promedio entre el primer envío a revisión y la última firma,
+    de los documentos aprobados en el mes. Incluye el tiempo de corregir lo
+    devuelto: es lo que de verdad tardó el documento en quedar firmado.
+    """
+    medidos = [a["dias"] for a in _aprobaciones_del_mes(db, tenant_id, anio, mes, area)
+               if a["dias"] is not None]
+    if not medidos:
+        return Resultado(valor=None, numerador=0, denominador=0,
+                         detalle="Ningún documento se aprobó en el periodo")
+    total = sum(medidos)
+    return Resultado(
+        valor=round(total / len(medidos), 2),
+        numerador=total, denominador=len(medidos),
+        detalle=f"Promedio de {len(medidos)} documentos aprobados · días hábiles",
+    )
+
+
 FUENTES = {
     "mp_cumplimiento_fechas": {
         "nombre": "Cumplimiento de fechas en proyectos",
@@ -210,4 +281,21 @@ FUENTES = {
         "unidad": "porcentaje", "direccion": "arriba", "fn": mp_actividades_diarias,
         # Con área mide las de esa área; sin ella, las de toda la empresa.
         "acepta_area": True,
-    },}
+    },
+    "mp_documentos_sin_devolucion": {
+        "nombre": "Documentos aprobados sin devolución",
+        "modulo": "Master Planner",
+        "descripcion": "Documentos que pasaron todas sus firmas a la primera.",
+        "formula": "(Documentos aprobados sin ninguna devolución ÷ documentos aprobados) × 100",
+        "unidad": "porcentaje", "direccion": "arriba", "fn": mp_documentos_sin_devolucion,
+        "acepta_area": True,
+    },
+    "mp_dias_en_revision": {
+        "nombre": "Días en revisión de documentos",
+        "modulo": "Master Planner",
+        "descripcion": "Cuánto tarda un documento desde que se envía hasta su última firma.",
+        "formula": "Promedio de días hábiles entre el primer envío y la aprobación final",
+        "unidad": "dias", "direccion": "abajo", "fn": mp_dias_en_revision,
+        "acepta_area": True,
+    },
+}

@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     # en tres sitios.
     UPLOAD_DIR: str = "/app/uploads"
 
+    # Documentos que NO se publican: los que se aprueban en Master Planner
+    # (estados financieros, conciliaciones). `/uploads` se sirve sin mirar
+    # quién pide, con nombres que no se adivinan pero que viajan en correos
+    # y en el historial; esta carpeta no se monta en ninguna URL y solo sale
+    # por un endpoint que revisa el permiso de cada descarga.
+    DOCUMENTOS_DIR: str = "/app/documentos"
+
     # Opcional: URL base de n8n para disparar automatizaciones. Vacío = se ignora.
     N8N_WEBHOOK_URL: str = ""
 

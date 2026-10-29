@@ -25,3 +25,4 @@ Thumbs.db
 # estandolo; esto evita que la basura que generan las pruebas del adjunto
 # vuelva a colarse en un commit.
 protokimica-portal/backend/uploads/
+protokimica-portal/backend/documentos/

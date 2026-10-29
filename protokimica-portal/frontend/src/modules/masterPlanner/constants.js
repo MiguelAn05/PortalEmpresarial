@@ -221,6 +221,9 @@ export const CAMPOS_HISTORIAL = {
   // justo lo que alguien entra a mirar cuando un avance «cambió».
   avance_corregido:      { label: 'Texto de un avance corregido',    tipo: 'texto' },
   respuesta_corregida:   { label: 'Texto de una respuesta corregido', tipo: 'texto' },
+  // Aprobación de documentos y tareas repetidas.
+  aprobacion_documento:  { label: 'Quién aprueba el documento',      tipo: 'texto' },
+  repetida_de:           { label: 'Repetida de la tarea',            tipo: 'texto' },
 }
 
 export function etiquetaCampo(campo) {
@@ -585,4 +588,83 @@ export const FRECUENCIAS = {
 export const DIAS_ISO = {
   1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves',
   5: 'Viernes', 6: 'Sábado', 7: 'Domingo',
+}
+
+// ── Aprobación de documentos ──────────────────────────────────
+// Una tarea puede pedir que su documento lo aprueben otras personas en orden
+// antes de darse por cumplida (ver `master_planner/revision.py`). La regla
+// vive en el servidor: aquí solo están los nombres y los topes.
+
+// Gemelos de `ESTADOS_DOCUMENTO` de models/master_planner.py, más el de una
+// tarea que todavía no tiene archivo. Una prueba los ata.
+export const ESTADOS_DOCUMENTO = {
+  sin_documento: { label: 'Sin documento',  tono: 'neutro',   chip: 'bg-superficie-2 text-texto-2', dot: 'bg-borde-fuerte' },
+  borrador:      { label: 'Sin enviar',     tono: 'neutro',   chip: 'bg-superficie-2 text-texto-2', dot: 'bg-borde-fuerte' },
+  en_revision:   { label: 'En revisión',    tono: 'info',     chip: 'bg-info-bg text-info',         dot: 'bg-acento' },
+  devuelta:      { label: 'Devuelto',       tono: 'alerta',   chip: 'bg-alerta-bg text-alerta',     dot: 'bg-ambar' },
+  aprobada:      { label: 'Aprobado',       tono: 'positivo', chip: 'bg-positivo-bg text-positivo', dot: 'bg-positivo-vivo' },
+}
+
+/**
+ * El estado del documento que se pinta en una tarjeta, o null si la tarea no
+ * pide aprobación. `estado_documento` lo manda el servidor en toda tarea
+ * (nulo si no ha subido nada); aquí solo se le pone nombre al vacío.
+ */
+export function estadoDocumentoDeTarea(tarea) {
+  if (!tarea?.requiere_revision) return null
+  return tarea.estado_documento || 'sin_documento'
+}
+
+// Atados a `core/archivos.py` (MAX_DOCUMENTO_MB) y a `MAX_OBSERVACION` del
+// schema. El tipo lo decide el servidor por el contenido; `accept` solo
+// ayuda a elegir el archivo.
+export const MAX_DOCUMENTO_MB = 20
+export const MAX_OBSERVACION = 2000
+export const ACEPTA_DOCUMENTO = '.pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+/** Si el archivo pasa el tope de tamaño, el mensaje que lo dice; si no, null. */
+export function documentoDemasiadoGrande(archivo) {
+  if (!archivo) return null
+  return archivo.size > MAX_DOCUMENTO_MB * 1024 * 1024
+    ? `El documento no puede superar ${MAX_DOCUMENTO_MB} MB.`
+    : null
+}
+
+/** «1,2 MB», «340 KB». */
+export function textoTamano(bytes) {
+  if (bytes == null) return ''
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`
+}
+
+const ACCIONES_REVISION = {
+  enviado:  'lo envió a',
+  aprobado: 'aprobó como',
+  devuelto: 'lo devolvió como',
+}
+
+/** «Ana lo devolvió como Contador», para la línea de tiempo del documento. */
+export function textoEventoRevision(evento) {
+  const verbo = ACCIONES_REVISION[evento.accion] || evento.accion
+  return `${evento.usuario_nombre || 'Alguien'} ${verbo} ${evento.paso_nombre || ''}`.trim()
+}
+
+/** Las versiones del documento abren en su propia página, no en el modal. */
+export function rutaDocumento(versionId) {
+  return `/master-planner/documento/${versionId}`
+}
+
+/**
+ * La misma fecha un mes después, para proponer las de «Repetir tarea»: lo
+ * que se repite cada mes casi siempre vence el mismo día del mes siguiente.
+ * Un 31 en un mes de 30 cae en el último día, no en el primero del otro.
+ */
+export function unMesDespues(iso) {
+  if (!iso) return null
+  const f = new Date(iso)
+  const dia = f.getDate()
+  const destino = new Date(f.getFullYear(), f.getMonth() + 1, 1, f.getHours(), f.getMinutes())
+  const ultimo = new Date(destino.getFullYear(), destino.getMonth() + 1, 0).getDate()
+  destino.setDate(Math.min(dia, ultimo))
+  return destino.toISOString()
 }

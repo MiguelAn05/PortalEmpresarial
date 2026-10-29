@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { mensajeDeError } from "../../../core/errores.js"
 import KanbanBoard from "../components/KanbanBoard"
 import TareasTable from "../components/TareasTable"
 import GanttView from "../components/GanttView"
@@ -80,6 +81,10 @@ export default function ProyectoDetalle({ proyectoId, usuarios, onVolver, onSele
   const mutCambiarEstadoTarea = useMutation({
     mutationFn: ({ id, estado }) => actualizarTarea(id, { estado }),
     onSuccess: invalidar,
+    // El servidor puede negarse (completar una tarea con su documento sin
+    // aprobar) y su mensaje dice qué hacer: perderlo deja la tarjeta
+    // volviendo sola a su columna sin explicación.
+    onError: (err) => alert(mensajeDeError(err, 'No se pudo cambiar el estado.')),
   })
 
   const mutCampoProyecto = useMutation({

@@ -1,4 +1,6 @@
 from datetime import date, datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 # Topes con gemelo en `frontend/src/modules/masterPlanner/constants.js`, y
@@ -13,6 +15,17 @@ MAX_ENTREGABLE = 300
 # Sin él, un dedo de más convierte «8» en «800» y la carga de la semana de
 # alguien queda diciendo cualquier cosa.
 MAX_HORAS = 2000
+# Lo que se le escribe a un documento: una observación o el comentario de
+# quien lo aprueba o lo devuelve.
+MAX_OBSERVACION = 2000
+
+
+# ── Aprobación de documentos ────────────────────────────────────
+
+class RevisionConfigurar(BaseModel):
+    """Qué cadena y quién firma cada paso, en el orden de la plantilla."""
+    plantilla_id: int
+    revisores: list[int]
 
 
 # ── Proyecto ────────────────────────────────────────────────────
@@ -174,6 +187,10 @@ class TareaCreate(BaseModel):
     horas_estimadas: float | None = Field(default=None, ge=0, le=MAX_HORAS)
     fecha_inicio: datetime | None = None
     fecha_fin: datetime | None = None
+    # Si el documento de la tarea lo tienen que aprobar otros. Va al crear,
+    # en la misma transacción: una tarea que nace sin sus revisores por un
+    # error en el segundo paso se completaría a mano sin que nadie firme.
+    revision: RevisionConfigurar | None = None
 
 
 class SubtareaCreate(BaseModel):
@@ -242,6 +259,10 @@ class TareaOut(BaseModel):
     # historial (`Tarea.veces_aplazada`), no el router: hay siete endpoints
     # que devuelven tareas y el octavo habría devuelto cero sin fallar.
     veces_aplazada: int = 0
+    # Si su documento lo tienen que aprobar otros antes de darla por cumplida.
+    requiere_revision: bool = False
+    # El de su última versión (`Tarea.estado_documento`); nulo si no ha subido ninguno.
+    estado_documento: str | None = None
     creado_en: datetime
     subtareas: list[SubtareaOut] = []
     total_subtareas: int = 0
@@ -478,3 +499,38 @@ class MesActividadOut(BaseModel):
     esperados_hasta_hoy: int
     cumplidos_hasta_hoy: int
     pct: float | None
+
+
+class EnviarDocumento(BaseModel):
+    comentario: str | None = Field(default=None, max_length=MAX_OBSERVACION)
+
+
+class RespuestaDocumento(BaseModel):
+    """Un solo endpoint para las dos salidas: el turno lo decide el servidor."""
+    decision: Literal["aprobar", "devolver"]
+    comentario: str | None = Field(default=None, max_length=MAX_OBSERVACION)
+
+
+class ObservacionCrear(BaseModel):
+    texto: str = Field(min_length=1, max_length=MAX_OBSERVACION)
+    # Sin página es una observación general. x e y van de 0 a 1 sobre la
+    # página: así el punto cae en el mismo sitio con cualquier zoom.
+    pagina: int | None = Field(default=None, ge=1)
+    pos_x: float | None = Field(default=None, ge=0, le=1)
+    pos_y: float | None = Field(default=None, ge=0, le=1)
+    # En un Excel: la hoja por su nombre y la celda como la escribe Excel (C14).
+    hoja: str | None = Field(default=None, max_length=100)
+    celda: str | None = Field(default=None, max_length=12)
+
+
+class ObservacionAtender(BaseModel):
+    atendida: bool
+
+
+class RepetirTarea(BaseModel):
+    """
+    Lo único que cambia entre una vuelta y la siguiente: las fechas. Lo demás
+    —responsable, entregable, revisores— se copia, que es el punto.
+    """
+    fecha_inicio: datetime | None = None
+    fecha_fin: datetime | None = None

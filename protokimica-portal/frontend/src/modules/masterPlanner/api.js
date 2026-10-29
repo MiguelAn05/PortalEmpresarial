@@ -164,3 +164,63 @@ export const cumplimientoActividad = (id, params = {}) =>
 // El mes día por día. Reemplaza la lista de registros, que crecía sin final.
 export const mesDeActividad = (id, params = {}) =>
   api.get(`/master-planner/actividades/${id}/mes`, { params }).then(r => r.data)
+
+// ── Aprobación de documentos ─────────────────────────────────
+// Quién firma, en qué orden y qué puede hacer cada quien lo decide el
+// servidor: cada respuesta trae el flujo entero con los permisos resueltos.
+export const listarPlantillasRevision = () =>
+  api.get('/master-planner/plantillas-revision').then(r => r.data)
+
+export const obtenerRevision = (tareaId) =>
+  api.get(`/master-planner/tareas/${tareaId}/revision`).then(r => r.data)
+
+export const configurarRevision = (tareaId, payload) =>
+  api.put(`/master-planner/tareas/${tareaId}/revision`, payload).then(r => r.data)
+
+export const quitarRevision = (tareaId) =>
+  api.delete(`/master-planner/tareas/${tareaId}/revision`).then(r => r.data)
+
+export const subirDocumento = (tareaId, archivo) => {
+  const fd = new FormData()
+  fd.append('archivo', archivo)
+  return api.post(`/master-planner/tareas/${tareaId}/documentos`, fd).then(r => r.data)
+}
+
+export const enviarDocumento = (tareaId, comentario) =>
+  api.post(`/master-planner/tareas/${tareaId}/documentos/enviar`, { comentario: comentario || null })
+    .then(r => r.data)
+
+export const obtenerDocumento = (versionId) =>
+  api.get(`/master-planner/documentos/${versionId}`).then(r => r.data)
+
+// El archivo viaja con la sesión (no es una URL pública), así que se pide
+// como datos y no con un <a href>.
+export const descargarArchivoDocumento = (versionId) =>
+  api.get(`/master-planner/documentos/${versionId}/archivo`, { responseType: 'blob' })
+    .then(r => r.data)
+
+export const responderDocumento = (versionId, decision, comentario) =>
+  api.post(`/master-planner/documentos/${versionId}/responder`, { decision, comentario: comentario || null })
+    .then(r => r.data)
+
+export const agregarObservacion = (versionId, payload) =>
+  api.post(`/master-planner/documentos/${versionId}/observaciones`, payload).then(r => r.data)
+
+export const atenderObservacion = (obsId, atendida) =>
+  api.patch(`/master-planner/observaciones/${obsId}`, { atendida }).then(r => r.data)
+
+export const borrarObservacion = (obsId) =>
+  api.delete(`/master-planner/observaciones/${obsId}`)
+
+// Un Excel se lee en el servidor (`core/hoja_calculo.py`): valores, sin formato.
+export const listarHojasDocumento = (versionId) =>
+  api.get(`/master-planner/documentos/${versionId}/hojas`).then(r => r.data.hojas)
+
+export const obtenerHojaDocumento = (versionId, indice) =>
+  api.get(`/master-planner/documentos/${versionId}/hojas/${indice}`).then(r => r.data)
+
+export const listarDocumentosPendientes = () =>
+  api.get('/master-planner/revisiones/pendientes').then(r => r.data)
+
+export const repetirTarea = (tareaId, payload) =>
+  api.post(`/master-planner/tareas/${tareaId}/repetir`, payload).then(r => r.data)

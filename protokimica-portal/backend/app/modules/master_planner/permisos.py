@@ -4,10 +4,12 @@ Quién ve qué en Master Planner.
 **Regla: ves aquello en lo que participas. Un líder ve además lo de su
 gente.**
 
-Para cualquiera (agente, lectura) hay dos caminos:
+Para cualquiera (agente, lectura) hay tres caminos:
 
   1. eres el líder del proyecto,
-  2. tienes una tarea asignada dentro del proyecto.
+  2. tienes una tarea asignada dentro del proyecto,
+  3. firmas el documento de una tarea del proyecto (ver `revision.py`): la
+     Revisora Fiscal no tiene tareas, pero sin ver la tarea no puede firmar.
 
 Un **líder de área** suma un tercero: los proyectos de su equipo. Cuenta como
 tal si el proyecto es de su área, o si alguien de su área lo lidera o tiene
@@ -35,7 +37,7 @@ from sqlalchemy.orm import Session
 from app.core import capacidades, supervision
 from app.core.database import get_db
 from app.core.deps import ROLES_VISION_TOTAL, get_current_user
-from app.models.master_planner import ActividadDiaria, Proyecto, ProyectoArea, Tarea
+from app.models.master_planner import ActividadDiaria, Proyecto, ProyectoArea, RevisionPaso, Tarea
 from app.models.user import User
 
 
@@ -105,6 +107,7 @@ def condicion_proyectos_visibles(usuario: User):
         Proyecto.id.in_(
             select(Tarea.proyecto_id).where(Tarea.asignado_a == usuario.id)
         ),
+        Proyecto.id.in_(_proyectos_que_revisa(usuario.id)),
     ]
 
     # Un líder responde por su área: ve también lo de su gente. Sin esto, a
@@ -127,6 +130,15 @@ def condicion_proyectos_visibles(usuario: User):
         )
 
     return or_(*caminos)
+
+
+def _proyectos_que_revisa(usuario_id: int):
+    """Los proyectos donde esta persona firma el documento de alguna tarea."""
+    return (
+        select(Tarea.proyecto_id)
+        .join(RevisionPaso, RevisionPaso.tarea_id == Tarea.id)
+        .where(RevisionPaso.revisor_id == usuario_id)
+    )
 
 
 def aplicar_filtro_proyectos(query, usuario: User):
@@ -179,6 +191,14 @@ def puede_ver_proyecto(db: Session, proyecto: Proyecto, usuario: User) -> bool:
         .exists()
     ).scalar()
     if tiene_tarea:
+        return True
+
+    if db.query(
+        select(Tarea.id)
+        .join(RevisionPaso, RevisionPaso.tarea_id == Tarea.id)
+        .where(Tarea.proyecto_id == proyecto.id, RevisionPaso.revisor_id == usuario.id)
+        .exists()
+    ).scalar():
         return True
 
     # ¿Alguien de su equipo participa? Es la misma pregunta de la lista, para

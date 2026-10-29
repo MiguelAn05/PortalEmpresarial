@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.66.0"
-FECHA = "2026-10-28"
+VERSION = "0.68.0"
+FECHA = "2026-10-29"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,41 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.68.0",
+        "fecha": "2026-10-29",
+        "titulo": "Un Excel se revisa en pantalla, celda por celda",
+        "cambios": [
+            ("nuevo", "Un Excel enviado a revisión ya se abre en el portal, con sus hojas en "
+                      "pestañas: quien revisa hace clic en la celda que no cuadra y la observación "
+                      "queda ahí, por ejemplo «Balance · C14», para que quien corrige la encuentre "
+                      "en su archivo."),
+            ("mejora", "Las tarjetas y la lista de tareas dicen en qué va el documento: sin "
+                       "documento, sin enviar, en revisión, devuelto o aprobado."),
+            ("nuevo", "Dos indicadores automáticos nuevos: documentos aprobados sin devolución y "
+                      "días hábiles que tarda un documento desde que se envía hasta su última firma."),
+        ],
+    },
+    {
+        "version": "0.67.0",
+        "fecha": "2026-10-29",
+        "titulo": "Documentos que se aprueban dentro de una tarea",
+        "cambios": [
+            ("nuevo", "Una tarea puede pedir que su documento (PDF o Excel) lo aprueben otras "
+                      "personas en orden, por ejemplo el Contador y después la Revisora Fiscal. "
+                      "Quien tiene la tarea lo sube y lo envía, y la tarea se cumple sola con la "
+                      "última firma, con su fecha."),
+            ("nuevo", "El documento se abre a pantalla completa: quien revisa hace clic donde "
+                      "está el problema, deja ahí su observación y lo aprueba o lo devuelve. La "
+                      "versión corregida vuelve a empezar por el primer paso."),
+            ("nuevo", "La pestaña «Documentos» reúne lo que espera tu firma y lo tuyo que te "
+                      "devolvieron."),
+            ("nuevo", "«Repetir tarea» crea la del mes siguiente con el mismo responsable, el "
+                      "mismo entregable y las mismas personas que firman."),
+            ("mejora", "Los documentos no quedan en una dirección pública: solo los abre quien "
+                       "puede ver la tarea."),
+        ],
+    },
     {
         "version": "0.66.0",
         "fecha": "2026-10-28",

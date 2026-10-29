@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { mensajeDeError } from "../../../core/errores.js"
 import KPICards from "../components/KPICards"
 import Filters from "../components/Filters"
 import KanbanBoard from "../components/KanbanBoard"
@@ -37,6 +38,8 @@ export default function TareasView({ proyectos, usuarios, onSelectTarea, onNueva
       queryClient.invalidateQueries({ queryKey: ["mp-tareas"] })
       queryClient.invalidateQueries({ queryKey: ["mp-proyectos"] })
     },
+    // Ver ProyectoDetalle: el servidor puede negarse y dice por qué.
+    onError: (err) => alert(mensajeDeError(err, 'No se pudo cambiar el estado.')),
   })
 
   // Las tarjetas cuentan sobre lo filtrado SIN su propio recorte; la lista,

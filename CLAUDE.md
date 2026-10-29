@@ -746,6 +746,81 @@ dice en su encabezado qué le corresponde.
   octubre toda actividad diaria aparecería con un 5% de cumplimiento por los
   días que aún no llegan.
 
+**Master Planner — documentos que se aprueban** (desde la 0.67). Una
+tarea puede pedir que su documento (PDF o Excel) lo firmen otras personas en
+orden antes de darse por cumplida: la analista sube los estados financieros,
+el Contador los revisa, la Revisora Fiscal los firma. La regla vive en
+`master_planner/revision.py`, los endpoints en `router_revision.py`, y en la
+pantalla `DocumentoPanel.jsx` (dentro de la tarea), `VisorDocumento.jsx`
+(`/master-planner/documento/:id`) y la pestaña «Documentos».
+
+- **No es un módulo: es una tarea con un paso más.** La fecha límite es
+  `fecha_fin` y la de finalización `fecha_completada`, que sella la última
+  firma (`Tarea.sincronizar_cierre()`, que vivía en el router). Lo que se
+  hace cada mes es **una tarea por mes**: «Repetir tarea» copia responsable,
+  entregable, horas y quién firma, y propone las fechas un mes después. Por
+  eso no es una actividad diaria: cada mes termina y tiene su firma.
+- **La plantilla dice QUÉ pasos; la tarea, QUIÉN** (`mp_plantillas_revision`
+  se siembra sola con «Revisión contable»: Contador → Revisora Fiscal). Al
+  activar se COPIA a `mp_revision_pasos`, como el flujo de PQRS. Una cadena
+  de un solo paso es otra plantilla, no un caso especial. Las plantillas
+  todavía no tienen pantalla.
+- **El estado es el de la ÚLTIMA versión** (`borrador → en_revision →
+  devuelta | aprobada`), sin un estado en la tarea que lo repita. Un
+  borrador sin enviar se reemplaza; devolver cierra la versión, y la
+  corregida **arranca desde el primer paso**. Las devoluciones salen de
+  `mp_revision_eventos`, no de un contador.
+- **Firma solo quien tiene el turno** (más `admin`), por un solo endpoint
+  (`/documentos/{id}/responder` con `aprobar` | `devolver`). Devolver exige
+  comentario **o** una observación del paso. Nadie firma su propio documento,
+  cada paso es otra persona y `lectura`/`gerencia` no firman.
+- **A mano no se completa**: `PATCH` con `completada` responde 400 y un
+  avance del 100 % no la completa. Si no, «completada» diría que se firmó algo
+  que nadie firmó. Por eso los tres sitios que cambian el estado (detalle,
+  Kanban de tareas y de proyecto) muestran el error del servidor.
+- **Quien firma ve la tarea** (tercer camino de `permisos.py`): la Revisora
+  Fiscal no tiene tareas en el proyecto y sin esto no podría abrirla.
+- **El archivo no va a `/uploads`**: va a `DOCUMENTOS_DIR` (volumen
+  `documentos_data`, sin URL) y sale por `/documentos/{id}/archivo`, que
+  revisa la visibilidad y responde `no-store`. El tipo se decide por el
+  CONTENIDO (`core/archivos.tipo_de_documento`: `%PDF-` o un ZIP con
+  `xl/workbook.xml`), nunca por la extensión. Tope 20 MB.
+- **Las observaciones se anclan con x/y de 0 a 1 sobre la página**, no en
+  píxeles: caen en el mismo punto con cualquier zoom. **En un Excel, a una
+  celda** (`hoja` + `celda`, desde la 0.68): la hoja por su NOMBRE —es como
+  la busca quien corrige en su archivo— y el servidor rechaza una hoja que
+  el libro no tiene. Cada tipo con lo suyo (`revision._ancla`): página en un
+  Excel o celda en un PDF responden 400. Son de la versión: la siguiente
+  arranca limpia y quien corrige marca «Ya lo corregí» en las de la devuelta.
+- **El Excel lo lee el SERVIDOR** (`core/hoja_calculo.py`, solo `zipfile` y
+  `ElementTree`, sin dependencia nueva) y la pantalla pinta la cuadrícula
+  (`HojaExcel.jsx`, por `/documentos/{id}/hojas/{indice}`, con la misma
+  regla de quién ve el archivo). **Valores, no formato**: ni colores ni
+  combinadas; las fórmulas con el último resultado que guardó Excel; las
+  fechas se reconocen por el formato de número de `styles.xml`. Topes: 1.000
+  filas × 60 columnas (más allá se avisa `truncada`) y ninguna parte del ZIP
+  se descomprime si pasa de 80 MB — un ZIP chico puede guardar un XML de
+  gigas.
+- **Las tarjetas traen `estado_documento`** (`column_property`, como
+  `requiere_revision`: el estado de la ÚLTIMA versión, nulo sin archivo) y
+  `estadoDocumentoDeTarea()` le pone nombre al vacío.
+- **Dos fuentes de indicador**, con `acepta_area` como las demás:
+  `mp_documentos_sin_devolucion` (aprobados en el mes que pasaron todas las
+  firmas a la primera) y `mp_dias_en_revision` (días hábiles del primer envío
+  a la última firma, devoluciones incluidas). Se miden por **vuelta**: si la
+  tarea se reabrió y se volvió a aprobar, cuenta lo de después de la
+  aprobación anterior. Sin aprobaciones, «sin dato».
+- **El visor usa `pdfjs-dist` (4.10.38)**, la única dependencia nueva: se
+  carga con `lazy()` (pesa más que el portal entero), el worker sale del
+  propio `dist/assets` y no de un CDN, y `isEvalSupported: false`. **El
+  worker es `.mjs`, y nginx 1.27 no conoce esa extensión**: sin el `types`
+  de `/assets/` en `nginx.conf` lo servía como `octet-stream` y el visor se
+  quedaba cargando sin ningún error. Se revisa sin editar el documento: se
+  corrige en el original y se sube otra versión, que es lo que deja
+  constancia de qué se aprobó.
+- Una tarea con un documento ya enviado no se borra (409), y el flujo no se
+  quita una vez que algo pasó por revisión.
+
 **Master Planner — el informe gerencial** (`/master-planner/informe`, botón
 «Generar informe», desde la 0.61). Lo calcula `master_planner/informe.py` y
 `InformeMasterPlanner.jsx` solo lo dibuja, con las piezas compartidas de
@@ -1854,6 +1929,9 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
 - **`mp_proyectos_cerrados`** cuenta por `fecha_fin_real`, así que suma también
   los cancelados. Habría que separar los que se finalizaron de los que se
   abandonaron.
+- **Documentos que se aprueban: falta la fase 3.** La pantalla de
+  plantillas y los avisos de n8n (turno de cada firma, devuelto, aprobado, y
+  el recordatorio diario de los que vencen en dos días o ya vencieron).
 - Flujos de n8n: quedan las alertas de indicadores en rojo y el disparo mensual
   de `POST /indicadores/calcular-periodo` (necesita el usuario de servicio
   `automatizaciones@protokimica.com`).

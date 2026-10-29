@@ -4,18 +4,20 @@ import PriorityBadge from "./PriorityBadge"
 import Avatar from "./Avatar"
 import SubtareasPanel from "./SubtareasPanel"
 import HistorialPanel from "./HistorialPanel"
+import DocumentoPanel from "./DocumentoPanel"
 import ConfirmarCambios, { ConfirmarDescarte } from "./ConfirmarCambios"
 import { calcularCambios } from "../cambiosFormulario"
 import { useAuth } from "../../../core/useAuth.js"
 import {
   obtenerTarea, listarActualizaciones, agregarActualizacion, actualizarTarea,
   eliminarTarea, listarHistorialTarea, responderActualizacion, corregirActualizacion,
+  repetirTarea,
 } from "../api"
 import { mensajeDeError } from "../../../core/errores.js"
 import {
   IconoAlerta, IconoCerrar, IconoClip,
 } from '../../../core/components/Iconos.jsx'
-import { ESTADOS_TAREA, PRIORIDADES, ALERTAS, alertaVencimiento, colorAvance, formatFecha, formatFechaHora, isoADatetimeLocal, datetimeLocalAIso, puedeEditar, puedeReportarAvance, puedeComentar, MAX_ENTREGABLE, MAX_HORAS, textoAplazamientos, textoHoras } from "../constants"
+import { ESTADOS_TAREA, PRIORIDADES, ALERTAS, alertaVencimiento, colorAvance, formatFecha, formatFechaHora, isoADatetimeLocal, datetimeLocalAIso, puedeEditar, puedeReportarAvance, puedeComentar, MAX_ENTREGABLE, MAX_HORAS, textoAplazamientos, textoHoras, unMesDespues } from "../constants"
 import { useAreas } from '../../../core/areas.js'
 
 // Qué campos del formulario se confirman antes de guardar y cómo leer su
@@ -187,7 +189,7 @@ function Respuestas({ avance, puedeResponder, onResponder, guardando, onCorregir
  * (estado, asignado, subtareas) se reflejan sin depender de que el listado
  * se refresque primero.
  */
-export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
+export default function TareaDetailModal({ tareaId, usuarios = [], onClose, onAbrirTarea }) {
   const listaAreas = useAreas()
   const queryClient = useQueryClient()
   const { user } = useAuth()
@@ -206,6 +208,8 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
   const [comentario, setComentario] = useState("")
   const [avanceNuevo, setAvanceNuevo] = useState("")
   const [evidencia, setEvidencia] = useState(null)
+  // «Repetir tarea»: null cerrado, o las fechas propuestas para la vuelta nueva.
+  const [repetir, setRepetir] = useState(null)
 
   const { data: tarea, isLoading } = useQuery({
     queryKey: ["mp-tarea", tareaId],
@@ -248,6 +252,7 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
   const mutCampo = useMutation({
     mutationFn: (payload) => actualizarTarea(tareaId, payload),
     onSuccess: () => { invalidar(); setConfirmacion(null) },
+    onError: (err) => { setConfirmacion(null); alert(mensajeDeError(err, 'No se pudo guardar el cambio.')) },
   })
 
   /**
@@ -342,6 +347,25 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
     { actualizacionId, comentario }, { onSuccess: listo },
   )
 
+  // Lo que se hace cada mes es una tarea por mes: cada una con su fecha y su
+  // firma. Repetirla copia el responsable, el entregable y quién firma.
+  const mutRepetir = useMutation({
+    mutationFn: () => repetirTarea(tareaId, {
+      fecha_inicio: datetimeLocalAIso(repetir.fecha_inicio),
+      fecha_fin: datetimeLocalAIso(repetir.fecha_fin),
+    }),
+    onSuccess: (nueva) => {
+      invalidar()
+      setRepetir(null)
+      if (onAbrirTarea) onAbrirTarea(nueva.id)
+    },
+    onError: (err) => alert(mensajeDeError(err, 'No se pudo repetir la tarea.')),
+  })
+  const empezarRepetir = () => setRepetir({
+    fecha_inicio: isoADatetimeLocal(unMesDespues(tarea.fecha_inicio)),
+    fecha_fin: isoADatetimeLocal(unMesDespues(tarea.fecha_fin)),
+  })
+
   const mutEliminar = useMutation({
     mutationFn: () => eliminarTarea(tareaId),
     onSuccess: () => { invalidar(); onClose() },
@@ -426,9 +450,16 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                       {tarea.area && <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white border border-borde text-texto-2">{tarea.area}</span>}
                     </div>
                     {editable && (
-                      <button onClick={empezarEdicion} className="text-xs font-semibold text-acento hover:underline">
-                        Editar detalles
-                      </button>
+                      <div className="flex gap-3">
+                        {tarea.parent_id === null && (
+                          <button onClick={empezarRepetir} className="text-xs font-semibold text-acento hover:underline">
+                            Repetir tarea
+                          </button>
+                        )}
+                        <button onClick={empezarEdicion} className="text-xs font-semibold text-acento hover:underline">
+                          Editar detalles
+                        </button>
+                      </div>
                     )}
                   </div>
                   {tarea.descripcion && <p className="text-sm text-texto">{tarea.descripcion}</p>}
@@ -539,6 +570,44 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose }) {
                   </div>
                 </div>
               )}
+
+              {repetir && (
+                <div className="border border-borde rounded-xl p-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-acento-fuerte">Repetir tarea</h3>
+                    <p className="text-xs text-texto-3">
+                      Se crea otra igual —responsable, entregable{tarea.requiere_revision ? ' y quién firma el documento' : ''}— con estas fechas.
+                      El avance y los comentarios de esta se quedan aquí.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-texto-2 uppercase mb-1">Inicio</label>
+                      <input type="datetime-local" value={repetir.fecha_inicio}
+                        onChange={(e) => setRepetir({ ...repetir, fecha_inicio: e.target.value })}
+                        className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-texto-2 uppercase mb-1">Fin</label>
+                      <input type="datetime-local" value={repetir.fecha_fin}
+                        onChange={(e) => setRepetir({ ...repetir, fecha_fin: e.target.value })}
+                        className="w-full rounded-lg border border-borde px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setRepetir(null)} className="flex-1 border border-borde text-sm font-semibold py-2 rounded-lg hover:bg-superficie-2">Cancelar</button>
+                    <button
+                      onClick={() => mutRepetir.mutate()}
+                      disabled={mutRepetir.isPending}
+                      className="flex-1 bg-acento hover:bg-acento-fuerte disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg"
+                    >
+                      Crear la siguiente
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <DocumentoPanel tarea={tarea} usuarios={usuarios} editable={editable} />
 
               {/* Subtareas — solo tienen sentido en una tarea de primer nivel */}
               {tarea.parent_id === null && (

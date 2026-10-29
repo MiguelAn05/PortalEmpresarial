@@ -1,11 +1,13 @@
 import PriorityBadge from "./PriorityBadge"
 import Avatar from "./Avatar"
-import { ALERTAS, alertaVencimiento, colorAvance, formatFecha, formatHora, tieneHora } from "../constants"
+import { ChipDocumento } from "./DocumentoPanel"
+import { ALERTAS, alertaVencimiento, colorAvance, estadoDocumentoDeTarea, formatFecha, formatHora, tieneHora } from "../constants"
 import { IconoTarea } from '../../../core/components/Iconos.jsx'
 
 export default function TareaCard({ tarea, draggable, onDragStart, onDragEnd, onClick, mostrarProyecto = true }) {
   const alerta = alertaVencimiento(tarea)
   const cfgAlerta = alerta ? ALERTAS[alerta] : null
+  const documento = estadoDocumentoDeTarea(tarea)
 
   return (
     <div
@@ -28,10 +30,15 @@ export default function TareaCard({ tarea, draggable, onDragStart, onDragEnd, on
         {tarea.titulo}
       </p>
 
-      {cfgAlerta && (
-        <span className={`inline-block mb-2 text-[10px] font-semibold border rounded-full px-2 py-0.5 ${cfgAlerta.chip}`}>
-          {cfgAlerta.label}
-        </span>
+      {(cfgAlerta || documento) && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+          {cfgAlerta && (
+            <span className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 ${cfgAlerta.chip}`}>
+              {cfgAlerta.label}
+            </span>
+          )}
+          {documento && <ChipDocumento estado={documento} compacto />}
+        </div>
       )}
 
       <div className="flex items-center gap-2 mb-3">

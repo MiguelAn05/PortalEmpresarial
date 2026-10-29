@@ -1,11 +1,14 @@
 import { useState } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { crearTarea } from "../api"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { crearTarea, listarPlantillasRevision } from "../api"
 import { MAX_ENTREGABLE, MAX_HORAS, PRIORIDADES, datetimeLocalAIso } from "../constants"
 import { useCierreSeguro } from "../../../core/components/cierreSeguro"
 import { tieneDatos } from "../../../core/components/tieneDatos"
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 import { useAreas } from '../../../core/areas.js'
+import { mensajeDeError } from '../../../core/errores.js'
+import SelectorRevisores from './SelectorRevisores'
+import { REVISION_VACIA, problemaRevisores } from '../revision.js'
 
 const VACIO = {
   titulo: "", descripcion: "", area: "", asignado_a: "",
@@ -19,8 +22,12 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], proyecto
   // Si se abre desde dentro de un proyecto, ese proyecto ya viene fijo.
   const [proyectoId, setProyectoId] = useState(proyectoIdInicial ?? proyectos[0]?.id ?? "")
   const [form, setForm] = useState(VACIO)
+  // Si su documento lo tienen que aprobar otros. Va aparte del formulario
+  // porque no es un campo de la tarea: viaja como `revision`.
+  const [pideRevision, setPideRevision] = useState(false)
+  const [revision, setRevision] = useState(REVISION_VACIA)
 
-  const hayCambios = tieneDatos(form, VACIO)
+  const hayCambios = tieneDatos(form, VACIO) || pideRevision
   const { intentarCerrar, dialogoDescarte } = useCierreSeguro({ hayCambios, onCerrar: onClose })
 
   const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value })
@@ -33,6 +40,7 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], proyecto
       horas_estimadas: form.horas_estimadas === "" ? null : Number(form.horas_estimadas),
       fecha_inicio: datetimeLocalAIso(form.fecha_inicio),
       fecha_fin: datetimeLocalAIso(form.fecha_fin),
+      revision: pideRevision ? revision : null,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mp-tareas"] })
@@ -40,6 +48,20 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], proyecto
       onClose()
     },
   })
+
+  // El servidor revisa lo mismo; aquí solo se evita mandar lo que va a negar.
+  // El mensaje ya lo muestra el selector.
+  // La misma consulta del selector: React Query la comparte, no se pide dos veces.
+  const { data: plantillas = [] } = useQuery({
+    queryKey: ["mp-plantillas-revision"],
+    queryFn: listarPlantillasRevision,
+    staleTime: 5 * 60_000,
+    enabled: pideRevision,
+  })
+  const plantilla = plantillas.find(p => p.id === revision.plantilla_id) || null
+  const revisionIncompleta = pideRevision && Boolean(problemaRevisores(
+    plantilla, revision.revisores, form.asignado_a ? Number(form.asignado_a) : null,
+  ))
 
   const proyectoFijo = proyectoIdInicial != null
     ? proyectos.find(p => p.id === proyectoIdInicial)
@@ -157,9 +179,38 @@ export default function TareaFormModal({ proyectos = [], usuarios = [], proyecto
                 <textarea value={form.riesgos} onChange={set('riesgos')} rows={2} className="w-full rounded-lg border border-borde px-3 py-2 text-sm resize-none" />
               </div>
 
+              {/* Lo que tiene que firmar otra persona antes de darse por
+                  cumplido: estados financieros, conciliaciones. Con esto la
+                  tarea no se completa a mano — la completa la última firma. */}
+              <div className="border border-borde rounded-xl p-4 space-y-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox" checked={pideRevision}
+                    onChange={(e) => setPideRevision(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-texto">Su documento lo tienen que aprobar otros</span>
+                    <span className="block text-xs text-texto-3">
+                      Quien tiene la tarea sube un PDF o un Excel, y la tarea se cumple cuando lo firma el último paso.
+                    </span>
+                  </span>
+                </label>
+                {pideRevision && (
+                  <SelectorRevisores
+                    valor={revision} onChange={setRevision} usuarios={usuarios}
+                    asignadoId={form.asignado_a ? Number(form.asignado_a) : null}
+                  />
+                )}
+              </div>
+
+              {mutCrear.isError && (
+                <p className="text-sm text-negativo">{mensajeDeError(mutCrear.error, 'No se pudo crear la tarea.')}</p>
+              )}
+
               <button
                 onClick={() => mutCrear.mutate()}
-                disabled={!form.titulo || !proyectoId || mutCrear.isPending}
+                disabled={!form.titulo || !proyectoId || mutCrear.isPending || revisionIncompleta}
                 className="w-full bg-acento hover:bg-acento-fuerte disabled:opacity-40 text-white font-semibold py-2.5 rounded-lg transition"
               >
                 Crear tarea
