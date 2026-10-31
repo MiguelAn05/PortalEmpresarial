@@ -5,11 +5,13 @@
 // navegador: los gemelos, el punto de una observación y cómo se carga el visor.
 import { readFileSync } from 'node:fs'
 import {
-  ESTADOS_DOCUMENTO, MAX_DOCUMENTO_MB, MAX_OBSERVACION, documentoDemasiadoGrande,
+  ESTADOS_DOCUMENTO, MAX_DOCUMENTO_MB, MAX_NOMBRE_PLANTILLA, MAX_OBSERVACION, MAX_PASOS_PLANTILLA,
+  documentoDemasiadoGrande,
   estadoDocumentoDeTarea, textoTamano, unMesDespues,
 } from '../src/modules/masterPlanner/constants.js'
 import {
-  claveCelda, lugarObservacion, numerarObservaciones, problemaRevisores, puntoEnPagina, textoCelda,
+  claveCelda, lugarObservacion, marcaEnPagina, numerarObservaciones, problemaRevisores, puntoEnPagina,
+  textoCelda,
 } from '../src/modules/masterPlanner/revision.js'
 
 const leer = (ruta) => readFileSync(new URL(ruta, import.meta.url), 'utf8')
@@ -20,6 +22,9 @@ const VISOR = leer('../src/modules/masterPlanner/VisorDocumento.jsx')
 const APP = leer('../src/App.jsx')
 const HOJA = leer('../src/modules/masterPlanner/components/HojaExcel.jsx')
 const CARD = leer('../src/modules/masterPlanner/components/TareaCard.jsx')
+const PY_REVISION = leer('../../backend/app/modules/master_planner/revision.py')
+const CADENAS = leer('../src/modules/admin/CadenasRevision.jsx')
+const ADMIN = leer('../src/modules/admin/Admin.jsx')
 
 let fallos = []
 const check = (n, cond, extra = '') => {
@@ -65,6 +70,19 @@ check('un clic en el borde no se sale de la página', fuera.pos_x === 1 && fuera
 check('el número del punto es el de la lista',
   numerarObservaciones([{ id: 9 }, { id: 3 }]).map(o => o.numero).join() === '1,2')
 
+console.log('\n== Arrastrar enmarca una zona ==')
+const ini = { x: 500, y: 550 }
+check('un clic quieto sigue siendo un punto', marcaEnPagina(ini, { x: 503, y: 552 }, rect).ancho === undefined)
+const caja = marcaEnPagina(ini, { x: 900, y: 1050 }, rect)
+check('arrastrar deja un recuadro con su tamaño',
+  caja.pos_x === 0.5 && caja.pos_y === 0.5 && caja.ancho === 0.5 && caja.alto === 0.5, caja)
+const alReves = marcaEnPagina({ x: 900, y: 1050 }, ini, rect)
+check('arrastrado hacia arriba a la izquierda, la esquina es la misma', JSON.stringify(alReves) === JSON.stringify(caja), alReves)
+const afuera = marcaEnPagina(ini, { x: 5000, y: 5000 }, rect)
+check('no se sale de la página', afuera.pos_x + afuera.ancho <= 1 && afuera.pos_y + afuera.alto <= 1, afuera)
+check('por fuera del borde, sin ancho, queda en punto',
+  marcaEnPagina({ x: 950, y: 100 }, { x: 990, y: 400 }, rect).ancho === undefined)
+
 console.log('\n== Repetir propone el mismo día del mes siguiente ==')
 const sig = new Date(unMesDespues(new Date(2026, 8, 10, 17, 0).toISOString()))
 check('el 10 de septiembre pasa al 10 de octubre',
@@ -103,6 +121,16 @@ check('y la general', lugarObservacion({}) === 'general')
 check('la hoja no se queda en la memoria de la pestaña', /gcTime: 0/.test(HOJA))
 check('y se pide al servidor, no se abre el archivo en el navegador',
   /obtenerHojaDocumento/.test(HOJA) && !/import .*xlsx/.test(HOJA))
+
+console.log('\n== Las cadenas de revisión ==')
+check('el tope de firmas es el del servidor',
+  Number(PY_REVISION.match(/^MAX_PASOS_PLANTILLA = (\d+)/m)?.[1]) === MAX_PASOS_PLANTILLA)
+check('y el largo del nombre, el del schema',
+  /class PlantillaGuardar[\s\S]*?nombre: str = Field\(min_length=1, max_length=(\d+)\)/.exec(PY_SCHEMAS)?.[1] === String(MAX_NOMBRE_PLANTILLA))
+check('la pantalla usa los dos topes', /maxLength=\{MAX_NOMBRE_PLANTILLA\}/.test(CADENAS) && /MAX_PASOS_PLANTILLA/.test(CADENAS))
+check('se muestra solo con Master Planner contratado',
+  /estaContratado\(user, 'master_planner'\) && <CadenasRevision \/>/.test(ADMIN))
+check('no se borra: se desactiva', !/api\.delete/.test(CADENAS))
 
 console.log()
 if (fallos.length) { console.log(`FALLARON ${fallos.length}: ${fallos.join(', ')}`); process.exit(1) }

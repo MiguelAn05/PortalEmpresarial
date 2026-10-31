@@ -5,6 +5,7 @@ trabajo del equipo de un líder. Ver `core/inicio.py`.
 """
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core import inicio as base
@@ -21,13 +22,13 @@ MESES_SERIE = 7
 
 
 def _mis_tareas(db: Session, usuario: User) -> dict:
-    """Tareas asignadas a la persona, en proyectos activos."""
+    """Tareas asignadas a la persona, en proyectos activos o sin proyecto."""
     tareas = (
         db.query(Tarea)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
+        .outerjoin(Proyecto, Tarea.proyecto_id == Proyecto.id)
         .filter(
-            Proyecto.tenant_id == usuario.tenant_id,
-            Proyecto.archivado.is_(False),
+            Tarea.tenant_id == usuario.tenant_id,
+            or_(Tarea.proyecto_id.is_(None), Proyecto.archivado.is_(False)),
             Tarea.asignado_a == usuario.id,
             Tarea.estado != "completada",
         )
@@ -178,9 +179,9 @@ def _mi_area(db: Session, usuario: User, ids_equipo: list[int], momento: datetim
     if ids_equipo:
         tareas_equipo = (
             db.query(Tarea)
-            .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
-            .filter(Proyecto.tenant_id == usuario.tenant_id,
-                    Proyecto.archivado.is_(False),
+            .outerjoin(Proyecto, Tarea.proyecto_id == Proyecto.id)
+            .filter(Tarea.tenant_id == usuario.tenant_id,
+                    or_(Tarea.proyecto_id.is_(None), Proyecto.archivado.is_(False)),
                     Tarea.asignado_a.in_(ids_equipo),
                     Tarea.estado != "completada")
             .all()

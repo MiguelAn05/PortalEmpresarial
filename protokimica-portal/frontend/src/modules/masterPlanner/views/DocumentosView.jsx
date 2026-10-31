@@ -20,7 +20,7 @@ function Ficha({ ficha, accion, onSelectTarea }) {
   return (
     <li className="bg-white rounded-xl shadow-sm border border-borde p-4 flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0 space-y-1">
-        <p className="text-xs uppercase tracking-wide text-texto-3">{ficha.proyecto_nombre}</p>
+        <p className="text-xs uppercase tracking-wide text-texto-3">{ficha.proyecto_nombre || "Sin proyecto"}</p>
         <button onClick={() => onSelectTarea({ id: ficha.tarea_id })} className="text-left font-semibold text-texto hover:text-acento">
           {ficha.titulo}
         </button>

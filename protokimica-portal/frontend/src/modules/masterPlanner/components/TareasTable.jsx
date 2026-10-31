@@ -2,7 +2,7 @@ import StatusBadge from "./StatusBadge"
 import PriorityBadge from "./PriorityBadge"
 import Avatar from "./Avatar"
 import { ChipDocumento } from "./DocumentoPanel"
-import { ALERTAS, alertaVencimiento, colorAvance, estadoDocumentoDeTarea, formatFecha, formatFechaHora } from "../constants"
+import { ALERTAS, alertaVencimiento, colorAvance, estadoDocumentoDeTarea, formatFecha, formatFechaHora, nombreProyecto } from "../constants"
 import { IconoTarea } from '../../../core/components/Iconos.jsx'
 
 export default function TareasTable({ tareas, onSelect, mostrarProyecto = true }) {
@@ -44,7 +44,7 @@ export default function TareasTable({ tareas, onSelect, mostrarProyecto = true }
                       <div>
                         <p className="font-semibold text-acento-fuerte">{tarea.titulo}</p>
                         <p className="text-xs text-borde-fuerte">
-                          {mostrarProyecto && tarea.proyecto_nombre}
+                          {mostrarProyecto && nombreProyecto(tarea)}
                           {tarea.total_subtareas > 0 && (
                             <span className={mostrarProyecto ? 'ml-2' : ''}>
                               <IconoTarea tam={12} className="inline mr-1 -mt-0.5" />{tarea.subtareas_completadas}/{tarea.total_subtareas}

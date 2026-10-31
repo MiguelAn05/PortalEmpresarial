@@ -44,7 +44,7 @@ indicadores: una subtarea es parte de su tarea, no otro compromiso.
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core import supervision
@@ -62,7 +62,7 @@ from app.models.user import User
 from app.modules.master_planner import actividades as act
 from app.modules.master_planner.cierre import CANCELADO, FINALIZADO
 from app.modules.master_planner.permisos import (
-    aplicar_filtro_actividades, aplicar_filtro_proyectos, condicion_area,
+    aplicar_filtro_actividades, aplicar_filtro_proyectos, aplicar_filtro_tareas, condicion_area,
     puede_ver_presupuesto, ve_todo,
 )
 from app.modules.master_planner.resumen import (
@@ -184,18 +184,24 @@ def _dias_movidos(fila: HistorialCambio) -> int:
     return max(0, (despues - antes).days)
 
 
-def _aplazamientos(db: Session, ids: list[int], desde_utc: datetime) -> list[HistorialCambio]:
+def _aplazamientos(db: Session, ids: list[int], desde_utc: datetime,
+                   ids_sueltas: list[int] = ()) -> list[HistorialCambio]:
     """
     Los movimientos de fecha de proyectos y tareas desde `desde_utc`. Solo los
     de verdad: poner una fecha por primera vez no es aplazar nada (misma regla
-    que `Tarea.veces_aplazada`).
+    que `Tarea.veces_aplazada`). `ids_sueltas` son las tareas sin proyecto:
+    su historial no tiene proyecto por el cual encontrarlo.
     """
-    if not ids:
+    if not ids and not ids_sueltas:
         return []
     return (
         db.query(HistorialCambio)
         .filter(
-            HistorialCambio.proyecto_id.in_(ids),
+            or_(
+                HistorialCambio.proyecto_id.in_(ids),
+                and_(HistorialCambio.proyecto_id.is_(None), HistorialCambio.entidad == "tarea",
+                     HistorialCambio.entidad_id.in_(list(ids_sueltas))),
+            ),
             HistorialCambio.fecha >= desde_utc,
             HistorialCambio.valor_anterior.isnot(None),
             (
@@ -564,6 +570,16 @@ def construir(db: Session, usuario: User, desde: date | None = None, hasta: date
         .filter(Tarea.proyecto_id.in_(ids), Tarea.parent_id.is_(None))
         .all()
     ) if ids else []
+    # Las tareas sin proyecto cuentan en compromisos, entregas, aplazamientos
+    # y personas, con la misma regla de quién las ve que la lista. Con un
+    # área elegida, las de esa área: su área es lo único que las ubica.
+    sueltas_q = aplicar_filtro_tareas(
+        db.query(Tarea).options(joinedload(Tarea.asignado))
+        .filter(Tarea.tenant_id == usuario.tenant_id, Tarea.proyecto_id.is_(None), Tarea.parent_id.is_(None)),
+        usuario,
+    )
+    sueltas = (sueltas_q.filter(Tarea.area == area) if area else sueltas_q).all()
+    tareas = tareas + sueltas
 
     # ── Compromisos y entregas ──
     compromisos = _del_periodo(tareas, ini, fin)
@@ -573,7 +589,7 @@ def construir(db: Session, usuario: User, desde: date | None = None, hasta: date
     entregas_ant = _entregas(tareas, ant_ini, ant_fin)
 
     # ── Aplazamientos del periodo y del anterior ──
-    movimientos = _aplazamientos(db, ids, ant_ini)
+    movimientos = _aplazamientos(db, ids, ant_ini, [t.id for t in sueltas])
     aplazos = [h for h in movimientos if _en(h.fecha, ini, fin)]
     aplazos_ant = [h for h in movimientos if _en(h.fecha, ant_ini, ant_fin)]
     por_tarea = {t.id: t for t in tareas}

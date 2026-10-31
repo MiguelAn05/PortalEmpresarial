@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text,
-    UniqueConstraint, func, select,
+    UniqueConstraint, event, func, select,
 )
 from sqlalchemy.orm import column_property, relationship
 
@@ -330,12 +330,24 @@ class Tarea(Base):
     Equivale a una 'Actividad' o 'Entregable/Tarea' del Excel — mismo
     modelo para ambos niveles, diferenciados por parent_id (permite
     subtareas si algún proyecto las necesita, sin forzarlo).
+
+    **El proyecto es opcional** (desde la 0.70). Una tarea suelta —el cierre
+    contable del mes, un documento que se aprueba— no tiene por qué
+    inventarse un proyecto. Sin proyecto, el ÁREA es obligatoria: es lo único
+    que dice a quién se le cuenta en indicadores y en el informe, y qué líder
+    la ve (ver `permisos.condicion_tareas_visibles`).
     """
     __tablename__ = "mp_tareas"
 
     id = Column(Integer, primary_key=True, index=True)
-    proyecto_id = Column(Integer, ForeignKey("mp_proyectos.id"), nullable=False, index=True)
+    # La empresa se guarda en la tarea: antes salía del proyecto, y una tarea
+    # suelta no tiene de dónde sacarla.
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    proyecto_id = Column(Integer, ForeignKey("mp_proyectos.id"), nullable=True, index=True)
     parent_id = Column(Integer, ForeignKey("mp_tareas.id"), nullable=True, index=True)
+    # Quien la creó la sigue viendo aunque se la asigne a otro (como en las
+    # actividades diarias). Nulo en las anteriores a la 0.70.
+    creado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     titulo = Column(String(200), nullable=False)
     descripcion = Column(Text, nullable=True)
@@ -500,9 +512,10 @@ class HistorialCambio(Base):  # noqa: E303
     # Cómo se llamaba en ese momento. Denormalizado para que el historial
     # siga siendo legible si después se renombra o se borra la tarea.
     entidad_nombre = Column(String(200), nullable=True)
-    # Siempre presente, incluso para tareas: permite filtrar todo el historial
-    # de un proyecto (el suyo y el de sus tareas) con una sola consulta.
-    proyecto_id = Column(Integer, ForeignKey("mp_proyectos.id"), nullable=False, index=True)
+    # El proyecto de la tarea, para filtrar todo el historial de un proyecto
+    # (el suyo y el de sus tareas) con una sola consulta. Nulo en el de una
+    # tarea sin proyecto.
+    proyecto_id = Column(Integer, ForeignKey("mp_proyectos.id"), nullable=True, index=True)
 
     campo = Column(String(50), nullable=False)
     valor_anterior = Column(Text, nullable=True)
@@ -925,6 +938,11 @@ class ObservacionDocumento(Base):
     pagina = Column(Integer, nullable=True)
     pos_x = Column(Float, nullable=True)
     pos_y = Column(Float, nullable=True)
+    # Un RECUADRO en vez de un punto (desde la 0.71): `pos_x`/`pos_y` son su
+    # esquina de arriba a la izquierda y estos dos su tamaño, también como
+    # fracción de la página. Nulos = es un punto.
+    ancho = Column(Float, nullable=True)
+    alto = Column(Float, nullable=True)
     hoja = Column(String(100), nullable=True)
     celda = Column(String(12), nullable=True)
     texto = Column(Text, nullable=False)
@@ -943,6 +961,19 @@ class ObservacionDocumento(Base):
     @property
     def usuario_nombre(self):
         return self.usuario.nombre if self.usuario else None
+
+
+@event.listens_for(Tarea, "before_insert")
+def _empresa_desde_el_proyecto(mapper, connection, tarea):
+    """
+    Una tarea con proyecto toma la empresa de su proyecto si nadie se la
+    puso: así ningún camino que la cree —el router, un script, una prueba—
+    puede dejarla sin empresa. La que no tiene proyecto la trae siempre.
+    """
+    if tarea.tenant_id is None and tarea.proyecto_id is not None:
+        tarea.tenant_id = connection.execute(
+            select(Proyecto.tenant_id).where(Proyecto.id == tarea.proyecto_id)
+        ).scalar()
 
 
 # Si la tarea pide aprobación de documento. Viaja en el mismo SELECT de la

@@ -29,9 +29,16 @@ si no, desaparecería apenas se guarda (ver el router de proyectos).
 `admin` y `gerencia` ven todo sin filtro, y también quien aprueba o paga
 presupuestos (Administración y Tesorería en Protokimica): aprueban y
 desembolsan la plata de TODOS los proyectos.
+
+**Una tarea sin proyecto** (desde la 0.70) no tiene proyecto que mirar, así
+que se ve por las personas y por su área: quien la creó, su responsable,
+quien firma su documento, y el líder del área de la tarea —o quien supervisa
+esa área—. Es la misma idea que las actividades diarias, salvo que un agente
+del área NO la ve por ser del área: lo que ejecuta otro no es suyo. Una tarea
+con proyecto se sigue viendo exactamente como su proyecto.
 """
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.core import capacidades, supervision
@@ -222,6 +229,65 @@ def puede_ver_proyecto(db: Session, proyecto: Proyecto, usuario: User) -> bool:
         ).scalar())
 
     return False
+
+
+def _areas_que_responde(usuario: User) -> list[str]:
+    """
+    Las áreas por las que alguien responde: la suya si es líder, más las que
+    supervisa. A un agente no le cuenta la propia: ser del área no lo hace
+    responsable de lo que otro ejecuta.
+    """
+    if usuario.rol == "lider":
+        return supervision.areas_visibles(usuario)
+    return [a for a in usuario.areas_que_supervisa if a]
+
+
+def _tareas_que_revisa(usuario_id: int):
+    return select(RevisionPaso.tarea_id).where(RevisionPaso.revisor_id == usuario_id)
+
+
+def condicion_tareas_visibles(usuario: User):
+    """
+    Condición SQLAlchemy sobre `Tarea`, o None si el usuario ve todo.
+
+    Con proyecto, la tarea se ve si se ve su proyecto: la regla de siempre.
+    Sin proyecto, por las personas y por el área (ver el encabezado).
+    """
+    if ve_todo(usuario):
+        return None
+    condicion_proyecto = condicion_proyectos_visibles(usuario)
+    caminos_sueltas = [
+        Tarea.creado_por == usuario.id,
+        Tarea.asignado_a == usuario.id,
+        Tarea.id.in_(_tareas_que_revisa(usuario.id)),
+    ]
+    areas = _areas_que_responde(usuario)
+    if areas:
+        caminos_sueltas.append(Tarea.area.in_(areas))
+    return or_(
+        and_(Tarea.proyecto_id.isnot(None),
+             Tarea.proyecto_id.in_(select(Proyecto.id).where(condicion_proyecto))),
+        and_(Tarea.proyecto_id.is_(None), or_(*caminos_sueltas)),
+    )
+
+
+def aplicar_filtro_tareas(query, usuario: User):
+    """Añade el filtro de visibilidad a una consulta sobre `Tarea`."""
+    condicion = condicion_tareas_visibles(usuario)
+    return query if condicion is None else query.filter(condicion)
+
+
+def puede_ver_tarea(db: Session, tarea: Tarea, usuario: User) -> bool:
+    """La misma regla de la lista, para una tarea concreta."""
+    if tarea.proyecto is not None:
+        return puede_ver_proyecto(db, tarea.proyecto, usuario)
+    if ve_todo(usuario):
+        return True
+    if usuario.id in (tarea.creado_por, tarea.asignado_a):
+        return True
+    if any(p.revisor_id == usuario.id for p in tarea.revision_pasos):
+        return True
+    return bool(tarea.area) and tarea.area in _areas_que_responde(usuario)
 
 
 def puede_ver_presupuesto(proyecto: Proyecto, usuario: User) -> bool:

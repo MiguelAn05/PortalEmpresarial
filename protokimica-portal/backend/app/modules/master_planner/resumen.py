@@ -14,7 +14,7 @@ from app.core.fechas import con_zona
 from app.models.master_planner import Proyecto, Tarea, HistorialCambio
 from app.models.user import User
 from app.modules.master_planner.permisos import (
-    aplicar_filtro_proyectos, puede_ver_presupuesto, condicion_area,
+    aplicar_filtro_proyectos, aplicar_filtro_tareas, puede_ver_presupuesto, condicion_area,
 )
 
 SIN_AREA = "Sin área"
@@ -133,6 +133,15 @@ def construir_resumen(
             .filter(Tarea.proyecto_id.in_(ids_proyectos), Tarea.parent_id.is_(None))
             .all()
         )
+    # Más las tareas sin proyecto que esta persona ve: si no, la tarjeta de
+    # «vencidas» diría un número y la lista de tareas —que sí las trae—
+    # mostraría otro. Con área, las de esa área.
+    sueltas = aplicar_filtro_tareas(
+        db.query(Tarea).filter(Tarea.tenant_id == tenant_id, Tarea.proyecto_id.is_(None),
+                               Tarea.parent_id.is_(None)),
+        usuario,
+    )
+    tareas += (sueltas.filter(Tarea.area == area) if area else sueltas).all()
 
     ahora = _ahora()
     replan = _replanificaciones(db, tenant_id, ids_proyectos)

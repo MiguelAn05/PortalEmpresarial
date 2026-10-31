@@ -29,20 +29,24 @@ Reglas:
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core import hoja_calculo
 from app.core.archivos import ruta_documento_privado
+from app.core.dias_habiles import contar_habiles, hoy
+from app.core.fechas import con_zona
+from app.core.periodos import dia_local
 from app.models.master_planner import (
     DocumentoVersion, ObservacionDocumento, PlantillaRevision, PlantillaRevisionPaso,
     Proyecto, RevisionEvento, RevisionPaso, Tarea,
 )
+from app.core.config import settings
 from app.models.user import User
 from app.modules.master_planner.historial import instantanea, registrar_cambios, registrar_evento
 
-# La cadena con la que arranca una empresa. Se edita desde la base hasta que
-# llegue la pantalla de plantillas; una empresa sin contabilidad la ignora.
+# La cadena con la que arranca una empresa. Se edita en Administración ›
+# Cadenas de revisión; una empresa sin contabilidad la desactiva.
 PLANTILLAS_INICIALES = [
     {
         "nombre": "Revisión contable",
@@ -55,6 +59,9 @@ PLANTILLAS_INICIALES = [
 ROLES_QUE_NO_FIRMAN = {"lectura", "gerencia"}
 
 SUBCARPETA = "mp-documentos"
+
+# Atado a `MAX_PASOS_PLANTILLA` de masterPlanner/constants.js.
+MAX_PASOS_PLANTILLA = 5
 
 
 def ahora() -> datetime:
@@ -83,6 +90,79 @@ def plantillas_activas(db: Session, tenant_id: int) -> list[PlantillaRevision]:
         .order_by(PlantillaRevision.nombre)
         .all()
     )
+
+
+def plantillas_todas(db: Session, tenant_id: int) -> list[PlantillaRevision]:
+    """Las de Administración: también las desactivadas, para poder reactivarlas."""
+    sembrar_plantillas(db, tenant_id)
+    return (
+        db.query(PlantillaRevision)
+        .filter(PlantillaRevision.tenant_id == tenant_id)
+        .order_by(PlantillaRevision.activa.desc(), PlantillaRevision.nombre)
+        .all()
+    )
+
+
+def _limpio(texto: str | None) -> str:
+    return " ".join((texto or "").split())
+
+
+def guardar_plantilla(
+    db: Session, tenant_id: int, plantilla: PlantillaRevision | None, datos: dict,
+) -> PlantillaRevision:
+    """
+    Crea o edita una cadena. Editarla **no mueve los documentos que van en
+    camino**: cada tarea copió sus pasos al activar el flujo. Por eso no hay
+    que preguntar cuántas la usan antes de cambiarle un paso.
+
+    No se borra: se desactiva. Deja de ofrecerse en las tareas nuevas y las
+    que ya la copiaron siguen igual.
+    """
+    nombre = _limpio(datos.get("nombre"))
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Ponle un nombre a la cadena, por ejemplo «Revisión contable».")
+    otra = (
+        db.query(PlantillaRevision)
+        .filter(PlantillaRevision.tenant_id == tenant_id,
+                func.lower(PlantillaRevision.nombre) == nombre.lower(),
+                PlantillaRevision.id != (plantilla.id if plantilla else -1))
+        .first()
+    )
+    if otra:
+        raise HTTPException(status_code=409, detail=f"Ya hay una cadena llamada «{otra.nombre}». Usa otro nombre o edita esa.")
+
+    pasos = [_limpio(p) for p in datos.get("pasos") or []]
+    if not pasos or any(not p for p in pasos):
+        raise HTTPException(status_code=400, detail="Cada paso necesita el nombre de quien firma, por ejemplo «Contador».")
+    if len(pasos) > MAX_PASOS_PLANTILLA:
+        raise HTTPException(status_code=400, detail=f"Una cadena tiene máximo {MAX_PASOS_PLANTILLA} firmas.")
+    if len({p.lower() for p in pasos}) != len(pasos):
+        raise HTTPException(status_code=400, detail="Dos pasos con el mismo nombre no se distinguen en la tarea: cámbiale el nombre a uno.")
+
+    if plantilla is None:
+        plantilla = PlantillaRevision(tenant_id=tenant_id)
+        db.add(plantilla)
+    plantilla.nombre = nombre
+    plantilla.descripcion = _limpio(datos.get("descripcion")) or None
+    if datos.get("activa") is not None:
+        plantilla.activa = bool(datos["activa"])
+
+    # Se reescriben en su sitio: borrar y volver a crear choca con el orden
+    # en el mismo flush.
+    for i, nombre_paso in enumerate(pasos, start=1):
+        if i <= len(plantilla.pasos):
+            plantilla.pasos[i - 1].nombre = nombre_paso
+        else:
+            plantilla.pasos.append(PlantillaRevisionPaso(orden=i, nombre=nombre_paso))
+    del plantilla.pasos[len(pasos):]
+    return plantilla
+
+
+def serializar_plantilla(p: PlantillaRevision) -> dict:
+    return {
+        "id": p.id, "nombre": p.nombre, "descripcion": p.descripcion, "activa": p.activa,
+        "pasos": [{"orden": s.orden, "nombre": s.nombre} for s in p.pasos],
+    }
 
 
 # ── Lectura del estado ──────────────────────────────────────────
@@ -176,7 +256,7 @@ def configurar(
             detail="El documento está en revisión: espera a que lo aprueben o lo devuelvan para cambiar quién firma.",
         )
 
-    tenant_id = tarea.proyecto.tenant_id
+    tenant_id = tarea.tenant_id
     plantilla = (
         db.query(PlantillaRevision)
         .filter(PlantillaRevision.id == plantilla_id, PlantillaRevision.tenant_id == tenant_id)
@@ -404,14 +484,24 @@ def _ancla(version: DocumentoVersion, datos: dict) -> dict:
     de una hoja en un Excel, o nada (general). Cada tipo con lo suyo: un
     número de página en un Excel no apunta a ninguna parte.
     """
-    en_pagina = any(datos.get(k) is not None for k in ("pagina", "pos_x", "pos_y"))
+    en_pagina = any(datos.get(k) is not None for k in ("pagina", "pos_x", "pos_y", "ancho", "alto"))
     en_celda = any(datos.get(k) for k in ("hoja", "celda"))
     if en_pagina:
         if version.tipo != "pdf":
             raise HTTPException(status_code=400, detail="En un Excel la observación va en una celda, no en una página.")
         if datos.get("pagina") is None or datos.get("pos_x") is None or datos.get("pos_y") is None:
             raise HTTPException(status_code=400, detail="Un punto en el documento necesita su página y su lugar en ella.")
-        return {"pagina": datos["pagina"], "pos_x": datos["pos_x"], "pos_y": datos["pos_y"]}
+        ancla = {"pagina": datos["pagina"], "pos_x": datos["pos_x"], "pos_y": datos["pos_y"]}
+        # Un recuadro lleva los dos lados y no se sale de la página. El
+        # margen de 0,001 es el del redondeo de la pantalla, no un permiso.
+        ancho, alto = datos.get("ancho"), datos.get("alto")
+        if (ancho is None) != (alto is None):
+            raise HTTPException(status_code=400, detail="Un recuadro necesita su ancho y su alto.")
+        if ancho is not None:
+            if datos["pos_x"] + ancho > 1.001 or datos["pos_y"] + alto > 1.001:
+                raise HTTPException(status_code=400, detail="El recuadro se sale de la página. Vuelve a dibujarlo.")
+            ancla.update(ancho=ancho, alto=alto)
+        return ancla
     if en_celda:
         if version.tipo != "xlsx":
             raise HTTPException(status_code=400, detail="En un PDF la observación va en un punto de la página, no en una celda.")
@@ -455,6 +545,8 @@ def serializar_observacion(obs: ObservacionDocumento, tarea: Tarea, version: Doc
         "pagina": obs.pagina,
         "pos_x": obs.pos_x,
         "pos_y": obs.pos_y,
+        "ancho": obs.ancho,
+        "alto": obs.alto,
         "hoja": obs.hoja,
         "celda": obs.celda,
         "paso_nombre": obs.paso_nombre,
@@ -532,10 +624,9 @@ def pendientes(db: Session, tenant_id: int, usuario: User) -> dict:
     en_revision = (
         db.query(DocumentoVersion)
         .join(Tarea, DocumentoVersion.tarea_id == Tarea.id)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
         .join(RevisionPaso, (RevisionPaso.tarea_id == Tarea.id) & (RevisionPaso.orden == DocumentoVersion.paso_actual))
         .filter(
-            Proyecto.tenant_id == tenant_id,
+            Tarea.tenant_id == tenant_id,
             DocumentoVersion.estado == "en_revision",
             RevisionPaso.revisor_id == usuario.id,
         )
@@ -545,9 +636,8 @@ def pendientes(db: Session, tenant_id: int, usuario: User) -> dict:
     devueltas = (
         db.query(DocumentoVersion)
         .join(Tarea, DocumentoVersion.tarea_id == Tarea.id)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
         .filter(
-            Proyecto.tenant_id == tenant_id,
+            Tarea.tenant_id == tenant_id,
             DocumentoVersion.estado == "devuelta",
             Tarea.asignado_a == usuario.id,
         )
@@ -576,4 +666,108 @@ def pendientes(db: Session, tenant_id: int, usuario: User) -> dict:
         # Solo la última versión de cada tarea: una devuelta que ya tiene una
         # versión nueva ya se está corrigiendo.
         "por_corregir": [ficha(v) for v in devueltas if ultima_version(v.tarea) is v],
+    }
+
+
+# ── El recordatorio diario ──────────────────────────────────────
+
+def quien_lo_tiene(tarea: Tarea) -> tuple[User | None, str]:
+    """
+    De quién es el turno y qué le falta hacer. Un documento se traba en
+    cualquiera de las dos manos: sin subir, en quien lo prepara; en revisión,
+    en quien firma ese paso.
+    """
+    version = ultima_version(tarea)
+    if version is not None and version.estado == "en_revision":
+        paso = paso_en_turno(tarea, version)
+        return (paso.revisor if paso else None), (f"Firmarlo como {paso.nombre}" if paso else "Firmarlo")
+    if version is not None and version.estado == "devuelta":
+        return tarea.asignado, "Corregir lo que te señalaron y subir la versión nueva"
+    if version is not None and version.estado == "borrador":
+        return tarea.asignado, "Enviarlo a revisión: está subido pero sin enviar"
+    return tarea.asignado, "Subir el documento y enviarlo a revisión"
+
+
+def _alcanzable(usuario: User | None) -> bool:
+    return bool(usuario and usuario.activo and usuario.email)
+
+
+def por_vencer(db: Session, tenant_id: int, dias: int = 2) -> dict:
+    """
+    Los documentos sin aprobar cuya tarea vence dentro de `dias` días
+    hábiles, o ya venció, agrupados por QUIEN TIENE EL TURNO y con su correo.
+    n8n solo recorre y manda: a cada quien lo suyo.
+
+    Lo que no tiene a quién llegar **no se descarta**: si quien tiene el
+    turno no está activo o no tiene correo, va al líder del proyecto, y si
+    tampoco, a los administradores — diciendo en nombre de quién.
+    """
+    hoy_ = hoy()
+    tareas = (
+        db.query(Tarea)
+        .outerjoin(Proyecto, Tarea.proyecto_id == Proyecto.id)
+        .filter(Tarea.tenant_id == tenant_id,
+                or_(Tarea.proyecto_id.is_(None), Proyecto.archivado.is_(False)),
+                Tarea.estado != "completada",
+                Tarea.fecha_fin.isnot(None),
+                Tarea.requiere_revision)
+        .all()
+    )
+    admins = None
+    grupos: dict[int, dict] = {}
+    for tarea in tareas:
+        version = ultima_version(tarea)
+        if version is not None and version.estado == "aprobada":
+            continue
+        vence = dia_local(con_zona(tarea.fecha_fin))
+        vencido = vence < hoy_
+        restantes = -contar_habiles(vence, hoy_) if vencido else contar_habiles(hoy_, vence)
+        if not vencido and restantes > dias:
+            continue
+
+        dueno, que_falta = quien_lo_tiene(tarea)
+        destinatarios, en_nombre_de = [dueno], None
+        if not _alcanzable(dueno):
+            en_nombre_de = (dueno.nombre if dueno else "nadie asignado")
+            lider = tarea.proyecto.lider if tarea.proyecto else None
+            if _alcanzable(lider):
+                destinatarios = [lider]
+            else:
+                if admins is None:
+                    admins = (db.query(User)
+                              .filter(User.tenant_id == tenant_id, User.rol == "admin", User.activo.is_(True))
+                              .all())
+                destinatarios = [a for a in admins if a.email]
+
+        ficha = {
+            "tarea_id": tarea.id,
+            "titulo": tarea.titulo,
+            "proyecto": tarea.proyecto_nombre,
+            "estado": version.estado if version else "sin_documento",
+            "que_falta": que_falta,
+            "en_nombre_de": en_nombre_de,
+            "fecha_fin": iso(tarea.fecha_fin),
+            "dias_habiles": restantes,            # negativo = vencido
+            "vencido": vencido,
+            "link": (f"{settings.FRONTEND_URL}/master-planner/documento/{version.id}" if version
+                     else f"{settings.FRONTEND_URL}/master-planner?tarea={tarea.id}"),
+        }
+        for usuario in destinatarios:
+            grupo = grupos.setdefault(usuario.id, {
+                "email": usuario.email, "nombre": usuario.nombre, "documentos": [],
+            })
+            grupo["documentos"].append(ficha)
+
+    salida = []
+    for grupo in grupos.values():
+        grupo["documentos"].sort(key=lambda f: f["dias_habiles"])
+        grupo["vencidos"] = sum(1 for f in grupo["documentos"] if f["vencido"])
+        grupo["por_vencer"] = len(grupo["documentos"]) - grupo["vencidos"]
+        salida.append(grupo)
+    salida.sort(key=lambda g: (-g["vencidos"], -g["por_vencer"], g["nombre"]))
+    return {
+        "generado_en": iso(ahora()),
+        "dias": dias,
+        "total_personas": len(salida),
+        "destinatarios": salida,
     }

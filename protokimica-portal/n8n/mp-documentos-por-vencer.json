@@ -1,0 +1,162 @@
+{
+  "name": "Master Planner · documentos por vencer",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 7 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "cron-mp-documentos",
+      "name": "Cada mañana hábil",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "7:30 a.m. de lunes a viernes, después de los avisos de PQRS. Los plazos se cuentan en días hábiles."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8000/auth/login",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"tenant_slug\": \"protokimica\",\n  \"email\": \"automatizaciones@protokimica.com\",\n  \"password\": \"CAMBIAR-POR-LA-CLAVE-DEL-USUARIO-DE-SERVICIO\"\n}",
+        "options": {}
+      },
+      "id": "login-mp-documentos",
+      "name": "Entrar al portal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "Usa el usuario de servicio, nunca la cuenta de una persona."
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/master-planner/revisiones/por-vencer",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "dias",
+              "value": "2"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "consulta-mp-documentos",
+      "name": "Consultar los documentos por vencer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "dias=2: los que vencen en dos días hábiles o menos, y los ya vencidos. Vienen agrupados por quien tiene el turno —quien firma si está en revisión, quien lo prepara si no— y con su correo."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "destinatarios",
+        "options": {}
+      },
+      "id": "split-mp-documentos",
+      "name": "Una fila por persona",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ],
+      "notes": "Si no hay nada por vencer, esto no produce filas y el flujo termina sin mandar nada."
+    },
+    {
+      "parameters": {
+        "fromEmail": "recepcion@protokimica.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "=Documentos por aprobar · {{ $json.vencidos > 0 ? $json.vencidos + ' vencido' + ($json.vencidos === 1 ? '' : 's') : $json.por_vencer + ' por vencer' }}",
+        "emailFormat": "html",
+        "html": "=<!doctype html>\n<html><body style=\"margin:0;padding:24px;background:#F3F6FB;\n  font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#121A2B\">\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"\n  style=\"max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E2E8F2;\n  border-radius:12px;overflow:hidden\">\n  <tr><td style=\"padding:20px 24px;border-bottom:1px solid #E2E8F2\">\n    <span style=\"font-size:15px;font-weight:600;color:#0D2B5E\">Protokimica</span>\n    <span style=\"font-size:13px;color:#55607A\"> · Portal de gestión</span>\n  </td></tr>\n  <tr><td style=\"padding:24px 24px 8px 24px\">\n    <h1 style=\"margin:0 0 6px 0;font-size:19px;font-weight:600\">Documentos que esperan por ti</h1>\n    <div style=\"font-size:14px;line-height:1.55;color:#55607A\">\n      {{ $json.vencidos > 0 ? $json.vencidos + ' ya pasaron su fecha' + ($json.por_vencer > 0 ? ' y ' + $json.por_vencer + ' vencen en los próximos días hábiles' : '') : 'Estos vencen en los próximos días hábiles' }}. Cada uno dice qué le falta.\n    </div>\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top:16px;border-collapse:collapse\">\n      {{ $json.documentos.map(d => '<tr><td style=\"padding:10px 0;border-bottom:1px solid #EFF3F9\"><div style=\"font-size:14px;font-weight:600;color:#0D2B5E\"><a href=\"' + d.link + '\" style=\"color:#0D2B5E\">' + d.titulo + '</a></div><div style=\"font-size:13px;color:#55607A\">' + d.proyecto + ' · ' + d.que_falta + (d.en_nombre_de ? ' (te llega porque ' + d.en_nombre_de + ' no está disponible)' : '') + '</div><div style=\"font-size:13px;font-weight:600;color:' + (d.vencido ? '#B32E2E' : '#8A5D00') + '\">' + (d.vencido ? 'Venció hace ' + (-d.dias_habiles) + ' día' + (d.dias_habiles === -1 ? '' : 's') + ' hábil' + (d.dias_habiles === -1 ? '' : 'es') : (d.dias_habiles === 0 ? 'Vence hoy' : 'Vence en ' + d.dias_habiles + ' día' + (d.dias_habiles === 1 ? '' : 's') + ' hábil' + (d.dias_habiles === 1 ? '' : 'es'))) + '</div></td></tr>').join('') }}\n    </table>\n  </td></tr>\n  <tr><td style=\"padding:8px 24px 24px 24px\">\n    <a href=\"https://portal.protokimica.com/master-planner?vista=documentos\" style=\"display:inline-block;background:#0D2B5E;color:#ffffff;\n       text-decoration:none;padding:12px 22px;border-radius:8px;\n       font-weight:600;font-size:14px\">Abrir mis documentos</a>\n  </td></tr>\n  <tr><td style=\"padding:16px 24px;border-top:1px solid #E2E8F2;\n    font-size:12px;color:#8A93A9\">\n    Este mensaje es automático, no hace falta responderlo.\n  </td></tr>\n</table></body></html>",
+        "options": {}
+      },
+      "id": "correo-mp-documentos",
+      "name": "Avisar a quien lo tiene",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        0
+      ],
+      "notes": "Cada quien recibe SOLO los suyos. Si quien tiene el turno no está activo, el portal ya lo mandó al líder del proyecto (o a los administradores) y el correo dice en nombre de quién."
+    }
+  ],
+  "connections": {
+    "Cada mañana hábil": {
+      "main": [
+        [
+          {
+            "node": "Entrar al portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entrar al portal": {
+      "main": [
+        [
+          {
+            "node": "Consultar los documentos por vencer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar los documentos por vencer": {
+      "main": [
+        [
+          {
+            "node": "Una fila por persona",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Una fila por persona": {
+      "main": [
+        [
+          {
+            "node": "Avisar a quien lo tiene",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

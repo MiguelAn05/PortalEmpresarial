@@ -7,6 +7,7 @@ import Canales from './Canales.jsx'
 import Bodegas from './Bodegas.jsx'
 import Asociados from './Asociados.jsx'
 import FlujosPQRS from './FlujosPQRS.jsx'
+import CadenasRevision from './CadenasRevision.jsx'
 import { estaContratado } from '../../core/modulos.js'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../core/useAuth.js'
@@ -650,6 +651,7 @@ export default function Admin() {
         {/* Solo con PQRS contratado: sin él, el endpoint responde 403. */}
         {estaContratado(user, 'pqrs') && <Asociados />}
         {estaContratado(user, 'pqrs') && <FlujosPQRS />}
+        {estaContratado(user, 'master_planner') && <CadenasRevision />}
         <TiposAutorizacion />
         <Capacidades />
         <CodigosQR />

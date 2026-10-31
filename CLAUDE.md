@@ -754,7 +754,8 @@ el Contador los revisa, la Revisora Fiscal los firma. La regla vive en
 pantalla `DocumentoPanel.jsx` (dentro de la tarea), `VisorDocumento.jsx`
 (`/master-planner/documento/:id`) y la pestaña «Documentos».
 
-- **No es un módulo: es una tarea con un paso más.** La fecha límite es
+- **No es un módulo: es una tarea con un paso más** —y la tarea puede no
+  tener proyecto (ver «Tareas sin proyecto»)—. La fecha límite es
   `fecha_fin` y la de finalización `fecha_completada`, que sella la última
   firma (`Tarea.sincronizar_cierre()`, que vivía en el router). Lo que se
   hace cada mes es **una tarea por mes**: «Repetir tarea» copia responsable,
@@ -763,8 +764,12 @@ pantalla `DocumentoPanel.jsx` (dentro de la tarea), `VisorDocumento.jsx`
 - **La plantilla dice QUÉ pasos; la tarea, QUIÉN** (`mp_plantillas_revision`
   se siembra sola con «Revisión contable»: Contador → Revisora Fiscal). Al
   activar se COPIA a `mp_revision_pasos`, como el flujo de PQRS. Una cadena
-  de un solo paso es otra plantilla, no un caso especial. Las plantillas
-  todavía no tienen pantalla.
+  de un solo paso es otra plantilla, no un caso especial. **Se administran
+  en Administración › Cadenas de revisión** (desde la 0.69,
+  `CadenasRevision.jsx`, solo `admin`): crear, cambiar los pasos y
+  desactivar; no se borran. Máximo `MAX_PASOS_PLANTILLA` (5) firmas, sin
+  nombres repetidos. Cambiar una no mueve lo que va en camino: cada tarea
+  copió la suya.
 - **El estado es el de la ÚLTIMA versión** (`borrador → en_revision →
   devuelta | aprobada`), sin un estado en la tarea que lo repita. Un
   borrador sin enviar se reemplaza; devolver cierra la versión, y la
@@ -786,7 +791,12 @@ pantalla `DocumentoPanel.jsx` (dentro de la tarea), `VisorDocumento.jsx`
   CONTENIDO (`core/archivos.tipo_de_documento`: `%PDF-` o un ZIP con
   `xl/workbook.xml`), nunca por la extensión. Tope 20 MB.
 - **Las observaciones se anclan con x/y de 0 a 1 sobre la página**, no en
-  píxeles: caen en el mismo punto con cualquier zoom. **En un Excel, a una
+  píxeles: caen en el mismo punto con cualquier zoom. **Arrastrar deja un
+  recuadro** (desde la 0.71): `ancho` y `alto`, también fracciones, con
+  (`pos_x`, `pos_y`) como su esquina superior izquierda; nulos es un punto.
+  `marcaEnPagina()` de `revision.js` decide: menos de `UMBRAL_ARRASTRE_PX`
+  de movimiento es un clic. El servidor exige los dos lados y que no se
+  salga de la página. **En un Excel, a una
   celda** (`hoja` + `celda`, desde la 0.68): la hoja por su NOMBRE —es como
   la busca quien corrige en su archivo— y el servidor rechaza una hoja que
   el libro no tiene. Cada tipo con lo suyo (`revision._ancla`): página en un
@@ -820,6 +830,21 @@ pantalla `DocumentoPanel.jsx` (dentro de la tarea), `VisorDocumento.jsx`
   constancia de qué se aprobó.
 - Una tarea con un documento ya enviado no se borra (409), y el flujo no se
   quita una vez que algo pasó por revisión.
+- **Los avisos son UN evento, `mp-documento`** (desde la 0.69), como
+  `nc-en-turno`: `notificaciones.avisos_documento` lee en qué estado quedó la
+  versión y redacta `asunto` y `que_hacer` —en revisión, a quien firma;
+  devuelta, a quien la preparó con el comentario; aprobada, a quien la
+  preparó con el líder en copia—. Si quien la preparó no tiene correo
+  activo, va al líder. El flujo sale de `backend/n8n/generar_flujos.py`, y
+  el correo lleva al VISOR, nunca al archivo.
+- **El recordatorio diario** (`n8n/mp-documentos-por-vencer.json`, 7:30
+  a. m. hábil) contra `GET /master-planner/revisiones/por-vencer?dias=2`
+  (`revision.por_vencer`): los documentos sin aprobar que vencen en esos
+  días hábiles o ya vencieron, agrupados por **quien tiene el turno**
+  (`quien_lo_tiene`: quien firma si está en revisión; si no, quien la
+  prepara) y con lo que le falta. Si esa persona no está activa va al líder
+  del proyecto y, sin líder, a los administradores, diciendo en nombre de
+  quién: lo que no tiene a quién llegar no se descarta.
 
 **Master Planner — el informe gerencial** (`/master-planner/informe`, botón
 «Generar informe», desde la 0.61). Lo calcula `master_planner/informe.py` y
@@ -1043,6 +1068,36 @@ que le esconde a alguien lo suyo.
 - `User.areas_supervisadas` se carga con `lazy="selectin"`: perezosa reventaba
   con `DetachedInstanceError` cuando la sesión que trajo al usuario ya se
   cerró, que es justo lo que hace la dependencia de sesión en cada petición.
+**Master Planner — tareas sin proyecto** (desde la 0.70). Una tarea suelta
+—el cierre contable del mes, un documento que se aprueba— no tiene por qué
+inventarse un proyecto: `mp_tareas.proyecto_id` (y el de `mp_historial`)
+aceptan nulo. Reglas:
+
+- **Sin proyecto, el área es obligatoria** (`_exigir_area_si_es_suelta` en
+  el router, al crear y al editar): es lo único que dice qué líder la ve y a
+  quién se le cuenta en indicadores e informe.
+- **La tarea guarda su empresa** (`mp_tareas.tenant_id`): antes salía del
+  proyecto. Todo lo que busca una tarea filtra por `Tarea.tenant_id` y hace
+  `outerjoin` a `Proyecto`, con «archivado» como `or_(sin proyecto, no
+  archivado)`. Un evento `before_insert` se la pone desde el proyecto si
+  nadie lo hizo.
+- **Quién la ve** (`permisos.condicion_tareas_visibles` / `puede_ver_tarea`,
+  la UNA regla de la lista y del detalle): con proyecto, como su proyecto;
+  sin proyecto, quien la creó (`creado_por`), su responsable, quien firma su
+  documento, y el líder de su área o quien la supervisa
+  (`_areas_que_responde`). **Un agente del área NO la ve por ser del área**:
+  lo que ejecuta otro no es suyo.
+- **Cuenta en todos lados con su área**: lista y «mis tareas», resumen
+  (`tareas += sueltas`), informe (compromisos, entregas, aplazamientos por
+  `ids_sueltas`, personas), Inicio e indicadores (`_tareas_del_area` de
+  `fuentes_indicador.py`). En la pantalla, `filtrarTareas()` trata `de_area`
+  igual que el servidor —una suelta es del área que dice ella misma— y el
+  filtro de proyecto tiene `SIN_PROYECTO`.
+- Se crea por `POST /master-planner/tareas` (con `proyecto_id` opcional); la
+  ruta vieja `/proyectos/{id}/tareas` sigue sirviendo. El formulario
+  arranca en «Sin proyecto». Todavía **no se mueve** una tarea de un proyecto
+  a otro ni a «sin proyecto».
+
 **Visibilidad por participación (Master Planner; PQRS tiene la suya por
 punto de venta, ver arriba):** ves un proyecto si
 **lo lideras** o si **tienes una tarea asignada** dentro. Nada más. Ser del
@@ -1682,7 +1737,8 @@ petición: si Microsoft, n8n o el ERP están caídos, el portal sigue trabajando
 
 Los endpoints que alimentan recordatorios (`/pqrs/por-vencer`,
 `/indicadores/pendientes-de-registro`,
-`/master-planner/tareas-vencidas-por-persona`) devuelven la información **ya
+`/master-planner/tareas-vencidas-por-persona`,
+`/master-planner/revisiones/por-vencer`) devuelven la información **ya
 agrupada por destinatario y con el correo resuelto**. n8n solo recorre y manda.
 
 Dos razones: un correo que dice «tienes 3 pendientes» se atiende, y uno con la
@@ -1929,9 +1985,6 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
 - **`mp_proyectos_cerrados`** cuenta por `fecha_fin_real`, así que suma también
   los cancelados. Habría que separar los que se finalizaron de los que se
   abandonaron.
-- **Documentos que se aprueban: falta la fase 3.** La pantalla de
-  plantillas y los avisos de n8n (turno de cada firma, devuelto, aprobado, y
-  el recordatorio diario de los que vencen en dos días o ya vencieron).
 - Flujos de n8n: quedan las alertas de indicadores en rojo y el disparo mensual
   de `POST /indicadores/calcular-periodo` (necesita el usuario de servicio
   `automatizaciones@protokimica.com`).

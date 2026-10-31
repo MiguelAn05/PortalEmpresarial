@@ -78,7 +78,8 @@ export default function TareasView({ proyectos, usuarios, onSelectTarea, onNueva
       {filtros.de_area && (
         <div className="flex flex-wrap items-center justify-between gap-2 bg-acento-suave text-acento-fuerte text-sm rounded-xl px-4 py-2.5">
           <span>
-            Tareas de los proyectos de <strong>{filtros.de_area}</strong>, como responsable o participante.
+            Tareas de los proyectos de <strong>{filtros.de_area}</strong>, como responsable o participante,
+            y las sin proyecto de esa área.
           </span>
           <button onClick={() => setFiltros({ de_area: '' })} className="text-xs font-semibold hover:underline">
             Ver todas las áreas

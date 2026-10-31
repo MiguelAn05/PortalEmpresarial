@@ -11,7 +11,7 @@ excepciones y se llama después de guardar.
 """
 from app.core.config import settings
 from app.models.user import User
-from app.core.notificaciones import disparar_webhook_n8n
+from app.core.notificaciones import Aviso, disparar_webhook_n8n
 
 
 def _link_tarea(tarea_id: int) -> str:
@@ -97,3 +97,89 @@ def avisar_proyecto_cerrado(db, proyecto, acta) -> None:
         "presupuesto_pagado": float(acta.presupuesto_pagado or 0),
         "link_portal": _link_proyecto(proyecto.id),
     })
+
+
+# Un solo evento para todo lo que le pasa a un documento, como `nc-en-turno`
+# en Notas crédito: el asunto y qué hacer los redacta el backend, así que un
+# movimiento nuevo no obliga a construir, importar y activar otro flujo.
+EVENTO_DOCUMENTO = "mp-documento"
+
+# Los que se mandan como aviso armado (no como llamada suelta): la prueba de
+# `test_flujos_n8n.py` exige que cada uno tenga su flujo en `backend/n8n/`.
+EVENTOS = frozenset({EVENTO_DOCUMENTO})
+
+
+def _correo(usuario) -> bool:
+    return bool(usuario and usuario.activo and usuario.email)
+
+
+def avisos_documento(db, tarea, version) -> list[Aviso]:
+    """
+    El aviso del movimiento que acaba de pasar, leído del estado en que quedó
+    la versión:
+
+    - **en revisión** → a quien le toca firmar;
+    - **devuelta** → a quien la preparó, con el comentario y cuántas
+      observaciones tiene;
+    - **aprobada** → a quien la preparó, con el líder del proyecto en copia.
+
+    Si quien la preparó no tiene a dónde llegarle, va al líder: un documento
+    devuelto que nadie se entera de que volvió se queda quieto.
+    """
+    from app.modules.master_planner import revision
+
+    # Una tarea sin proyecto no tiene líder: el aviso va solo a su gente.
+    lider = tarea.proyecto.lider if tarea.proyecto else None
+    autor = tarea.asignado if _correo(tarea.asignado) else (lider if _correo(lider) else None)
+    ultimo = version.eventos[-1] if version.eventos else None
+    base = {
+        "tarea_id": tarea.id,
+        "titulo": tarea.titulo,
+        "proyecto": tarea.proyecto_nombre,
+        "documento": version.nombre_original,
+        "version": version.numero,
+        "quien": ultimo.usuario_nombre if ultimo else None,
+        "comentario": ((ultimo.comentario or "")[:500] if ultimo else ""),
+        "fecha_fin": tarea.fecha_fin.isoformat() if tarea.fecha_fin else None,
+        "link_portal": f"{settings.FRONTEND_URL}/master-planner/documento/{version.id}",
+        "en_copia": [],
+    }
+
+    if version.estado == "en_revision":
+        paso = revision.paso_en_turno(tarea, version)
+        if not paso or not _correo(paso.revisor):
+            return []
+        return [(EVENTO_DOCUMENTO, {
+            **base, "tipo": "turno", "paso": paso.nombre,
+            "destinatario": paso.revisor.email, "destinatario_nombre": paso.revisor.nombre,
+            "asunto": f"Documento para tu firma · {tarea.titulo}",
+            "que_hacer": f"Te toca revisarlo y firmarlo como {paso.nombre}. Si hay algo que corregir, "
+                         "márcalo en el documento y devuélvelo.",
+        })]
+
+    if version.estado == "devuelta":
+        if not autor:
+            return []
+        pendientes = sum(1 for o in version.observaciones if not o.atendida)
+        return [(EVENTO_DOCUMENTO, {
+            **base, "tipo": "devuelto", "paso": ultimo.paso_nombre if ultimo else None,
+            "observaciones": pendientes,
+            "destinatario": autor.email, "destinatario_nombre": autor.nombre,
+            "asunto": f"Te devolvieron el documento · {tarea.titulo}",
+            "que_hacer": (f"Tiene {pendientes} observaciones. " if pendientes else "")
+                         + "Corrígelo en tu archivo original y sube la versión nueva desde la tarea: "
+                           "vuelve a empezar por la primera firma.",
+        })]
+
+    if version.estado == "aprobada":
+        if not autor:
+            return []
+        copia = [lider.email] if _correo(lider) and lider.id != autor.id else []
+        return [(EVENTO_DOCUMENTO, {
+            **base, "tipo": "aprobado", "paso": ultimo.paso_nombre if ultimo else None,
+            "destinatario": autor.email, "destinatario_nombre": autor.nombre, "en_copia": copia,
+            "asunto": f"Documento aprobado · {tarea.titulo}",
+            "que_hacer": "Pasó todas las firmas y la tarea quedó cumplida. No hace falta hacer nada más.",
+        })]
+
+    return []

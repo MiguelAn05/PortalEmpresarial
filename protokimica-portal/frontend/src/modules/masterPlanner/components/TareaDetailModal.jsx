@@ -17,7 +17,7 @@ import { mensajeDeError } from "../../../core/errores.js"
 import {
   IconoAlerta, IconoCerrar, IconoClip,
 } from '../../../core/components/Iconos.jsx'
-import { ESTADOS_TAREA, PRIORIDADES, ALERTAS, alertaVencimiento, colorAvance, formatFecha, formatFechaHora, isoADatetimeLocal, datetimeLocalAIso, puedeEditar, puedeReportarAvance, puedeComentar, MAX_ENTREGABLE, MAX_HORAS, textoAplazamientos, textoHoras, unMesDespues } from "../constants"
+import { ESTADOS_TAREA, PRIORIDADES, ALERTAS, alertaVencimiento, colorAvance, formatFecha, formatFechaHora, isoADatetimeLocal, datetimeLocalAIso, puedeEditar, puedeReportarAvance, puedeComentar, MAX_ENTREGABLE, MAX_HORAS, nombreProyecto, textoAplazamientos, textoHoras, unMesDespues } from "../constants"
 import { useAreas } from '../../../core/areas.js'
 
 // Qué campos del formulario se confirman antes de guardar y cómo leer su
@@ -383,7 +383,7 @@ export default function TareaDetailModal({ tareaId, usuarios = [], onClose, onAb
           <>
             <div className="bg-gradient-to-r from-acento-fuerte to-acento rounded-t-2xl p-6 text-white sticky top-0 z-10">
               <button onClick={intentarCerrarModal} aria-label="Cerrar" className="absolute top-4 right-4 text-white/70 hover:text-white"><IconoCerrar tam={18} /></button>
-              <p className="text-xs uppercase tracking-wide text-white/70 mb-1">{tarea.proyecto_nombre}</p>
+              <p className="text-xs uppercase tracking-wide text-white/70 mb-1">{nombreProyecto(tarea)}</p>
               <h2 className="text-xl font-bold pr-8">{tarea.titulo}</h2>
             </div>
 

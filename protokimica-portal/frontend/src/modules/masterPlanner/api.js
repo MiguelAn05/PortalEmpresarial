@@ -89,8 +89,10 @@ export const listarTareasDeProyecto = (proyectoId) =>
 export const obtenerTarea = (id) =>
   api.get(`/master-planner/tareas/${id}`).then(r => r.data)
 
+// Con proyecto o sin él (desde la 0.70). Sin proyecto el área es obligatoria.
 export const crearTarea = (proyectoId, payload) =>
-  api.post(`/master-planner/proyectos/${proyectoId}/tareas`, payload).then(r => r.data)
+  api.post('/master-planner/tareas', { ...payload, proyecto_id: proyectoId ? Number(proyectoId) : null })
+    .then(r => r.data)
 
 export const crearSubtarea = (tareaId, payload) =>
   api.post(`/master-planner/tareas/${tareaId}/subtareas`, payload).then(r => r.data)

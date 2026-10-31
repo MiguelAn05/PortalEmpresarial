@@ -12,7 +12,10 @@ revisa y la Revisora Fiscal los firma. Lo que se prueba:
 - el archivo solo lo baja quien ve la tarea, y sin caché;
 - «Repetir tarea» copia los revisores y deja atrás el documento;
 - un Excel se lee en pantalla y sus observaciones van en una celda;
-- las tarjetas traen el estado del documento, y hay dos indicadores.
+- las tarjetas traen el estado del documento, y hay dos indicadores;
+- las cadenas se administran sin mover los documentos en camino;
+- cada movimiento avisa a quien le toca, y el recordatorio diario va a
+  quien tiene el turno.
 
 Se prueba con lo que manda la pantalla: multipart con `archivo` y JSON.
 """
@@ -408,3 +411,184 @@ def test_repetir_copia_los_revisores_y_no_el_documento(portal, v):
     v.check("con los mismos revisores",
             [p["revisor_id"] for p in rev["pasos"]] == [portal.ids["calidad"], portal.ids["revisora"]], rev)
     v.check("y sin el documento del mes anterior", rev["versiones"] == [] and rev["estado"] == "sin_documento", rev)
+
+
+def test_las_cadenas_se_administran_sin_mover_lo_que_va_en_camino(portal, v):
+    plantilla = _plantilla(portal)
+    P = _proyecto(portal)
+    T = _tarea_con_flujo(portal, P, plantilla).json()["id"]
+
+    portal.como("calidad")
+    r = portal.post("/master-planner/plantillas-revision", json={"nombre": "Solo contador", "pasos": ["Contador"]})
+    v.check("solo un administrador crea cadenas", r.status_code == 403, r.text)
+    v.check("ni ve las desactivadas",
+            portal.get("/master-planner/plantillas-revision?todas=true").status_code == 403)
+
+    portal.como("admin")
+    r = portal.post("/master-planner/plantillas-revision", json={"nombre": "  Solo   contador ", "pasos": ["Contador"]})
+    v.check("una cadena de un solo paso es otra plantilla", r.status_code == 201, r.text)
+    v.check("con el nombre limpio", r.json()["nombre"] == "Solo contador", r.json())
+    r = portal.post("/master-planner/plantillas-revision", json={"nombre": "solo CONTADOR", "pasos": ["Contador"]})
+    v.check("dos con el mismo nombre no", r.status_code == 409, r.text)
+    r = portal.post("/master-planner/plantillas-revision", json={"nombre": "Larga", "pasos": [f"P{i}" for i in range(6)]})
+    v.check("más de cinco firmas no", r.status_code == 400, r.text)
+    r = portal.post("/master-planner/plantillas-revision", json={"nombre": "Repetida", "pasos": ["Contador", "contador"]})
+    v.check("dos pasos con el mismo nombre no", r.status_code == 400, r.text)
+    r = portal.post("/master-planner/plantillas-revision", json={"nombre": "Vacía", "pasos": []})
+    v.check("sin pasos no", r.status_code == 422, r.text)
+
+    r = portal.put(f"/master-planner/plantillas-revision/{plantilla['id']}", json={
+        "nombre": "Revisión contable", "pasos": ["Contadora", "Revisoría Fiscal", "Gerencia"],
+    })
+    v.check("se le cambian y se le agregan pasos", r.status_code == 200, r.text)
+    v.check("en orden", [p["nombre"] for p in r.json()["pasos"]] == ["Contadora", "Revisoría Fiscal", "Gerencia"], r.json())
+    v.check("la tarea que ya la había copiado sigue igual",
+            [p["nombre"] for p in _revision(portal, T)["pasos"]] == ["Contador", "Revisora Fiscal"])
+    r = portal.put(f"/master-planner/plantillas-revision/{plantilla['id']}", json={
+        "nombre": "Revisión contable", "pasos": ["Contador"],
+    })
+    v.check("y se le quitan", [p["nombre"] for p in r.json()["pasos"]] == ["Contador"], r.json())
+
+    solo = next(p for p in portal.get("/master-planner/plantillas-revision").json() if p["nombre"] == "Solo contador")
+    portal.put(f"/master-planner/plantillas-revision/{solo['id']}", json={
+        "nombre": "Solo contador", "pasos": ["Contador"], "activa": False,
+    })
+    v.check("desactivada no se ofrece en las tareas",
+            "Solo contador" not in [p["nombre"] for p in portal.get("/master-planner/plantillas-revision").json()])
+    todas = portal.get("/master-planner/plantillas-revision?todas=true").json()
+    v.check("pero Administración la sigue viendo para reactivarla",
+            any(p["nombre"] == "Solo contador" and p["activa"] is False for p in todas), todas)
+
+
+@pytest.fixture
+def avisos(monkeypatch):
+    enviados = []
+    monkeypatch.setattr("app.core.notificaciones.disparar_webhook_n8n",
+                        lambda evento, payload: enviados.append((evento, payload)))
+    return enviados
+
+
+def test_cada_movimiento_avisa_a_quien_le_toca(portal, avisos, v):
+    plantilla = _plantilla(portal)
+    P = _proyecto(portal)
+    T = _tarea_con_flujo(portal, P, plantilla).json()["id"]
+    portal.como("logistica")
+    _subir(portal, T)
+    v1 = portal.post(f"/master-planner/tareas/{T}/documentos/enviar", json={}).json()["versiones"][0]["id"]
+
+    evento, aviso = avisos[-1]
+    v.check("al enviarlo, el aviso es del documento", evento == "mp-documento", evento)
+    v.check("y le llega al Contador", (aviso["tipo"], aviso["destinatario"]) == ("turno", "calidad@p.com"), aviso)
+    v.check("diciendo qué le toca", "Contador" in aviso["que_hacer"], aviso["que_hacer"])
+    v.check("con el enlace al visor, no al archivo", aviso["link_portal"].endswith(f"/master-planner/documento/{v1}"), aviso)
+
+    portal.como("calidad")
+    portal.post(f"/master-planner/documentos/{v1}/responder", json={"decision": "devolver", "comentario": "Falta el anexo"})
+    evento, aviso = avisos[-1]
+    v.check("al devolverlo le llega a quien lo preparó",
+            (aviso["tipo"], aviso["destinatario"]) == ("devuelto", "logistica@p.com"), aviso)
+    v.check("con el comentario", aviso["comentario"] == "Falta el anexo", aviso)
+
+    portal.como("logistica")
+    _subir(portal, T, nombre="v2.pdf")
+    v2 = portal.post(f"/master-planner/tareas/{T}/documentos/enviar", json={}).json()["versiones"][0]["id"]
+    portal.como("calidad")
+    portal.post(f"/master-planner/documentos/{v2}/responder", json={"decision": "aprobar"})
+    v.check("al aprobar un paso, le llega al siguiente",
+            (avisos[-1][1]["tipo"], avisos[-1][1]["destinatario"]) == ("turno", "revisora@p.com"), avisos[-1])
+    portal.como("revisora")
+    portal.post(f"/master-planner/documentos/{v2}/responder", json={"decision": "aprobar"})
+    aviso = avisos[-1][1]
+    v.check("con la última firma, a quien lo preparó",
+            (aviso["tipo"], aviso["destinatario"]) == ("aprobado", "logistica@p.com"), aviso)
+    v.check("con el líder del proyecto en copia", aviso["en_copia"] == ["admin@p.com"], aviso)
+
+
+def test_el_recordatorio_va_a_quien_tiene_el_turno(portal, v):
+    from datetime import datetime, timedelta, timezone
+
+    plantilla = _plantilla(portal)
+    P = _proyecto(portal)
+    hoy = datetime.now(timezone.utc)
+
+    def tarea(titulo, fecha):
+        portal.como("admin")
+        return portal.post(f"/master-planner/proyectos/{P}/tareas", json={
+            "titulo": titulo, "asignado_a": portal.ids["logistica"], "fecha_fin": fecha.isoformat(),
+            "revision": {"plantilla_id": plantilla["id"],
+                         "revisores": [portal.ids["calidad"], portal.ids["revisora"]]},
+        }).json()["id"]
+
+    def recordatorio():
+        portal.como("admin")
+        r = portal.get("/master-planner/revisiones/por-vencer?dias=2")
+        assert r.status_code == 200, r.text
+        return {d["email"]: d for d in r.json()["destinatarios"]}
+
+    sin_subir = tarea("Vence hoy sin subir", hoy)
+    tarea("Vence en dos meses", hoy + timedelta(days=60))
+    vencida = tarea("Venció hace una semana", hoy - timedelta(days=7))
+
+    grupos = recordatorio()
+    mios = grupos["logistica@p.com"]["documentos"]
+    v.check("a quien lo prepara le llegan los que vencen y los vencidos",
+            {d["tarea_id"] for d in mios} == {sin_subir, vencida}, mios)
+    v.check("el lejano no", len(mios) == 2)
+    v.check("el vencido va primero y dice que venció",
+            mios[0]["tarea_id"] == vencida and mios[0]["vencido"] and mios[0]["dias_habiles"] < 0, mios[0])
+    v.check("y dice qué le falta", "Subir" in mios[1]["que_falta"], mios[1])
+
+    portal.como("logistica")
+    _subir(portal, sin_subir)
+    vid = portal.post(f"/master-planner/tareas/{sin_subir}/documentos/enviar", json={}).json()["versiones"][0]["id"]
+    grupos = recordatorio()
+    v.check("enviado, ya no es de quien lo preparó",
+            sin_subir not in [d["tarea_id"] for d in grupos["logistica@p.com"]["documentos"]])
+    v.check("es de quien tiene que firmarlo",
+            [d["tarea_id"] for d in grupos["calidad@p.com"]["documentos"]] == [sin_subir], grupos.get("calidad@p.com"))
+
+    # Quien tiene el turno se fue: no se descarta, va al líder del proyecto.
+    db = portal.Session()
+    db.get(User, portal.ids["calidad"]).activo = False
+    db.commit()
+    db.close()
+    grupos = recordatorio()
+    v.check("si quien firma no está activo, le llega al líder",
+            any(d["tarea_id"] == sin_subir and d["en_nombre_de"] == "Cali"
+                for d in grupos["admin@p.com"]["documentos"]), grupos.get("admin@p.com"))
+    db = portal.Session()
+    db.get(User, portal.ids["calidad"]).activo = True
+    db.commit()
+    db.close()
+
+    portal.como("calidad")
+    portal.post(f"/master-planner/documentos/{vid}/responder", json={"decision": "aprobar"})
+    portal.como("revisora")
+    portal.post(f"/master-planner/documentos/{vid}/responder", json={"decision": "aprobar"})
+    grupos = recordatorio()
+    v.check("aprobado ya no se recuerda",
+            all(d["tarea_id"] != sin_subir for g in grupos.values() for d in g["documentos"]))
+
+
+def test_en_un_pdf_se_marca_un_punto_o_un_recuadro(portal, v):
+    plantilla = _plantilla(portal)
+    P = _proyecto(portal)
+    T = _tarea_con_flujo(portal, P, plantilla).json()["id"]
+    portal.como("logistica")
+    _subir(portal, T)
+    vid = portal.post(f"/master-planner/tareas/{T}/documentos/enviar", json={}).json()["versiones"][0]["id"]
+    portal.como("calidad")
+    url = f"/master-planner/documentos/{vid}/observaciones"
+
+    r = portal.post(url, json={"texto": "Esta tabla no cuadra", "pagina": 1,
+                               "pos_x": 0.1, "pos_y": 0.2, "ancho": 0.5, "alto": 0.25})
+    v.check("se marca un recuadro", r.status_code == 201, r.text)
+    v.check("con su tamaño", (r.json()["ancho"], r.json()["alto"]) == (0.5, 0.25), r.json())
+    r = portal.post(url, json={"texto": "Aquí", "pagina": 1, "pos_x": 0.5, "pos_y": 0.5})
+    v.check("el punto sigue igual, sin tamaño", r.status_code == 201 and r.json()["ancho"] is None, r.text)
+    r = portal.post(url, json={"texto": "x", "pagina": 1, "pos_x": 0.8, "pos_y": 0.2, "ancho": 0.5, "alto": 0.1})
+    v.check("un recuadro que se sale de la página no", r.status_code == 400, r.text)
+    r = portal.post(url, json={"texto": "x", "pagina": 1, "pos_x": 0.1, "pos_y": 0.2, "ancho": 0.3})
+    v.check("ni uno con un solo lado", r.status_code == 400, r.text)
+    r = portal.post(url, json={"texto": "x", "ancho": 0.3, "alto": 0.3})
+    v.check("ni uno sin página", r.status_code == 400, r.text)

@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -193,6 +193,14 @@ class TareaCreate(BaseModel):
     revision: RevisionConfigurar | None = None
 
 
+class TareaNueva(TareaCreate):
+    """
+    Crear una tarea desde `POST /tareas`, con o sin proyecto. Sin proyecto el
+    área es obligatoria (la revisa el router con el catálogo de la empresa).
+    """
+    proyecto_id: int | None = None
+
+
 class SubtareaCreate(BaseModel):
     """El área y el proyecto se heredan del padre, por eso no van aquí."""
     titulo: str
@@ -222,7 +230,7 @@ class SubtareaOut(BaseModel):
     la subtarea funcione como checklist y no como un árbol de proyectos.
     """
     id: int
-    proyecto_id: int
+    proyecto_id: int | None = None
     parent_id: int | None
     titulo: str
     asignado_a: int | None
@@ -238,7 +246,8 @@ class SubtareaOut(BaseModel):
 
 class TareaOut(BaseModel):
     id: int
-    proyecto_id: int
+    # Nulo en una tarea sin proyecto (desde la 0.70).
+    proyecto_id: int | None = None
     proyecto_nombre: str | None = None
     parent_id: int | None
     titulo: str
@@ -518,9 +527,21 @@ class ObservacionCrear(BaseModel):
     pagina: int | None = Field(default=None, ge=1)
     pos_x: float | None = Field(default=None, ge=0, le=1)
     pos_y: float | None = Field(default=None, ge=0, le=1)
+    # Con tamaño es un recuadro: (pos_x, pos_y) es su esquina superior izquierda.
+    ancho: float | None = Field(default=None, gt=0, le=1)
+    alto: float | None = Field(default=None, gt=0, le=1)
     # En un Excel: la hoja por su nombre y la celda como la escribe Excel (C14).
     hoja: str | None = Field(default=None, max_length=100)
     celda: str | None = Field(default=None, max_length=12)
+
+
+class PlantillaGuardar(BaseModel):
+    """Una cadena de revisión: su nombre y el papel de quien firma cada paso, en orden."""
+    nombre: str = Field(min_length=1, max_length=100)
+    descripcion: str | None = Field(default=None, max_length=500)
+    activa: bool | None = None
+    # El tope de pasos lo revisa `revision.guardar_plantilla` con su mensaje.
+    pasos: list[Annotated[str, Field(max_length=100)]] = Field(min_length=1)
 
 
 class ObservacionAtender(BaseModel):

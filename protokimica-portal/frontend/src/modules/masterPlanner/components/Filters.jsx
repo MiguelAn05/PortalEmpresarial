@@ -1,4 +1,4 @@
-import { ESTADOS_TAREA, PRIORIDADES } from "../constants"
+import { ESTADOS_TAREA, PRIORIDADES, SIN_PROYECTO } from "../constants"
 import {
   IconoCronograma, IconoProyectos, IconoTabla,
 } from '../../../core/components/Iconos.jsx'
@@ -41,6 +41,7 @@ export default function Filters({
             <label className="block text-xs font-semibold text-texto-2 uppercase mb-1">Proyecto</label>
             <select value={filtros.proyecto_id} onChange={set('proyecto_id')} className="w-full rounded-lg border border-borde px-3 py-2 text-sm">
               <option value="">Todos</option>
+              <option value={SIN_PROYECTO}>Sin proyecto</option>
               {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
           </div>

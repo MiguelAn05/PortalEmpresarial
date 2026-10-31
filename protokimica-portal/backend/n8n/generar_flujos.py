@@ -1,5 +1,5 @@
 """
-Genera los flujos de n8n que mandan los correos de PQRS.
+Genera los flujos de n8n que mandan los correos que dispara el portal.
 
 Se generan con un script y no se escriben a mano porque los cuatro correos
 comparten la misma plantilla: si el encabezado o el pie cambian, se cambian
@@ -449,6 +449,41 @@ FLUJOS = [
                 + "Nos ayudarías mucho contándonos cómo te fue: es menos de un minuto."
             ),
             boton=("Calificar la atención", f"{{{{ {B}.link_encuesta }}}}"),
+        ),
+    ),
+    flujo(
+        # UN solo flujo para todo lo que le pasa a un documento del Master
+        # Planner: le toca firmar a alguien, se devolvió o quedó aprobado. El
+        # asunto y qué hacer los redacta el portal
+        # (`master_planner/notificaciones.avisos_documento`), como en
+        # `nc-en-turno`.
+        remitente=REMITENTE_INTERNO,
+        nombre="Master Planner · documento para aprobar",
+        path="mp-documento",
+        para=f"={{{{ {B}.destinatario }}}}",
+        # El líder del proyecto va en copia cuando el documento queda aprobado.
+        copia=f"={{{{ ({B}.en_copia || []).join(', ') }}}}",
+        asunto=f"={{{{ {B}.asunto }}}}",
+        html="=" + plantilla(
+            titulo=f"{{{{ {B}.que_hacer }}}}",
+            cuerpo=(
+                dato("Tarea", f"{{{{ {B}.titulo }}}}")
+                + dato("Proyecto", f"{{{{ {B}.proyecto }}}}")
+                + dato("Documento", f"{{{{ {B}.documento }}}} (versión {{{{ {B}.version }}}})")
+                + f"{{{{ {B}.paso "
+                  f"? '{dato('Paso', '@@V@@')}'.replace('@@V@@', {B}.paso) "
+                  f": '' }}}}"
+                + f"{{{{ {B}.quien "
+                  f"? '{dato('Último movimiento', '@@V@@')}'.replace('@@V@@', {B}.quien) "
+                  f": '' }}}}"
+                + f"{{{{ {B}.comentario "
+                  f"? '<p style=\"margin:14px 0 0 0;padding:12px;background:#EFF3F9;"
+                  f"border-radius:8px\">' + {B}.comentario + '</p>' : '' }}}}"
+                # El archivo NO viaja en el correo: es un estado financiero y
+                # vive en una carpeta sin URL. El botón lleva al visor, que
+                # pide sesión.
+            ),
+            boton=("Abrir el documento", f"{{{{ {B}.link_portal }}}}"),
         ),
     ),
 ]

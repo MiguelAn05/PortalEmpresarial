@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.68.0"
-FECHA = "2026-10-29"
+VERSION = "0.71.0"
+FECHA = "2026-10-31"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,47 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.71.0",
+        "fecha": "2026-10-31",
+        "titulo": "Observaciones en recuadro sobre el PDF",
+        "cambios": [
+            ("nuevo", "Al revisar un PDF ya se puede arrastrar para enmarcar una zona —una tabla, un "
+                      "párrafo, una cifra— en vez de marcar solo un punto. Un clic sin arrastrar sigue "
+                      "dejando el punto como antes."),
+        ],
+    },
+    {
+        "version": "0.70.0",
+        "fecha": "2026-10-31",
+        "titulo": "Tareas sin proyecto",
+        "cambios": [
+            ("nuevo", "Una tarea ya no tiene que estar dentro de un proyecto: al crearla se puede "
+                      "dejar «Sin proyecto», por ejemplo el cierre contable del mes o un documento "
+                      "que hay que aprobar. Sin proyecto se le elige el área."),
+            ("nuevo", "Una tarea sin proyecto la ven quien la creó, su responsable, quien firma su "
+                      "documento y el líder de su área. Aparece en la lista de tareas, en «Mis "
+                      "tareas», en el resumen y en los indicadores de su área."),
+            ("mejora", "El filtro de proyecto de la lista y del calendario tiene la opción «Sin "
+                       "proyecto»."),
+        ],
+    },
+    {
+        "version": "0.69.0",
+        "fecha": "2026-10-31",
+        "titulo": "Avisos de los documentos que se aprueban",
+        "cambios": [
+            ("nuevo", "Cuando a alguien le toca firmar un documento le llega un correo con el enlace "
+                      "para abrirlo. A quien lo preparó le llega otro cuando se lo devuelven, con el "
+                      "comentario, y otro cuando queda aprobado, con el líder del proyecto en copia."),
+            ("nuevo", "Cada mañana hábil sale un recordatorio de los documentos sin aprobar que vencen "
+                      "en dos días hábiles o ya vencieron, a quien los tenga en ese momento: a quien "
+                      "le toca firmar o a quien los prepara."),
+            ("nuevo", "En Administración › Cadenas de revisión se crean y se cambian las firmas que "
+                      "pide un documento, por ejemplo una cadena que firme solo el Contador. Cambiarla "
+                      "no mueve los documentos que ya van en camino."),
+        ],
+    },
     {
         "version": "0.68.0",
         "fecha": "2026-10-29",

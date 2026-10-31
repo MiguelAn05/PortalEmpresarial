@@ -6,21 +6,24 @@ revisa que quien pide lo pueda ver y se guarda. Ver la tarea alcanza para
 ver su documento —es su trabajo—, y quien firma un paso ve la tarea aunque
 no tenga nada más en el proyecto (ver `permisos.py`).
 """
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core import hoja_calculo
 from app.core.archivos import guardar_documento_privado, ruta_documento_privado
 from app.core.database import get_db
-from app.core.deps import get_current_tenant_id, get_current_user, solo_lectura_no
+from app.core.deps import get_current_tenant_id, get_current_user, require_role, solo_lectura_no
 from app.core.modulos import contratado
-from app.models.master_planner import DocumentoVersion, ObservacionDocumento, Proyecto, Tarea
+from app.core.notificaciones import enviar_avisos, protegido
+from app.models.master_planner import DocumentoVersion, ObservacionDocumento, PlantillaRevision, Tarea
 from app.models.user import User
 from app.modules.master_planner import revision
-from app.modules.master_planner.permisos import puede_ver_proyecto
+from app.modules.master_planner.notificaciones import avisos_documento
+from app.modules.master_planner.permisos import puede_ver_tarea
 from app.modules.master_planner.schemas import (
-    EnviarDocumento, ObservacionAtender, ObservacionCrear, RespuestaDocumento, RevisionConfigurar,
+    EnviarDocumento, ObservacionAtender, ObservacionCrear, PlantillaGuardar, RespuestaDocumento,
+    RevisionConfigurar,
 )
 
 router = APIRouter(
@@ -35,13 +38,8 @@ MEDIA_TYPES = {
 
 
 def _tarea(db: Session, tarea_id: int, tenant_id: int, usuario: User) -> Tarea:
-    tarea = (
-        db.query(Tarea)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
-        .filter(Tarea.id == tarea_id, Proyecto.tenant_id == tenant_id)
-        .first()
-    )
-    if not tarea or not puede_ver_proyecto(db, tarea.proyecto, usuario):
+    tarea = db.query(Tarea).filter(Tarea.id == tarea_id, Tarea.tenant_id == tenant_id).first()
+    if not tarea or not puede_ver_tarea(db, tarea, usuario):
         raise HTTPException(status_code=404, detail="Tarea no encontrada.")
     return tarea
 
@@ -50,11 +48,10 @@ def _version(db: Session, version_id: int, tenant_id: int, usuario: User) -> Doc
     version = (
         db.query(DocumentoVersion)
         .join(Tarea, DocumentoVersion.tarea_id == Tarea.id)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
-        .filter(DocumentoVersion.id == version_id, Proyecto.tenant_id == tenant_id)
+        .filter(DocumentoVersion.id == version_id, Tarea.tenant_id == tenant_id)
         .first()
     )
-    if not version or not puede_ver_proyecto(db, version.tarea.proyecto, usuario):
+    if not version or not puede_ver_tarea(db, version.tarea, usuario):
         raise HTTPException(status_code=404, detail="Documento no encontrado.")
     return version
 
@@ -69,17 +66,65 @@ def _observacion(db: Session, obs_id: int, tenant_id: int, usuario: User) -> Obs
 
 @router.get("/plantillas-revision")
 def listar_plantillas(
+    todas: bool = False,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Las cadenas que se ofrecen al activar el flujo en una tarea. `todas`
+    incluye las desactivadas, para Administración; solo la pide `admin`.
+    """
+    if todas and current_user.rol != "admin":
+        raise HTTPException(status_code=403, detail="Las cadenas desactivadas solo las ve un administrador.")
+    lista = revision.plantillas_todas(db, tenant_id) if todas else revision.plantillas_activas(db, tenant_id)
+    return [revision.serializar_plantilla(p) for p in lista]
+
+
+@router.post("/plantillas-revision", status_code=status.HTTP_201_CREATED)
+def crear_plantilla(
+    payload: PlantillaGuardar,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(require_role("admin")),
+):
+    plantilla = revision.guardar_plantilla(db, tenant_id, None, payload.model_dump())
+    db.commit()
+    db.refresh(plantilla)
+    return revision.serializar_plantilla(plantilla)
+
+
+@router.put("/plantillas-revision/{plantilla_id}")
+def editar_plantilla(
+    plantilla_id: int,
+    payload: PlantillaGuardar,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(require_role("admin")),
+):
+    """Cambiarla no mueve los documentos en camino: cada tarea copió sus pasos."""
+    plantilla = db.get(PlantillaRevision, plantilla_id)
+    if not plantilla or plantilla.tenant_id != tenant_id:
+        raise HTTPException(status_code=404, detail="Cadena no encontrada.")
+    revision.guardar_plantilla(db, tenant_id, plantilla, payload.model_dump())
+    db.commit()
+    db.refresh(plantilla)
+    return revision.serializar_plantilla(plantilla)
+
+
+@router.get("/revisiones/por-vencer")
+def documentos_por_vencer(
+    dias: int = 2,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     _: User = Depends(get_current_user),
 ):
-    return [
-        {
-            "id": p.id, "nombre": p.nombre, "descripcion": p.descripcion,
-            "pasos": [{"orden": s.orden, "nombre": s.nombre} for s in p.pasos],
-        }
-        for p in revision.plantillas_activas(db, tenant_id)
-    ]
+    """
+    Lo consume el recordatorio diario de n8n (`n8n/mp-documentos-por-vencer.json`):
+    los documentos sin aprobar que vencen dentro de `dias` días hábiles o ya
+    vencieron, agrupados por quien tiene el turno y con su correo.
+    """
+    return revision.por_vencer(db, tenant_id, max(0, min(dias, 30)))
 
 
 @router.get("/revisiones/pendientes")
@@ -152,14 +197,18 @@ async def subir_documento(
 def enviar_documento(
     tarea_id: int,
     payload: EnviarDocumento,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(solo_lectura_no),
 ):
     tarea = _tarea(db, tarea_id, tenant_id, current_user)
-    revision.enviar(db, tarea, current_user, payload.comentario)
+    version = revision.enviar(db, tarea, current_user, payload.comentario)
     db.commit()
     db.refresh(tarea)
+    # Se arma con la sesión y se manda después de responder: avisar no
+    # puede tumbar ni demorar el envío.
+    background.add_task(enviar_avisos, protegido(avisos_documento, db, tarea, version))
     return revision.serializar(tarea, current_user)
 
 
@@ -246,6 +295,7 @@ def hoja_del_documento(
 def responder_documento(
     version_id: int,
     payload: RespuestaDocumento,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
     current_user: User = Depends(solo_lectura_no),
@@ -255,6 +305,8 @@ def responder_documento(
     revision.responder(db, tarea, version, payload.decision, payload.comentario, current_user)
     db.commit()
     db.refresh(tarea)
+    db.refresh(version)
+    background.add_task(enviar_avisos, protegido(avisos_documento, db, tarea, version))
     return revision.serializar(tarea, current_user)
 
 

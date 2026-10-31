@@ -6,8 +6,10 @@ Los archivos y los avisos a n8n salen de `core/archivos.py` y
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
 
+from app.core import areas
 from app.core.modulos import contratado
 from app.core.database import get_db
 from app.core.deps import (
@@ -23,7 +25,7 @@ from app.modules.master_planner.schemas import (
     ProyectoCreate, ProyectoUpdate, ProyectoOut,
     ItemPresupuestoCreate, ItemPresupuestoUpdate, ItemPresupuestoOut,
     AprobacionIn, PagoOut,
-    TareaCreate, TareaUpdate, TareaOut, SubtareaCreate, RepetirTarea,
+    TareaCreate, TareaNueva, TareaUpdate, TareaOut, SubtareaCreate, RepetirTarea,
     TareaActualizacionOut, RespuestaActualizacionCrear, RespuestaActualizacionOut,
     CorreccionActualizacion,
     UsuarioAsignableOut, HistorialCambioOut,
@@ -32,7 +34,8 @@ from app.modules.master_planner.historial import (
     instantanea, registrar_cambios, registrar_evento,
 )
 from app.modules.master_planner.permisos import (
-    aplicar_filtro_proyectos, puede_ver_proyecto, puede_ver_presupuesto, condicion_area,
+    aplicar_filtro_proyectos, aplicar_filtro_tareas, puede_ver_proyecto, puede_ver_presupuesto,
+    puede_ver_tarea, condicion_area,
     solo_aprueba_pagos, solo_registra_pagos, puede_cerrar_proyecto,
 )
 from app.modules.master_planner.resumen import construir_resumen
@@ -138,15 +141,31 @@ def _get_tarea_o_404(
 ) -> Tarea:
     tarea = (
         db.query(Tarea)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
-        .filter(Tarea.id == tarea_id, Proyecto.tenant_id == tenant_id)
+        .filter(Tarea.id == tarea_id, Tarea.tenant_id == tenant_id)
         .first()
     )
     if not tarea:
         raise HTTPException(status_code=404, detail="Tarea no encontrada.")
-    if usuario is not None and not puede_ver_proyecto(db, tarea.proyecto, usuario):
+    if usuario is not None and not puede_ver_tarea(db, tarea, usuario):
         raise HTTPException(status_code=404, detail="Tarea no encontrada.")
     return tarea
+
+
+def _exigir_area_si_es_suelta(db: Session, tenant_id: int, proyecto_id: int | None, area: str | None) -> None:
+    """
+    Sin proyecto, el área es lo único que dice qué líder la ve y a quién se
+    le cuenta en indicadores e informe. Una tarea suelta sin área no sería
+    de nadie.
+    """
+    if proyecto_id is not None:
+        return
+    if not area:
+        raise HTTPException(
+            status_code=400,
+            detail="Una tarea sin proyecto necesita su área: es la que la ve su líder y a la que se le cuenta.",
+        )
+    if not areas.es_valida(db, tenant_id, area):
+        raise HTTPException(status_code=400, detail=f"«{area}» no es un área activa. Elige una de la lista.")
 
 
 def _sincronizar_areas(db: Session, proyecto: Proyecto, areas: list[str]) -> None:
@@ -730,10 +749,10 @@ def tareas_vencidas_por_persona(
 
     tareas = (
         db.query(Tarea)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
+        .outerjoin(Proyecto, Tarea.proyecto_id == Proyecto.id)
         .filter(
-            Proyecto.tenant_id == tenant_id,
-            Proyecto.archivado.is_(False),
+            Tarea.tenant_id == tenant_id,
+            or_(Tarea.proyecto_id.is_(None), Proyecto.archivado.is_(False)),
             Tarea.asignado_a.isnot(None),
             Tarea.estado != "completada",
             Tarea.fecha_fin.isnot(None),
@@ -749,7 +768,7 @@ def tareas_vencidas_por_persona(
         por_persona.setdefault(t.asignado_a, []).append({
             "tarea_id": t.id,
             "titulo": t.titulo,
-            "proyecto": t.proyecto.nombre,
+            "proyecto": t.proyecto_nombre,
             "prioridad": t.prioridad,
             "estado": t.estado,
             "avance_pct": t.avance_pct,
@@ -804,6 +823,7 @@ def listar_todas_las_tareas(
     estado: str | None = None,
     area: str | None = None,
     proyecto_id: int | None = None,
+    sin_proyecto: bool = False,
     incluir_subtareas: bool = False,
     incluir_archivados: bool = False,
     db: Session = Depends(get_db),
@@ -811,18 +831,21 @@ def listar_todas_las_tareas(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Tablero global: tareas de los proyectos activos que el usuario puede ver.
-    Las subtareas quedan fuera por defecto — viven dentro de su tarea
-    padre como checklist, no como tarjetas sueltas del Kanban.
+    Tablero global: tareas de los proyectos activos que el usuario puede ver,
+    más las sin proyecto que le tocan. Las subtareas quedan fuera por
+    defecto — viven dentro de su tarea padre como checklist, no como
+    tarjetas sueltas del Kanban.
     """
     query = (
         db.query(Tarea)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
-        .filter(Proyecto.tenant_id == tenant_id)
+        .outerjoin(Proyecto, Tarea.proyecto_id == Proyecto.id)
+        .filter(Tarea.tenant_id == tenant_id)
     )
-    query = aplicar_filtro_proyectos(query, current_user)
+    query = aplicar_filtro_tareas(query, current_user)
     if not incluir_archivados:
-        query = query.filter(Proyecto.archivado.is_(False))
+        query = query.filter(or_(Tarea.proyecto_id.is_(None), Proyecto.archivado.is_(False)))
+    if sin_proyecto:
+        query = query.filter(Tarea.proyecto_id.is_(None))
     if not incluir_subtareas:
         query = query.filter(Tarea.parent_id.is_(None))
     if estado:
@@ -846,7 +869,32 @@ def crear_tarea(
     current_user: User = Depends(solo_lectura_no),
 ):
     proyecto = _get_proyecto_o_404(db, proyecto_id, tenant_id, current_user)
-    tarea = Tarea(proyecto_id=proyecto_id, **payload.model_dump(exclude={"revision"}))
+    return _crear_tarea(db, tenant_id, proyecto, payload, current_user)
+
+
+@router.post("/tareas", response_model=TareaOut, status_code=status.HTTP_201_CREATED)
+def crear_tarea_con_o_sin_proyecto(
+    payload: TareaNueva,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(solo_lectura_no),
+):
+    """
+    Crea una tarea con proyecto o sin él. Sin proyecto el área es
+    obligatoria: es la que la ve su líder y a la que se le cuenta.
+    """
+    proyecto = (_get_proyecto_o_404(db, payload.proyecto_id, tenant_id, current_user)
+                if payload.proyecto_id else None)
+    return _crear_tarea(db, tenant_id, proyecto, payload, current_user)
+
+
+def _crear_tarea(db: Session, tenant_id: int, proyecto: Proyecto | None, payload: TareaCreate,
+                 current_user: User) -> Tarea:
+    _exigir_area_si_es_suelta(db, tenant_id, proyecto.id if proyecto else None, payload.area)
+    tarea = Tarea(
+        tenant_id=tenant_id, proyecto_id=proyecto.id if proyecto else None, creado_por=current_user.id,
+        **payload.model_dump(exclude={"revision", "proyecto_id"}),
+    )
     db.add(tarea)
     if payload.revision is not None:
         db.flush()
@@ -864,9 +912,9 @@ def crear_tarea(
     db.refresh(tarea)
 
     if tarea.asignado_a:
-        avisar_tarea_asignada(db, tarea, proyecto.nombre)
+        avisar_tarea_asignada(db, tarea, tarea.proyecto_nombre)
 
-    sincronizar_tarea(db, tarea, proyecto.nombre)
+    sincronizar_tarea(db, tarea, tarea.proyecto_nombre)
     return tarea
 
 
@@ -909,7 +957,9 @@ def crear_subtarea(
         )
 
     subtarea = Tarea(
+        tenant_id=padre.tenant_id,
         proyecto_id=padre.proyecto_id,
+        creado_por=current_user.id,
         parent_id=padre.id,
         area=padre.area,
         **payload.model_dump(),
@@ -919,7 +969,7 @@ def crear_subtarea(
     db.refresh(subtarea)
 
     if subtarea.asignado_a:
-        avisar_tarea_asignada(db, subtarea, padre.proyecto.nombre)
+        avisar_tarea_asignada(db, subtarea, padre.proyecto_nombre)
 
     return subtarea
 
@@ -937,10 +987,10 @@ def listar_mis_tareas(
     """
     return (
         db.query(Tarea)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
+        .outerjoin(Proyecto, Tarea.proyecto_id == Proyecto.id)
         .filter(
-            Proyecto.tenant_id == tenant_id,
-            Proyecto.archivado.is_(False),
+            Tarea.tenant_id == tenant_id,
+            or_(Tarea.proyecto_id.is_(None), Proyecto.archivado.is_(False)),
             Tarea.asignado_a == current_user.id,
         )
         .order_by(Tarea.fecha_fin.asc().nullslast())
@@ -992,6 +1042,8 @@ def actualizar_tarea(
                    "Cambia primero quién revisa.",
         )
 
+    if "area" in payload.model_fields_set:
+        _exigir_area_si_es_suelta(db, tenant_id, tarea.proyecto_id, tarea.area)
     tarea.sincronizar_cierre()
     registrar_cambios(
         db, "tarea", tarea.id, tarea.proyecto_id,
@@ -1002,7 +1054,7 @@ def actualizar_tarea(
     db.refresh(tarea)
 
     if tarea.asignado_a and tarea.asignado_a != asignado_anterior:
-        avisar_tarea_asignada(db, tarea, tarea.proyecto.nombre)
+        avisar_tarea_asignada(db, tarea, tarea.proyecto_nombre)
 
     # Si cambió de responsable, el evento viejo queda en el calendario del
     # anterior: hay que quitarlo de ahí antes de crear el nuevo.
@@ -1011,7 +1063,7 @@ def actualizar_tarea(
         tarea.outlook_evento_id = None
         db.commit()
 
-    sincronizar_tarea(db, tarea, tarea.proyecto.nombre)
+    sincronizar_tarea(db, tarea, tarea.proyecto_nombre)
     return tarea
 
 
@@ -1028,7 +1080,7 @@ def eliminar_tarea(
         raise HTTPException(
             status_code=409,
             detail="El documento de esta tarea ya pasó por revisión, y borrarla borraría quién lo revisó. "
-                   "Si ya no se necesita, cancela el proyecto o deja la tarea como está.",
+                   "Si ya no se necesita, déjala como está.",
         )
     # Antes del delete: después ya no se sabe de quién era ni qué evento tenía.
     borrar_evento_de_tarea(db, tarea)
@@ -1061,7 +1113,9 @@ def repetir_tarea(
         raise HTTPException(status_code=400, detail="Una subtarea se repite junto con su tarea, no sola.")
 
     nueva = Tarea(
+        tenant_id=origen.tenant_id,
         proyecto_id=origen.proyecto_id,
+        creado_por=current_user.id,
         titulo=origen.titulo,
         descripcion=origen.descripcion,
         area=origen.area,
@@ -1084,8 +1138,8 @@ def repetir_tarea(
     db.refresh(nueva)
 
     if nueva.asignado_a:
-        avisar_tarea_asignada(db, nueva, nueva.proyecto.nombre)
-    sincronizar_tarea(db, nueva, nueva.proyecto.nombre)
+        avisar_tarea_asignada(db, nueva, nueva.proyecto_nombre)
+    sincronizar_tarea(db, nueva, nueva.proyecto_nombre)
     return nueva
 
 

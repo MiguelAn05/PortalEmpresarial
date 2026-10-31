@@ -71,3 +71,28 @@ export function lugarObservacion(o) {
   if (o.celda) return `${o.hoja} · ${o.celda}`
   return 'general'
 }
+
+// Cuánto hay que mover el mouse para que deje de ser un clic y sea un
+// recuadro. Menos que esto es el temblor de la mano al hacer clic.
+export const UMBRAL_ARRASTRE_PX = 6
+
+/**
+ * Lo que dejó el mouse entre que se apretó y se soltó: un PUNTO si casi no
+ * se movió, o un RECUADRO (esquina superior izquierda + tamaño, todo como
+ * fracción de la página) si se arrastró. Se arrastre hacia donde se
+ * arrastre, la esquina es la de arriba a la izquierda, y nunca se sale de
+ * la página: así lo exige el servidor.
+ */
+export function marcaEnPagina(inicio, fin, rect) {
+  const quieto = Math.abs(fin.x - inicio.x) < UMBRAL_ARRASTRE_PX && Math.abs(fin.y - inicio.y) < UMBRAL_ARRASTRE_PX
+  if (quieto) return puntoEnPagina(fin.x, fin.y, rect)
+  const a = puntoEnPagina(Math.min(inicio.x, fin.x), Math.min(inicio.y, fin.y), rect)
+  const b = puntoEnPagina(Math.max(inicio.x, fin.x), Math.max(inicio.y, fin.y), rect)
+  const tamano = (v) => Math.floor(v * 10000) / 10000
+  const ancho = tamano(b.pos_x - a.pos_x)
+  const alto = tamano(b.pos_y - a.pos_y)
+  // Arrastrado por fuera del borde puede quedar sin alto o sin ancho: eso
+  // no enmarca nada, y se toma como un punto donde se soltó.
+  if (!ancho || !alto) return puntoEnPagina(fin.x, fin.y, rect)
+  return { ...a, ancho, alto }
+}

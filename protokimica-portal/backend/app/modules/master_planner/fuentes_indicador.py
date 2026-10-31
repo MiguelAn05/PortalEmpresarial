@@ -3,6 +3,8 @@ Lo que el Master Planner sabe medir solo, para el módulo de Indicadores.
 
 Indicadores las reúne de cada módulo instalado (ver `core/registro.py`).
 """
+from sqlalchemy import and_, or_
+
 from app.core.dias_habiles import contar_habiles, hoy as hoy_local
 from app.core.fechas import con_zona
 from app.core.fuentes import Resultado, proporcion, rango_mes
@@ -39,6 +41,20 @@ def _proyectos_del_area(query, area: str | None, incluir_participantes: bool):
     return query.filter(Proyecto.area == area)
 
 
+def _tareas_del_area(query, area: str | None):
+    """
+    Acota una consulta de tareas (con `Proyecto` en outer join) al área: las
+    de los proyectos donde participa, y las sin proyecto que son de esa área
+    —su área es lo único que las ubica—.
+    """
+    if not area:
+        return query
+    return query.filter(or_(
+        and_(Tarea.proyecto_id.isnot(None), condicion_area(area)),
+        and_(Tarea.proyecto_id.is_(None), Tarea.area == area),
+    ))
+
+
 def mp_cumplimiento_fechas(db, tenant_id, anio, mes, area=None) -> Resultado:
     """
     % de tareas entregadas a tiempo, sobre las completadas en el mes. Solo
@@ -48,13 +64,13 @@ def mp_cumplimiento_fechas(db, tenant_id, anio, mes, area=None) -> Resultado:
     desde, hasta = rango_mes(anio, mes)
     query = (
         db.query(Tarea)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
-        .filter(Proyecto.tenant_id == tenant_id,
+        .outerjoin(Proyecto, Tarea.proyecto_id == Proyecto.id)
+        .filter(Tarea.tenant_id == tenant_id,
                 Tarea.parent_id.is_(None),
                 Tarea.fecha_completada.isnot(None),
                 Tarea.fecha_completada >= desde, Tarea.fecha_completada <= hasta)
     )
-    completadas = _proyectos_del_area(query, area, incluir_participantes=True).all()
+    completadas = _tareas_del_area(query, area).all()
     medibles = [t for t in completadas if t.fecha_fin]
     a_tiempo = [t for t in medibles if con_zona(t.fecha_completada) <= con_zona(t.fecha_fin)]
     return proporcion(
@@ -181,13 +197,13 @@ def _aprobaciones_del_mes(db, tenant_id, anio, mes, area) -> list[dict]:
     query = (
         db.query(DocumentoVersion)
         .join(Tarea, DocumentoVersion.tarea_id == Tarea.id)
-        .join(Proyecto, Tarea.proyecto_id == Proyecto.id)
-        .filter(Proyecto.tenant_id == tenant_id,
+        .outerjoin(Proyecto, Tarea.proyecto_id == Proyecto.id)
+        .filter(Tarea.tenant_id == tenant_id,
                 DocumentoVersion.estado == "aprobada",
                 DocumentoVersion.cerrado_en >= desde, DocumentoVersion.cerrado_en <= hasta)
     )
     aprobaciones = []
-    for aprobada in _proyectos_del_area(query, area, incluir_participantes=True).all():
+    for aprobada in _tareas_del_area(query, area).all():
         anteriores = [v.numero for v in aprobada.tarea.versiones
                       if v.estado == "aprobada" and v.numero < aprobada.numero]
         piso = max(anteriores, default=0)

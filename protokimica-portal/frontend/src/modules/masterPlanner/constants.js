@@ -297,9 +297,18 @@ export function contarFocosTareas(tareas) {
   return Object.fromEntries(FOCOS_TAREAS.map(f => [f.clave, (tareas || []).filter(f.cumple).length]))
 }
 
+// El valor del filtro «Proyecto» para las tareas que no tienen uno.
+export const SIN_PROYECTO = 'sin_proyecto'
+
+/** Cómo se nombra el proyecto de una tarea, también cuando no tiene. */
+export function nombreProyecto(tarea) {
+  return tarea?.proyecto_nombre || 'Sin proyecto'
+}
+
 /**
  * `proyectos` solo hace falta para `de_area`: la tarea no trae las áreas de
- * su proyecto, la lista de proyectos sí.
+ * su proyecto, la lista de proyectos sí. Una tarea sin proyecto es del área
+ * que dice ella misma —así la cuenta el Resumen del servidor—.
  */
 export function filtrarTareas(tareas, filtros, proyectos = []) {
   const busqueda = (filtros.busqueda || "").trim().toLowerCase()
@@ -307,9 +316,11 @@ export function filtrarTareas(tareas, filtros, proyectos = []) {
     ? new Set(proyectos.filter(p => perteneceAlArea(p, filtros.de_area)).map(p => p.id))
     : null
   return tareas.filter(t => {
-    if (delArea && !delArea.has(t.proyecto_id)) return false
+    if (delArea && (t.proyecto_id == null ? t.area !== filtros.de_area : !delArea.has(t.proyecto_id))) return false
     if (!cumpleFocoTarea(t, filtros.foco)) return false
-    if (filtros.proyecto_id && String(t.proyecto_id) !== String(filtros.proyecto_id)) return false
+    if (filtros.proyecto_id === SIN_PROYECTO) {
+      if (t.proyecto_id != null) return false
+    } else if (filtros.proyecto_id && String(t.proyecto_id) !== String(filtros.proyecto_id)) return false
     if (filtros.area && t.area !== filtros.area) return false
     if (filtros.estado && t.estado !== filtros.estado) return false
     if (filtros.prioridad && t.prioridad !== filtros.prioridad) return false
@@ -620,6 +631,10 @@ export function estadoDocumentoDeTarea(tarea) {
 // ayuda a elegir el archivo.
 export const MAX_DOCUMENTO_MB = 20
 export const MAX_OBSERVACION = 2000
+// Atados a `MAX_PASOS_PLANTILLA` de master_planner/revision.py y al largo del
+// nombre en `PlantillaGuardar` (schemas.py).
+export const MAX_PASOS_PLANTILLA = 5
+export const MAX_NOMBRE_PLANTILLA = 100
 export const ACEPTA_DOCUMENTO = '.pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 /** Si el archivo pasa el tope de tamaño, el mensaje que lo dice; si no, null. */

@@ -13,7 +13,7 @@ import {
 import {
   MAX_OBSERVACION, formatFechaHora, textoEventoRevision, textoTamano,
 } from "./constants"
-import { claveCelda, lugarObservacion, numerarObservaciones, puntoEnPagina } from "./revision.js"
+import { claveCelda, lugarObservacion, marcaEnPagina, numerarObservaciones } from "./revision.js"
 import { ChipDocumento } from "./components/DocumentoPanel"
 import HojaExcel from "./components/HojaExcel"
 import { mensajeDeError } from "../../core/errores.js"
@@ -23,14 +23,24 @@ import { IconoChevron, IconoComentario, IconoPapelera } from "../../core/compone
 
 pdfjs.GlobalWorkerOptions.workerSrc = urlWorker
 
+/** El recuadro de una marca, en porcentajes de la página. */
+const estiloRecuadro = (m) => ({
+  left: `${m.pos_x * 100}%`, top: `${m.pos_y * 100}%`,
+  width: `${m.ancho * 100}%`, height: `${m.alto * 100}%`,
+})
+
 /**
- * Una página del PDF dibujada en un canvas, con los puntos de las
- * observaciones encima. Las coordenadas son fracciones de la página (ver
- * `puntoEnPagina`), así el punto cae en el mismo sitio con cualquier ancho.
+ * Una página del PDF dibujada en un canvas, con las observaciones encima:
+ * un punto, o un recuadro si quien revisa arrastró. Las coordenadas son
+ * fracciones de la página (ver `marcaEnPagina`), así caen en el mismo sitio
+ * con cualquier ancho.
  */
 function PaginaPdf({ pdf, numero, ancho, observaciones, puedeMarcar, pendiente, activa, onMarcar, onElegir }) {
   const canvas = useRef(null)
   const [proporcion, setProporcion] = useState(1.294)   // A4 hasta que llegue la de verdad
+  // Mientras se arrastra: dónde se apretó, dónde va el mouse (en píxeles de
+  // la pantalla) y el tamaño de la página. Al soltar es un punto o un recuadro.
+  const [arrastre, setArrastre] = useState(null)
 
   useEffect(() => {
     let cancelado = false
@@ -50,19 +60,44 @@ function PaginaPdf({ pdf, numero, ancho, observaciones, puedeMarcar, pendiente, 
     return () => { cancelado = true; dibujo?.cancel() }
   }, [pdf, numero, ancho])
 
-  const alClic = (e) => {
-    if (!puedeMarcar || e.target.closest("[data-punto]")) return
-    onMarcar({ pagina: numero, ...puntoEnPagina(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect()) })
+  const posicion = (e) => ({ x: e.clientX, y: e.clientY })
+  const alApretar = (e) => {
+    if (!puedeMarcar || e.button !== 0 || e.target.closest("[data-punto]")) return
+    // Captura el puntero: si se suelta fuera de la página, igual llega aquí.
+    e.currentTarget.setPointerCapture(e.pointerId)
+    // El tamaño de la página se toma al apretar: durante el arrastre no cambia.
+    setArrastre({ inicio: posicion(e), actual: posicion(e), rect: e.currentTarget.getBoundingClientRect() })
   }
+  const alMover = (e) => { if (arrastre) setArrastre({ ...arrastre, actual: posicion(e) }) }
+  const alSoltar = (e) => {
+    if (!arrastre) return
+    onMarcar({ pagina: numero, ...marcaEnPagina(arrastre.inicio, posicion(e), e.currentTarget.getBoundingClientRect()) })
+    setArrastre(null)
+  }
+  const dibujando = arrastre ? marcaEnPagina(arrastre.inicio, arrastre.actual, arrastre.rect) : null
 
   return (
     <div
       id={`pagina-${numero}`}
-      onClick={alClic}
-      className={`relative bg-white shadow-md mx-auto ${puedeMarcar ? "cursor-crosshair" : ""}`}
+      onPointerDown={alApretar}
+      onPointerMove={alMover}
+      onPointerUp={alSoltar}
+      onPointerCancel={() => setArrastre(null)}
+      className={`relative bg-white shadow-md mx-auto select-none ${puedeMarcar ? "cursor-crosshair touch-none" : ""}`}
       style={{ width: ancho, height: ancho * proporcion }}
     >
       <canvas ref={canvas} className="block w-full h-full" />
+      {/* Los recuadros no atrapan el mouse: se puede dibujar otro encima.
+          Lo que se pulsa es su número, en la esquina. */}
+      {observaciones.filter(o => o.ancho).map((o) => (
+        <span
+          key={`recuadro-${o.id}`} aria-hidden="true"
+          className={`absolute pointer-events-none border-2 rounded-sm transition
+            ${o.atendida ? "border-positivo-vivo bg-positivo-vivo/10" : "border-negativo-vivo bg-negativo-vivo/10"}
+            ${activa === o.id ? "ring-4 ring-acento/30" : ""}`}
+          style={estiloRecuadro(o)}
+        />
+      ))}
       {observaciones.map((o) => (
         <button
           key={o.id} data-punto
@@ -76,7 +111,15 @@ function PaginaPdf({ pdf, numero, ancho, observaciones, puedeMarcar, pendiente, 
           {o.numero}
         </button>
       ))}
-      {pendiente?.pagina === numero && (
+      {dibujando?.ancho && (
+        <span className="absolute pointer-events-none border-2 border-dashed border-acento bg-acento/10 rounded-sm"
+              style={estiloRecuadro(dibujando)} />
+      )}
+      {pendiente?.pagina === numero && pendiente.ancho && (
+        <span className="absolute pointer-events-none border-2 border-dashed border-acento bg-acento/10 rounded-sm animate-pulse"
+              style={estiloRecuadro(pendiente)} />
+      )}
+      {pendiente?.pagina === numero && !pendiente.ancho && (
         <span
           className="absolute -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-acento text-white text-xs font-bold flex items-center justify-center shadow-md border-2 border-white animate-pulse"
           style={{ left: `${pendiente.pos_x * 100}%`, top: `${pendiente.pos_y * 100}%` }}
@@ -267,7 +310,7 @@ function Visor({ versionId }) {
           </button>
           <h1 className="text-2xl font-bold text-acento-fuerte truncate">{tarea.titulo}</h1>
           <p className="text-sm text-texto-2">
-            {tarea.proyecto_nombre} · Lo preparó {tarea.asignado_nombre || "sin asignar"}
+            {tarea.proyecto_nombre || "Sin proyecto"} · Lo preparó {tarea.asignado_nombre || "sin asignar"}
             {tarea.fecha_fin && <> · Vence {formatFechaHora(tarea.fecha_fin)}</>}
           </p>
         </div>
@@ -360,7 +403,7 @@ function Visor({ versionId }) {
             {puedeMarcar && !pendiente && (
               <p className="text-xs text-texto-3">
                 {esPdf
-                  ? "Haz clic en el documento, donde está lo que hay que corregir, para dejar ahí la observación."
+                  ? "Haz clic donde está lo que hay que corregir, o arrastra para enmarcar una zona: una tabla, un párrafo, una cifra."
                   : "Haz clic en la celda donde está lo que hay que corregir, para dejar ahí la observación."}
               </p>
             )}

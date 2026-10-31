@@ -1,7 +1,7 @@
 import PriorityBadge from "./PriorityBadge"
 import Avatar from "./Avatar"
 import { ChipDocumento } from "./DocumentoPanel"
-import { ALERTAS, alertaVencimiento, colorAvance, estadoDocumentoDeTarea, formatFecha, formatHora, tieneHora } from "../constants"
+import { ALERTAS, alertaVencimiento, colorAvance, estadoDocumentoDeTarea, formatFecha, formatHora, nombreProyecto, tieneHora } from "../constants"
 import { IconoTarea } from '../../../core/components/Iconos.jsx'
 
 export default function TareaCard({ tarea, draggable, onDragStart, onDragEnd, onClick, mostrarProyecto = true }) {
@@ -19,8 +19,8 @@ export default function TareaCard({ tarea, draggable, onDragStart, onDragEnd, on
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         {mostrarProyecto ? (
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-texto-2 truncate">
-            {tarea.proyecto_nombre}
+          <span className={`text-[10px] font-semibold uppercase tracking-wide truncate ${tarea.proyecto_id ? 'text-texto-2' : 'text-texto-3'}`}>
+            {nombreProyecto(tarea)}
           </span>
         ) : <span />}
         <PriorityBadge priority={tarea.prioridad} />
