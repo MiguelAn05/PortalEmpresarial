@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.71.0"
-FECHA = "2026-10-31"
+VERSION = "0.72.0"
+FECHA = "2026-11-03"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,30 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.72.0",
+        "fecha": "2026-11-03",
+        "titulo": "El supervisor de los puntos revisa las notas crédito con producto",
+        "cambios": [
+            ("nuevo", "Una nota crédito de punto de venta cuyo motivo trae producto pasa primero por el "
+                      "supervisor de los puntos de venta, que revisa el producto, y después por "
+                      "Comercial. Las que no traen producto siguen yendo directo a Comercial."),
+            ("nuevo", "Quién es el supervisor se elige en Administración › Capacidades con el permiso "
+                      "«Revisar, como supervisor de los puntos de venta…». Ve todas las notas crédito "
+                      "de los puntos y tiene su propio filtro en la lista."),
+        ],
+    },
+    {
+        "version": "0.71.1",
+        "fecha": "2026-11-03",
+        "titulo": "Cada punto de venta ve y emite solo sus notas crédito",
+        "cambios": [
+            ("correccion", "Al darle a los puntos de venta el permiso de registrar el número de la nota "
+                           "crédito, ya no ven las de los otros puntos ni las de venta institucional: "
+                           "cada punto ve y emite las de su mostrador, y el coordinador las de todos "
+                           "los puntos. Las institucionales las sigue emitiendo Contabilidad."),
+        ],
+    },
     {
         "version": "0.71.0",
         "fecha": "2026-10-31",

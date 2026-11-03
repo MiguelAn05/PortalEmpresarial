@@ -65,6 +65,13 @@ ESTADO_EN_BODEGA = "en_bodega"
 ESTADO_EN_COMERCIAL = "en_comercial"
 ESTADO_EN_CONTABILIDAD = "en_contabilidad"
 
+# El supervisor de los puntos de venta revisa el producto ANTES de Comercial,
+# solo en las del mostrador cuyo motivo trae producto (desde la 0.72). Es la
+# misma idea de la bodega en la institucional —alguien mira la mercancía—,
+# pero en el mostrador no hay bodega: el producto vuelve a la sede, y quien
+# responde por las sedes es el supervisor. Ver `notas_credito/flujo.py`.
+ESTADO_EN_SUPERVISION = "en_supervision"
+
 # Devuelta al solicitante para que corrija. NO es un rechazo: el rechazo
 # cierra el caso y la devolución lo deja vivo en manos de quien lo pidió.
 # Sin este estado, «corrígelo y vuelve a mandarlo» obliga a radicar otra
@@ -78,7 +85,7 @@ ESTADO_DEVUELTA = "devuelta"
 ESTADO_CANCELADA = "cancelada"
 
 ESTADOS = (
-    ESTADO_EN_COMERCIAL, ESTADO_EN_BODEGA,
+    ESTADO_EN_SUPERVISION, ESTADO_EN_COMERCIAL, ESTADO_EN_BODEGA,
     ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA, ESTADO_DEVUELTA,
     ESTADO_RECHAZADA, ESTADO_APLICADA, ESTADO_CANCELADA,
 )
@@ -87,7 +94,7 @@ ESTADOS = (
 # Una devuelta SÍ está abierta — está esperando a que el solicitante la
 # corrija, que es trabajo pendiente como cualquier otro.
 ESTADOS_ABIERTOS = (
-    ESTADO_EN_COMERCIAL, ESTADO_EN_BODEGA,
+    ESTADO_EN_SUPERVISION, ESTADO_EN_COMERCIAL, ESTADO_EN_BODEGA,
     ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA, ESTADO_DEVUELTA,
 )
 
@@ -149,6 +156,11 @@ class SolicitudNotaCredito(Base):
     # el tipo a un canal, las solicitudes en camino no saltan de cadena a
     # mitad del trámite. Antes se comparaba el nombre con «Venta institucional».
     institucional = Column(Boolean, nullable=False, default=False, server_default="false")
+    # ¿El motivo traía producto al radicarla? Decide si pasa por la bodega
+    # (institucional) o por el supervisor de los puntos (mostrador). Se guarda
+    # por lo mismo que `institucional`: si Contabilidad le cambia después la
+    # marca al motivo, las que van en camino no cambian de cadena.
+    por_producto = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # La factura sobre la que se pide la nota crédito, y la que la reemplaza
     # cuando el cliente volvió a comprar bien. La segunda es opcional: no

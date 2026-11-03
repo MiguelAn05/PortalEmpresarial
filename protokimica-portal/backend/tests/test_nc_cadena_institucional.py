@@ -146,15 +146,15 @@ def test_sin_producto_se_salta_la_bodega(entorno, v):
             _estado(entorno, sid))
 
 
-def test_un_punto_de_venta_tambien_empieza_por_comercial(entorno, v):
+def test_un_punto_de_venta_con_producto_no_pide_bodega(entorno, v):
     """
     Lo que NO cambió de la rama del mostrador: no se le pide bodega aunque
     el motivo implique producto —el cliente lo devuelve en el mismo almacén,
     no hay nada que esperar a que llegue—.
 
-    Lo que SÍ cambió: ya no entra directo a Contabilidad. Quien decide si se
-    devuelve la plata es Comercial, venga la venta de un mostrador o de una
-    institución; antes Contabilidad terminaba decidiendo eso sola.
+    Tampoco entra directo a Contabilidad. Desde la 0.72, con producto lo
+    revisa primero el supervisor de los puntos y después Comercial (ver
+    `test_nc_supervisor.py`).
     """
     _montar_la_cadena(entorno)
     _capacidad(entorno, "notas_credito.autorizar", "Contabilidad")
@@ -163,8 +163,8 @@ def test_un_punto_de_venta_tambien_empieza_por_comercial(entorno, v):
     entorno.como("logistica")
     r = _radicar(entorno, punto=PUNTO, motivo_id=motivo_id)
     v.check("se radica sin pedir bodega", r.status_code == 201, r.text[:300])
-    v.check("y queda esperando a Comercial",
-            r.json()["estado"] == "en_comercial", r.json()["estado"])
+    v.check("y queda esperando al supervisor de los puntos, no a Contabilidad",
+            r.json()["estado"] == "en_supervision", r.json()["estado"])
     v.check("sin bodega", r.json()["bodega"] is None, r.json())
 
 

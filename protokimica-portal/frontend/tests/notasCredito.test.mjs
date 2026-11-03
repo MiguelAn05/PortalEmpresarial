@@ -123,11 +123,15 @@ console.log('\n== Los filtros van en el orden del flujo ==')
 const esperando = FILTROS.find(f => f.grupo === 'Esperando a').opciones.map(o => o.clave)
 // Desde la 0.60 Comercial va antes que la bodega: la bodega confirma solo lo
 // que Comercial ya aprobó.
-check('comercial, bodega, contabilidad, emitir, corregir',
+// Desde la 0.72 el supervisor de los puntos va antes que Comercial en las del
+// mostrador que traen producto.
+check('supervisor, comercial, bodega, contabilidad, emitir, corregir',
   JSON.stringify(esperando) ===
-  JSON.stringify(['comercial', 'bodega', 'contabilidad', 'por_emitir', 'devueltas']), esperando)
+  JSON.stringify(['supervisor', 'comercial', 'bodega', 'contabilidad', 'por_emitir', 'devueltas']), esperando)
 
 const estadosEnOrden = Object.keys(ESTADOS)
+check('el supervisor antes que Comercial',
+  estadosEnOrden.indexOf('en_supervision') < estadosEnOrden.indexOf('en_comercial'), estadosEnOrden)
 check('y los estados tambien: Comercial antes que la bodega',
   estadosEnOrden.indexOf('en_comercial') < estadosEnOrden.indexOf('en_bodega'), estadosEnOrden)
 check('y la bodega antes que Contabilidad',
@@ -148,9 +152,10 @@ console.log('\n== En el mostrador Contabilidad ya no tiene turno ==')
 // Tenia uno —el estado `solicitada`— entre Comercial y la emision, y sobraba:
 // la decision comercial ya estaba tomada y ante la DIAN no hay nada que
 // verificar en una venta de mostrador.
-check('la cadena del mostrador son dos pasos',
-  /if not institucional:\s*\n\s*return \(ESTADO_EN_COMERCIAL, ESTADO_APROBADA\)/
-    .test(PY_FLUJO))
+check('la cadena del mostrador sin producto son dos pasos',
+  /\n\s*return \(ESTADO_EN_COMERCIAL, ESTADO_APROBADA\)/.test(PY_FLUJO))
+check('y con producto el supervisor va primero, sin Contabilidad',
+  /return \(ESTADO_EN_SUPERVISION, ESTADO_EN_COMERCIAL, ESTADO_APROBADA\)/.test(PY_FLUJO))
 check('el filtro de Contabilidad cubre solo el turno de la DIAN',
   /"contabilidad":\s*\(ESTADO_EN_CONTABILIDAD,\)/.test(PY_FLUJO))
 // `solicitada` sigue teniendo etiqueta: es una etapa del HISTORIAL, y las que

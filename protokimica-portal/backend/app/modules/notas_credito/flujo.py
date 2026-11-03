@@ -17,13 +17,25 @@ Lo que cambia entre ramas es qué pasa DESPUÉS de Comercial:
 
     Punto de venta ──► COMERCIAL aprueba
                     ──► el punto emite y registra el número
+        └─(si el motivo implica producto, ANTES de Comercial)─►
+                       SUPERVISOR de los puntos revisa el producto
 
     Ventas Institucionales ──► COMERCIAL aprueba
         └─(si el motivo implica producto)─► BODEGA confirma que llegó
                                          ──► CONTABILIDAD verifica en la DIAN
                                          ──► quien emite registra el número
 
-Lo único que agrega el producto es la confirmación de la bodega: sin
+**El supervisor de los puntos va ANTES de Comercial** (desde la 0.72, por
+decisión del usuario): Comercial decide sabiendo que el producto que vuelve
+ya lo revisó alguien. Es al revés que la bodega en la institucional, y a
+propósito: allá la bodega confirma que la mercancía LLEGÓ y eso solo vale la
+pena si Comercial ya aprobó; aquí el producto ya está en la sede y lo que
+mira el supervisor es parte de lo que Comercial necesita para decidir. Lo
+atiende quien tenga `notas_credito.supervisar_punto`, que se otorga por
+persona: el «coordinador» de las sedes se reconoce por no tener punto, y eso
+también lo cumple un usuario mal configurado.
+
+Lo único que agrega el producto es una revisión de la mercancía: sin
 producto no hay nada que confirmar y pedirlo sería una firma que no mira
 nada, de las que la gente aprende a dar sin leer.
 
@@ -66,7 +78,8 @@ from app.core import bodegas
 from app.models.nota_credito import (
     ESTADO_APLICADA, ESTADO_APROBADA, ESTADO_CANCELADA, ESTADO_DEVUELTA,
     ESTADO_EN_BODEGA, ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD,
-    ESTADO_RECHAZADA, ESTADO_SOLICITADA, ESTADOS, ESTADOS_ABIERTOS,
+    ESTADO_EN_SUPERVISION, ESTADO_RECHAZADA, ESTADO_SOLICITADA, ESTADOS,
+    ESTADOS_ABIERTOS,
 )
 from app.models.user import User
 
@@ -77,6 +90,7 @@ from app.models.user import User
 # Qué capacidad hay que tener para atender cada turno. Un estado que no está
 # aquí no es turno de nadie: o es final, o está en manos del solicitante.
 CAPACIDAD_POR_ESTADO = {
+    ESTADO_EN_SUPERVISION:  "notas_credito.supervisar_punto",
     ESTADO_EN_BODEGA:       "notas_credito.confirmar_producto",
     ESTADO_EN_COMERCIAL:    "notas_credito.aprobar_comercial",
     ESTADO_EN_CONTABILIDAD: "notas_credito.verificar_dian",
@@ -91,6 +105,7 @@ CAPACIDAD_POR_ESTADO = {
 # poder decir en qué paso fue.
 ETIQUETA_ESTADO = {
     ESTADO_SOLICITADA:      "Esperando a Contabilidad",
+    ESTADO_EN_SUPERVISION:  "Esperando al supervisor de los puntos",
     ESTADO_EN_BODEGA:       "Esperando a la bodega",
     ESTADO_EN_COMERCIAL:    "Esperando a Coordinación Comercial",
     ESTADO_EN_CONTABILIDAD: "Esperando a Contabilidad",
@@ -101,6 +116,7 @@ ETIQUETA_ESTADO = {
 # la pantalla: un aviso que dice «tienes algo pendiente» sin decir qué hay
 # que hacer se archiva sin abrir.
 QUE_HACER = {
+    ESTADO_EN_SUPERVISION:  "Revisa el producto que devolvió el cliente y aprueba si procede.",
     ESTADO_EN_BODEGA:       "Confirma que el producto está en la bodega y en buen estado.",
     ESTADO_EN_COMERCIAL:    "Aprueba o rechaza la nota crédito.",
     ESTADO_EN_CONTABILIDAD: "Verifica ante la DIAN si la factura tiene saldo a favor.",
@@ -127,6 +143,7 @@ GRUPO_MI_TURNO = "mi_turno"       # se resuelve contra el usuario, no contra una
 
 GRUPOS_FILTRO: dict[str, tuple[str, ...]] = {
     "abiertas":     (),   # se llena abajo con ESTADOS_ABIERTOS
+    "supervisor":   (ESTADO_EN_SUPERVISION,),
     "comercial":    (ESTADO_EN_COMERCIAL,),
     "bodega":       (ESTADO_EN_BODEGA,),
     # Solo la rama institucional: en la del mostrador Contabilidad ya no
@@ -155,30 +172,35 @@ def estados_del_filtro(clave: str) -> tuple[str, ...]:
     return GRUPOS_FILTRO.get(clave, ())
 
 
-def cadena(institucional: bool, requiere_bodega: bool = False) -> tuple[str, ...]:
+def cadena(institucional: bool, por_producto: bool = False) -> tuple[str, ...]:
     """
     Los turnos por los que pasa esta solicitud, en orden, hasta quedar lista
     para emitir. `ESTADO_APROBADA` cierra la lista en las dos ramas: es el
     turno de quien la emite.
+
+    `por_producto` es `SolicitudNotaCredito.por_producto`, que se fija al
+    radicar: el motivo traía producto.
     """
     # El mostrador: Comercial decide y el punto emite. Contabilidad no tiene
     # turno aquí — no hay nada que verificar ante la DIAN y la decisión
-    # comercial ya está tomada.
+    # comercial ya está tomada. Con producto, el supervisor lo revisa antes.
     if not institucional:
+        if por_producto:
+            return (ESTADO_EN_SUPERVISION, ESTADO_EN_COMERCIAL, ESTADO_APROBADA)
         return (ESTADO_EN_COMERCIAL, ESTADO_APROBADA)
     # Comercial decide primero también aquí; la bodega confirma solo lo que
     # Comercial ya aprobó.
-    if requiere_bodega:
+    if por_producto:
         return (ESTADO_EN_COMERCIAL, ESTADO_EN_BODEGA, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)
     return (ESTADO_EN_COMERCIAL, ESTADO_EN_CONTABILIDAD, ESTADO_APROBADA)
 
 
-def estado_inicial(institucional: bool, requiere_bodega: bool = False) -> str:
+def estado_inicial(institucional: bool, por_producto: bool = False) -> str:
     """Dónde nace la solicitud: el primer turno de su cadena."""
-    return cadena(institucional, requiere_bodega)[0]
+    return cadena(institucional, por_producto)[0]
 
 
-def siguiente(estado: str, institucional: bool, requiere_bodega: bool = False) -> str | None:
+def siguiente(estado: str, institucional: bool, por_producto: bool = False) -> str | None:
     """
     El turno que sigue al aprobar, o `None` si ya no hay más.
 
@@ -186,7 +208,7 @@ def siguiente(estado: str, institucional: bool, requiere_bodega: bool = False) -
     es un caso imposible por diseño (el router comprueba el turno antes), y
     adivinar un «siguiente» sería inventar un paso.
     """
-    pasos = cadena(institucional, requiere_bodega)
+    pasos = cadena(institucional, por_producto)
     if estado not in pasos:
         return None
     posicion = pasos.index(estado)

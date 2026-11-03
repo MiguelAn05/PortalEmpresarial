@@ -57,6 +57,10 @@ CAPACIDADES = {
     "notas_credito.confirmar_producto": "Confirmar que el producto devuelto llegó a la bodega",
     "notas_credito.aprobar_comercial":  "Aprobar comercialmente una nota crédito de venta institucional",
     "notas_credito.verificar_dian":     "Verificar ante la DIAN el saldo de la factura de una nota crédito",
+    # El primer turno de las del mostrador que traen producto (desde la 0.72).
+    # Se otorga por PERSONA y no va en la semilla: el supervisor de las sedes
+    # es alguien con nombre, y por área se le daría a todo el mostrador.
+    "notas_credito.supervisar_punto":   "Revisar, como supervisor de los puntos de venta, el producto de una nota crédito del mostrador",
 }
 
 

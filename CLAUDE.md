@@ -1756,8 +1756,29 @@ asignar con el plazo corriendo es el caso más peligroso de todos.
   | Quién pide | Recorrido |
   |---|---|
   | Un punto de venta | Comercial aprueba → el punto emite |
+  | Un punto de venta, motivo con producto | **El supervisor de los puntos revisa** → Comercial aprueba → el punto emite |
   | Ventas Institucionales | Comercial aprueba → Contabilidad verifica en la DIAN → se emite |
   | Ventas Institucionales, motivo con producto | Comercial aprueba → **la bodega confirma que llegó** → Contabilidad verifica en la DIAN → se emite |
+
+  **En el mostrador, el supervisor de los puntos va ANTES de Comercial**
+  (desde la 0.72, por decisión del usuario), al revés que la bodega en la
+  institucional: allá se confirma que la mercancía LLEGÓ, y eso solo vale
+  después de que Comercial aprueba; aquí el producto ya está en la sede y su
+  revisión es parte de lo que Comercial necesita para decidir. Estado
+  `en_supervision`, capacidad `notas_credito.supervisar_punto` **otorgada por
+  persona** (no por área ni «coordinador sin punto»: eso también lo cumple
+  un usuario mal configurado) y sin semilla. El supervisor ve todo el
+  mostrador, no las institucionales. Si se pasa por un paso de producto lo
+  dice `nc_solicitudes.por_producto`, fijado al radicar (como
+  `institucional`): cambiarle la marca al motivo no mueve a las que van en
+  camino. **Sin nadie con esa capacidad, esas notas se quedan quietas**:
+  otorgarla antes de desplegar.
+
+  **El permiso de registrar, en las sedes, vale solo para SU mostrador**
+  (desde la 0.71.1, `permisos.es_de_las_sedes`): el área de las sedes lo
+  necesita para emitir, y ese mismo permiso es el que abre a Contabilidad
+  las institucionales y el módulo entero (`ve_todas`). Una sede ve y emite
+  las de su punto; sin punto, las de todos los puntos; nunca institucionales.
 
   **Comercial va antes que la bodega** (desde la 0.60; hasta la 0.59 la
   bodega iba primero). Si Comercial la rechaza, la bodega no tenía nada que

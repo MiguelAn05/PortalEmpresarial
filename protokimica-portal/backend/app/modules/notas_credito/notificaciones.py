@@ -208,7 +208,7 @@ def _aviso_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
 
     en_copia = []
     turno_siguiente = flujo.siguiente(
-        solicitud.estado, solicitud.institucional, bool(solicitud.bodega),
+        solicitud.estado, solicitud.institucional, solicitud.por_producto,
     )
     if turno_siguiente and turno_siguiente != ESTADO_APROBADA:
         capacidad_siguiente = flujo.capacidad_de(turno_siguiente)
@@ -222,7 +222,7 @@ def _aviso_en_turno(db: Session, tenant_id: int, solicitud) -> list[Aviso]:
         en_copia = [c for c in copia if c not in destinatarios]
 
     es_el_primer_turno = solicitud.estado == flujo.estado_inicial(
-        solicitud.institucional, bool(solicitud.bodega),
+        solicitud.institucional, solicitud.por_producto,
     )
     if es_el_primer_turno:
         en_copia += [c for c in _lideres_del_solicitante(db, tenant_id, solicitud)

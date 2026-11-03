@@ -43,10 +43,11 @@ CAP_REGISTRAR = "notas_credito.registrar"
 CAP_CONFIRMAR_PRODUCTO = "notas_credito.confirmar_producto"
 CAP_APROBAR_COMERCIAL = "notas_credito.aprobar_comercial"
 CAP_VERIFICAR_DIAN = "notas_credito.verificar_dian"
+CAP_SUPERVISAR_PUNTO = "notas_credito.supervisar_punto"
 
 CAPACIDADES_DEL_MODULO = (
     CAP_AUTORIZAR, CAP_REGISTRAR, CAP_CONFIRMAR_PRODUCTO,
-    CAP_APROBAR_COMERCIAL, CAP_VERIFICAR_DIAN,
+    CAP_APROBAR_COMERCIAL, CAP_VERIFICAR_DIAN, CAP_SUPERVISAR_PUNTO,
 )
 
 assert all(c in CAPACIDADES for c in CAPACIDADES_DEL_MODULO), (
@@ -61,11 +62,28 @@ assert all(c in CAPACIDADES for c in CAPACIDADES_DEL_MODULO), (
 # está la solicitud; `CAP_AUTORIZAR` solo abre el módulo entero (`ve_todas`).
 
 
+def es_de_las_sedes(db: Session, usuario: User) -> bool:
+    """
+    ¿Trabaja en el área de las sedes? Ahí el permiso de registrar vale solo
+    para SU mostrador (ver `emisores` y `ve_todas`).
+
+    Para que un punto emita, el permiso se le otorga al área entera, y ese
+    mismo permiso es el que abre las institucionales y el módulo completo a
+    Contabilidad. Sin este corte, darle a las sedes lo que necesitan para
+    emitir les mostraba las notas de los otros puntos y las institucionales
+    —y las dejaba registrar el número de estas—, que es la regla de las PQRS
+    de cada sede saltada por la puerta de atrás.
+    """
+    sedes = areas.area_de_sedes(db, usuario.tenant_id)
+    return bool(sedes) and usuario.area == sedes
+
+
 def emisores(db: Session, tenant_id: int, solicitud) -> list[User]:
     """
     Quiénes emiten esta nota crédito y escriben su número.
 
-    - **Institucional:** quien tenga el permiso de registrar (Contabilidad).
+    - **Institucional:** quien tenga el permiso de registrar (Contabilidad),
+      **menos las sedes**: ellas lo tienen para su mostrador, no para esto.
     - **Punto de venta:** la gente de ESE punto con el permiso; si no hay
       nadie, el coordinador de los puntos (área de las sedes, sin punto).
       **Contabilidad no entra**: en el mostrador no tiene ningún turno —
@@ -74,14 +92,27 @@ def emisores(db: Session, tenant_id: int, solicitud) -> list[User]:
       del mostrador que no son trabajo suyo.
     """
     con_permiso = usuarios_con(db, tenant_id, CAP_REGISTRAR)
+    sedes = areas.area_de_sedes(db, tenant_id)
     if solicitud.institucional:
-        return con_permiso
+        return [u for u in con_permiso if not (sedes and u.area == sedes)]
     prefijo = canales.prefijo_de(db, tenant_id, solicitud.punto_venta)
     del_punto = [u for u in con_permiso if prefijo and u.punto_venta == prefijo]
     if del_punto:
         return del_punto
-    sedes = areas.area_de_sedes(db, tenant_id)
     return [u for u in con_permiso if sedes and u.area == sedes and not u.punto_venta]
+
+
+def _canales_del_mostrador(db: Session, usuario: User) -> list[str] | None:
+    """
+    Los canales de las notas del mostrador que esta persona de las sedes
+    emite: los de su punto, o `None` —todos los del mostrador— si es el
+    coordinador (sin punto). Incluye los canales desactivados: sus notas
+    no dejaron de existir.
+    """
+    if not usuario.punto_venta:
+        return None
+    return [c.nombre for c in canales.del_tenant(db, usuario.tenant_id, incluir_inactivos=True)
+            if c.prefijo == usuario.punto_venta]
 
 
 def puede_emitir(db: Session, usuario: User, solicitud) -> bool:
@@ -148,11 +179,14 @@ def ve_todas(db: Session, usuario: User) -> bool:
     Quién ve el módulo completo: los roles que ven todo el portal y quienes
     tramitan CUALQUIER nota crédito —autorizar y registrar—, que necesitan la
     lista entera para trabajar.
+
+    Registrar no cuenta en las sedes (`es_de_las_sedes`): ellas emiten las
+    de su mostrador y eso es lo que ven.
     """
     return (
         usuario.rol in ("admin", "gerencia")
         or tiene(db, usuario, CAP_AUTORIZAR)
-        or tiene(db, usuario, CAP_REGISTRAR)
+        or (tiene(db, usuario, CAP_REGISTRAR) and not es_de_las_sedes(db, usuario))
     )
 
 
@@ -189,6 +223,14 @@ def puede_ver(db: Session, usuario: User, solicitud) -> bool:
     if CAP_APROBAR_COMERCIAL in suyas:
         return True
     if not solicitud.institucional:
+        # El supervisor de los puntos ve todo el mostrador: el primer turno de
+        # las que traen producto es suyo, y lo que no ve no lo puede revisar.
+        if CAP_SUPERVISAR_PUNTO in suyas:
+            return True
+        # La sede ve las de su mostrador, que son las que emite.
+        if CAP_REGISTRAR in suyas and es_de_las_sedes(db, usuario):
+            propios = _canales_del_mostrador(db, usuario)
+            return propios is None or solicitud.punto_venta in propios
         return False
     if CAP_VERIFICAR_DIAN in suyas:
         return True
@@ -219,6 +261,15 @@ def filtrar_visibles(query, db: Session, usuario: User):
         # Comercial abre TODAS las cadenas, así que no se le acota a las
         # institucionales: lo que no ve en la lista no lo puede aprobar.
         return query
+    mostrador = SolicitudNotaCredito.institucional.is_(False)
+    if CAP_SUPERVISAR_PUNTO in suyas:
+        condiciones.append(mostrador)
+    elif CAP_REGISTRAR in suyas and es_de_las_sedes(db, usuario):
+        propios = _canales_del_mostrador(db, usuario)
+        if propios is None:
+            condiciones.append(mostrador)
+        elif propios:
+            condiciones.append(and_(mostrador, SolicitudNotaCredito.punto_venta.in_(propios)))
     if CAP_VERIFICAR_DIAN in suyas:
         condiciones.append(institucional)
     elif CAP_CONFIRMAR_PRODUCTO in suyas:

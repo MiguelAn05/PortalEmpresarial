@@ -30,7 +30,9 @@ export const MAX_NUMERO_NC = 60
  * El texto nunca va solo con color: el ámbar de la marca no alcanza el
  * contraste mínimo sobre blanco, así que la etiqueta lo dice con palabras.
  */
-// Declarados EN EL ORDEN DEL FLUJO: Comercial, bodega, Contabilidad, emitir.
+// Declarados EN EL ORDEN DEL FLUJO: supervisor, Comercial, bodega,
+// Contabilidad, emitir. El supervisor de los puntos solo aparece en las del
+// mostrador que traen producto, y va antes de Comercial (desde la 0.72).
 // El orden de esta lista termina siendo el de cualquier cosa que la recorra,
 // y una lista que empieza por Contabilidad afirma —sin que nadie lo escriba—
 // que el proceso empieza ahí.
@@ -44,6 +46,7 @@ export const MAX_NUMERO_NC = 60
 // Se queda aquí porque es una etapa del HISTORIAL —las que pasaron por ella
 // lo siguen diciendo— pero ninguna solicitud viva está en ese estado.
 export const ESTADOS = {
+  en_supervision:  { label: 'Esperando al supervisor', color: 'bg-alerta-bg text-alerta' },
   en_comercial:    { label: 'Esperando a Comercial',    color: 'bg-alerta-bg text-alerta' },
   en_bodega:       { label: 'Esperando a la bodega',    color: 'bg-alerta-bg text-alerta' },
   solicitada:      { label: 'Esperando a Contabilidad', color: 'bg-alerta-bg text-alerta' },
@@ -71,6 +74,7 @@ export const FILTROS = [
   {
     grupo: 'Esperando a',
     opciones: [
+      { clave: 'supervisor',   texto: 'El supervisor de los puntos' },
       { clave: 'comercial',    texto: 'Coordinación Comercial' },
       { clave: 'bodega',       texto: 'La bodega' },
       { clave: 'contabilidad', texto: 'Contabilidad' },
@@ -95,7 +99,7 @@ export function clavesDeFiltro() {
 
 /** Las que todavía esperan a alguien. Gemelo de `ESTADOS_ABIERTOS` del modelo. */
 export const ESTADOS_ABIERTOS = [
-  'en_comercial', 'en_bodega', 'en_contabilidad', 'aprobada', 'devuelta',
+  'en_supervision', 'en_comercial', 'en_bodega', 'en_contabilidad', 'aprobada', 'devuelta',
 ]
 
 export function estaAbierta(estado) {
