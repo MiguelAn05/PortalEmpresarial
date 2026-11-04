@@ -19,6 +19,16 @@ export const obtenerOportunidad = (id) =>
 export const propuestaDesdeOrigen = (origen, id) =>
   api.get(`/mejora/desde/${origen}/${id}`).then(r => r.data)
 
+/**
+ * Sumarle una PQRS a una OMP abierta por la misma causa, en vez de abrir
+ * otra para el mismo problema. Queda en el historial de la OMP.
+ */
+export const vincularPQRS = (ompId, pqrsId) =>
+  api.post(`/mejora/${ompId}/vinculos`, { origen: 'pqrs', origen_id: pqrsId }).then(r => r.data)
+
+export const desvincularPQRS = (ompId, vinculoId) =>
+  api.delete(`/mejora/${ompId}/vinculos/${vinculoId}`).then(r => r.data)
+
 export const crearOportunidad = (datos) =>
   api.post('/mejora', datos).then(r => r.data)
 

@@ -9,7 +9,7 @@ import {
 } from '../../../core/components/Iconos.jsx'
 import {
   actualizarAccion, actualizarOportunidad, agregarAccion, agregarSeguimiento,
-  cambiarEstado, consultarVerificacion, eliminarAccion, eliminarSeguimiento,
+  cambiarEstado, consultarVerificacion, desvincularPQRS, eliminarAccion, eliminarSeguimiento,
   obtenerHistorial, obtenerOportunidad, registrarVerificacion, validarSGC,
 } from '../api.js'
 import {
@@ -651,6 +651,7 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
   const mutSeguimiento = useMutation(conError((contenido) =>
     agregarSeguimiento(ompId, { contenido })))
   const mutBorrarSeguimiento = useMutation(conError((id) => eliminarSeguimiento(ompId, id)))
+  const mutDesvincular = useMutation(conError((id) => desvincularPQRS(ompId, id)))
 
   if (isLoading || !omp) {
     return (
@@ -721,8 +722,14 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
         <div className="px-6 py-5 space-y-6">
           <Ciclo estado={omp.estado} />
 
-          {omp.descripcion && (
-            <p className="text-sm text-texto-2 whitespace-pre-line">{omp.descripcion}</p>
+          {/* Se corrige en el sitio; el texto anterior queda en el historial. */}
+          {(omp.descripcion || editable) && (
+            <CampoLargo
+              titulo="Descripción" valor={omp.descripcion}
+              vacio="Sin descripción." ayuda="Qué pasó, dónde y desde cuándo."
+              editable={editable}
+              onGuardar={(texto) => mutCampos.mutate({ descripcion: texto.trim() || null })}
+            />
           )}
 
           {omp.pqrs_id && (
@@ -732,6 +739,40 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
               <Link to={`/pqrs/${omp.pqrs_id}`} className="text-acento font-medium hover:underline">
                 ver el caso
               </Link>
+            </div>
+          )}
+
+          {/* Las PQRS que llegaron después por el mismo problema: se suman
+              aquí en vez de abrir otra OMP, y son la evidencia de cuántas
+              veces pasó. */}
+          {omp.pqrs_vinculadas?.length > 0 && (
+            <div className="text-sm">
+              <h3 className="etiqueta mb-1.5">
+                También la reportan ({omp.pqrs_vinculadas.length})
+              </h3>
+              <ul className="space-y-1">
+                {omp.pqrs_vinculadas.map(vp => (
+                  <li key={vp.id} className="flex flex-wrap items-center gap-x-2 text-texto-2">
+                    <IconoPQRS tam={14} className="text-texto-3" />
+                    <Link to={`/pqrs/${vp.pqrs_id}`} className="text-acento font-medium hover:underline">
+                      {vp.referencia}
+                    </Link>
+                    <span className="text-xs text-texto-3">
+                      {fechaCorta(vp.vinculado_en)}
+                      {vp.vinculado_por_nombre && ` · la vinculó ${vp.vinculado_por_nombre}`}
+                    </span>
+                    {editable && (
+                      <button
+                        onClick={() => mutDesvincular.mutate(vp.id)}
+                        disabled={mutDesvincular.isPending}
+                        className="text-xs text-texto-3 hover:text-negativo ml-auto"
+                      >
+                        Quitar
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -970,7 +1011,7 @@ export default function DetalleOportunidad({ ompId, onCerrar }) {
               historial?.length ? (
                 <ul className="mt-2 space-y-1.5">
                   {historial.map(c => (
-                    <li key={c.id} className="text-xs text-texto-2">
+                    <li key={c.id} className="text-xs text-texto-2 whitespace-pre-line">
                       <span className="cifra text-texto-3">{fechaCorta(c.fecha)}</span>
                       {' · '}<b className="text-texto font-medium">{c.campo}</b>
                       {c.valor_anterior && <> de «{c.valor_anterior}»</>}

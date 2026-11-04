@@ -9,6 +9,8 @@ catálogo, y nada la leía. Lo que se defiende:
   - avisa de las OMP que ya nacieron de esa PQRS;
   - la OMP guarda de qué PQRS nació, y no acepta una que no existe o de
     otra empresa;
+  - una PQRS por la MISMA causa se suma a la OMP abierta en vez de abrir
+    otra, y eso queda en el historial;
   - solo quien abre Mejora (admin y líderes);
   - Mejora no importa nada de PQRS: lo lee por el contrato
     (`core/origenes_omp.py`).
@@ -17,7 +19,8 @@ from app.models.pqrs import PQRSAsociado, PQRSSolicitud
 from app.models.tenant import Tenant
 
 
-def _pqrs(portal, *, asociado=None, area_causante="Logística", tenant_id=None, estado="en_proceso"):
+def _pqrs(portal, *, asociado=None, area_causante="Logística", tenant_id=None, estado="en_proceso",
+          codigo="PVG0042"):
     db = portal.Session()
     asociado_id = None
     if asociado:
@@ -27,7 +30,7 @@ def _pqrs(portal, *, asociado=None, area_causante="Logística", tenant_id=None, 
         tenant_id=tenant_id or portal.tenant_id, tipo="queja", cliente_nombre="Cliente",
         cliente_email="c@x.com", descripcion="Me atendieron mal en el mostrador.",
         estado=estado, prioridad="media", area_responsable="Servicio al Cliente",
-        codigo_seguimiento="PVG0042", asociado_id=asociado_id, area_causante=area_causante,
+        codigo_seguimiento=codigo, asociado_id=asociado_id, area_causante=area_causante,
     )
     db.add(p)
     db.commit()
@@ -137,3 +140,97 @@ def test_mejora_no_importa_pqrs():
     from app.modules.mejora import origenes
     assert "pqrs" in origenes.ORIGENES
     assert origenes.ORIGENES["pqrs"][0] == "pqrs"
+
+
+# ── Varias PQRS por la misma causa, una sola OMP ────────────────────
+
+def _omp_desde(portal, pid):
+    r = portal.post("/mejora", json={
+        "titulo": "Galón del ácido nítrico", "origen": "pqrs", "pqrs_id": pid, "area": "Logística",
+    })
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+def test_la_segunda_pqrs_por_la_misma_causa_encuentra_la_omp_abierta(entorno, v):
+    portal = entorno
+    primera = _pqrs(portal, asociado="Servicio", codigo="PVG0042")
+    omp_id = _omp_desde(portal, primera)
+    segunda = _pqrs(portal, asociado="Servicio", codigo="PVG0043")
+    otra_causa = _pqrs(portal, asociado="Transportadora", codigo="PVG0044")
+
+    p = portal.get(f"/mejora/desde/pqrs/{segunda}").json()
+    v.check("la ofrece por la misma causa", [o["id"] for o in p["misma_causa"]] == [omp_id], p)
+    v.check("y nombra la causa", p["causa"] == "Servicio", p)
+    v.check("pero no la cuenta como suya todavía", p["existentes"] == [], p)
+
+    p = portal.get(f"/mejora/desde/pqrs/{otra_causa}").json()
+    v.check("otra causa no la ofrece", p["misma_causa"] == [], p)
+
+
+def test_vincular_la_suma_y_queda_en_el_historial(entorno, v):
+    portal = entorno
+    omp_id = _omp_desde(portal, _pqrs(portal, asociado="Servicio", codigo="PVG0042"))
+    segunda = _pqrs(portal, asociado="Servicio", codigo="PVG0043")
+
+    r = portal.post(f"/mejora/{omp_id}/vinculos", json={"origen": "pqrs", "origen_id": segunda})
+    v.check("se vincula", r.status_code == 201, r.text[:300])
+    vinc = r.json()["pqrs_vinculadas"]
+    v.check("la OMP la lista con su radicado",
+            [(x["pqrs_id"], x["referencia"]) for x in vinc] == [(segunda, "PQRS PVG0043")], vinc)
+    v.check("con quién la vinculó", vinc[0]["vinculado_por_nombre"], vinc)
+
+    historial = portal.get(f"/mejora/{omp_id}/historial").json()
+    v.check("el historial lo dice",
+            any(c["campo"] == "PQRS vinculada" and c["valor_nuevo"] == "PQRS PVG0043" for c in historial),
+            historial)
+
+    p = portal.get(f"/mejora/desde/pqrs/{segunda}").json()
+    v.check("ahora la PQRS ya tiene esa OMP", [o["id"] for o in p["existentes"]] == [omp_id], p)
+    v.check("y no se ofrece dos veces", p["misma_causa"] == [], p)
+
+    r = portal.post(f"/mejora/{omp_id}/vinculos", json={"origen": "pqrs", "origen_id": segunda})
+    v.check("dos veces la misma: 409", r.status_code == 409, r.text[:200])
+
+
+def test_quitar_una_vinculada_deja_rastro(entorno, v):
+    portal = entorno
+    omp_id = _omp_desde(portal, _pqrs(portal, asociado="Servicio", codigo="PVG0042"))
+    segunda = _pqrs(portal, asociado="Servicio", codigo="PVG0043")
+    vinculo = portal.post(f"/mejora/{omp_id}/vinculos",
+                          json={"origen": "pqrs", "origen_id": segunda}).json()["pqrs_vinculadas"][0]
+
+    r = portal.delete(f"/mejora/{omp_id}/vinculos/{vinculo['id']}")
+    v.check("se quita", r.status_code == 200 and r.json()["pqrs_vinculadas"] == [], r.text[:200])
+    historial = portal.get(f"/mejora/{omp_id}/historial").json()
+    v.check("el historial conserva cuál era",
+            any(c["campo"] == "PQRS vinculada" and c["valor_anterior"] == "PQRS PVG0043"
+                and c["valor_nuevo"] is None for c in historial), historial)
+
+
+def test_no_se_vincula_a_una_omp_terminada_ni_la_de_origen(entorno, v):
+    portal = entorno
+    primera = _pqrs(portal, asociado="Servicio", codigo="PVG0042")
+    omp_id = _omp_desde(portal, primera)
+
+    r = portal.post(f"/mejora/{omp_id}/vinculos", json={"origen": "pqrs", "origen_id": primera})
+    v.check("la de origen ya está: 409", r.status_code == 409, r.text[:200])
+
+    portal.patch(f"/mejora/{omp_id}/estado", json={"estado": "descartada", "motivo": "Ya no aplica."})
+    segunda = _pqrs(portal, asociado="Servicio", codigo="PVG0043")
+    v.check("una descartada no se ofrece",
+            portal.get(f"/mejora/desde/pqrs/{segunda}").json()["misma_causa"] == [])
+    r = portal.post(f"/mejora/{omp_id}/vinculos", json={"origen": "pqrs", "origen_id": segunda})
+    v.check("ni recibe PQRS: 409 y dice qué hacer", r.status_code == 409 and "nueva" in r.text, r.text[:200])
+
+
+def test_vincular_pide_poder_gestionar_y_ver_la_pqrs(entorno, v):
+    portal = entorno
+    omp_id = _omp_desde(portal, _pqrs(portal, asociado="Servicio", codigo="PVG0042"))
+    r = portal.post(f"/mejora/{omp_id}/vinculos", json={"origen": "pqrs", "origen_id": 999})
+    v.check("una PQRS que no existe: 404", r.status_code == 404, r.text[:200])
+
+    segunda = _pqrs(portal, asociado="Servicio", codigo="PVG0043")
+    portal.como("gerencia")
+    r = portal.post(f"/mejora/{omp_id}/vinculos", json={"origen": "pqrs", "origen_id": segunda})
+    v.check("gerencia no", r.status_code == 403, r.status_code)

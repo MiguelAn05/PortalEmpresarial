@@ -5,8 +5,10 @@ import { useAuth } from '../../../core/useAuth.js'
 import { IconoCerrar } from '../../../core/components/Iconos.jsx'
 import { useCierreSeguro } from '../../../core/components/cierreSeguro.jsx'
 import { obtenerTablero } from '../../indicadores/api.js'
-import { crearOportunidad, obtenerCatalogos } from '../api.js'
-import { CLASIFICACIONES, MAX_TITULO, MIN_TITULO, ORIGENES, TRATAMIENTOS } from '../constants.js'
+import { crearOportunidad, obtenerCatalogos, vincularPQRS } from '../api.js'
+import {
+  CLASIFICACIONES, ESTADOS, MAX_TITULO, MIN_TITULO, ORIGENES, TRATAMIENTOS,
+} from '../constants.js'
 import { mensajeDeError } from '../../../core/errores.js'
 
 /**
@@ -111,6 +113,19 @@ export default function FormOportunidad({ indicador = null, periodo = null,
     ),
   })
 
+  // Sumar la PQRS a una OMP abierta por la misma causa. Al terminar se abre
+  // esa OMP, que es donde sigue el trabajo.
+  const vinculacion = useMutation({
+    mutationFn: (ompId) => vincularPQRS(ompId, desde.origen_id),
+    onSuccess: (omp) => {
+      queryClient.invalidateQueries({ queryKey: ['omp'] })
+      onAbrirExistente?.(omp.id)
+    },
+    onError: (err) => setError(
+      mensajeDeError(err, 'No se pudo vincular la PQRS. Intenta de nuevo.'),
+    ),
+  })
+
   const cambiar = (campo) => (e) => {
     setForm({ ...form, [campo]: e.target.value })
     setError('')
@@ -177,6 +192,50 @@ export default function FormOportunidad({ indicador = null, periodo = null,
                 ))}
               </div>
             )}
+
+            {/* El mismo problema ya se está trabajando: lo normal es sumarle
+                esta PQRS, no abrir un segundo plan para lo mismo. Abrir otra
+                sigue siendo posible, porque una causa amplia («Calidad del
+                producto») puede cubrir problemas distintos. */}
+            {desde?.misma_causa?.length > 0 && (
+              <div className="rounded-lg border border-acento/30 bg-info-bg px-3 py-3 space-y-2">
+                <p className="text-sm font-semibold text-texto">
+                  Ya hay {desde.misma_causa.length === 1 ? 'una OMP abierta' : `${desde.misma_causa.length} OMP abiertas`} por
+                  la causa «{desde.causa}».
+                </p>
+                <p className="text-xs text-texto-2">
+                  Si es el mismo problema, vincula esta PQRS a esa OMP en vez de abrir otra.
+                  Queda registrado en su historial.
+                </p>
+                <ul className="space-y-1.5">
+                  {desde.misma_causa.map(o => (
+                    <li key={o.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-superficie border border-borde px-3 py-2">
+                      <button type="button" onClick={() => onAbrirExistente?.(o.id)}
+                              className="flex-1 min-w-40 text-left text-sm text-texto hover:underline">
+                        <span className="cifra text-xs text-texto-3">{o.codigo || `#${o.id}`}</span>
+                        {' · '}{o.titulo}
+                        <span className="block text-xs text-texto-3">
+                          {ESTADOS[o.estado]?.label ?? o.estado} · {o.area || 'Toda la empresa'}
+                        </span>
+                      </button>
+                      <button
+                        type="button" onClick={() => vinculacion.mutate(o.id)}
+                        disabled={vinculacion.isPending}
+                        className="px-3 py-1.5 rounded-lg bg-acento-fuerte text-white text-xs font-semibold
+                          disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {vinculacion.isPending && vinculacion.variables === o.id
+                          ? 'Vinculando…' : 'Vincular esta PQRS'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-texto-3">
+                  Si es un problema distinto, sigue abajo y abre una nueva.
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="etiqueta block mb-1.5">
                 Qué se va a mejorar <span className="text-negativo">*</span>

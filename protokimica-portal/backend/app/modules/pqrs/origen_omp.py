@@ -33,6 +33,10 @@ def _propuesta(db: Session, tenant_id: int, pqrs_id: int, usuario: User) -> Prop
         sugiere=bool(asociado and asociado.sugiere_omp),
         motivo=(f"La causa «{asociado.nombre}» está marcada para volverse OMP."
                 if asociado and asociado.sugiere_omp else None),
+        # Por el id, no por el nombre: renombrar la causa desde
+        # Administración no puede separar una OMP de sus PQRS.
+        clave_causa=f"pqrs_asociado:{asociado.id}" if asociado else None,
+        causa=asociado.nombre if asociado else None,
     )
 
 

@@ -158,6 +158,25 @@ def test_el_titulo_se_corrige_y_el_anterior_queda_en_el_historial(entorno):
     assert cambio["valor_nuevo"] == "Entregas por debajo de la meta"
 
 
+def test_la_descripcion_se_corrige_y_la_anterior_queda_en_el_historial(entorno):
+    """Es el hallazgo que se audita: cambiarlo sin rastro sería reescribirlo."""
+    entorno.como("calidad")
+    omp_id = _crear(entorno).json()["id"]
+    entorno.patch(f"/mejora/{omp_id}", json={"descripcion": "Galón con tapa floja"})
+
+    r = entorno.patch(f"/mejora/{omp_id}",
+                      json={"descripcion": "Galón y tapa del ácido nítrico"})
+    assert r.status_code == 200, r.text
+    assert r.json()["descripcion"] == "Galón y tapa del ácido nítrico"
+
+    historial = entorno.get(f"/mejora/{omp_id}/historial").json()
+    cambio = next(c for c in historial
+                  if c["campo"] == "Descripción" and c["valor_anterior"])
+    assert cambio["valor_anterior"] == "Galón con tapa floja"
+    assert cambio["valor_nuevo"] == "Galón y tapa del ácido nítrico"
+    assert cambio["usuario_nombre"]
+
+
 @pytest.mark.parametrize("titulo", ["       ", "  ab  ", None])
 def test_el_titulo_no_queda_vacio(entorno, titulo):
     """`min_length` contaba espacios, y un `null` llegaba a la columna: 500."""

@@ -25,3 +25,9 @@ class PropuestaOMP:
     area: str | None            # el área que la va a trabajar, si se sabe
     sugiere: bool               # la causa marcada pide una OMP
     motivo: str | None = None   # por qué lo sugiere, dicho para la pantalla
+    # De qué problema se trata, para encontrar una OMP abierta que ya lo
+    # esté trabajando. La clave es opaca para Mejora —solo la compara—, y
+    # `causa` es cómo se nombra en pantalla. Sin causa, None: dos registros
+    # sin clasificar no son «el mismo problema».
+    clave_causa: str | None = None
+    causa: str | None = None

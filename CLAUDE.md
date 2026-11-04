@@ -409,6 +409,14 @@ se edita en Administración y no se borra: se desactiva). La PQRS guarda
   cumple en `pqrs/origen_omp.py` con `obtener_visible` (una sede no abre OMP
   de lo que no ve). Al crear, `pqrs_id` se valida por ese mismo contrato: la
   llave foránea solo dice que existe, no que sea de la empresa. Es también la base para enrutar las PQRS automáticamente más adelante.
+  **Una PQRS por la misma causa se SUMA a la OMP abierta** en vez de abrir
+  otra (`POST /mejora/{id}/vinculos`, tabla `omp_pqrs_vinculadas`). La OMP
+  guarda de qué causa nació (`clave_causa`, que la pone el servidor desde
+  `PropuestaOMP.clave_causa` —«pqrs_asociado:<id>», por id y no por
+  nombre—) y la propuesta trae `misma_causa`: las abiertas con esa clave.
+  Se ofrece, no se impone —una causa amplia cubre problemas distintos—, no
+  se vincula a una cerrada o descartada, y vincular y quitar quedan en el
+  historial («PQRS vinculada»).
 
 **PQRS — el informe gerencial** (`/pqrs/informe`, botón «Generar
 informe»). Lo calcula `modules/pqrs/informe.py` y la pantalla

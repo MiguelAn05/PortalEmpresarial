@@ -614,7 +614,8 @@ def test_el_historial_no_guarda_lo_que_no_importa(entorno):
     entorno.como("calidad")
     omp_id = _crear(entorno).json()["id"]
 
-    entorno.patch(f"/mejora/{omp_id}", json={"descripcion": "Un texto cualquiera."})
+    # La descripción SÍ queda (es el hallazgo que se audita); la corrección no.
+    entorno.patch(f"/mejora/{omp_id}", json={"correccion": "Un texto cualquiera."})
 
     assert entorno.get(f"/mejora/{omp_id}/historial").json() == []
 

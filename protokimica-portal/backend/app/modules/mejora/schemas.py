@@ -271,7 +271,28 @@ class PropuestaDesdeOrigenOut(BaseModel):
     area: str | None
     sugiere: bool
     motivo: str | None
+    # Las que ya tienen ESTE registro: nacieron de él o se le vincularon.
     existentes: list["OportunidadOut"] = []
+    # Las abiertas por la MISMA causa: lo normal es sumarle la PQRS a una de
+    # ellas, no abrir otra para el mismo problema.
+    causa: str | None = None
+    misma_causa: list["OportunidadOut"] = []
+
+
+class VincularOrigen(BaseModel):
+    """Sumarle a una OMP abierta otro registro por el mismo problema."""
+    origen: str = "pqrs"
+    origen_id: int
+
+
+class PQRSVinculadaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    pqrs_id: int
+    referencia: str
+    vinculado_por_nombre: str | None
+    vinculado_en: datetime | None
 
 
 class OportunidadOut(BaseModel):
@@ -355,6 +376,7 @@ class OportunidadDetalleOut(OportunidadOut):
     acciones: list[AccionOut] = []
     seguimientos: list[SeguimientoOut] = []
     responsables: list[ResponsableOut] = []
+    pqrs_vinculadas: list[PQRSVinculadaOut] = []
 
 
 PropuestaDesdeOrigenOut.model_rebuild()

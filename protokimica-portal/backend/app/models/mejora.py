@@ -159,6 +159,11 @@ class Oportunidad(Base):
         Integer, ForeignKey("pqrs_solicitudes.id", ondelete="SET NULL"),
         nullable=True, index=True,
     )
+    # De qué causa nació, tal como la nombra el origen (`PropuestaOMP.
+    # clave_causa`, p. ej. «pqrs_asociado:7»). La fija el SERVIDOR al crearla
+    # y no cambia: es con lo que la siguiente PQRS por esa misma causa
+    # encuentra esta OMP en vez de abrir otra.
+    clave_causa = Column(String(60), nullable=True, index=True)
 
     area = Column(String(100), nullable=True, index=True)
 
@@ -263,6 +268,11 @@ class Oportunidad(Base):
     responsables = relationship(
         "ResponsableMejora", back_populates="oportunidad",
         cascade="all, delete-orphan", order_by="ResponsableMejora.id",
+    )
+    pqrs_vinculadas = relationship(
+        "PQRSVinculadaMejora", back_populates="oportunidad",
+        cascade="all, delete-orphan",
+        order_by="PQRSVinculadaMejora.vinculado_en, PQRSVinculadaMejora.id",
     )
 
     # ── Lo que se muestra ya resuelto ────────────────────────────────
@@ -502,6 +512,44 @@ class SeguimientoMejora(Base):
     @property
     def autor_nombre(self):
         return self.autor.nombre if self.autor else self.autor_texto
+
+
+class PQRSVinculadaMejora(Base):
+    """
+    Una PQRS más por el mismo problema que ya trabaja una OMP abierta.
+
+    Cada reclamo por la misma causa abría su propia OMP: el mismo problema
+    terminaba con tres planes, tres seguimientos y ninguno cerrado bien. La
+    OMP nace de UNA PQRS (`pqrs_id`) y las siguientes se le suman aquí, que
+    además es la evidencia de cuántas veces se repitió.
+
+    `referencia` se guarda escrita («PQRS PVG0010») porque Mejora no lee la
+    tabla de PQRS (ver `core/origenes_omp.py`).
+    """
+    __tablename__ = "omp_pqrs_vinculadas"
+    __table_args__ = (
+        UniqueConstraint("omp_id", "pqrs_id", name="uq_omp_pqrs_vinculada"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    omp_id = Column(
+        Integer, ForeignKey("omp_oportunidades.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    pqrs_id = Column(
+        Integer, ForeignKey("pqrs_solicitudes.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    referencia = Column(String(60), nullable=False)
+    vinculado_por = Column(Integer, ForeignKey("users.id"), nullable=True)
+    vinculado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    oportunidad = relationship("Oportunidad", back_populates="pqrs_vinculadas")
+    usuario = relationship("User", foreign_keys=[vinculado_por])
+
+    @property
+    def vinculado_por_nombre(self):
+        return self.usuario.nombre if self.usuario else None
 
 
 class RelacionMejora(Base):

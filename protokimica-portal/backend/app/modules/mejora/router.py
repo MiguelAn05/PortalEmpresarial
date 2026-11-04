@@ -12,6 +12,7 @@ aquí, no en el frontend — mandar otro `?area=` no abre nada.
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -20,7 +21,7 @@ from app.core.modulos import requiere_modulo
 from app.models.mejora import (
     CLASIFICACIONES, ESTADO_DESCARTADA, ESTADOS_ACCION, TIPOS_RESPONSABLE,
     AccionMejora, CambioMejora,
-    ItemCatalogo, Oportunidad, RelacionMejora, ResponsableMejora, SeguimientoMejora,
+    ItemCatalogo, Oportunidad, PQRSVinculadaMejora, RelacionMejora, ResponsableMejora, SeguimientoMejora,
 )
 from app.models.user import User
 from app.modules.mejora import catalogos as cat
@@ -30,6 +31,7 @@ from app.modules.mejora.schemas import (
     ItemCatalogoActualizar, ItemCatalogoCrear, ItemCatalogoOut, OportunidadActualizar,
     OportunidadCrear, OportunidadDetalleOut, OportunidadOut, PropuestaDesdeOrigenOut, ResponsableCrear,
     ResponsableOut, SeguimientoCrear, SeguimientoOut, ValidacionSGC, Verificacion,
+    VincularOrigen,
 )
 
 router = APIRouter(
@@ -205,6 +207,9 @@ def listar(
 # guarda de cuál nació. Hoy solo PQRS (`pqrs/origen_omp.py`).
 COLUMNA_DE_ORIGEN = {"pqrs": "pqrs_id"}
 
+# Una OMP así ya no recibe PQRS nuevas: si el problema volvió, es otra OMP.
+ESTADOS_TERMINADOS = ["cerrada", ESTADO_DESCARTADA]
+
 
 def _propuesta_o_404(db: Session, origen: str, origen_id: int, usuario: User):
     propuesta = origenes.propuesta(db, origen, origen_id, usuario)
@@ -235,15 +240,35 @@ def propuesta_desde_origen(
         raise HTTPException(status_code=404, detail="Una OMP no nace de ese tipo de registro.")
     propuesta = _propuesta_o_404(db, origen, origen_id, usuario)
     columna = getattr(Oportunidad, COLUMNA_DE_ORIGEN[origen])
-    existentes = permisos.aplicar_filtro_area(
-        db.query(Oportunidad).filter(Oportunidad.tenant_id == tenant_id, columna == origen_id),
-        usuario, Oportunidad,
-    ).order_by(Oportunidad.creado_en.desc()).all()
+    visibles = permisos.aplicar_filtro_area(
+        db.query(Oportunidad).filter(Oportunidad.tenant_id == tenant_id), usuario, Oportunidad,
+    )
+    # Las que ya tienen este registro: porque nacieron de él o porque se le
+    # vinculó después.
+    existentes = visibles.filter(or_(
+        columna == origen_id,
+        Oportunidad.pqrs_vinculadas.any(PQRSVinculadaMejora.pqrs_id == origen_id),
+    )).order_by(Oportunidad.creado_en.desc()).all()
+
+    # Las abiertas por la misma causa, que es donde lo normal es sumarla.
+    misma_causa = []
+    if propuesta.clave_causa:
+        consulta = visibles.filter(
+            Oportunidad.clave_causa == propuesta.clave_causa,
+            Oportunidad.estado.notin_(ESTADOS_TERMINADOS),
+        )
+        ya = [o.id for o in existentes]
+        if ya:
+            consulta = consulta.filter(Oportunidad.id.notin_(ya))
+        misma_causa = consulta.order_by(Oportunidad.creado_en.desc()).all()
+
     return PropuestaDesdeOrigenOut(
         origen=origen, origen_id=origen_id, referencia=propuesta.referencia,
         titulo=propuesta.titulo, descripcion=propuesta.descripcion, area=propuesta.area,
         sugiere=propuesta.sugiere, motivo=propuesta.motivo,
         existentes=[OportunidadOut.model_validate(o) for o in existentes],
+        causa=propuesta.causa,
+        misma_causa=[OportunidadOut.model_validate(o) for o in misma_causa],
     )
 
 
@@ -276,9 +301,14 @@ def crear(
                 status_code=400,
                 detail="Si la OMP nace de una PQRS, su origen tiene que ser «Una PQRS».",
             )
-        _propuesta_o_404(db, "pqrs", payload.pqrs_id, usuario)
+        propuesta_pqrs = _propuesta_o_404(db, "pqrs", payload.pqrs_id, usuario)
+    else:
+        propuesta_pqrs = None
 
     datos = payload.model_dump(exclude={"area", "responsables"})
+    # La causa la pone el servidor desde la PQRS, nunca el formulario: es la
+    # llave con la que las siguientes PQRS encuentran esta OMP.
+    datos["clave_causa"] = propuesta_pqrs.clave_causa if propuesta_pqrs else None
     _validar_catalogos(db, tenant_id, datos)
     _validar_clasificacion(payload.clasificacion)
 
@@ -356,6 +386,81 @@ def actualizar(
             db, tenant_id, oportunidad.proceso_id,
         )
 
+    db.commit()
+    db.refresh(oportunidad)
+    return oportunidad
+
+
+@router.post("/{omp_id}/vinculos", response_model=OportunidadDetalleOut,
+             status_code=status.HTTP_201_CREATED)
+def vincular_origen(
+    omp_id: int,
+    payload: VincularOrigen,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    usuario: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
+):
+    """
+    Sumarle una PQRS a una OMP abierta, en vez de abrir otra por el mismo
+    problema. Queda en el historial con la referencia de la PQRS.
+    """
+    permisos.exigir_puede_gestionar(usuario)
+    oportunidad = _buscar(db, omp_id, tenant_id, usuario)
+    if payload.origen != "pqrs":
+        raise HTTPException(status_code=400, detail="A una OMP solo se le vinculan PQRS.")
+    if oportunidad.estado in ESTADOS_TERMINADOS:
+        raise HTTPException(
+            status_code=409,
+            detail=("Esta OMP ya no está abierta. Si el problema volvió a pasar, "
+                    "abre una nueva desde la PQRS."),
+        )
+    # Que exista y que esta persona la vea, igual que al abrir una OMP.
+    propuesta = _propuesta_o_404(db, "pqrs", payload.origen_id, usuario)
+
+    ya = (oportunidad.pqrs_id == payload.origen_id
+          or any(v.pqrs_id == payload.origen_id for v in oportunidad.pqrs_vinculadas))
+    if ya:
+        raise HTTPException(
+            status_code=409, detail=f"La {propuesta.referencia} ya está en esta OMP.",
+        )
+
+    oportunidad.pqrs_vinculadas.append(PQRSVinculadaMejora(
+        pqrs_id=payload.origen_id, referencia=propuesta.referencia, vinculado_por=usuario.id,
+    ))
+    service.registrar_cambio(
+        db, oportunidad.id, "pqrs_vinculada", None, propuesta.referencia, usuario.id,
+    )
+    db.commit()
+    db.refresh(oportunidad)
+    return oportunidad
+
+
+@router.delete("/{omp_id}/vinculos/{vinculo_id}", response_model=OportunidadDetalleOut)
+def desvincular_origen(
+    omp_id: int,
+    vinculo_id: int,
+    db: Session = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    usuario: User = Depends(get_current_user),
+    _: User = Depends(solo_lectura_no),
+):
+    """Quitar una PQRS vinculada por error. El historial conserva cuál era."""
+    permisos.exigir_puede_gestionar(usuario)
+    oportunidad = _buscar(db, omp_id, tenant_id, usuario)
+    vinculo = next((v for v in oportunidad.pqrs_vinculadas if v.id == vinculo_id), None)
+    if vinculo is None:
+        raise HTTPException(status_code=404, detail="Esa PQRS no está vinculada a esta OMP.")
+    if oportunidad.estado in ESTADOS_TERMINADOS:
+        raise HTTPException(
+            status_code=409,
+            detail="Esta OMP ya terminó: sus PQRS son parte de lo que se cerró y no se quitan.",
+        )
+
+    service.registrar_cambio(
+        db, oportunidad.id, "pqrs_vinculada", vinculo.referencia, None, usuario.id,
+    )
+    oportunidad.pqrs_vinculadas.remove(vinculo)
     db.commit()
     db.refresh(oportunidad)
     return oportunidad

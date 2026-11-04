@@ -210,12 +210,16 @@ def asignar_codigo(db: Session, oportunidad: Oportunidad, tenant_id: int) -> str
 
 # Los campos cuyo cambio vale la pena guardar. No se registra todo: el
 # historial sirve para responder «¿por qué esto se aplazó tres veces?», y
-# una bitácora con cada corrección de ortografía en la descripción entierra
-# justamente esa pregunta.
+# una bitácora con cada corrección del análisis entierra justamente esa
+# pregunta.
 CAMPOS_CON_HISTORIAL = {
     # El título se corrige seguido —se escribe con prisa al abrirla—, y el
     # anterior tiene que quedar: es con el que la conocían hasta ese día.
     "titulo": "Título",
+    # La descripción es el problema tal como se reportó. Corregirla se
+    # permite, pero cambiar QUÉ se reportó sin dejar el texto anterior
+    # sería reescribir el hallazgo que se audita.
+    "descripcion": "Descripción",
     "estado": "Estado",
     "prioridad": "Prioridad",
     "fecha_limite": "Fecha estimada de solución",
@@ -224,6 +228,8 @@ CAMPOS_CON_HISTORIAL = {
     "tratamiento_id": "Tratamiento",
     "area": "Área",
     "eficaz": "Resultado de la verificación",
+    # Sumar o quitar una PQRS cambia la evidencia de cuántas veces pasó.
+    "pqrs_vinculada": "PQRS vinculada",
 }
 
 
