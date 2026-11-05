@@ -153,6 +153,8 @@ SIN_DEPENDENCIA_DE_ROUTER = {
     # revisa adentro, contra la empresa del portal.
     "/catalogo/sincronizar",
     "/catalogo/sincronizar-clientes",
+    # El script del reloj (ZKBio) manda las marcaciones con una clave.
+    "/marcaciones/sincronizar",
 }
 
 

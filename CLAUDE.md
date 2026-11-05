@@ -246,6 +246,7 @@ que requiere:
 | `indicadores` | indicadores | — |
 | `mejora` | mejora | `indicadores` |
 | `encuestas` | encuestas | — |
+| `marcaciones` | marcaciones | — |
 
 Inicio y Administración son la base y vienen con cualquier portal.
 
@@ -1740,6 +1741,63 @@ petición: si Microsoft, n8n o el ERP están caídos, el portal sigue trabajando
   - Cada envío queda en `cat_sincronizaciones`, incluidos los rechazados, y
     `GET /catalogo/estado` (admin) dice cuándo llegó lo último: el script corre
     en otro servidor y es la única forma de notar que dejó de correr.
+- **Marcaciones (reloj biométrico ZKBio Time).** Mismo patrón que el ERP: el
+  portal NO se conecta a ZKBio. `integraciones/marcaciones/sincronizar_marcaciones.py`
+  corre en el servidor de ZKBio (junto a las alertas de asistencia), solo LEE
+  del reloj y **empuja** a `POST /marcaciones/sincronizar` con la clave
+  `CLAVE_MARCACIONES` (header `X-Clave-Marcaciones`, `compare_digest`; 503 si
+  no está configurada). Manda las marcaciones de los últimos días, la malla
+  (`schedules.csv`), los festivos y las excepciones. Ver «Marcaciones» abajo.
+
+### Marcaciones
+
+Módulo `marcaciones` (contratable, `app/modules/marcaciones`, tablas
+`mar_*`, 0.67). Muestra en vivo qué pasa con las marcaciones del reloj, por
+área, por líder y por persona, con informe en PDF y CSV.
+
+- **Las reglas son las de las alertas por correo** (`alertas_zkteco.py`):
+  llegada tarde (>5 min), salida anticipada (>5 min), ausencia (3 h sin marcar
+  tras el inicio del turno más tardío; sábado 1,5 h), almuerzo 45 min, break 15
+  min, turno por ventana −45/+10 min y, si no cae, por historial; sin
+  historial «Turno por confirmar» (no se acusa). Viven en
+  `modules/marcaciones/constants.py` y `evaluacion.py` (funciones puras, sin
+  base de datos). **Si una cambia allá y aquí no, la pantalla y el correo dicen
+  cosas distintas**: `test_las_constantes_son_las_de_las_alertas` es el aviso.
+  El script de alertas sigue siendo independiente a propósito: tiene que
+  funcionar aunque el portal esté caído.
+- **Las novedades nunca se guardan: se calculan al consultar.** Cambiar una
+  tolerancia corrige también el pasado y no hay dos cifras para el mismo día.
+  Se guardan solo la malla (`mar_empleados`), las marcaciones tal cual llegaron
+  (`mar_marcaciones`, únicas por persona+momento+estado: reenviar es
+  inofensivo), festivos, excepciones y el registro de envíos.
+- **Hora de pared.** El script manda la hora local sin zona (`AAAA-MM-DD
+  HH:MM:SS`; con zona se rechaza con 422); se guarda en UTC y se devuelve en la
+  zona de la empresa. Un día pasado se evalúa con el reloj en su último segundo,
+  uno futuro no se evalúa.
+- **El rol abre el módulo; el alcance decide qué se ve**
+  (`marcaciones/permisos.py`, una sola fuente y se aplica antes de leer):
+  `admin`, `gerencia` y quien tenga la capacidad `marcaciones.ver_todo` (la
+  migración se la da a Gestión Humana y TICS) ven todo; el `lider` ve su área y
+  las que supervisa; el `agente` solo lo suyo, reconocido por el `correo` de la
+  malla = el de su usuario (sin coincidencia no ve nada, nunca «todo»). `lectura`
+  no entra, ni con la capacidad. Nadie escribe desde la pantalla. Una persona
+  fuera del alcance responde 404, igual que una que no existe.
+- **Lotes vacíos se rechazan** (400): un error al leer ZKBio no debe verse como
+  «nadie marcó», ni una malla vacía dejar a todos desactivados. Quien sale de la
+  malla se desactiva, no se borra: su historia se conserva.
+- **`GET /marcaciones/estado`** y el aviso de la pantalla dicen si el script
+  dejó de enviar (más de 10 min). Un tablero «en vivo» que dejó de estarlo y no
+  lo dice es peor que no tenerlo. La pantalla se renueva sola cada 30 s, solo
+  mirando hoy.
+- **El área de la malla tiene que llamarse EXACTAMENTE como en Administración ›
+  Áreas** (`mapa_areas` del script las traduce); `mar_empleados.area` está en
+  `COLUMNAS_CON_AREA`, así que renombrar un área también la reescribe aquí.
+- **CSV**: separador «;» y BOM UTF-8 (abre bien en Excel en español); las
+  celdas que empiezan por `= + - @` llevan una comilla delante para que no se
+  ejecuten como fórmula. Rango máximo 93 días.
+- **Activar** (no queda contratado por la migración):
+  `docker exec protokimica_backend python -m app.scripts.modulos protokimica
+  --activar marcaciones`. Instalación del script: `integraciones/marcaciones/LEEME.md`.
 
 ## Cómo se le sirven los datos a una automatización
 

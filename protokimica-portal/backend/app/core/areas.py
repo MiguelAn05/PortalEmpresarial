@@ -177,6 +177,7 @@ COLUMNAS_CON_AREA = [
     ("mp_actividades", "area", None),
     ("ind_indicadores", "area", None),
     ("omp_oportunidades", "area", None),
+    ("mar_empleados", "area", None),
 ]
 
 

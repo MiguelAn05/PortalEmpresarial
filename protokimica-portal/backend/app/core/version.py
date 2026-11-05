@@ -18,8 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-VERSION = "0.72.0"
-FECHA = "2026-11-03"
+VERSION = "0.73.0"
+FECHA = "2026-11-05"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -34,6 +34,22 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
+    {
+        "version": "0.73.0",
+        "fecha": "2026-11-05",
+        "titulo": "Marcaciones: lo que marca el reloj, en vivo",
+        "cambios": [
+            ("nuevo", "Módulo de Marcaciones: muestra en vivo quién está en la empresa, quién está en "
+                      "descanso, quién ya salió y quién no ha venido, con las llegadas tarde, salidas "
+                      "anticipadas, ausencias y excesos de almuerzo y de break. Se ve por área, por líder "
+                      "y por persona, con el detalle de cada día."),
+            ("nuevo", "Informe de marcaciones por rango de fechas, que se descarga en PDF o en CSV para "
+                      "Excel."),
+            ("mejora", "Cada quien ve lo suyo: Gestión Humana y TIC toda la empresa, el líder su área y "
+                       "cada persona solo sus marcaciones. Quien tenga la capacidad «Ver las marcaciones "
+                       "de todas las áreas» entra a todo desde Administración › Capacidades."),
+        ],
+    },
     {
         "version": "0.72.0",
         "fecha": "2026-11-03",

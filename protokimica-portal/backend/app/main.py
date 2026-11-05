@@ -44,6 +44,8 @@ from app.modules.catalogo.router_public import router as catalogo_public_router
 from app.modules.inicio.router import router as inicio_router
 from app.modules.encuestas.router import router as encuestas_router
 from app.modules.encuestas.router_public import router as encuestas_public_router
+from app.modules.marcaciones.router import router as marcaciones_router
+from app.modules.marcaciones.router_sincronizacion import router as marcaciones_sincronizacion_router
 from app.modules.notas_credito.router import router as notas_credito_router
 from app.modules.capacidades.router import router as capacidades_router
 from app.modules.areas.router import router as areas_router
@@ -51,7 +53,7 @@ from app.modules.canales.router import router as canales_router
 from app.modules.bodegas.router import router as bodegas_router
 from app.models import (
     tenant, user, pqrs, autorizacion, master_planner, indicadores, encuestas,
-    mejora, catalogo, nota_credito, capacidad, area, canal, bodega,
+    mejora, catalogo, nota_credito, capacidad, area, canal, bodega, marcaciones,
 )  # noqa: F401
 
 app = FastAPI(
@@ -152,6 +154,10 @@ app.include_router(catalogo_public_router)
 app.include_router(inicio_router)
 app.include_router(encuestas_router)
 app.include_router(encuestas_public_router)
+# La de sincronización va antes: `/marcaciones/sincronizar` es POST y no choca,
+# pero así queda junto a la otra entrada por clave del portal (catálogo).
+app.include_router(marcaciones_sincronizacion_router)
+app.include_router(marcaciones_router)
 app.include_router(notas_credito_router)
 app.include_router(capacidades_router)
 app.include_router(areas_router)

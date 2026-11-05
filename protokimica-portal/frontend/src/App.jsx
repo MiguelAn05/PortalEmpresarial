@@ -23,6 +23,8 @@ const VisorDocumento = lazy(() => import('./modules/masterPlanner/VisorDocumento
 import Indicadores from './modules/indicadores/Indicadores.jsx'
 import Mejora from './modules/mejora/Mejora.jsx'
 import Encuestas from './modules/encuestas/Encuestas.jsx'
+import Marcaciones from './modules/marcaciones/Marcaciones.jsx'
+import InformeMarcaciones from './modules/marcaciones/InformeMarcaciones.jsx'
 
 
 function PrivateRoute({ children }) {
@@ -89,6 +91,9 @@ export default function App() {
         <Route path="indicadores" element={<Indicadores />} />
         <Route path="mejora"      element={<Mejora />} />
         <Route path="encuestas" element={<Encuestas />} />
+        {/* Antes que cualquier ruta con parámetro: «informe» no es una persona. */}
+        <Route path="marcaciones" element={<Marcaciones />} />
+        <Route path="marcaciones/informe" element={<InformeMarcaciones />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

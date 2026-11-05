@@ -71,6 +71,13 @@ export const IconoEncuestas = (p) => (
   </Icono>
 )
 
+export const IconoMarcaciones = (p) => (
+  <Icono {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icono>
+)
+
 export const IconoAdmin = (p) => (
   <Icono {...p}>
     <path d="M20 7h-9" />

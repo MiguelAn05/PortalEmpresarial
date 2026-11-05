@@ -29,6 +29,9 @@ export const ACCESO_POR_MODULO = {
   // avance se le reporta, no es un tablero más que mirar.
   mejora: ['admin', 'lider'],
   encuestas: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
+  // El rol abre el módulo y el servidor recorta qué se ve: admin y gerencia
+  // todo, el líder su área, el agente solo lo suyo. `lectura` no entra.
+  marcaciones: ['admin', 'gerencia', 'lider', 'agente'],
   admin: ['admin'],
 }
 
@@ -38,6 +41,8 @@ export const ACCESO_POR_MODULO = {
  */
 export const CAPACIDAD_QUE_ABRE = {
   mejora: 'mejora.trabajar',
+  // Gestión Humana y TIC ven las marcaciones de toda la empresa.
+  marcaciones: 'marcaciones.ver_todo',
 }
 
 /** Ruta de cada módulo, para filtrar el menú y proteger las rutas. */
@@ -49,6 +54,7 @@ export const RUTA_DE_MODULO = {
   indicadores: '/indicadores',
   mejora: '/mejora',
   encuestas: '/encuestas',
+  marcaciones: '/marcaciones',
   admin: '/admin',
 }
 

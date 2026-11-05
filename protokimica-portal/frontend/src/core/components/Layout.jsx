@@ -9,7 +9,7 @@ import { AvisoVersionNueva, ChipVersion } from './Version.jsx'
 import {
   IconoAdmin, IconoAgente, IconoCarpeta, IconoEncuestas, IconoFicha,
   IconoIdea, IconoIndicadores, IconoInicio, IconoLlave, IconoPQRS, IconoPanel,
-  IconoProyectos, IconoRecibo, IconoSalir,
+  IconoMarcaciones, IconoProyectos, IconoRecibo, IconoSalir,
 } from './Iconos.jsx'
 
 // Cada entrada dice de qué módulo es, para esconder la que el usuario no
@@ -28,6 +28,7 @@ const navItems = [
   { to: '/indicadores', Icono: IconoIndicadores, label: 'Indicadores', modulo: 'indicadores' },
   { to: '/mejora', Icono: IconoIdea, label: 'OMP', modulo: 'mejora' },
   { to: '/encuestas', Icono: IconoEncuestas, label: 'Encuestas', modulo: 'encuestas' },
+  { to: '/marcaciones', Icono: IconoMarcaciones, label: 'Marcaciones', modulo: 'marcaciones' },
 ]
 
 // Lo que todavía no existe va junto y al final, no intercalado entre lo que
@@ -45,6 +46,7 @@ const TITULO_DE_MODULO = {
   indicadores: 'Indicadores',
   mejora: 'Oportunidades de mejora OMP',
   encuestas: 'Encuestas',
+  marcaciones: 'Marcaciones',
   admin: 'Administración',
 }
 

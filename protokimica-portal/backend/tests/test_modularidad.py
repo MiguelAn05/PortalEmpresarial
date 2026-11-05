@@ -30,6 +30,7 @@ DUENO_DE_MODELOS = {
     "indicadores": "indicadores",
     "mejora": "mejora",
     "encuestas": "encuestas",
+    "marcaciones": "marcaciones",
 }
 
 DEPENDENCIAS_PERMITIDAS = {

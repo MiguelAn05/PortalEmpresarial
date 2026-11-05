@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # Vacío = la sincronización queda cerrada.
     CLAVE_SINCRONIZACION: str = ""
 
+    # Clave con la que el script del servidor de ZKBio manda las marcaciones
+    # del reloj biométrico (ver `modules/marcaciones/router_sincronizacion.py`).
+    # Propia de esa integración, por la misma razón: un proceso automático no
+    # debe cargar con las credenciales de una persona. Vacío = cerrada.
+    CLAVE_MARCACIONES: str = ""
+
     # Clave del HMAC con que se reducen los NIT de clientes a una huella (ver
     # `modules/catalogo/clientes.py`). Tiene que ser la MISMA del script de
     # MORFEO. Aparte de la de sincronización: cambiar aquella no puede

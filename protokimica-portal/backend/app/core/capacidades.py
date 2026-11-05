@@ -61,6 +61,10 @@ CAPACIDADES = {
     # Se otorga por PERSONA y no va en la semilla: el supervisor de las sedes
     # es alguien con nombre, y por área se le daría a todo el mostrador.
     "notas_credito.supervisar_punto":   "Revisar, como supervisor de los puntos de venta, el producto de una nota crédito del mostrador",
+    # Marcaciones: el rol abre el módulo y el líder ve su área. Esto da la
+    # vista de TODA la empresa —Gestión Humana y TIC— sin cambiar el cargo de
+    # nadie. Ver `modules/marcaciones/permisos.py`.
+    "marcaciones.ver_todo":    "Ver las marcaciones de todas las áreas del portal",
 }
 
 

@@ -42,6 +42,7 @@ MODULOS_INSTALADOS = (
     "indicadores",
     "mejora",
     "encuestas",
+    "marcaciones",
 )
 
 

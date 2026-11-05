@@ -48,6 +48,11 @@ ACCESO_POR_MODULO: dict[str, set[str]] = {
     # consulta cualquiera que atienda. Si un día hay que cerrarlas, se cambia
     # aquí y no en veinte endpoints.
     "encuestas": {"admin", "gerencia", "lider", "agente", "lectura"},
+    # Marcaciones del reloj. El rol abre el módulo y el ALCANCE decide qué se
+    # ve (`modules/marcaciones/permisos.py`): admin/gerencia y quien tenga
+    # `marcaciones.ver_todo` ven todo, el líder su área, el agente solo lo
+    # suyo. `lectura` no entra: son datos de personas, no una pantalla de consulta.
+    "marcaciones": {"admin", "gerencia", "lider", "agente"},
     "admin": {"admin"},
 }
 
@@ -59,6 +64,7 @@ ETIQUETAS = {
     "indicadores": "Indicadores",
     "mejora": "Oportunidades de Mejora",
     "encuestas": "Encuestas",
+    "marcaciones": "Marcaciones",
     "admin": "Administración",
 }
 
@@ -104,6 +110,11 @@ CONTRATABLES: dict[str, dict] = {
     "encuestas": {
         "nombre": "Encuestas",
         "paquetes": ("encuestas",),
+        "requiere": (),
+    },
+    "marcaciones": {
+        "nombre": "Marcaciones (reloj biométrico)",
+        "paquetes": ("marcaciones",),
         "requiere": (),
     },
 }
@@ -174,6 +185,9 @@ def contratar(db: Session, tenant_id: int, modulos: list[str] | tuple[str, ...])
 # Gemelo de `CAPACIDAD_QUE_ABRE` en `frontend/src/core/modulos.js`.
 CAPACIDAD_QUE_ABRE: dict[str, str] = {
     "mejora": "mejora.trabajar",
+    # Gestión Humana y TIC ven las marcaciones de toda la empresa sin que a
+    # nadie haya que cambiarle el rol; `lectura` sigue sin entrar.
+    "marcaciones": "marcaciones.ver_todo",
 }
 
 

@@ -1,0 +1,10 @@
+{
+  "zk_url": "http://172.20.70.70",
+  "portal_api": "https://portal.protokimica.com/api",
+  "schedules_csv": "../alertas_zkteco/schedules.csv",
+  "dias_atras": 3,
+  "mapa_areas": {
+    "Gestion Humana": "Gestión Humana",
+    "TICS": "TICS"
+  }
+}
