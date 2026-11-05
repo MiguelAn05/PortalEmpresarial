@@ -44,7 +44,10 @@ DIAS = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"]
 ESTADOS_VALIDOS = {"0", "1", "2", "3", "4", "5"}
 TURNO = re.compile(r"^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$")
 LOTE = 5000          # el portal acepta hasta 20.000 por envio; asi cada peticion es liviana
-log = logging.getLogger("marcaciones")
+# Con el nombre por defecto ("Python-urllib/3.8") Cloudflare responde 403 con
+# "error code: 1010" antes de que el envio llegue al portal: lo toma por un bot.
+AGENTE = "Protokimica-SincronizarMarcaciones/1.0"
+log =logging.getLogger("marcaciones")
 
 
 def setup_logging():
@@ -67,6 +70,7 @@ def load_json(name, default=None):
 def http_json(url, method="GET", headers=None, body=None, timeout=60):
     data = None
     hdrs = dict(headers or {})
+    hdrs.setdefault("User-Agent", AGENTE)
     if body is not None:
         data = json.dumps(body).encode()
         hdrs["Content-Type"] = "application/json"
