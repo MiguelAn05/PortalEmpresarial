@@ -14,7 +14,9 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.marcaciones import MAX_AREA, MAX_CODIGO, MAX_NOMBRE, MAX_TURNOS
+from app.models.marcaciones import (
+    MAX_AREA, MAX_CODIGO, MAX_JUSTIFICACION, MAX_NOMBRE, MAX_TURNOS, MIN_JUSTIFICACION,
+)
 from app.modules.marcaciones.constants import ESTADOS_VALIDOS
 
 _TURNO = re.compile(r"^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$")
@@ -98,3 +100,21 @@ class SincronizacionIn(BaseModel):
     marcaciones: list[MarcacionIn] | None = None
     festivos: list[FestivoIn] | None = None
     excepciones: list[ExcepcionIn] | None = None
+
+
+class JustificacionIn(BaseModel):
+    """Lo que escribe el líder en pantalla (no viene del reloj)."""
+    emp_code: str = Field(min_length=1, max_length=MAX_CODIGO)
+    fecha: date
+    tipo: str = Field(min_length=1, max_length=30)
+    texto: str = Field(max_length=MAX_JUSTIFICACION + 200)
+
+    @field_validator("texto")
+    @classmethod
+    def _texto(cls, v: str) -> str:
+        v = " ".join((v or "").split())
+        if len(v) < MIN_JUSTIFICACION:
+            raise ValueError(f"Escribe el motivo (al menos {MIN_JUSTIFICACION} caracteres).")
+        if len(v) > MAX_JUSTIFICACION:
+            raise ValueError(f"El motivo es muy largo: máximo {MAX_JUSTIFICACION} caracteres.")
+        return v

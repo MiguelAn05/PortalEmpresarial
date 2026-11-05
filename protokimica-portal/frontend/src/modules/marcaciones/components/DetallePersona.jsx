@@ -5,7 +5,8 @@ import { Esqueleto } from '../../../core/components/Cargando.jsx'
 import { formatFecha } from '../../masterPlanner/constants.js'
 import { ESTADOS_MARCA } from '../constants.js'
 import { obtenerPersona } from '../api.js'
-import { Novedades, Presencia } from './piezas.jsx'
+import { Presencia } from './piezas.jsx'
+import NovedadesDia from './NovedadesDia.jsx'
 
 /**
  * El detalle de una persona: sus últimos 14 días, con cada marcación y las
@@ -66,9 +67,8 @@ export default function DetallePersona({ empCode, onCerrar }) {
                     </ol>
                   )}
                   {d.novedades.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <Novedades lista={d.novedades} />
-                      <ul className="text-xs text-texto-2 list-disc pl-4">{d.novedades.map(n => <li key={n.tipo}>{n.detalle}</li>)}</ul>
+                    <div className="mt-2">
+                      <NovedadesDia empCode={data.persona.emp_code} fecha={d.fecha} novedades={d.novedades} puede={data.puede_justificar} />
                     </div>
                   )}
                 </li>

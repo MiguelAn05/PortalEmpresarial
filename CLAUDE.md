@@ -1780,8 +1780,20 @@ Módulo `marcaciones` (contratable, `app/modules/marcaciones`, tablas
   migración se la da a Gestión Humana y TICS) ven todo; el `lider` ve su área y
   las que supervisa; el `agente` solo lo suyo, reconocido por el `correo` de la
   malla = el de su usuario (sin coincidencia no ve nada, nunca «todo»). `lectura`
-  no entra, ni con la capacidad. Nadie escribe desde la pantalla. Una persona
-  fuera del alcance responde 404, igual que una que no existe.
+  no entra, ni con la capacidad. Una persona fuera del alcance responde 404,
+  igual que una que no existe.
+- **Lo único que se escribe desde la pantalla son las justificaciones**
+  (`mar_justificaciones`, `PUT/DELETE /marcaciones/justificacion`): el motivo de
+  UNA novedad de UNA persona un día, con quién lo escribió y cuándo. La clave es
+  persona + día + tipo de novedad, no un id: las novedades no se guardan, se
+  calculan, así que justificar NO las oculta ni cambia los totales; la novedad
+  sale con su `justificacion` y `_contar` suma `justificadas` y `sin_justificar`.
+  Escribe quien tiene alcance `todo` o `areas` (`Alcance.puede_justificar`): el
+  líder a su gente, Gestión Humana y TIC a cualquiera; el agente, `gerencia` y
+  `lectura` no (`solo_lectura_no`). Solo se justifica una novedad que esa
+  persona tiene ese día (400 si no) y nunca un día futuro. Pulsar «Novedades» en
+  la lista abre `NovedadesModal` (horas exactas + cuadro para justificar); el
+  detalle por días de la persona usa el mismo `NovedadesDia`.
 - **Lotes vacíos se rechazan** (400): un error al leer ZKBio no debe verse como
   «nadie marcó», ni una malla vacía dejar a todos desactivados. Quien sale de la
   malla se desactiva, no se borra: su historia se conserva.

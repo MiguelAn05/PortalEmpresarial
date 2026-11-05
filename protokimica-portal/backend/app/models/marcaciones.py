@@ -17,6 +17,10 @@ el reloj. Ver `integraciones/marcaciones/`.
   conoce, el correo con el que la persona entra al portal (es lo que deja a un
   agente ver SUS marcaciones y nada más). **No es la tabla de usuarios**: hay
   gente que marca y nunca entra al portal.
+- `mar_justificaciones` es lo ÚNICO que se escribe desde la pantalla: lo que
+  el líder (o Gestión Humana) explica de una novedad de una persona un día.
+  Se guarda aparte y la novedad sigue calculándose igual: justificar no la
+  borra, la acompaña con el motivo, quién lo dijo y cuándo.
 - **Nada de esto se calcula aquí.** Llegadas tarde, ausencias y excesos de
   descanso salen de `modules/marcaciones/evaluacion.py` al consultar, nunca
   se guardan: cambiar una tolerancia corrige también el pasado y no hay dos
@@ -34,6 +38,8 @@ MAX_CODIGO = 30
 MAX_NOMBRE = 150
 MAX_AREA = 100
 MAX_TURNOS = 80
+MAX_JUSTIFICACION = 500
+MIN_JUSTIFICACION = 5
 
 
 class MarEmpleado(Base):
@@ -120,3 +126,29 @@ class MarSincronizacion(Base):
     empleados = Column(Integer, nullable=False, default=0)
     marcaciones_nuevas = Column(Integer, nullable=False, default=0)
     ultima_marcacion = Column(DateTime(timezone=True), nullable=True)
+
+
+class MarJustificacion(Base):
+    """
+    El motivo de UNA novedad de UNA persona un día («Cita médica con soporte»).
+
+    La clave es persona + día + tipo de novedad (`constants.NOVEDADES`), no el
+    id de la novedad: las novedades no se guardan, se calculan. Si mañana
+    cambia una tolerancia y la novedad desaparece, la justificación queda
+    guardada y simplemente no se muestra; si vuelve a aparecer, reaparece con
+    ella. Quién la escribió se guarda también con su nombre, para que el
+    historial no cambie si esa persona se va del portal.
+    """
+    __tablename__ = "mar_justificaciones"
+    __table_args__ = (UniqueConstraint("tenant_id", "emp_code", "fecha", "tipo", name="uq_mar_justificacion"),)
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    emp_code = Column(String(MAX_CODIGO), nullable=False)
+    fecha = Column(Date, nullable=False)
+    tipo = Column(String(30), nullable=False)
+    texto = Column(String(MAX_JUSTIFICACION), nullable=False)
+    autor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    autor_nombre = Column(String(MAX_NOMBRE), nullable=False)
+    creada_en = Column(DateTime(timezone=True), server_default=func.now())
+    actualizada_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

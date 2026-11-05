@@ -25,3 +25,10 @@ export async function descargarCsv(params) {
   a.remove()
   URL.revokeObjectURL(url)
 }
+
+/** El motivo de una novedad de una persona un día. Repetirlo lo corrige. */
+export const justificarNovedad = (datos) =>
+  api.put('/marcaciones/justificacion', datos).then(r => r.data)
+
+export const quitarJustificacion = (params) =>
+  api.delete('/marcaciones/justificacion', { params })

@@ -10,7 +10,7 @@ El módulo NO queda contratado por esta migración: se activa por empresa con
 `python -m app.scripts.modulos <empresa> --activar marcaciones`.
 
 Revision ID: c4e7a1b9d256
-Revises: b8e2d5f17c93
+Revises: a9d4e7c2b158
 Create Date: 2026-11-05 10:00:00.000000
 
 """
@@ -19,7 +19,7 @@ import sqlalchemy as sa
 
 
 revision = 'c4e7a1b9d256'
-down_revision = 'b8e2d5f17c93'
+down_revision = 'a9d4e7c2b158'
 branch_labels = None
 depends_on = None
 

@@ -28,7 +28,7 @@ from app.core.dias_habiles import hoy
 from app.core.fechas import con_zona
 from app.core.supervision import areas_visibles
 from app.models.marcaciones import (
-    MarEmpleado, MarExcepcion, MarFestivo, MarMarcacion, MarSincronizacion,
+    MarEmpleado, MarExcepcion, MarFestivo, MarJustificacion, MarMarcacion, MarSincronizacion,
 )
 from app.models.user import User
 from app.modules.marcaciones import constants as C
@@ -242,6 +242,23 @@ def _historial(emp: dict, marcas_de_la_persona: dict, dia: date, festivos: set) 
     return turnos
 
 
+def _justificacion_dict(j: MarJustificacion) -> dict:
+    return {"texto": j.texto, "autor": j.autor_nombre,
+            "cuando": utc_a_local(j.actualizada_en or j.creada_en).isoformat(sep=" ", timespec="minutes")
+            if (j.actualizada_en or j.creada_en) else None}
+
+
+def _justificaciones(db: Session, tenant_id: int, desde: date, hasta: date, codigos: list[str]) -> dict:
+    """{(fecha, emp_code, tipo): {texto, autor, cuando}} de las que cubren el rango."""
+    if not codigos:
+        return {}
+    filas = db.query(MarJustificacion).filter(
+        MarJustificacion.tenant_id == tenant_id,
+        MarJustificacion.fecha >= desde, MarJustificacion.fecha <= hasta,
+        MarJustificacion.emp_code.in_(codigos)).all()
+    return {(j.fecha, j.emp_code, j.tipo): _justificacion_dict(j) for j in filas}
+
+
 def evaluar_rango(db: Session, tenant_id: int, desde: date, hasta: date, empleados: list[dict]) -> dict[date, list[dict]]:
     """
     {fecha: filas evaluadas} de `desde` a `hasta`. Un día futuro no se evalúa;
@@ -254,6 +271,8 @@ def evaluar_rango(db: Session, tenant_id: int, desde: date, hasta: date, emplead
     for codigo, fecha, motivo in db.query(MarExcepcion.emp_code, MarExcepcion.fecha, MarExcepcion.motivo).filter(
             MarExcepcion.tenant_id == tenant_id, MarExcepcion.fecha >= desde, MarExcepcion.fecha <= hasta):
         excepciones[fecha][codigo] = motivo or "Justificado"
+
+    justificaciones = _justificaciones(db, tenant_id, desde, hasta, codigos)
 
     hoy_ = hoy()
     ahora = ahora_local()
@@ -268,6 +287,11 @@ def evaluar_rango(db: Session, tenant_id: int, desde: date, hasta: date, emplead
             resultado[dia] = evaluacion.evaluar_dia(
                 dia, reloj, presentes, del_dia, historial,
                 justificados=excepciones.get(dia), festivo=dia in festivos)
+            # La novedad se calcula; el motivo se le pega después, así la regla
+            # de asistencia no sabe nada de justificaciones.
+            for fila in resultado[dia]:
+                for n in fila["novedades"]:
+                    n["justificacion"] = justificaciones.get((dia, fila["emp_code"], n["tipo"]))
         else:
             resultado[dia] = []
         dia += timedelta(days=1)
@@ -279,6 +303,7 @@ def evaluar_rango(db: Session, tenant_id: int, desde: date, hasta: date, emplead
 def _contar(filas: list[dict]) -> dict:
     cuenta = {p: 0 for p in C.PRESENCIAS}
     novedades = {n: 0 for n in C.NOVEDADES}
+    justificadas = 0
     con_novedad = 0
     for f in filas:
         cuenta[f["presencia"]] = cuenta.get(f["presencia"], 0) + 1
@@ -286,8 +311,12 @@ def _contar(filas: list[dict]) -> dict:
             con_novedad += 1
         for n in f["novedades"]:
             novedades[n["tipo"]] += 1
+            if n.get("justificacion"):
+                justificadas += 1
+    total = sum(novedades.values())
     return {"personas": len(filas), **cuenta, "con_novedad": con_novedad,
-            "total_novedades": sum(novedades.values()), "novedades": novedades}
+            "total_novedades": total, "justificadas": justificadas,
+            "sin_justificar": total - justificadas, "novedades": novedades}
 
 
 def _lideres(db: Session, tenant_id: int) -> list[dict]:
@@ -329,11 +358,62 @@ def dia(db: Session, tenant_id: int, alcance: Alcance, fecha: date, area: str | 
         "futuro": fecha > hoy(),
         "festivo": festivo.nombre or "Festivo" if festivo else None,
         "generado": ahora_local().isoformat(sep=" ", timespec="seconds"),
-        "alcance": {"tipo": alcance.tipo, "areas": list(alcance.areas)},
+        "alcance": {"tipo": alcance.tipo, "areas": list(alcance.areas),
+                    "puede_justificar": alcance.puede_justificar},
         "estado": estado(db, tenant_id),
         "resumen": resumen(filas, lideres),
         "personas": filas,
     }
+
+
+# ── Justificar (lo único que se escribe desde la pantalla) ────
+
+def _persona_visible(db: Session, tenant_id: int, alcance: Alcance, emp_code: str) -> dict:
+    if not alcance.puede_justificar:
+        raise HTTPException(status_code=403, detail="Con tu rol solo puedes ver tus marcaciones; no justificar novedades.")
+    empleados = _empleados(db, tenant_id, alcance, emp_code=emp_code)
+    if not empleados:
+        # Igual si no existe que si no es de su área: no se confirma que exista.
+        raise HTTPException(status_code=404, detail="No se encontró a esa persona entre las marcaciones que puedes ver.")
+    return empleados[0]
+
+
+def _validar_tipo_y_fecha(tipo: str, fecha: date) -> None:
+    if tipo not in C.NOVEDADES:
+        raise HTTPException(status_code=400, detail=f"«{tipo}» no es una novedad conocida.")
+    if fecha > hoy():
+        raise HTTPException(status_code=400, detail="Ese día todavía no llega: no hay novedades que justificar.")
+
+
+def justificar(db: Session, usuario: User, alcance: Alcance, emp_code: str, fecha: date, tipo: str, texto: str) -> dict:
+    """Guarda (o corrige) el motivo de una novedad que esa persona tiene ese día."""
+    _validar_tipo_y_fecha(tipo, fecha)
+    emp = _persona_visible(db, usuario.tenant_id, alcance, emp_code)
+    filas = evaluar_rango(db, usuario.tenant_id, fecha, fecha, [emp])[fecha]
+    if not any(n["tipo"] == tipo for f in filas for n in f["novedades"]):
+        raise HTTPException(status_code=400, detail="Esa persona no tiene esa novedad ese día; no hay nada que justificar.")
+    j = db.query(MarJustificacion).filter(
+        MarJustificacion.tenant_id == usuario.tenant_id, MarJustificacion.emp_code == emp_code,
+        MarJustificacion.fecha == fecha, MarJustificacion.tipo == tipo).first()
+    if j is None:
+        j = MarJustificacion(tenant_id=usuario.tenant_id, emp_code=emp_code, fecha=fecha, tipo=tipo,
+                             texto=texto, autor_id=usuario.id, autor_nombre=usuario.nombre)
+        db.add(j)
+    else:
+        j.texto, j.autor_id, j.autor_nombre = texto, usuario.id, usuario.nombre
+        j.actualizada_en = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(j)
+    return _justificacion_dict(j)
+
+
+def quitar_justificacion(db: Session, usuario: User, alcance: Alcance, emp_code: str, fecha: date, tipo: str) -> None:
+    _validar_tipo_y_fecha(tipo, fecha)
+    _persona_visible(db, usuario.tenant_id, alcance, emp_code)
+    db.query(MarJustificacion).filter(
+        MarJustificacion.tenant_id == usuario.tenant_id, MarJustificacion.emp_code == emp_code,
+        MarJustificacion.fecha == fecha, MarJustificacion.tipo == tipo).delete()
+    db.commit()
 
 
 def _validar_rango(desde: date, hasta: date) -> None:
@@ -361,6 +441,7 @@ def persona(db: Session, tenant_id: int, alcance: Alcance, emp_code: str, desde:
         "persona": {"emp_code": e["emp_code"], "nombre": e["nombre"], "area": e["area"], "activo": e["activo"],
                     "malla": {c: e[c] for c in DIAS_COLS}},
         "desde": desde.isoformat(), "hasta": hasta.isoformat(),
+        "puede_justificar": alcance.puede_justificar,
         "totales": _contar([d for d in dias]),
         "dias": dias,
     }
@@ -406,7 +487,8 @@ def informe(db: Session, tenant_id: int, alcance: Alcance, desde: date, hasta: d
         "desde": desde.isoformat(), "hasta": hasta.isoformat(),
         "generado": ahora_local().isoformat(sep=" ", timespec="seconds"),
         "filtros": {"area": area, "emp_code": emp_code, "solo_novedades": solo_novedades},
-        "alcance": {"tipo": alcance.tipo, "areas": list(alcance.areas)},
+        "alcance": {"tipo": alcance.tipo, "areas": list(alcance.areas),
+                    "puede_justificar": alcance.puede_justificar},
         "totales": _contar(filas),
         "por_area": sorted(por_area.values(), key=lambda a: a["area"].casefold()),
         "por_persona": por_persona,
@@ -430,7 +512,7 @@ def informe_csv(datos: dict) -> str:
     salida = io.StringIO()
     w = csv.writer(salida, delimiter=";", lineterminator="\r\n")
     w.writerow(["Fecha", "Código", "Nombre", "Área", "Turno", "Primera entrada", "Marcaciones",
-                "Estado", "Novedades", "Detalle"])
+                "Estado", "Novedades", "Detalle", "Justificación"])
     for f in datos["filas"]:
         marcas = ", ".join(f"{m['hora']} {ABREVIATURA.get(m['estado'], m['estado'])}" for m in f["marcas"])
         w.writerow([_celda(x) for x in [
@@ -439,5 +521,8 @@ def informe_csv(datos: dict) -> str:
             C.PRESENCIAS.get(f["presencia"], f["presencia"]),
             " | ".join(n["etiqueta"] for n in f["novedades"]),
             " | ".join(n["detalle"] for n in f["novedades"]),
+            " | ".join(
+                f"{n['etiqueta']}: {n['justificacion']['texto']} ({n['justificacion']['autor']})"
+                for n in f["novedades"] if n.get("justificacion")),
         ]])
     return "﻿" + salida.getvalue()

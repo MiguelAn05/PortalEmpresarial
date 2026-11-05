@@ -27,11 +27,12 @@ import { avisoDeAtraso, contarPorVista, filasDeNovedades, filtrarPersonas, mover
 import ResumenGrupos from './components/ResumenGrupos.jsx'
 import TablaPersonas from './components/TablaPersonas.jsx'
 import DetallePersona from './components/DetallePersona.jsx'
+import NovedadesModal from './components/NovedadesModal.jsx'
 
 export default function Marcaciones() {
   const navigate = useNavigate()
   const [filtros, cambiar, limpiar] = useFiltrosEnUrl(FILTROS_MARCACIONES)
-  const { fecha, area, lider, vista, buscar, persona } = filtros
+  const { fecha, area, lider, vista, buscar, persona, novedades: conNovedades } = filtros
   const hoy = isoDeHoy()
   const dia = fecha || hoy
   const miraHoy = dia === hoy
@@ -50,6 +51,8 @@ export default function Marcaciones() {
     [personas, vista, area, lider, buscar, data],
   )
   const cuantas = useMemo(() => contarPorVista(personas), [personas])
+  const personaConNovedades = useMemo(
+    () => (conNovedades ? personas.find(p => p.emp_code === conNovedades) : null), [personas, conNovedades])
   const aviso = avisoDeAtraso(data?.estado, data?.es_hoy)
   const t = data?.resumen.totales
   const hayFiltros = area || lider || vista !== 'todos' || buscar
@@ -174,7 +177,8 @@ export default function Marcaciones() {
                       {hayFiltros && <Boton tam="sm" tono="fantasma" onClick={() => limpiar()}>Quitar filtros</Boton>}
                     </div>
                   </div>
-                  <TablaPersonas personas={visibles} onAbrir={(c) => cambiar({ persona: c })} />
+                  <TablaPersonas personas={visibles} onAbrir={(c) => cambiar({ persona: c })}
+                                 onNovedades={(p) => cambiar({ novedades: p.emp_code })} />
                 </section>
               </>
             )}
@@ -182,6 +186,12 @@ export default function Marcaciones() {
         </Atenuado>
       )}
 
+      {conNovedades && personaConNovedades && (
+        <NovedadesModal persona={personaConNovedades} fecha={dia}
+                        puede={Boolean(data?.alcance.puede_justificar)}
+                        onVerDias={() => cambiar({ novedades: '', persona: conNovedades })}
+                        onCerrar={() => cambiar({ novedades: '' })} />
+      )}
       {persona && <DetallePersona empCode={persona} onCerrar={() => cambiar({ persona: '' })} />}
     </div>
   )

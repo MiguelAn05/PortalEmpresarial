@@ -45,6 +45,8 @@ HISTORIAL = [
                       "y por persona, con el detalle de cada día."),
             ("nuevo", "Informe de marcaciones por rango de fechas, que se descarga en PDF o en CSV para "
                       "Excel."),
+            ("nuevo", "El líder, Gestión Humana y TIC pueden justificar una novedad (una llegada tarde, "
+                      "una ausencia) con el motivo; la novedad sigue contando, pero queda explicada."),
             ("mejora", "Cada quien ve lo suyo: Gestión Humana y TIC toda la empresa, el líder su área y "
                        "cada persona solo sus marcaciones. Quien tenga la capacidad «Ver las marcaciones "
                        "de todas las áreas» entra a todo desde Administración › Capacidades."),

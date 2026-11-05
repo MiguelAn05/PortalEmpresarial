@@ -1,10 +1,11 @@
 """
 Endpoints internos de Marcaciones.
 
-Todo es de LECTURA: la pantalla muestra y descarga, no escribe. Lo que llega
-del reloj entra por `router_sincronizacion.py` con una clave propia. Por eso
-aquí no hay `solo_lectura_no`: no hay nada que un rol de solo lectura pueda
-romper, y qué ve cada quien lo decide `permisos.alcance_de`, antes de leer.
+Casi todo es de LECTURA: la pantalla muestra y descarga. Lo que llega del
+reloj entra por `router_sincronizacion.py` con una clave propia. Lo único que
+se escribe aquí es la justificación de una novedad (`PUT/DELETE
+/justificacion`), con `solo_lectura_no` y el alcance de `permisos`: qué ve
+cada quien lo decide `permisos.alcance_de`, antes de leer.
 """
 from datetime import date, timedelta
 
@@ -13,11 +14,13 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.deps import solo_lectura_no
 from app.core.dias_habiles import hoy
 from app.core.modulos import contratado, requiere_modulo
 from app.models.user import User
 from app.modules.marcaciones import service
 from app.modules.marcaciones.permisos import alcance_de
+from app.modules.marcaciones.schemas import JustificacionIn
 
 router = APIRouter(
     prefix="/marcaciones", tags=["Marcaciones"],
@@ -75,6 +78,30 @@ def informe(
 ):
     """El informe de un rango (hasta 93 días): totales, por área, por persona y día a día."""
     return service.informe(db, usuario.tenant_id, alcance_de(usuario), desde, hasta, area, emp_code, solo_novedades)
+
+
+@router.put("/justificacion")
+def justificar(
+    datos: JustificacionIn,
+    db: Session = Depends(get_db),
+    usuario: User = Depends(solo_lectura_no),
+    _: User = Depends(requiere_modulo("marcaciones")),
+):
+    """El motivo de una novedad de una persona un día. Repetirlo lo corrige; la novedad sigue contando."""
+    return service.justificar(db, usuario, alcance_de(usuario), datos.emp_code, datos.fecha, datos.tipo, datos.texto)
+
+
+@router.delete("/justificacion", status_code=204)
+def quitar_justificacion(
+    emp_code: str = Query(max_length=30),
+    fecha: date = Query(),
+    tipo: str = Query(max_length=30),
+    db: Session = Depends(get_db),
+    usuario: User = Depends(solo_lectura_no),
+    _: User = Depends(requiere_modulo("marcaciones")),
+):
+    service.quitar_justificacion(db, usuario, alcance_de(usuario), emp_code, fecha, tipo)
+    return Response(status_code=204)
 
 
 @router.get("/informe.csv")

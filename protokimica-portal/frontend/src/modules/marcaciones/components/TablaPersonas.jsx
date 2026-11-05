@@ -2,7 +2,7 @@ import { horaOGuion, textoUltimaMarca } from '../resumen.js'
 import { Novedades, Presencia } from './piezas.jsx'
 
 /** Una fila por persona: es la lista que se lee en vivo. Pulsar abre su detalle. */
-export default function TablaPersonas({ personas, onAbrir }) {
+export default function TablaPersonas({ personas, onAbrir, onNovedades }) {
   if (!personas.length) {
     return <p className="text-sm text-texto-2 py-8 text-center">Nadie coincide con estos filtros.</p>
   }
@@ -35,7 +35,16 @@ export default function TablaPersonas({ personas, onAbrir }) {
               <td className="py-2 pr-3 cifra">{horaOGuion(p.primera_entrada)}</td>
               <td className="py-2 pr-3 text-texto-2 whitespace-nowrap">{textoUltimaMarca(p.ultima_marca)}</td>
               <td className="py-2 pr-3 whitespace-nowrap"><Presencia clave={p.presencia} /></td>
-              <td className="py-2"><Novedades lista={p.novedades} /></td>
+              <td className="py-2">
+                {p.novedades.length > 0 ? (
+                  <button type="button" onClick={() => onNovedades(p)}
+                          aria-label={`Ver las novedades de ${p.nombre}`}
+                          title="Ver las horas exactas y justificar"
+                          className="text-left rounded-md hover:ring-2 hover:ring-acento/30 focus-visible:ring-2 focus-visible:ring-acento/50 outline-none">
+                    <Novedades lista={p.novedades} />
+                  </button>
+                ) : <Novedades lista={p.novedades} />}
+              </td>
             </tr>
           ))}
         </tbody>

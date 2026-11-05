@@ -26,3 +26,7 @@ Thumbs.db
 # vuelva a colarse en un commit.
 protokimica-portal/backend/uploads/
 protokimica-portal/backend/documentos/
+
+# Marcaciones: la configuración y el log son de la máquina donde corre el script.
+protokimica-portal/integraciones/marcaciones/sincronizar_marcaciones.config.json
+protokimica-portal/integraciones/marcaciones/*.log

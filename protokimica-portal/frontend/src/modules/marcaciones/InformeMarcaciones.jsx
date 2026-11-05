@@ -40,7 +40,7 @@ function Hoja({ inf }) {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:grid-cols-4">
         <Tarjeta titulo="Personas" valor={inf.por_persona.length} detalle={`${inf.filas.length} días-persona revisados`} />
-        <Tarjeta titulo="Con novedades" valor={conNovedad.length} detalle={t.total_novedades ? `${t.total_novedades} novedades` : 'Sin novedades'}
+        <Tarjeta titulo="Con novedades" valor={conNovedad.length} detalle={t.total_novedades ? `${t.total_novedades} novedades, ${t.sin_justificar} sin justificar` : 'Sin novedades'}
                  tono={conNovedad.length ? 'negativo' : 'positivo'} />
         <Tarjeta titulo="Llegadas tarde" valor={t.novedades.llegada_tarde} tono={t.novedades.llegada_tarde ? 'alerta' : 'positivo'} />
         <Tarjeta titulo="Ausencias" valor={t.novedades.ausencia} tono={t.novedades.ausencia ? 'negativo' : 'positivo'} />
@@ -107,7 +107,16 @@ function Hoja({ inf }) {
                   <td className="py-1.5 whitespace-nowrap cifra">{formatFecha(f.fecha, { day: '2-digit', month: 'short' })}</td>
                   <td className="py-1.5">{f.nombre}<div className="text-[11px] text-texto-3">{f.area}</div></td>
                   <td className="py-1.5"><Novedades lista={f.novedades} /></td>
-                  <td className="py-1.5 text-xs text-texto-2">{f.novedades.map(n => n.detalle).join(' ')}</td>
+                  <td className="py-1.5 text-xs text-texto-2">
+                    {f.novedades.map(n => (
+                      <p key={n.tipo}>
+                        {n.detalle}
+                        {n.justificacion && (
+                          <span className="block text-positivo">Justificada: {n.justificacion.texto} ({n.justificacion.autor})</span>
+                        )}
+                      </p>
+                    ))}
+                  </td>
                 </tr>
               ))}
             </tbody>

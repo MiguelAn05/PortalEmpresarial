@@ -105,7 +105,14 @@ class ZK:
             j = http_json(url, headers=self.headers)
             for row in j.get("data") or j.get("results") or []:
                 yield row
-            url = j.get("next")
+            # El "next" que devuelve ZKBio trae la direccion INTERNA del servidor
+            # (localhost u otro puerto). Se conserva la ruta y se reusa la direccion
+            # con la que ya estamos conectados.
+            sig = j.get("next")
+            if sig:
+                u = urllib.parse.urlsplit(sig)
+                sig = self.base + u.path + ("?" + u.query if u.query else "")
+            url = sig
 
     def punches_range(self, d0, d1):
         p = {"start_time": d0.strftime("%Y-%m-%d 00:00:00"), "end_time": d1.strftime("%Y-%m-%d 23:59:59"),

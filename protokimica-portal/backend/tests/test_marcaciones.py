@@ -369,6 +369,83 @@ def test_sin_contratar_nadie_entra_ni_el_script(entorno, v):
     modulos = entorno.get("/auth/me").json().get("modulos", [])
     v.check("y no aparece en el menú", "marcaciones" not in modulos, modulos)
 
+# ── Justificar una novedad ────────────────────────────────────────────────
+
+def _justificar(portal, emp, tipo, texto="Cita médica con soporte", fecha=MARTES):
+    return portal.put("/marcaciones/justificacion",
+                      json={"emp_code": emp, "fecha": fecha, "tipo": tipo, "texto": texto})
+
+
+def test_el_lider_justifica_una_novedad_de_su_gente(entorno, v):
+    _cargar(entorno)
+    entorno.como("tics")
+    r = _justificar(entorno, "101", "llegada_tarde")
+    v.check("el líder de TICS justifica a Beto", r.status_code == 200, r.text)
+    v.check("queda con el texto y quién lo escribió", r.json()["texto"] == "Cita médica con soporte" and r.json()["autor"], r.json())
+    entorno.como("admin")
+    beto = _por_codigo(_dia(entorno))["101"]
+    n = beto["novedades"][0]
+    v.check("la novedad sigue ahí, con su justificación", n["tipo"] == "llegada_tarde" and n["justificacion"]["texto"].startswith("Cita"), n)
+    t = _dia(entorno)["resumen"]["totales"]
+    v.check("se cuenta como justificada y no se oculta", t["justificadas"] == 1 and t["sin_justificar"] == t["total_novedades"] - 1, t)
+    v.check("las demás siguen sin justificar", _por_codigo(_dia(entorno))["200"]["novedades"][0]["justificacion"] is None)
+
+
+def test_justificar_se_puede_corregir_y_quitar(entorno, v):
+    _cargar(entorno)
+    entorno.como("admin")
+    _justificar(entorno, "200", "ausencia", "Incapacidad en trámite")
+    r = _justificar(entorno, "200", "ausencia", "Incapacidad aprobada por la EPS")
+    v.check("repetirlo lo corrige", r.status_code == 200, r.text)
+    n = _por_codigo(_dia(entorno))["200"]["novedades"][0]
+    v.check("queda una sola, la nueva", n["justificacion"]["texto"] == "Incapacidad aprobada por la EPS", n)
+    r = entorno.delete("/marcaciones/justificacion", params={"emp_code": "200", "fecha": MARTES, "tipo": "ausencia"})
+    v.check("se quita", r.status_code == 204, r.text)
+    n = _por_codigo(_dia(entorno))["200"]["novedades"][0]
+    v.check("la ausencia vuelve a estar sin justificar", n["justificacion"] is None, n)
+
+
+def test_quien_puede_justificar(entorno, v):
+    _cargar(entorno)
+    entorno.como("tics")
+    v.check("un líder no justifica a gente de otra área",
+            _justificar(entorno, "200", "ausencia").status_code == 404)
+    entorno.como("calidad")
+    v.check("el líder de Calidad sí justifica a la suya", _justificar(entorno, "200", "ausencia").status_code == 200)
+    entorno.como("logistica")
+    v.check("el agente no justifica ni lo suyo", _justificar(entorno, "300", "exceso_almuerzo").status_code == 403)
+    entorno.como("gerencia")
+    v.check("gerencia consulta, no escribe", _justificar(entorno, "200", "ausencia").status_code == 403)
+    entorno.como("lectura")
+    v.check("lectura no escribe", _justificar(entorno, "200", "ausencia").status_code == 403)
+    entorno.como("calidad")
+    v.check("el alcance avisa si se puede justificar", _dia(entorno)["alcance"]["puede_justificar"] is True)
+    entorno.como("logistica")
+    v.check("y al agente le avisa que no", _dia(entorno)["alcance"]["puede_justificar"] is False)
+
+
+def test_solo_se_justifica_lo_que_existe(entorno, v):
+    _cargar(entorno)
+    entorno.como("admin")
+    v.check("Ana no tiene ausencia: nada que justificar", _justificar(entorno, "100", "ausencia").status_code == 400)
+    v.check("una novedad inventada se rechaza", _justificar(entorno, "100", "invento").status_code == 400)
+    v.check("un día futuro se rechaza", _justificar(entorno, "100", "ausencia", fecha="2999-01-01").status_code == 400)
+    v.check("sin motivo no se guarda", _justificar(entorno, "200", "ausencia", texto="  ").status_code == 422)
+    v.check("un motivo larguísimo se rechaza", _justificar(entorno, "200", "ausencia", texto="x" * 600).status_code == 422)
+    v.check("alguien que no existe, 404", _justificar(entorno, "999", "ausencia").status_code == 404)
+
+
+def test_la_justificacion_sale_en_el_detalle_y_en_el_csv(entorno, v):
+    _cargar(entorno)
+    entorno.como("admin")
+    _justificar(entorno, "200", "ausencia", "Permiso por calamidad")
+    d = entorno.get("/marcaciones/persona/200", params={"desde": MARTES, "hasta": MARTES}).json()
+    v.check("el detalle de la persona la trae", d["dias"][0]["novedades"][0]["justificacion"]["texto"] == "Permiso por calamidad", d)
+    v.check("y dice si se puede justificar", d["puede_justificar"] is True)
+    csv_ = entorno.get("/marcaciones/informe.csv", params={"desde": MARTES, "hasta": MARTES}).content.decode()
+    v.check("el CSV trae la columna", "Justificación" in csv_.splitlines()[0], csv_.splitlines()[0])
+    v.check("con el motivo y quién lo escribió", "Permiso por calamidad" in csv_, csv_)
+
 
 # ── El motor, sin base de datos ──────────────────────────────────────────
 

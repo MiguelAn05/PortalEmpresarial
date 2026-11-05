@@ -14,8 +14,12 @@ Dentro, hay tres alcances, de mayor a menor:
   una persona de la malla con su correo, no ve nada —nunca «todo» por
   descarte—.
 
-Nadie escribe desde la pantalla: las marcaciones y la malla llegan del script
-del servidor de ZKBio, así que aquí no hay reglas de escritura que cuidar.
+Las marcaciones y la malla llegan del script del servidor de ZKBio: la
+pantalla no las toca. Lo ÚNICO que se escribe aquí son las **justificaciones**
+de las novedades, y quien puede es quien ve a esa persona con alcance `todo` o
+`areas`: el líder justifica a su gente, Gestión Humana y TIC a cualquiera.
+El agente (`propio`) solo mira lo suyo, y `gerencia`/`lectura` no escriben en
+ningún módulo (`core/deps.solo_lectura_no`).
 Esta es la ÚNICA fuente de la regla: el servicio la aplica antes de leer, no
 después de traer todo.
 """
@@ -34,6 +38,10 @@ class Alcance:
     tipo: str                      # "todo" | "areas" | "propio"
     areas: tuple[str, ...] = field(default_factory=tuple)
     correo: str | None = None
+
+    @property
+    def puede_justificar(self) -> bool:
+        return self.tipo in ("todo", "areas")
 
     def permite(self, area: str | None, correo: str | None = None) -> bool:
         if self.tipo == "todo":

@@ -48,7 +48,11 @@ export const VISTAS = [
   { clave: 'novedades', label: 'Con novedades' },
 ]
 
+/** Los topes de la justificación: son los del servidor (`models/marcaciones.py`). */
+export const MIN_JUSTIFICACION = 5
+export const MAX_JUSTIFICACION = 500
+
 /** Cada cuánto se vuelve a pedir el día de hoy. */
 export const SEGUNDOS_ACTUALIZACION = 30
 
-export const FILTROS_MARCACIONES = { fecha: '', area: '', lider: '', vista: 'todos', buscar: '', persona: '' }
+export const FILTROS_MARCACIONES = { fecha: '', area: '', lider: '', vista: 'todos', buscar: '', persona: '', novedades: '' }
