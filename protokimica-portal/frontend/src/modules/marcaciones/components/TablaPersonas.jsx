@@ -1,4 +1,4 @@
-import { horaOGuion, textoUltimaMarca } from '../resumen.js'
+import { detalleEquipo, horaOGuion, nombreEquipo, textoUltimaMarca } from '../resumen.js'
 import { Novedades, Presencia } from './piezas.jsx'
 
 /** Una fila por persona: es la lista que se lee en vivo. Pulsar abre su detalle. */
@@ -33,7 +33,13 @@ export default function TablaPersonas({ personas, onAbrir, onNovedades }) {
                 {p.turno || <span title="Turnos posibles" className="text-texto-2">{p.turno_opciones || '—'}</span>}
               </td>
               <td className="py-2 pr-3 cifra">{horaOGuion(p.primera_entrada)}</td>
-              <td className="py-2 pr-3 text-texto-2 whitespace-nowrap">{textoUltimaMarca(p.ultima_marca)}</td>
+              <td className="py-2 pr-3 text-texto-2 whitespace-nowrap"
+                  title={p.ultima_marca ? detalleEquipo(p.ultima_marca.dispositivo) : undefined}>
+                {textoUltimaMarca(p.ultima_marca)}
+                {nombreEquipo(p.ultima_marca?.dispositivo) && (
+                  <span className="block text-[11px] text-texto-3">{nombreEquipo(p.ultima_marca.dispositivo)}</span>
+                )}
+              </td>
               <td className="py-2 pr-3 whitespace-nowrap"><Presencia clave={p.presencia} /></td>
               <td className="py-2">
                 {p.novedades.length > 0 ? (

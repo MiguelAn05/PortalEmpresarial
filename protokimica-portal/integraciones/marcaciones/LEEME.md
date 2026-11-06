@@ -74,6 +74,18 @@ PATH del usuario SYSTEM, como se hizo con las alertas.)
 termina con código distinto de cero si falla, para que el Programador de tareas
 lo muestre.
 
+### En qué biométrico se marcó
+
+Cada marcación viaja con la **serie** del equipo (`terminal_sn` de ZKBio), y el
+primer lote lleva la lista de equipos con su nombre (`terminal_alias`) y su zona
+(`area_alias`), tal como aparecen en ZKBio › Dispositivos. No hay que configurar
+nada: si un equipo se renombra en ZKBio, el portal toma el nombre nuevo en el
+siguiente envío.
+
+`--dry-run` lista los equipos que vio. Las marcaciones que ya estaban en el
+portal reciben su equipo cuando se reenvían: después de actualizar el script,
+corre una vez `py -3 sincronizar_marcaciones.py --dias 30`.
+
 ## Cómo saber que está funcionando
 
 - En el portal, **Marcaciones** muestra «Actualizado a las…». Si el script deja

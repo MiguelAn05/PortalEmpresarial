@@ -1794,6 +1794,15 @@ Módulo `marcaciones` (contratable, `app/modules/marcaciones`, tablas
   persona tiene ese día (400 si no) y nunca un día futuro. Pulsar «Novedades» en
   la lista abre `NovedadesModal` (horas exactas + cuadro para justificar); el
   detalle por días de la persona usa el mismo `NovedadesDia`.
+- **Cada marcación dice en qué biométrico se hizo** (cada sede tiene el
+  suyo). `mar_marcaciones.dispositivo` guarda la SERIE del equipo —lo único
+  que no cambia— y `mar_dispositivos` su nombre y su zona de ZKBio. El script
+  los saca de la propia marcación (`terminal_sn`, `terminal_alias`,
+  `area_alias`), sin pedirle nada más a ZKBio, y el catálogo se actualiza
+  solo: renombrar un equipo no reescribe marcaciones. La zona NO es un área
+  del portal (por eso la columna es `sede`, no `area*`). Las marcaciones
+  viejas reciben su equipo al reenviarse (`--dias 30`). El motor de reglas no
+  lo usa: solo viaja hasta la fila.
 - **Lotes vacíos se rechazan** (400): un error al leer ZKBio no debe verse como
   «nadie marcó», ni una malla vacía dejar a todos desactivados. Quien sale de la
   malla se desactiva, no se borra: su historia se conserva.

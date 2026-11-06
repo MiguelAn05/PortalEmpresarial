@@ -28,7 +28,7 @@ from app.core.dias_habiles import hoy
 from app.core.fechas import con_zona
 from app.core.supervision import areas_visibles
 from app.models.marcaciones import (
-    MarEmpleado, MarExcepcion, MarFestivo, MarJustificacion, MarMarcacion, MarSincronizacion,
+    MarDispositivo, MarEmpleado, MarExcepcion, MarFestivo, MarJustificacion, MarMarcacion, MarSincronizacion,
 )
 from app.models.user import User
 from app.modules.marcaciones import constants as C
@@ -105,18 +105,41 @@ def _sincronizar_marcaciones(db: Session, tenant_id: int, marcaciones: list[dict
         return 0, None
     llegadas = {}
     for m in marcaciones:
-        llegadas[(m["emp_code"], local_a_utc(m["momento"]), m["estado"])] = m["momento"]
+        llegadas[(m["emp_code"], local_a_utc(m["momento"]), m["estado"])] = (m["momento"], m.get("dispositivo"))
     ini, fin = min(k[1] for k in llegadas), max(k[1] for k in llegadas)
     ya = {
-        (c, con_zona(t), e)
-        for c, t, e in db.query(MarMarcacion.emp_code, MarMarcacion.momento, MarMarcacion.estado).filter(
+        (m.emp_code, con_zona(m.momento), m.estado): m
+        for m in db.query(MarMarcacion).filter(
             MarMarcacion.tenant_id == tenant_id,
             MarMarcacion.momento >= ini, MarMarcacion.momento <= fin,
         )
     }
-    nuevas = [k for k in llegadas if k not in ya]
-    db.add_all(MarMarcacion(tenant_id=tenant_id, emp_code=c, momento=t, estado=e) for c, t, e in nuevas)
-    return len(nuevas), max(llegadas.values())
+    nuevas = 0
+    for (c, t, e), (_, serie) in llegadas.items():
+        guardada = ya.get((c, t, e))
+        if guardada is None:
+            db.add(MarMarcacion(tenant_id=tenant_id, emp_code=c, momento=t, estado=e, dispositivo=serie))
+            nuevas += 1
+        elif serie and not guardada.dispositivo:
+            # Las que llegaron antes de que el script mandara el equipo lo
+            # reciben cuando se reenvían (`--dias 30` para completar el mes).
+            guardada.dispositivo = serie
+    return nuevas, max(v[0] for v in llegadas.values())
+
+
+def _sincronizar_dispositivos(db: Session, tenant_id: int, dispositivos: list[dict]) -> int:
+    """Agrega los biométricos nuevos y actualiza nombre y sede de los que cambiaron en ZKBio."""
+    existentes = {d.serie: d for d in db.query(MarDispositivo).filter(MarDispositivo.tenant_id == tenant_id)}
+    for datos in {d["serie"]: d for d in dispositivos}.values():
+        fila = existentes.get(datos["serie"])
+        if fila is None:
+            db.add(MarDispositivo(tenant_id=tenant_id, serie=datos["serie"],
+                                  nombre=datos.get("nombre"), sede=datos.get("sede")))
+        else:
+            # Lo vacío no borra lo que ya se sabía.
+            fila.nombre = datos.get("nombre") or fila.nombre
+            fila.sede = datos.get("sede") or fila.sede
+    return len(dispositivos)
 
 
 def sincronizar(db: Session, tenant_id: int, payload: dict) -> dict:
@@ -142,6 +165,9 @@ def sincronizar(db: Session, tenant_id: int, payload: dict) -> dict:
         db.add_all(MarExcepcion(tenant_id=tenant_id, emp_code=x["emp_code"], fecha=x["fecha"], motivo=x.get("motivo"))
                    for x in unicas.values())
         resumen["excepciones"] = len(unicas)
+
+    if payload.get("dispositivos") is not None:
+        resumen["dispositivos"] = _sincronizar_dispositivos(db, tenant_id, payload["dispositivos"])
 
     nuevas, ultima = _sincronizar_marcaciones(db, tenant_id, payload.get("marcaciones") or [])
     resumen["marcaciones_nuevas"] = nuevas
@@ -208,23 +234,24 @@ def _empleados(db: Session, tenant_id: int, alcance: Alcance, area: str | None =
 
 
 def _marcas(db: Session, tenant_id: int, desde: date, hasta: date, codigos: list[str]) -> dict:
-    """{emp_code: {fecha: [(hora_local, estado)]}} para [desde, hasta], ambos inclusive."""
+    """{emp_code: {fecha: [(hora_local, estado, serie del equipo)]}} para [desde, hasta], ambos inclusive."""
     if not codigos:
         return {}
     ini = local_a_utc(datetime.combine(desde, time.min))
     fin = local_a_utc(datetime.combine(hasta + timedelta(days=1), time.min))
     por_codigo: dict = defaultdict(lambda: defaultdict(list))
-    consulta = db.query(MarMarcacion.emp_code, MarMarcacion.momento, MarMarcacion.estado).filter(
+    consulta = db.query(MarMarcacion.emp_code, MarMarcacion.momento, MarMarcacion.estado,
+                        MarMarcacion.dispositivo).filter(
         MarMarcacion.tenant_id == tenant_id,
         MarMarcacion.momento >= ini, MarMarcacion.momento < fin,
         MarMarcacion.emp_code.in_(codigos),
     )
-    for codigo, momento, est in consulta:
+    for codigo, momento, est, serie in consulta:
         local = utc_a_local(momento)
-        por_codigo[codigo][local.date()].append((local, est))
+        por_codigo[codigo][local.date()].append((local, est, serie))
     for dias in por_codigo.values():
         for lista in dias.values():
-            lista.sort()
+            lista.sort(key=lambda m: (m[0], m[1]))
     return por_codigo
 
 
@@ -259,6 +286,20 @@ def _justificaciones(db: Session, tenant_id: int, desde: date, hasta: date, codi
     return {(j.fecha, j.emp_code, j.tipo): _justificacion_dict(j) for j in filas}
 
 
+def _dispositivos(db: Session, tenant_id: int) -> dict:
+    """{serie: {serie, nombre, sede}}. Una serie que no esté aquí se muestra tal cual."""
+    return {d.serie: {"serie": d.serie, "nombre": d.nombre or d.serie, "sede": d.sede}
+            for d in db.query(MarDispositivo).filter(MarDispositivo.tenant_id == tenant_id)}
+
+
+def _con_equipo(marca: dict | None, equipos: dict) -> None:
+    """Cambia la serie por el equipo con nombre y sede (o None si no se sabe)."""
+    if marca is None:
+        return
+    serie = marca.get("dispositivo")
+    marca["dispositivo"] = equipos.get(serie, {"serie": serie, "nombre": serie, "sede": None}) if serie else None
+
+
 def evaluar_rango(db: Session, tenant_id: int, desde: date, hasta: date, empleados: list[dict]) -> dict[date, list[dict]]:
     """
     {fecha: filas evaluadas} de `desde` a `hasta`. Un día futuro no se evalúa;
@@ -273,6 +314,7 @@ def evaluar_rango(db: Session, tenant_id: int, desde: date, hasta: date, emplead
         excepciones[fecha][codigo] = motivo or "Justificado"
 
     justificaciones = _justificaciones(db, tenant_id, desde, hasta, codigos)
+    equipos = _dispositivos(db, tenant_id)
 
     hoy_ = hoy()
     ahora = ahora_local()
@@ -290,6 +332,9 @@ def evaluar_rango(db: Session, tenant_id: int, desde: date, hasta: date, emplead
             # La novedad se calcula; el motivo se le pega después, así la regla
             # de asistencia no sabe nada de justificaciones.
             for fila in resultado[dia]:
+                for m in fila["marcas"]:
+                    _con_equipo(m, equipos)
+                _con_equipo(fila["ultima_marca"], equipos)
                 for n in fila["novedades"]:
                     n["justificacion"] = justificaciones.get((dia, fila["emp_code"], n["tipo"]))
         else:
@@ -536,7 +581,10 @@ def informe_csv(datos: dict) -> str:
     w.writerow(["Fecha", "Código", "Nombre", "Área", "Turno", "Primera entrada", "Marcaciones",
                 "Estado", "Novedades", "Detalle", "Justificación"])
     for f in datos["filas"]:
-        marcas = ", ".join(f"{m['hora']} {ABREVIATURA.get(m['estado'], m['estado'])}" for m in f["marcas"])
+        marcas = ", ".join(
+            f"{m['hora']} {ABREVIATURA.get(m['estado'], m['estado'])}"
+            + (f" ({m['dispositivo']['nombre']})" if m.get("dispositivo") else "")
+            for m in f["marcas"])
         w.writerow([_celda(x) for x in [
             f["fecha"], f["emp_code"], f["nombre"], f["area"] or SIN_AREA,
             f["turno"] or f["turno_opciones"] or "", f["primera_entrada"] or "", marcas,

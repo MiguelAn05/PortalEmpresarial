@@ -8,6 +8,8 @@ una clave propia (CLAVE_MARCACIONES). Ver LEEME.md.
 Cada ejecucion manda:
   - las marcaciones de los ultimos N dias (3 por defecto). Reenviar es inofensivo:
     el portal no duplica;
+  - en que biometrico se hizo cada marcacion (la serie del equipo) y el nombre y la
+    zona de cada equipo, tal como estan en ZKBio (Dispositivos);
   - la malla de turnos (schedules.csv), con el area ya traducida al nombre del portal;
   - los festivos (festivos.csv) y las excepciones (excepciones.csv), si existen.
 
@@ -182,8 +184,31 @@ def construir_marcaciones(punches, codigos):
         if clave in vistos:
             continue
         vistos.add(clave)
-        out.append({"emp_code": codigo, "momento": momento, "estado": estado})
+        serie = str(p.get("terminal_sn") or "").strip()[:40] or None
+        out.append({"emp_code": codigo, "momento": momento, "estado": estado, "dispositivo": serie})
     return out, ignoradas
+
+
+def construir_dispositivos(punches):
+    """
+    Los biometricos que aparecen en las marcaciones: serie, nombre y zona.
+
+    Salen de la misma marcacion (terminal_sn, terminal_alias, area_alias), sin
+    pedirle a ZKBio otra cosa. Si un equipo cambia de nombre, gana el de la
+    marcacion mas reciente.
+    """
+    equipos = {}
+    for p in punches:
+        serie = str(p.get("terminal_sn") or "").strip()[:40]
+        if not serie:
+            continue
+        nombre = str(p.get("terminal_alias") or "").strip()[:100] or None
+        sede = str(p.get("area_alias") or "").strip()[:100] or None
+        actual = equipos.get(serie)
+        if actual is None or str(p.get("punch_time") or "") >= actual["_cuando"]:
+            equipos[serie] = {"serie": serie, "nombre": nombre or (actual or {}).get("nombre"),
+                              "sede": sede or (actual or {}).get("sede"), "_cuando": str(p.get("punch_time") or "")}
+    return [{k: v for k, v in e.items() if k != "_cuando"} for e in equipos.values()]
 
 
 def construir_festivos(filas):
@@ -246,6 +271,21 @@ def selftest():
     ]
     marcas, ign = construir_marcaciones(punches, {"1", "2"})
     check("se dedupe, se descartan estados raros y personas fuera de la malla", len(marcas) == 2 and ign == 2)
+    check("sin equipo en la marcacion, dispositivo None", marcas[0]["dispositivo"] is None)
+    con_equipo = [
+        {"emp_code": 1, "punch_state": "0", "punch_time": "2026-11-03 06:58:00",
+         "terminal_sn": "CJIN203560028", "terminal_alias": "SEDE GUAYABAL", "area_alias": "SEDE GUAYABAL"},
+        {"emp_code": 2, "punch_state": "0", "punch_time": "2026-11-03 07:10:00",
+         "terminal_sn": "CJIN203560028", "terminal_alias": "SEDE GUAYABAL PISO 1", "area_alias": ""},
+        {"emp_code": 2, "punch_state": "1", "punch_time": "2026-11-03 17:00:00", "terminal_sn": "CJIN203560037",
+         "terminal_alias": "SEDE LA 65", "area_alias": "SEDE 65"},
+    ]
+    marcas, _ = construir_marcaciones(con_equipo, {"1", "2"})
+    check("cada marcacion lleva la serie del equipo", [m["dispositivo"] for m in marcas] == ["CJIN203560028", "CJIN203560028", "CJIN203560037"])
+    eq = {e["serie"]: e for e in construir_dispositivos(con_equipo)}
+    check("un equipo por serie", len(eq) == 2)
+    check("gana el nombre mas reciente y lo vacio no borra la zona",
+          eq["CJIN203560028"]["nombre"] == "SEDE GUAYABAL PISO 1" and eq["CJIN203560028"]["sede"] == "SEDE GUAYABAL")
     check("festivos vacios no se mandan", construir_festivos([]) is None and construir_festivos(None) is None)
     check("excepciones sin archivo no se tocan; con archivo vacio se vacian",
           construir_excepciones(None) is None and construir_excepciones([]) == [])
@@ -292,6 +332,7 @@ def main():
     zk.login(os.environ["ZK_USER"], os.environ["ZK_PASS"])
     punches = zk.punches_range(hoy - dt.timedelta(days=dias), hoy)
     marcaciones, ignoradas = construir_marcaciones(punches, {e["emp_code"] for e in empleados})
+    dispositivos = construir_dispositivos(punches)
 
     carpeta = os.path.dirname(ruta_malla)
     festivos = construir_festivos(read_csv(os.path.join(carpeta, "festivos.csv")))
@@ -302,6 +343,12 @@ def main():
 
     if a.dry_run:
         print("Se enviaria: %d empleados, %d marcaciones de los ultimos %d dias." % (len(empleados), len(marcaciones), dias))
+        print("Biometricos vistos en esas marcaciones:")
+        for e in sorted(dispositivos, key=lambda x: x["nombre"] or x["serie"]):
+            print("  %-15s %-25s %s" % (e["serie"], e["nombre"] or "(sin nombre)", e["sede"] or "(sin zona)"))
+        sin_equipo = sum(1 for m in marcaciones if not m["dispositivo"])
+        if sin_equipo:
+            print("OJO: %d marcaciones llegaron sin serie de equipo (terminal_sn)." % sin_equipo)
         sin_area = [e["nombre"] for e in empleados if not e["area"]]
         if sin_area:
             print("Sin area (el portal los muestra como 'Sin area'):", ", ".join(sin_area))
@@ -314,6 +361,8 @@ def main():
         cuerpo = {"marcaciones": lote}
         if i == 0:                       # la malla y lo demas viajan una sola vez, en el primer lote
             cuerpo["empleados"] = empleados
+            if dispositivos:
+                cuerpo["dispositivos"] = dispositivos
             if festivos is not None:
                 cuerpo["festivos"] = festivos
             if excepciones is not None:

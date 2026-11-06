@@ -41,6 +41,18 @@ export function textoUltimaMarca(ultima) {
   return `${ultima.hora} · ${ESTADOS_MARCA[ultima.estado] ?? ultima.estado}`
 }
 
+/**
+ * El biométrico en que se marcó, como lo llama ZKBio («SEDE GUAYABAL PISO 1»).
+ * Vacío si la marcación llegó antes de que el script mandara el equipo.
+ */
+export const nombreEquipo = (dispositivo) => dispositivo?.nombre || dispositivo?.serie || ''
+
+/** Lo que sale al pasar el cursor: la zona y la serie, que es como se busca el equipo en ZKBio. */
+export function detalleEquipo(dispositivo) {
+  if (!dispositivo) return 'No se sabe en qué biométrico: llegó antes de que el reloj lo informara.'
+  return [dispositivo.sede, `Serie ${dispositivo.serie}`].filter(Boolean).join(' · ')
+}
+
 export const etiquetaPresencia = (clave) => PRESENCIAS[clave]?.label ?? clave
 
 /**

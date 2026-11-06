@@ -1,5 +1,18 @@
 import { Estado } from '../../../core/components/Informe.jsx'
-import { PRESENCIAS } from '../constants.js'
+import { ESTADOS_MARCA, PRESENCIAS } from '../constants.js'
+import { detalleEquipo, nombreEquipo } from '../resumen.js'
+
+/** Una marcación: la hora, qué botón y en qué biométrico (la sede y la serie al pasar el cursor). */
+export function Marca({ marca }) {
+  const equipo = nombreEquipo(marca.dispositivo)
+  return (
+    <li title={detalleEquipo(marca.dispositivo)}>
+      <span className="cifra font-semibold">{marca.hora}</span>{' '}
+      <span className="text-texto-2">{ESTADOS_MARCA[marca.estado] ?? marca.estado}</span>
+      {equipo && <span className="block text-[11px] text-texto-3 leading-tight">{equipo}</span>}
+    </li>
+  )
+}
 
 /** Dónde está la persona: punto y palabra, nunca solo color. */
 export function Presencia({ clave }) {

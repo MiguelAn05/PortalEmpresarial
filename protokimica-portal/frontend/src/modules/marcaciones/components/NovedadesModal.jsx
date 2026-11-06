@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { formatFecha } from '../../masterPlanner/constants.js'
-import { ESTADOS_MARCA } from '../constants.js'
 import Boton from '../../../core/components/Boton.jsx'
 import NovedadesDia from './NovedadesDia.jsx'
+import { Marca } from './piezas.jsx'
 
 /**
  * Lo que se abre al pulsar «Novedades» de una persona: sus marcaciones del día
@@ -40,7 +40,7 @@ export default function NovedadesModal({ persona, fecha, puede, onVerDias, onCer
         {persona.marcas.length > 0 ? (
           <ol className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             {persona.marcas.map((m, i) => (
-              <li key={i}><span className="cifra font-semibold">{m.hora}</span> <span className="text-texto-2">{ESTADOS_MARCA[m.estado] ?? m.estado}</span></li>
+              <Marca key={i} marca={m} />
             ))}
           </ol>
         ) : <p className="text-sm text-texto-2">No marcó nada este día.</p>}

@@ -15,7 +15,8 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.marcaciones import (
-    MAX_AREA, MAX_CODIGO, MAX_JUSTIFICACION, MAX_NOMBRE, MAX_TURNOS, MIN_JUSTIFICACION,
+    MAX_AREA, MAX_CODIGO, MAX_DISPOSITIVO, MAX_JUSTIFICACION, MAX_NOMBRE, MAX_SERIE, MAX_TURNOS,
+    MIN_JUSTIFICACION,
 )
 from app.modules.marcaciones.constants import ESTADOS_VALIDOS
 
@@ -60,6 +61,13 @@ class MarcacionIn(BaseModel):
     # Hora de pared, sin zona.
     momento: datetime
     estado: str = Field(max_length=1)
+    # La serie del biométrico en que se marcó. Opcional: un script viejo no la manda.
+    dispositivo: str | None = Field(None, max_length=MAX_SERIE)
+
+    @field_validator("dispositivo")
+    @classmethod
+    def _serie(cls, v: str | None) -> str | None:
+        return (v or "").strip() or None
 
     @field_validator("estado")
     @classmethod
@@ -81,6 +89,13 @@ class MarcacionIn(BaseModel):
         return v
 
 
+class DispositivoIn(BaseModel):
+    """Un biométrico como lo nombra ZKBio: serie, nombre del equipo y zona."""
+    serie: str = Field(min_length=1, max_length=MAX_SERIE)
+    nombre: str | None = Field(None, max_length=MAX_DISPOSITIVO)
+    sede: str | None = Field(None, max_length=MAX_DISPOSITIVO)
+
+
 class FestivoIn(BaseModel):
     fecha: date
     nombre: str | None = Field(None, max_length=100)
@@ -98,6 +113,8 @@ class SincronizacionIn(BaseModel):
     # Ausente (None) = no tocar; la lista de empleados reemplaza la malla.
     empleados: list[EmpleadoIn] | None = None
     marcaciones: list[MarcacionIn] | None = None
+    # Se agregan o actualizan; uno que no llegue no se borra (sus marcaciones viejas lo nombran).
+    dispositivos: list[DispositivoIn] | None = None
     festivos: list[FestivoIn] | None = None
     excepciones: list[ExcepcionIn] | None = None
 

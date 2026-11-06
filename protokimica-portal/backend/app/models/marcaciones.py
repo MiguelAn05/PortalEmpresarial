@@ -17,6 +17,11 @@ el reloj. Ver `integraciones/marcaciones/`.
   conoce, el correo con el que la persona entra al portal (es lo que deja a un
   agente ver SUS marcaciones y nada más). **No es la tabla de usuarios**: hay
   gente que marca y nunca entra al portal.
+- `mar_dispositivos` son los biométricos: cada marcación guarda la SERIE del
+  equipo en que se hizo (`mar_marcaciones.dispositivo`) y aquí está su nombre
+  y su sede. La serie es la identidad porque es lo único que no cambia: el
+  nombre y la zona se editan en ZKBio y el catálogo se actualiza solo en el
+  siguiente envío, sin reescribir ninguna marcación.
 - `mar_justificaciones` es lo ÚNICO que se escribe desde la pantalla: lo que
   el líder (o Gestión Humana) explica de una novedad de una persona un día.
   Se guarda aparte y la novedad sigue calculándose igual: justificar no la
@@ -39,6 +44,8 @@ MAX_NOMBRE = 150
 MAX_AREA = 100
 MAX_TURNOS = 80
 MAX_JUSTIFICACION = 500
+MAX_SERIE = 40
+MAX_DISPOSITIVO = 100
 MIN_JUSTIFICACION = 5
 
 
@@ -84,7 +91,29 @@ class MarMarcacion(Base):
     # 0 entrada · 1 salida · 2 salida a descanso · 3 regreso de descanso ·
     # 4 y 5 horas extra (se guardan, no se evalúan).
     estado = Column(String(1), nullable=False)
+    # La serie del biométrico (`mar_dispositivos.serie`). Nula en las que
+    # llegaron antes de que el script la mandara.
+    dispositivo = Column(String(MAX_SERIE), nullable=True)
     recibida_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class MarDispositivo(Base):
+    """
+    Un biométrico: su serie, el nombre que tiene en ZKBio («SEDE GUAYABAL
+    PISO 1») y la zona en que está («SEDE GUAYABAL»). Lo llena el script con
+    lo que trae cada marcación; nadie lo edita a mano.
+    """
+    __tablename__ = "mar_dispositivos"
+    __table_args__ = (UniqueConstraint("tenant_id", "serie", name="uq_mar_dispositivo_serie"),)
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    serie = Column(String(MAX_SERIE), nullable=False)
+    nombre = Column(String(MAX_DISPOSITIVO), nullable=True)
+    # La zona de ZKBio. No es un área del portal (no lleva su nombre ni pasa
+    # por `areas.renombrar()`): es dónde está colgado el equipo.
+    sede = Column(String(MAX_DISPOSITIVO), nullable=True)
+    actualizado_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class MarFestivo(Base):

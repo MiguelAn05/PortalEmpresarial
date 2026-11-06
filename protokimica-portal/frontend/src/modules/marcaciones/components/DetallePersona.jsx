@@ -3,9 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { mensajeDeError } from '../../../core/errores.js'
 import { Esqueleto } from '../../../core/components/Cargando.jsx'
 import { formatFecha } from '../../masterPlanner/constants.js'
-import { ESTADOS_MARCA } from '../constants.js'
 import { obtenerPersona } from '../api.js'
-import { Presencia } from './piezas.jsx'
+import { Marca, Presencia } from './piezas.jsx'
 import NovedadesDia from './NovedadesDia.jsx'
 
 /**
@@ -62,7 +61,7 @@ export default function DetallePersona({ empCode, onCerrar }) {
                   {d.marcas.length > 0 && (
                     <ol className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-texto">
                       {d.marcas.map((m, i) => (
-                        <li key={i}><span className="cifra font-semibold">{m.hora}</span> <span className="text-texto-2">{ESTADOS_MARCA[m.estado] ?? m.estado}</span></li>
+                        <Marca key={i} marca={m} />
                       ))}
                     </ol>
                   )}

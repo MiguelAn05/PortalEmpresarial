@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { PRESENCIAS, NOVEDADES, VISTAS, ESTADOS_MARCA } from '../src/modules/marcaciones/constants.js'
 import {
   avisoDeAtraso, coincideConVista, contarFoco, contarPorVista, filaCumpleFoco, filasDeNovedades, filtrarPersonas,
-  FOCOS_INFORME, moverDia, periodosRapidos, personaCumpleFoco, textoUltimaMarca,
+  detalleEquipo, FOCOS_INFORME, moverDia, nombreEquipo, periodosRapidos, personaCumpleFoco, textoUltimaMarca,
 } from '../src/modules/marcaciones/resumen.js'
 import { puedeVerModulo, moduloDeRuta } from '../src/core/modulos.js'
 
@@ -83,6 +83,15 @@ console.log('\n== Novedades para las barras ==')
 const filas = filasDeNovedades({ total_novedades: 4, novedades: { llegada_tarde: 3, ausencia: 1, exceso_break: 0 } }, NOVEDADES)
 check('sin ceros y de mayor a menor', filas.map(f => f.clave).join() === 'llegada_tarde,ausencia', filas)
 check('porcentaje', filas[0].pct === 75)
+
+console.log('\n== En qué biométrico se marcó ==')
+const GUAYABAL = { serie: 'CJIN203560028', nombre: 'SEDE GUAYABAL PISO 1', sede: 'SEDE GUAYABAL' }
+check('el nombre del equipo', nombreEquipo(GUAYABAL) === 'SEDE GUAYABAL PISO 1')
+check('sin nombre, la serie', nombreEquipo({ serie: 'X1', nombre: null }) === 'X1')
+check('sin equipo, nada', nombreEquipo(null) === '' && nombreEquipo(undefined) === '')
+check('el detalle trae la sede y la serie', detalleEquipo(GUAYABAL) === 'SEDE GUAYABAL · Serie CJIN203560028')
+check('sin sede, solo la serie', detalleEquipo({ serie: 'X1', sede: null }) === 'Serie X1')
+check('sin equipo, lo dice', /No se sabe/.test(detalleEquipo(null)))
 
 console.log('\n== Las tarjetas del informe filtran ==')
 const FILAS_INF = [

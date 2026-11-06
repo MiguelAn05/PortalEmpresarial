@@ -104,7 +104,7 @@ def turno_de_ese_dia(opciones: str, dia: dt.date, marcas: list) -> str | None:
     turnos = turnos_del_dia(opciones, dia)
     if len(turnos) < 2 or not marcas:
         return None
-    entradas = [t for t, e in marcas if e == C.ENTRADA] or [marcas[0][0]]
+    entradas = [m[0] for m in marcas if m[1] == C.ENTRADA] or [marcas[0][0]]
     inicio, _, confianza = detectar_turno(turnos, entradas[0], [])
     return inicio.strftime("%H:%M") if confianza == "alta" else None
 
@@ -170,25 +170,29 @@ def evaluar_persona(dia: dt.date, ahora: dt.datetime, emp: dict, marcas: list,
     ni marcó (no tiene turno, no es de ese día).
 
     `ahora` es el «ahora» de la evaluación: la hora real si el día es hoy, el
-    final del día si es pasado. `marcas` va ordenada: [(datetime, estado)].
+    final del día si es pasado. `marcas` va ordenada: [(datetime, estado)] o
+    [(datetime, estado, dispositivo)]. El dispositivo no entra en ninguna
+    regla: solo viaja hasta la fila para decir dónde se marcó.
     """
     opciones = opciones_de(emp, dia)
     turnos = turnos_del_dia(opciones, dia)
-    marcas = corregir_descansos(sorted(
-        m for m in marcas if m[1] in {C.ENTRADA, C.SALIDA, C.SALIDA_DESCANSO, C.REGRESO_DESCANSO}))
+    crudas = sorted((m for m in marcas if m[1] in {C.ENTRADA, C.SALIDA, C.SALIDA_DESCANSO, C.REGRESO_DESCANSO}),
+                    key=lambda m: (m[0], m[1]))
+    equipos = [m[2] if len(m) > 2 else None for m in crudas]
+    marcas = corregir_descansos([(m[0], m[1]) for m in crudas])
     fila = {
         "emp_code": emp["emp_code"], "nombre": emp["nombre"], "area": emp.get("area"),
         "turno_opciones": " / ".join(f"{_hhmm(a)}-{_hhmm(b)}" for a, b in turnos),
         "turno": None, "confianza": None, "presencia": None,
         "primera_entrada": None, "ultima_marca": None,
-        "marcas": [{"hora": _hhmm(t), "estado": e} for t, e in marcas],
+        "marcas": [{"hora": _hhmm(t), "estado": e, "dispositivo": d} for (t, e), d in zip(marcas, equipos)],
         "novedades": [],
     }
     if marcas:
         entradas = [t for t, e in marcas if e == C.ENTRADA] or [marcas[0][0]]
         fila["primera_entrada"] = _hhmm(entradas[0])
         t_ult, e_ult = marcas[-1]
-        fila["ultima_marca"] = {"hora": _hhmm(t_ult), "estado": e_ult}
+        fila["ultima_marca"] = {"hora": _hhmm(t_ult), "estado": e_ult, "dispositivo": equipos[-1]}
 
     if justificado is not None:
         fila["presencia"], fila["motivo"] = "justificado", justificado

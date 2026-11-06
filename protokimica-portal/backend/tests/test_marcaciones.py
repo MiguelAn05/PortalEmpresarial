@@ -170,6 +170,38 @@ def test_el_estado_dice_si_el_script_esta_al_dia(entorno, v):
     v.check("trae la última marcación", despues["ultima_marcacion"] == _a(MARTES, "17:01"), despues)
 
 
+def test_cada_marcacion_dice_en_que_biometrico_se_hizo(entorno, v):
+    # Primero llegan sin equipo, como las de antes de que el script lo mandara.
+    _cargar(entorno)
+    entorno.como("admin")
+    ana = _por_codigo(_dia(entorno))["100"]
+    v.check("sin equipo conocido, dispositivo es None", ana["marcas"][0]["dispositivo"] is None, ana["marcas"])
+
+    con_equipo = [dict(m, dispositivo="CJIN203560028") for m in MARCAS]
+    con_equipo[1]["dispositivo"] = "CJIN203560037"  # Ana sale por La 65
+    r = _cargar(entorno, {"marcaciones": con_equipo, "dispositivos": [
+        {"serie": "CJIN203560028", "nombre": "SEDE GUAYABAL PISO 1", "sede": "SEDE GUAYABAL"},
+        {"serie": "CJIN203560037", "nombre": "SEDE LA 65", "sede": "SEDE 65"},
+    ]})
+    v.check("reenviarlas no las duplica", r["marcaciones_nuevas"] == 0, r)
+    ana = _por_codigo(_dia(entorno))["100"]
+    v.check("las viejas reciben su equipo al reenviarse",
+            [m["dispositivo"]["nombre"] for m in ana["marcas"]] == ["SEDE GUAYABAL PISO 1", "SEDE LA 65"], ana["marcas"])
+    v.check("con la sede y la serie", ana["marcas"][1]["dispositivo"] == {
+        "serie": "CJIN203560037", "nombre": "SEDE LA 65", "sede": "SEDE 65"}, ana["marcas"][1])
+    v.check("la última marcación dice dónde", ana["ultima_marca"]["dispositivo"]["nombre"] == "SEDE LA 65", ana["ultima_marca"])
+
+    # Renombrar el equipo en ZKBio cambia el nombre sin tocar las marcaciones.
+    _cargar(entorno, {"marcaciones": con_equipo[:1], "dispositivos": [
+        {"serie": "CJIN203560028", "nombre": "GUAYABAL P1", "sede": None}]})
+    ana = _por_codigo(_dia(entorno))["100"]
+    v.check("el nombre nuevo se ve y la sede vacía no borra la que había",
+            ana["marcas"][0]["dispositivo"] == {"serie": "CJIN203560028", "nombre": "GUAYABAL P1", "sede": "SEDE GUAYABAL"},
+            ana["marcas"][0])
+    csv_ = entorno.get("/marcaciones/informe.csv", params={"desde": MARTES, "hasta": MARTES}).content.decode()
+    v.check("el CSV dice en qué equipo", "17:01 Salida (SEDE LA 65)" in csv_, csv_)
+
+
 # ── Las reglas ───────────────────────────────────────────────────────────
 
 def test_las_novedades_del_dia(entorno, v):
