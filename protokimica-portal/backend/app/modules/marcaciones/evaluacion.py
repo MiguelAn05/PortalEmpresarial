@@ -113,21 +113,25 @@ def turno_de_ese_dia(opciones: str, dia: dt.date, marcas: list) -> str | None:
 
 def corregir_descansos(marcas: list) -> list:
     """
-    Un «regresa de descanso» sin ninguna salida abierta es, en realidad, la salida.
+    Los botones de descanso se leen por el ORDEN, no por cuál se oprimió.
 
-    Hay relojes (o personas) que marcan el botón de regreso al salir y al volver:
-    llegaban dos `3` seguidos, ningún descanso se abría y el exceso de break o
-    almuerzo no se medía nunca. Un regreso sin salida no puede ser un regreso,
-    así que se lee como salida; el siguiente `3` sí cierra el par. Un `2` bien
-    marcado no se toca. `marcas` va ordenada.
+    La gente oprime cualquiera de los dos: llegaban `3, 3`, `2, 2` o `3, 2`
+    para un mismo break, y el par quedaba mal armado —un break de 09:46 a
+    13:01 que eran en realidad un break y un almuerzo—. Lo único seguro es que
+    salir y volver se alternan: la marca de descanso que llega sin uno abierto
+    es la salida, y la que llega con uno abierto es el regreso. Una «Entrada»
+    con un descanso abierto también es el regreso. Una «Salida» lo cierra
+    (se fue sin marcar el regreso). `marcas` va ordenada.
     """
+    descanso = {C.SALIDA_DESCANSO, C.REGRESO_DESCANSO}
     out, abierto = [], False
     for t, estado in marcas:
-        if estado == C.REGRESO_DESCANSO and not abierto:
-            estado = C.SALIDA_DESCANSO
-        if estado == C.SALIDA_DESCANSO:
-            abierto = True
-        elif estado == C.REGRESO_DESCANSO:
+        if estado in descanso:
+            estado = C.REGRESO_DESCANSO if abierto else C.SALIDA_DESCANSO
+            abierto = not abierto
+        elif estado == C.ENTRADA and abierto:
+            estado, abierto = C.REGRESO_DESCANSO, False
+        elif estado == C.SALIDA:
             abierto = False
         out.append((t, estado))
     return out

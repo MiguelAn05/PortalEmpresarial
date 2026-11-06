@@ -497,6 +497,18 @@ def test_el_motor_un_regreso_sin_salida_abierta_es_la_salida():
     assert fila["presencia"] == "en_descanso"
 
 
+def test_el_motor_los_descansos_se_leen_por_el_orden_no_por_el_boton():
+    # Caso real: 09:46 y 09:59 con el botón de salida, 13:01 con el de regreso.
+    marcas = [_m("05:39", "0"), _m("09:46", "2"), _m("09:59", "2"), _m("13:01", "3"), _m("13:46", "2")]
+    emp = _emp(mar="06:00-14:30")
+    fila = evaluacion.evaluar_persona(DIA, FIN_DIA, emp, marcas)
+    assert [m["estado"] for m in fila["marcas"]] == ["0", "2", "3", "2", "3"], fila["marcas"]
+    assert _tipos(fila) == [], fila["novedades"]   # break 13 min, almuerzo 45 min
+    # Volver con el botón de Entrada también cierra el descanso.
+    fila = evaluacion.evaluar_persona(DIA, FIN_DIA, emp, [_m("05:39", "0"), _m("09:46", "2"), _m("10:30", "0")])
+    assert [m["estado"] for m in fila["marcas"]] == ["0", "2", "3"] and _tipos(fila) == ["exceso_break"]
+
+
 def test_el_motor_salida_anticipada_y_tolerancias():
     assert _tipos(evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), [_m("07:05", "0"), _m("16:56", "1")])) == []
     fila = evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), [_m("07:06", "0"), _m("16:30", "1")])
