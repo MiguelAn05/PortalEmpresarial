@@ -1,6 +1,40 @@
 import { Seccion } from '../../../core/components/Informe.jsx'
 
 /**
+ * La cifra de novedades y, al pasar el cursor (o al llegar con el teclado),
+ * QUIÉNES las tienen y cuáles. La lista la arma el servidor (`quienes`).
+ */
+function CifraConQuienes({ total, quienes }) {
+  return (
+    <span tabIndex={0} className="group relative inline-flex items-center gap-1.5 text-negativo font-semibold cursor-default
+                                  rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-acento">
+      <span className="w-2 h-2 rounded-full bg-negativo-vivo" aria-hidden="true" />{total}
+      {quienes.length > 0 && (
+        <span role="tooltip"
+              className="pointer-events-none absolute right-0 top-full mt-1 z-20 hidden group-hover:block group-focus:block print:hidden
+                         w-72 max-h-72 overflow-hidden rounded-lg bg-texto text-white text-xs font-normal text-left px-3 py-2 shadow-lg">
+          <span className="block text-[11px] uppercase tracking-wide text-white/70 mb-1">
+            {quienes.length === 1 ? '1 persona con novedad' : `${quienes.length} personas con novedad`}
+          </span>
+          {quienes.slice(0, MAX_EN_GLOBO).map(q => (
+            <span key={q.emp_code} className="block py-0.5">
+              <span className="font-semibold">{q.nombre}</span>
+              <span className="text-white/75"> · {q.novedades.join(', ')}</span>
+            </span>
+          ))}
+          {quienes.length > MAX_EN_GLOBO && (
+            <span className="block pt-1 text-white/70">y {quienes.length - MAX_EN_GLOBO} más: pulsa el grupo para ver la lista.</span>
+          )}
+        </span>
+      )}
+    </span>
+  )
+}
+
+// Más de esto no se lee en un globo; el resto se ve pulsando el grupo.
+const MAX_EN_GLOBO = 12
+
+/**
  * Una fila por área o por líder con lo que importa de un vistazo. Pulsarla
  * filtra la lista de abajo por ese grupo; volver a pulsarla lo quita.
  */
@@ -39,9 +73,7 @@ function Tabla({ filas, clave, rotulo, activo, onElegir }) {
               </td>
               <td className="py-1.5 text-right cifra">
                 {f.total_novedades
-                  ? <span className="inline-flex items-center gap-1.5 text-negativo font-semibold">
-                      <span className="w-2 h-2 rounded-full bg-negativo-vivo" aria-hidden="true" />{f.total_novedades}
-                    </span>
+                  ? <CifraConQuienes total={f.total_novedades} quienes={f.quienes ?? []} />
                   : <span className="text-texto-3">0</span>}
               </td>
             </tr>

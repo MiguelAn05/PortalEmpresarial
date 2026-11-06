@@ -4,8 +4,8 @@
 import { readFileSync } from 'node:fs'
 import { PRESENCIAS, NOVEDADES, VISTAS, ESTADOS_MARCA } from '../src/modules/marcaciones/constants.js'
 import {
-  avisoDeAtraso, coincideConVista, contarPorVista, filasDeNovedades, filtrarPersonas, moverDia,
-  periodosRapidos, textoUltimaMarca,
+  avisoDeAtraso, coincideConVista, contarFoco, contarPorVista, filaCumpleFoco, filasDeNovedades, filtrarPersonas,
+  FOCOS_INFORME, moverDia, periodosRapidos, personaCumpleFoco, textoUltimaMarca,
 } from '../src/modules/marcaciones/resumen.js'
 import { puedeVerModulo, moduloDeRuta } from '../src/core/modulos.js'
 
@@ -83,6 +83,29 @@ console.log('\n== Novedades para las barras ==')
 const filas = filasDeNovedades({ total_novedades: 4, novedades: { llegada_tarde: 3, ausencia: 1, exceso_break: 0 } }, NOVEDADES)
 check('sin ceros y de mayor a menor', filas.map(f => f.clave).join() === 'llegada_tarde,ausencia', filas)
 check('porcentaje', filas[0].pct === 75)
+
+console.log('\n== Las tarjetas del informe filtran ==')
+const FILAS_INF = [
+  { emp_code: 'B', novedades: [{ tipo: 'llegada_tarde' }, { tipo: 'exceso_break' }] },
+  { emp_code: 'B', novedades: [{ tipo: 'llegada_tarde' }] },
+  { emp_code: 'C', novedades: [{ tipo: 'ausencia' }] },
+  { emp_code: 'A', novedades: [] },
+]
+const POR_PERSONA = [
+  { emp_code: 'B', total_novedades: 3, llegada_tarde: 2, ausencia: 0 },
+  { emp_code: 'C', total_novedades: 1, llegada_tarde: 0, ausencia: 1 },
+  { emp_code: 'A', total_novedades: 0, llegada_tarde: 0, ausencia: 0 },
+]
+check('sin foco, todo', contarFoco(FILAS_INF, '') === 4 && POR_PERSONA.every(x => personaCumpleFoco(x, '')))
+check('con novedades: los días con alguna', contarFoco(FILAS_INF, 'con_novedad') === 3)
+check('llegadas tarde: una por día', contarFoco(FILAS_INF, 'llegada_tarde') === 2)
+check('ausencias', contarFoco(FILAS_INF, 'ausencia') === 1)
+check('por persona: las que tienen ese tipo', ['con_novedad', 'llegada_tarde', 'ausencia'].map(f =>
+  POR_PERSONA.filter(x => personaCumpleFoco(x, f)).map(x => x.emp_code).join()).join('|') === 'B,C|B|C')
+check('cada foco es una novedad del backend (o «con novedad»)',
+  Object.keys(FOCOS_INFORME).every(f => f === 'con_novedad' || NOVEDADES[f]))
+check('la tabla y la cifra son la misma cuenta',
+  Object.keys(FOCOS_INFORME).every(f => FILAS_INF.filter(x => filaCumpleFoco(x, f)).length === contarFoco(FILAS_INF, f)))
 
 console.log('\n== Acceso ==')
 check('el líder y el agente entran', ['lider', 'agente'].every(rol => puedeVerModulo({ rol }, 'marcaciones')))

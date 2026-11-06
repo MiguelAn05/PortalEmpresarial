@@ -17,13 +17,21 @@ import { Barras, Seccion, Tarjeta } from '../../core/components/Informe.jsx'
 import { formatFecha, formatFechaHora } from '../masterPlanner/constants.js'
 import { descargarCsv, obtenerDia, obtenerInforme } from './api.js'
 import { NOVEDADES } from './constants.js'
-import { filasDeNovedades, periodosRapidos } from './resumen.js'
+import { contarFoco, filaCumpleFoco, filasDeNovedades, FOCOS_INFORME, periodosRapidos, personaCumpleFoco } from './resumen.js'
 import { Novedades } from './components/piezas.jsx'
 
 function Hoja({ inf }) {
   const t = inf.totales
-  const conNovedad = inf.filas.filter(f => f.novedades.length)
-  const alcance = inf.filtros.area || (inf.alcance.tipo === 'todo' ? 'Toda la empresa' : inf.alcance.tipo === 'propio' ? 'Solo tus marcaciones' : inf.alcance.areas.join(', '))
+  // La tarjeta pulsada recorta las dos tablas; pulsarla otra vez lo quita.
+  const [foco, setFoco] = useState('')
+  const alternar = (clave) => setFoco(f => (f === clave ? '' : clave))
+  const conNovedad = inf.filas.filter(f => f.novedades.length && filaCumpleFoco(f, foco))
+  const personas = inf.por_persona.filter(p => personaCumpleFoco(p, foco))
+  const nConNovedad = contarFoco(inf.filas, 'con_novedad')
+  const nTarde = contarFoco(inf.filas, 'llegada_tarde')
+  const nAusencias = contarFoco(inf.filas, 'ausencia')
+  const elegida = inf.filtros.emp_code && inf.por_persona[0]
+  const alcance = elegida ? `${elegida.nombre} · ${elegida.area}` : inf.filtros.area || (inf.alcance.tipo === 'todo' ? 'Toda la empresa' : inf.alcance.tipo === 'propio' ? 'Solo tus marcaciones' : inf.alcance.areas.join(', '))
 
   return (
     <div className="space-y-5">
@@ -39,12 +47,23 @@ function Hoja({ inf }) {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 print:grid-cols-4">
-        <Tarjeta titulo="Personas" valor={inf.por_persona.length} detalle={`${inf.filas.length} días-persona revisados`} />
-        <Tarjeta titulo="Con novedades" valor={conNovedad.length} detalle={t.total_novedades ? `${t.total_novedades} novedades, ${t.sin_justificar} sin justificar` : 'Sin novedades'}
-                 tono={conNovedad.length ? 'negativo' : 'positivo'} />
-        <Tarjeta titulo="Llegadas tarde" valor={t.novedades.llegada_tarde} tono={t.novedades.llegada_tarde ? 'alerta' : 'positivo'} />
-        <Tarjeta titulo="Ausencias" valor={t.novedades.ausencia} tono={t.novedades.ausencia ? 'negativo' : 'positivo'} />
+        <Tarjeta titulo="Personas" valor={inf.por_persona.length} detalle={`${inf.filas.length} días-persona revisados`}
+                 onClick={foco ? () => setFoco('') : undefined} />
+        <Tarjeta titulo="Con novedades" valor={nConNovedad} detalle={t.total_novedades ? `${t.total_novedades} novedades, ${t.sin_justificar} sin justificar` : 'Sin novedades'}
+                 tono={nConNovedad ? 'negativo' : 'positivo'}
+                 onClick={nConNovedad ? () => alternar('con_novedad') : undefined} activa={foco === 'con_novedad'} />
+        <Tarjeta titulo="Llegadas tarde" valor={nTarde} tono={nTarde ? 'alerta' : 'positivo'}
+                 onClick={nTarde ? () => alternar('llegada_tarde') : undefined} activa={foco === 'llegada_tarde'} />
+        <Tarjeta titulo="Ausencias" valor={nAusencias} tono={nAusencias ? 'negativo' : 'positivo'}
+                 onClick={nAusencias ? () => alternar('ausencia') : undefined} activa={foco === 'ausencia'} />
       </div>
+
+      {foco && (
+        <div className="flex items-center gap-2 text-sm bg-acento-suave text-acento-fuerte rounded-lg px-3 py-2">
+          <span>Las tablas muestran solo: <strong>{FOCOS_INFORME[foco]}</strong>.</span>
+          <button type="button" onClick={() => setFoco('')} className="ml-auto font-semibold underline print:hidden">Quitar filtro</button>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-5 print:grid-cols-2">
         <Seccion titulo="Novedades por tipo">
@@ -57,7 +76,7 @@ function Hoja({ inf }) {
         </Seccion>
       </div>
 
-      <Seccion titulo="Por persona" nota="Quien más novedades tiene va primero.">
+      <Seccion titulo="Por persona" nota={elegida ? 'Solo la persona elegida en el filtro.' : 'Quien más novedades tiene va primero. Para ver a una sola, elígela en el filtro de arriba.'}>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-xs text-texto-2 uppercase tracking-wide text-left border-b border-borde">
@@ -72,7 +91,7 @@ function Hoja({ inf }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-borde">
-            {inf.por_persona.map(p => (
+            {personas.map(p => (
               <tr key={p.emp_code}>
                 <td className="py-1.5"><span className="text-texto">{p.nombre}</span> <span className="text-[11px] text-texto-3">{p.area}</span></td>
                 <td className="py-1.5 text-right cifra">{p.dias}</td>
@@ -90,7 +109,7 @@ function Hoja({ inf }) {
 
       <Seccion titulo="Detalle de las novedades" nota="Cada día con novedad, con lo que pasó. El CSV trae además los días sin novedad.">
         {conNovedad.length === 0 ? (
-          <p className="text-sm text-texto-2">Ninguna novedad en el periodo.</p>
+          <p className="text-sm text-texto-2">{foco ? 'Ninguna en el periodo.' : 'Ninguna novedad en el periodo.'}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -136,11 +155,12 @@ export default function InformeMarcaciones() {
   const rapidos = useMemo(() => periodosRapidos(), [])
   const [periodo, setPeriodo] = useState({ desde: rapidos[1].desde, hasta: rapidos[1].hasta })
   const [area, setArea] = useState('')
+  const [persona, setPersona] = useState('')
   const [soloNovedades, setSoloNovedades] = useState(false)
   const [bajando, setBajando] = useState(false)
   const [errorCsv, setErrorCsv] = useState('')
 
-  const params = { ...periodo, ...(area ? { area } : {}) }
+  const params = { ...periodo, ...(area ? { area } : {}), ...(persona ? { emp_code: persona } : {}) }
   const { data: inf, isLoading, isError, error, isFetching } = useQuery({
     queryKey: ['marcaciones', 'informe', params],
     queryFn: () => obtenerInforme(params),
@@ -150,6 +170,8 @@ export default function InformeMarcaciones() {
   // Solo para llenar el desplegable de áreas (la misma consulta que el tablero).
   const { data: hoy } = useQuery({ queryKey: ['marcaciones', 'dia', ''], queryFn: () => obtenerDia({}), staleTime: 60_000 })
   const areas = hoy?.resumen.por_area.map(a => a.area) ?? []
+  // Las que se pueden elegir llegan del servidor: las del alcance y el área.
+  const personas = inf?.personas ?? []
   const activo = rapidos.find(p => p.desde === periodo.desde && p.hasta === periodo.hasta)?.clave
 
   async function bajarCsv() {
@@ -195,9 +217,16 @@ export default function InformeMarcaciones() {
           <input id="mar-hasta" type="date" value={periodo.hasta} min={periodo.desde}
                  onChange={e => setPeriodo(p => ({ ...p, hasta: e.target.value }))} className="px-2 py-1.5 rounded-lg border border-borde text-sm" />
           {areas.length > 1 && (
-            <select value={area} onChange={e => setArea(e.target.value)} aria-label="Área" className="px-2 py-1.5 rounded-lg border border-borde text-sm bg-white">
+            <select value={area} onChange={e => { setArea(e.target.value); setPersona('') }} aria-label="Área" className="px-2 py-1.5 rounded-lg border border-borde text-sm bg-white">
               <option value="">Todas las áreas</option>
               {areas.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          )}
+          {personas.length > 1 && (
+            <select value={persona} onChange={e => setPersona(e.target.value)} aria-label="Persona"
+                    className="px-2 py-1.5 rounded-lg border border-borde text-sm bg-white max-w-[16rem]">
+              <option value="">Todas las personas</option>
+              {personas.map(p => <option key={p.emp_code} value={p.emp_code}>{p.nombre}{area ? '' : ` · ${p.area}`}</option>)}
             </select>
           )}
           <label className="flex items-center gap-1.5 text-sm text-texto-2 ml-2">

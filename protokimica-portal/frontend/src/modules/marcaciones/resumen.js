@@ -78,6 +78,33 @@ export function periodosRapidos(ahora = new Date()) {
   ]
 }
 
+/**
+ * Lo que filtran las tarjetas del informe. La cifra de la tarjeta y lo que
+ * queda en las tablas salen de las MISMAS funciones: escritas aparte, un día
+ * la tarjeta diría 4 y la tabla mostraría 3.
+ */
+export const FOCOS_INFORME = {
+  con_novedad: 'Con novedades',
+  llegada_tarde: 'Llegadas tarde',
+  ausencia: 'Ausencias',
+}
+
+/** Un día-persona del informe (`filas`). Sin foco, todo. */
+export function filaCumpleFoco(fila, foco) {
+  if (!foco) return true
+  if (foco === 'con_novedad') return fila.novedades.length > 0
+  return fila.novedades.some(n => n.tipo === foco)
+}
+
+/** Una persona del acumulado (`por_persona`). */
+export function personaCumpleFoco(persona, foco) {
+  if (!foco) return true
+  if (foco === 'con_novedad') return persona.total_novedades > 0
+  return (persona[foco] ?? 0) > 0
+}
+
+export const contarFoco = (filas, foco) => filas.filter(f => filaCumpleFoco(f, foco)).length
+
 /** Las novedades del informe como filas para `Barras` (n y %). */
 export function filasDeNovedades(totales, etiquetas) {
   const total = totales.total_novedades || 0

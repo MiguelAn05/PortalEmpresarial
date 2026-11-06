@@ -325,11 +325,27 @@ def _lideres(db: Session, tenant_id: int) -> list[dict]:
     return [{"nombre": u.nombre, "areas": areas_visibles(u)} for u in usuarios if areas_visibles(u)]
 
 
+def _quienes(filas: list[dict]) -> list[dict]:
+    """
+    Las personas de un grupo que tienen novedad, con cuáles: lo que sale al
+    pasar el cursor por la cifra de «Novedades». Una cifra que obliga a
+    filtrar la lista para saber de quién habla no responde la pregunta.
+    """
+    con = [f for f in filas if f["novedades"]]
+    con.sort(key=lambda f: (-len(f["novedades"]), f["nombre"].casefold()))
+    return [{"emp_code": f["emp_code"], "nombre": f["nombre"],
+             "novedades": [n["etiqueta"] for n in f["novedades"]]} for f in con]
+
+
+def _grupo(filas: list[dict]) -> dict:
+    return {**_contar(filas), "quienes": _quienes(filas)}
+
+
 def resumen(filas: list[dict], lideres: list[dict]) -> dict:
     por_area: dict = defaultdict(list)
     for f in filas:
         por_area[f["area"] or SIN_AREA].append(f)
-    areas = [{"area": a, **_contar(fs)} for a, fs in sorted(por_area.items(), key=lambda kv: kv[0].casefold())]
+    areas = [{"area": a, **_grupo(fs)} for a, fs in sorted(por_area.items(), key=lambda kv: kv[0].casefold())]
 
     por_lider = []
     con_lider = set()
@@ -337,11 +353,11 @@ def resumen(filas: list[dict], lideres: list[dict]) -> dict:
         suyas = [f for f in filas if (f["area"] or SIN_AREA) in lid["areas"]]
         if suyas:
             con_lider.update(f["emp_code"] for f in suyas)
-            por_lider.append({"lider": lid["nombre"], "areas": lid["areas"], **_contar(suyas)})
+            por_lider.append({"lider": lid["nombre"], "areas": lid["areas"], **_grupo(suyas)})
     huerfanas = [f for f in filas if f["emp_code"] not in con_lider]
     if huerfanas:
         por_lider.append({"lider": SIN_LIDER, "areas": sorted({f["area"] or SIN_AREA for f in huerfanas}),
-                          **_contar(huerfanas)})
+                          **_grupo(huerfanas)})
     por_lider.sort(key=lambda x: (x["lider"] == SIN_LIDER, x["lider"].casefold()))
     return {"totales": _contar(filas), "por_area": areas, "por_lider": por_lider}
 
@@ -450,7 +466,11 @@ def persona(db: Session, tenant_id: int, alcance: Alcance, emp_code: str, desde:
 def informe(db: Session, tenant_id: int, alcance: Alcance, desde: date, hasta: date,
             area: str | None = None, emp_code: str | None = None, solo_novedades: bool = False) -> dict:
     _validar_rango(desde, hasta)
-    empleados = _empleados(db, tenant_id, alcance, area, emp_code)
+    # Las personas que se pueden elegir en el filtro: las del alcance y el
+    # área, sin recortar por la persona elegida (si no, el desplegable
+    # quedaría con una sola opción y no habría cómo cambiarla).
+    del_alcance = _empleados(db, tenant_id, alcance, area)
+    empleados = [e for e in del_alcance if not emp_code or e["emp_code"] == emp_code]
     por_dia = evaluar_rango(db, tenant_id, desde, hasta, empleados)
     filas = []
     for fecha in sorted(por_dia):
@@ -492,6 +512,8 @@ def informe(db: Session, tenant_id: int, alcance: Alcance, desde: date, hasta: d
         "totales": _contar(filas),
         "por_area": sorted(por_area.values(), key=lambda a: a["area"].casefold()),
         "por_persona": por_persona,
+        "personas": sorted(({"emp_code": e["emp_code"], "nombre": e["nombre"], "area": e["area"] or SIN_AREA}
+                            for e in del_alcance), key=lambda e: e["nombre"].casefold()),
         "filas": filas,
     }
 

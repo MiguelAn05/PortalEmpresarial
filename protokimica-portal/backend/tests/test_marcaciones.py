@@ -200,6 +200,10 @@ def test_totales_por_area_y_por_lider(entorno, v):
     v.check("el líder de TICS ve a su gente", lideres["Tico"]["personas"] == 2, lideres)
     v.check("el líder de Calidad ve a su gente", lideres["Cali"]["personas"] == 2, lideres)
     v.check("Logística no tiene líder y lo dice", lideres["Sin líder asignado"]["personas"] == 1, lideres)
+    quienes = areas["TICS"]["quienes"]
+    v.check("la cifra de novedades dice de quién es", [q["emp_code"] for q in quienes] == ["101"], quienes)
+    v.check("y cuáles tiene", quienes[0]["novedades"] == ["Llegada tarde"], quienes)
+    v.check("quien no tiene novedad no aparece", all(q["novedades"] for a in areas.values() for q in a["quienes"]), areas)
 
 
 def test_filtro_por_area(entorno, v):
@@ -318,6 +322,11 @@ def test_informe_del_rango(entorno, v):
     v.check("el primero es quien más novedades tiene o empata", d["por_persona"][0]["total_novedades"] >= 1)
     solo = entorno.get("/marcaciones/informe", params={"desde": MARTES, "hasta": MARTES, "solo_novedades": True}).json()
     v.check("solo novedades quita a Ana", "100" not in {f["emp_code"] for f in solo["filas"]}, solo["filas"])
+    beto = entorno.get("/marcaciones/informe", params={"desde": MARTES, "hasta": MARTES, "emp_code": "101"}).json()
+    v.check("filtrar por persona deja solo a esa persona",
+            [p["emp_code"] for p in beto["por_persona"]] == ["101"] and {f["emp_code"] for f in beto["filas"]} == {"101"}, beto["por_persona"])
+    v.check("y los totales son los suyos", beto["totales"]["total_novedades"] == 1, beto["totales"])
+    v.check("el desplegable sigue ofreciendo a todos", len(beto["personas"]) == len(d["personas"]) >= 5, beto["personas"])
 
 
 def test_el_rango_del_informe_tiene_limites(entorno, v):

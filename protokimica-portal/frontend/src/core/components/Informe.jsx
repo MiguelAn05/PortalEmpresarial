@@ -28,9 +28,18 @@ export function Seccion({ titulo, nota, children, className = '' }) {
   )
 }
 
-export function Tarjeta({ titulo, valor, detalle, tono }) {
+/**
+ * Con `onClick` la tarjeta filtra lo de abajo (como los KPI de PQRS); sin él
+ * es solo una cifra. `activa` la marca con borde y anillo, que es lo que dice
+ * por qué las tablas están recortadas.
+ */
+export function Tarjeta({ titulo, valor, detalle, tono, onClick, activa }) {
+  const Caja = onClick ? 'button' : 'div'
   return (
-    <div className="bg-white rounded-xl border border-borde p-4 evitar-corte">
+    <Caja {...(onClick ? { type: 'button', onClick, 'aria-pressed': Boolean(activa), title: activa ? 'Quitar el filtro' : 'Ver solo esto' } : {})}
+          className={`bg-white rounded-xl border p-4 evitar-corte text-left w-full
+            ${activa ? 'border-acento ring-1 ring-acento print:ring-0' : 'border-borde'}
+            ${onClick ? 'cursor-pointer transition-shadow hover:shadow-md hover:border-borde-fuerte' : ''}`}>
       <div className="text-xs font-semibold text-texto-2 uppercase tracking-wide">{titulo}</div>
       <div className="text-3xl font-bold text-texto mt-1 cifra">{valor}</div>
       {detalle && (
@@ -39,7 +48,7 @@ export function Tarjeta({ titulo, valor, detalle, tono }) {
           <span>{detalle}</span>
         </div>
       )}
-    </div>
+    </Caja>
   )
 }
 
