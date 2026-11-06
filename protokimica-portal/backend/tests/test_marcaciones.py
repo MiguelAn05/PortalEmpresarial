@@ -486,6 +486,17 @@ def test_el_motor_descanso_abierto_cuenta_hasta_ahora_pero_no_si_ya_salio():
     assert _tipos(evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), olvido)) == []
 
 
+def test_el_motor_un_regreso_sin_salida_abierta_es_la_salida():
+    # El reloj marcó «regresa de descanso» al salir y al volver.
+    marcas = [_m("07:00", "0"), _m("09:30", "3"), _m("09:50", "3"), _m("12:00", "3"), _m("12:40", "3"), _m("17:00", "1")]
+    fila = evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), marcas)
+    assert [m["estado"] for m in fila["marcas"]] == ["0", "2", "3", "2", "3", "1"], fila["marcas"]
+    assert _tipos(fila) == ["exceso_break"], fila["novedades"]
+    # Afuera con un solo «3»: está en descanso, no adentro.
+    fila = evaluacion.evaluar_persona(DIA, dt.datetime(2026, 11, 3, 12, 10), _emp(), marcas[:4])
+    assert fila["presencia"] == "en_descanso"
+
+
 def test_el_motor_salida_anticipada_y_tolerancias():
     assert _tipos(evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), [_m("07:05", "0"), _m("16:56", "1")])) == []
     fila = evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), [_m("07:06", "0"), _m("16:30", "1")])

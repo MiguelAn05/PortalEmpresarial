@@ -111,6 +111,28 @@ def turno_de_ese_dia(opciones: str, dia: dt.date, marcas: list) -> str | None:
 
 # ── Descansos ─────────────────────────────────────────────────
 
+def corregir_descansos(marcas: list) -> list:
+    """
+    Un «regresa de descanso» sin ninguna salida abierta es, en realidad, la salida.
+
+    Hay relojes (o personas) que marcan el botón de regreso al salir y al volver:
+    llegaban dos `3` seguidos, ningún descanso se abría y el exceso de break o
+    almuerzo no se medía nunca. Un regreso sin salida no puede ser un regreso,
+    así que se lee como salida; el siguiente `3` sí cierra el par. Un `2` bien
+    marcado no se toca. `marcas` va ordenada.
+    """
+    out, abierto = [], False
+    for t, estado in marcas:
+        if estado == C.REGRESO_DESCANSO and not abierto:
+            estado = C.SALIDA_DESCANSO
+        if estado == C.SALIDA_DESCANSO:
+            abierto = True
+        elif estado == C.REGRESO_DESCANSO:
+            abierto = False
+        out.append((t, estado))
+    return out
+
+
 def pares_descanso(marcas: list) -> list[tuple[dt.datetime, dt.datetime | None]]:
     """[(salida, regreso o None si sigue afuera)] con los estados 2 y 3."""
     pares, abierto = [], None
@@ -148,7 +170,8 @@ def evaluar_persona(dia: dt.date, ahora: dt.datetime, emp: dict, marcas: list,
     """
     opciones = opciones_de(emp, dia)
     turnos = turnos_del_dia(opciones, dia)
-    marcas = sorted(m for m in marcas if m[1] in {C.ENTRADA, C.SALIDA, C.SALIDA_DESCANSO, C.REGRESO_DESCANSO})
+    marcas = corregir_descansos(sorted(
+        m for m in marcas if m[1] in {C.ENTRADA, C.SALIDA, C.SALIDA_DESCANSO, C.REGRESO_DESCANSO}))
     fila = {
         "emp_code": emp["emp_code"], "nombre": emp["nombre"], "area": emp.get("area"),
         "turno_opciones": " / ".join(f"{_hhmm(a)}-{_hhmm(b)}" for a, b in turnos),
