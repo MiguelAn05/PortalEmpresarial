@@ -29,12 +29,12 @@ const navItems = [
   { to: '/mejora', Icono: IconoIdea, label: 'OMP', modulo: 'mejora' },
   { to: '/encuestas', Icono: IconoEncuestas, label: 'Encuestas', modulo: 'encuestas' },
   { to: '/marcaciones', Icono: IconoMarcaciones, label: 'Marcaciones', modulo: 'marcaciones' },
+  { to: '/fichas-seguridad', Icono: IconoFicha, label: 'Fichas de seguridad', modulo: 'fichas_seguridad' },
 ]
 
 // Lo que todavía no existe va junto y al final, no intercalado entre lo que
 // sí funciona: un menú salpicado de «Pronto» se lee como producto a medias.
 const proximos = [
-  { clave: 'fichas', Icono: IconoFicha, label: 'Fichas de seguridad' },
   { clave: 'documentos', Icono: IconoCarpeta, label: 'Documentación' },
   { clave: 'agente', Icono: IconoAgente, label: 'Agente IA' },
 ]
@@ -47,6 +47,7 @@ const TITULO_DE_MODULO = {
   mejora: 'Oportunidades de mejora OMP',
   encuestas: 'Encuestas',
   marcaciones: 'Marcaciones',
+  fichas_seguridad: 'Fichas de seguridad',
   admin: 'Administración',
 }
 

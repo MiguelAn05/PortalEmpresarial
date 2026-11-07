@@ -31,6 +31,7 @@ DUENO_DE_MODELOS = {
     "mejora": "mejora",
     "encuestas": "encuestas",
     "marcaciones": "marcaciones",
+    "fichas_seguridad": "fichas_seguridad",
 }
 
 DEPENDENCIAS_PERMITIDAS = {

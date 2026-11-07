@@ -18,13 +18,8 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
-<<<<<<< Updated upstream
-VERSION = "0.73.0"
-FECHA = "2026-11-05"
-=======
-VERSION = "0.76.0"
-FECHA = "2026-11-07"
->>>>>>> Stashed changes
+VERSION = "0.75.0"
+FECHA = "2026-11-06"
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -39,21 +34,6 @@ TIPOS_DE_CAMBIO = {
 # quién lo programa: "ya se pueden cerrar proyectos", no "se agregó el campo
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
-    {
-<<<<<<< Updated upstream
-=======
-        "version": "0.76.0",
-        "fecha": "2026-11-07",
-        "titulo": "Marcaciones: la entrada se marca 10 minutos antes del turno",
-        "cambios": [
-            ("mejora", "En Marcaciones, quien no marca la entrada al menos 10 minutos antes del inicio de "
-                       "su turno queda con llegada tarde. El detalle dice a qué hora tenía que marcar. "
-                       "La tolerancia de salida anticipada también quedó en 0 minutos."),
-            ("correccion", "Las alertas por correo ya no avisan «no marca el regreso del break» a quien sí lo "
-                           "marcó: los botones de salida y regreso a descanso se leen por el orden en que "
-                           "se oprimen, igual que en la pantalla."),
-        ],
-    },
     {
         "version": "0.75.0",
         "fecha": "2026-11-06",
@@ -93,7 +73,6 @@ HISTORIAL = [
         ],
     },
     {
->>>>>>> Stashed changes
         "version": "0.73.0",
         "fecha": "2026-11-05",
         "titulo": "Marcaciones: lo que marca el reloj, en vivo",

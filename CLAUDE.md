@@ -247,6 +247,7 @@ que requiere:
 | `mejora` | mejora | `indicadores` |
 | `encuestas` | encuestas | — |
 | `marcaciones` | marcaciones | — |
+| `fichas_seguridad` | fichas_seguridad | — |
 
 Inicio y Administración son la base y vienen con cualquier portal.
 
@@ -1819,6 +1820,78 @@ Módulo `marcaciones` (contratable, `app/modules/marcaciones`, tablas
 - **Activar** (no queda contratado por la migración):
   `docker exec protokimica_backend python -m app.scripts.modulos protokimica
   --activar marcaciones`. Instalación del script: `integraciones/marcaciones/LEEME.md`.
+
+### Fichas de seguridad
+
+Módulo `fichas_seguridad` (contratable, `app/modules/fichas_seguridad`, tablas
+`fds_fichas`, `fds_versiones` y `fds_documentos`, 0.74/0.75). Repositorio de las
+fichas de datos de seguridad (FDS) en PDF, más (0.75) la **generación** del
+certificado de análisis (AP-F-06) y de la FDS (AP-F-08) a partir del documento
+del proveedor, absorbiendo lo que hacía ProtoCertIA. Frontend en
+`modules/fichasSeguridad/`.
+
+- **Una ficha por producto, con todas sus versiones.** El producto es TEXTO
+  (`nombre_producto`, `codigo_producto` opcional), no una llave a `catalogo`:
+  un módulo no importa a otro (`tests/test_modularidad.py`). Único por
+  empresa+código. `version` es la que imprime el documento («10»), no un
+  contador del portal; `fecha_emision` es la del encabezado.
+- **Una sola vigente por ficha.** Subir una versión nueva la deja vigente y las
+  demás se CONSERVAN como «Anterior»: lo que se entregó a un cliente hace un
+  año tiene que poder consultarse. `POST /fichas-seguridad/versiones/{id}/vigente`
+  corrige un error de orden.
+- **Borrar protege el historial**: `DELETE /fichas-seguridad/{id}` responde 409
+  con la explicación si hay versiones; solo `?incluir_versiones=true` borra
+  todo. La pantalla ofrece «Mejor desactivarla» (campo `activa`).
+- **PDFs privados**: `core/archivos.guardar_documento_privado` (se comprueba el
+  contenido, no la extensión) bajo `DOCUMENTOS_DIR`, NO en `/uploads`. Se baja
+  por `GET /fichas-seguridad/versiones/{id}/archivo` con sesión
+  (`no-store`, `nosniff`); el frontend lo abre con `abrirPdf` (blob, no enlace).
+- **Quién escribe lo da una CAPACIDAD, no el rol**: `fichas_seguridad.gestionar`
+  (Administración › Capacidades). Todos los roles consultan; `lectura` y
+  `gerencia` no escriben aunque la tengan (`solo_lectura_no`). El frontend usa
+  `puedeGestionarFichas`, nunca compara `user.area`.
+- **Buscador sin tildes** (`normalizar`: NFKD, sin marcas, casefold): cada
+  palabra tiene que estar en `nombre_busqueda`, en cualquier orden.
+- **Generar documentos (0.75).** Flujo: `POST /fichas-seguridad/documentos/extraer`
+  (lee el PDF y PROPONE, no guarda nada) → la persona revisa → `/vista-previa`
+  → `/generar` (guarda datos + PDF en `DOCUMENTOS_DIR/fichas_seguridad/generados`)
+  → `/{id}/archivo`. Reglas:
+  - **La lectura es por reglas, sin IA** (`lectura_reglas.py`, `pypdf`): solo PDF
+    CON texto (un escaneo o una foto dan 400 que manda a llenar a mano) y el
+    documento nunca sale del servidor. Se probó primero con la API de Anthropic y
+    se QUITÓ por decisión del usuario; no hay clave ni cliente de IA en el
+    portal. Una FDS se corta por sus encabezados numerados («1. …» o «SECCIÓN
+    1: …», español o inglés), quitando lo que se repite en cada página y la
+    numeración «Página x de y»; **no traduce**. Un certificado solo trae
+    cabecera (producto, lote, fechas): la tabla de parámetros NO se lee.
+    `avisos` de la respuesta lo dice. `pypdf` es dependencia nueva (desplegar
+    con `--build backend`).
+  - **Lo leído es una propuesta.** Solo `producto` es obligatorio; lo que no se
+    leyó se devuelve en `faltantes` y se completa a mano. `_tolerante` recorta en
+    vez de rechazar toda la lectura si un texto se pasa de largo.
+  - **El código sale del repositorio de fichas** (mismo nombre sin tildes), no
+    del catálogo: un módulo no importa de otro. Un código escrito a mano no se
+    pisa.
+  - **El PDF se dibuja por código** con `reportlab` (`pdf_documentos.py`) copiando
+    las plantillas AP-F-06 y AP-F-08 (encabezado en cada página con «Página x de
+    y», pie, logo como marca de agua; el certificado no imprime el proveedor);
+    todo texto se escapa antes de entrar a un `Paragraph`. Se guarda el PDF TAL
+    COMO SE GENERÓ: el historial no regenera. Nombre
+    `CODIGO_RMC_AAAAMMDD_NNN.pdf`, NNN del MÁXIMO del día (con reintento).
+    `FORMATO_CERTIFICADO` lleva la fecha y versión del formato AP-F-06 copiado.
+  - **La FDS usa las 16 secciones con los títulos de la plantilla AP-F-08**;
+    `SECCIONES_FDS` tiene gemelo en `constants.js` con prueba que los ata.
+    `reportlab` también es dependencia nueva.
+  - Misma capacidad (`fichas_seguridad.gestionar`) para leer, vista previa y
+    generar; consultar y bajar, cualquiera del módulo. El lote del frontend es
+    de 10, de a 3 (`procesarConConcurrencia`).
+- **Corregir una versión (0.75).** `PATCH /fichas-seguridad/versiones/{id}`
+  cambia número, fecha y observaciones, nunca el PDF (otro documento es otra
+  versión); el número no puede repetir el de otra de la misma ficha.
+- **Activar** (la migración `f1a7d3c9b265` no contrata el módulo ni otorga la
+  capacidad): `docker exec protokimica_backend python -m app.scripts.modulos
+  protokimica --activar fichas_seguridad`, y luego dar `fichas_seguridad.gestionar`
+  a quien las suba.
 
 ## Cómo se le sirven los datos a una automatización
 

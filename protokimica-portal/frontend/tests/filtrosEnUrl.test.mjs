@@ -84,6 +84,8 @@ const DEBEN_USARLO = [
   'modules/masterPlanner/views/ResumenView.jsx',
   // El periodo y el área del informe: un enlace copiado abre el mismo informe.
   'modules/masterPlanner/InformeMasterPlanner.jsx',
+  // El buscador y la ficha abierta: un enlace a una ficha se manda por chat.
+  'modules/fichasSeguridad/FichasSeguridad.jsx',
 ]
 const SRC = new URL('../src/', import.meta.url)
 for (const archivo of DEBEN_USARLO) {

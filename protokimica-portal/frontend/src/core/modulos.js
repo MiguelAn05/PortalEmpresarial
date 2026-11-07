@@ -32,6 +32,9 @@ export const ACCESO_POR_MODULO = {
   // El rol abre el módulo y el servidor recorta qué se ve: admin y gerencia
   // todo, el líder su área, el agente solo lo suyo. `lectura` no entra.
   marcaciones: ['admin', 'gerencia', 'lider', 'agente'],
+  // Todos los roles consultan las fichas; escribir lo da la capacidad
+  // `fichas_seguridad.gestionar`, no el rol.
+  fichas_seguridad: ['admin', 'gerencia', 'lider', 'agente', 'lectura'],
   admin: ['admin'],
 }
 
@@ -55,6 +58,7 @@ export const RUTA_DE_MODULO = {
   mejora: '/mejora',
   encuestas: '/encuestas',
   marcaciones: '/marcaciones',
+  fichas_seguridad: '/fichas-seguridad',
   admin: '/admin',
 }
 
