@@ -43,6 +43,7 @@ MODULOS_INSTALADOS = (
     "mejora",
     "encuestas",
     "marcaciones",
+    "fichas_seguridad",
 )
 
 

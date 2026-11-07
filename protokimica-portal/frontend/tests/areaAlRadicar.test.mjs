@@ -21,13 +21,13 @@ const sinComentarios = (texto) => texto
   .replace(/"""[\s\S]*?"""/g, '')
   .replace(/^\s*(\/\/|#).*$/gm, '')
 
-const leer = (ruta) => sinComentarios(readFileSync(new URL(ruta, import.meta.url), 'utf8'))
+const leer = (ruta) => sinComentarios(readFileSync(new URL(ruta, import.meta.url), 'utf8').replace(/\r\n/g, '\n'))
 
 const FORMULARIO_PUBLICO = leer('../src/modules/publico/FormularioPQRS.jsx')
 const SEGUIMIENTO = leer('../src/modules/publico/SeguimientoPQRS.jsx')
-const LISTA = readFileSync(new URL('../src/modules/pqrs/PQRSList.jsx', import.meta.url), 'utf8')
+const LISTA = readFileSync(new URL('../src/modules/pqrs/PQRSList.jsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 const PY_PUBLICO = readFileSync(
-  new URL('../../backend/app/modules/pqrs/router_public.py', import.meta.url), 'utf8')
+  new URL('../../backend/app/modules/pqrs/router_public.py', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 
 console.log('\n== Ningún formulario pide el área ==')
 check('el formulario público no la pide',

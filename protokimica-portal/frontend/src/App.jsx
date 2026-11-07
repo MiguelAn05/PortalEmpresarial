@@ -25,6 +25,7 @@ import Mejora from './modules/mejora/Mejora.jsx'
 import Encuestas from './modules/encuestas/Encuestas.jsx'
 import Marcaciones from './modules/marcaciones/Marcaciones.jsx'
 import InformeMarcaciones from './modules/marcaciones/InformeMarcaciones.jsx'
+import FichasSeguridad from './modules/fichasSeguridad/FichasSeguridad.jsx'
 
 
 function PrivateRoute({ children }) {
@@ -94,6 +95,7 @@ export default function App() {
         {/* Antes que cualquier ruta con parámetro: «informe» no es una persona. */}
         <Route path="marcaciones" element={<Marcaciones />} />
         <Route path="marcaciones/informe" element={<InformeMarcaciones />} />
+        <Route path="fichas-seguridad" element={<FichasSeguridad />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

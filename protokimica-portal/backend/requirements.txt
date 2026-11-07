@@ -30,3 +30,10 @@ segno==1.6.1
 
 
 # CORS y utilidades ya incluidas en fastapi/starlette
+
+# PDF de los certificados y fichas que genera Fichas de seguridad. Dibuja el
+# documento por código, sin plantilla ni librerías del sistema.
+reportlab==4.2.5
+
+# Lectura sin IA de PDF con texto (Fichas de seguridad). Python puro.
+pypdf==5.1.0

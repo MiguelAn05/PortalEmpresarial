@@ -46,6 +46,8 @@ from app.modules.encuestas.router import router as encuestas_router
 from app.modules.encuestas.router_public import router as encuestas_public_router
 from app.modules.marcaciones.router import router as marcaciones_router
 from app.modules.marcaciones.router_sincronizacion import router as marcaciones_sincronizacion_router
+from app.modules.fichas_seguridad.router import router as fichas_seguridad_router
+from app.modules.fichas_seguridad.router_documentos import router as fichas_documentos_router
 from app.modules.notas_credito.router import router as notas_credito_router
 from app.modules.capacidades.router import router as capacidades_router
 from app.modules.areas.router import router as areas_router
@@ -53,7 +55,7 @@ from app.modules.canales.router import router as canales_router
 from app.modules.bodegas.router import router as bodegas_router
 from app.models import (
     tenant, user, pqrs, autorizacion, master_planner, indicadores, encuestas,
-    mejora, catalogo, nota_credito, capacidad, area, canal, bodega, marcaciones,
+    mejora, catalogo, nota_credito, capacidad, area, canal, bodega, marcaciones, fichas_seguridad,
 )  # noqa: F401
 
 app = FastAPI(
@@ -158,6 +160,9 @@ app.include_router(encuestas_public_router)
 # pero así queda junto a la otra entrada por clave del portal (catálogo).
 app.include_router(marcaciones_sincronizacion_router)
 app.include_router(marcaciones_router)
+# Antes que el de fichas: `/documentos` no puede caer en `/{ficha_id}`.
+app.include_router(fichas_documentos_router)
+app.include_router(fichas_seguridad_router)
 app.include_router(notas_credito_router)
 app.include_router(capacidades_router)
 app.include_router(areas_router)

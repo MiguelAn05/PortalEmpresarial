@@ -53,6 +53,10 @@ ACCESO_POR_MODULO: dict[str, set[str]] = {
     # `marcaciones.ver_todo` ven todo, el líder su área, el agente solo lo
     # suyo. `lectura` no entra: son datos de personas, no una pantalla de consulta.
     "marcaciones": {"admin", "gerencia", "lider", "agente"},
+    # Las fichas de seguridad las consulta cualquiera: la necesita quien
+    # manipula el producto, no solo quien la archiva. Escribir lo decide la
+    # capacidad `fichas_seguridad.gestionar` (`modules/fichas_seguridad/permisos.py`).
+    "fichas_seguridad": {"admin", "gerencia", "lider", "agente", "lectura"},
     "admin": {"admin"},
 }
 
@@ -65,6 +69,7 @@ ETIQUETAS = {
     "mejora": "Oportunidades de Mejora",
     "encuestas": "Encuestas",
     "marcaciones": "Marcaciones",
+    "fichas_seguridad": "Fichas de seguridad",
     "admin": "Administración",
 }
 
@@ -115,6 +120,11 @@ CONTRATABLES: dict[str, dict] = {
     "marcaciones": {
         "nombre": "Marcaciones (reloj biométrico)",
         "paquetes": ("marcaciones",),
+        "requiere": (),
+    },
+    "fichas_seguridad": {
+        "nombre": "Fichas de datos de seguridad (FDS)",
+        "paquetes": ("fichas_seguridad",),
         "requiere": (),
     },
 }

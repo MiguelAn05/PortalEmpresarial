@@ -65,6 +65,11 @@ CAPACIDADES = {
     # vista de TODA la empresa —Gestión Humana y TIC— sin cambiar el cargo de
     # nadie. Ver `modules/marcaciones/permisos.py`.
     "marcaciones.ver_todo":    "Ver las marcaciones de todas las áreas del portal",
+    # Fichas de seguridad: todos los roles las consultan; esto da escribir
+    # (subir, versionar, corregir, desactivar). No va en la semilla: qué área
+    # es dueña de las fichas lo decide la empresa. Ver
+    # `modules/fichas_seguridad/permisos.py`.
+    "fichas_seguridad.gestionar": "Subir, versionar, corregir y desactivar las fichas de datos de seguridad",
 }
 
 

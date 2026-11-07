@@ -25,7 +25,7 @@ const sinComentarios = (texto) => texto
 const VISTA = sinComentarios(readFileSync(
   new URL('../src/modules/publico/SeguimientoPQRS.jsx', import.meta.url), 'utf8'))
 const PY_PUBLICO = readFileSync(
-  new URL('../../backend/app/modules/pqrs/router_public.py', import.meta.url), 'utf8')
+  new URL('../../backend/app/modules/pqrs/router_public.py', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 
 console.log('\n== La pantalla de seguimiento no habla de plazos ==')
 check('no le anuncia al cliente que algo se vencio',
