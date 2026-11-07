@@ -18,8 +18,13 @@ Numeración `MAYOR.MENOR.PARCHE`:
 - **MAYOR** — 1.0.0 el día que el portal se entregue a una empresa distinta
   de Protokimica. Antes de eso el esquema todavía se mueve.
 """
+<<<<<<< Updated upstream
 VERSION = "0.73.0"
 FECHA = "2026-11-05"
+=======
+VERSION = "0.76.0"
+FECHA = "2026-11-07"
+>>>>>>> Stashed changes
 
 # Cómo se rotula cada cambio. El punto de color nunca va solo: el ámbar de la
 # marca no alcanza el contraste mínimo sobre blanco, así que siempre va con su
@@ -35,6 +40,60 @@ TIPOS_DE_CAMBIO = {
 # fecha_cierre a mp_proyectos".
 HISTORIAL = [
     {
+<<<<<<< Updated upstream
+=======
+        "version": "0.76.0",
+        "fecha": "2026-11-07",
+        "titulo": "Marcaciones: la entrada se marca 10 minutos antes del turno",
+        "cambios": [
+            ("mejora", "En Marcaciones, quien no marca la entrada al menos 10 minutos antes del inicio de "
+                       "su turno queda con llegada tarde. El detalle dice a qué hora tenía que marcar. "
+                       "La tolerancia de salida anticipada también quedó en 0 minutos."),
+            ("correccion", "Las alertas por correo ya no avisan «no marca el regreso del break» a quien sí lo "
+                           "marcó: los botones de salida y regreso a descanso se leen por el orden en que "
+                           "se oprimen, igual que en la pantalla."),
+        ],
+    },
+    {
+        "version": "0.75.0",
+        "fecha": "2026-11-06",
+        "titulo": "Fichas de seguridad: certificados y fichas generados desde el documento del proveedor",
+        "cambios": [
+            ("nuevo", "Ya se puede generar el certificado de análisis (AP-F-06) y la ficha de datos de "
+                      "seguridad (AP-F-08) a partir del documento del proveedor: se sube el PDF, el portal "
+                      "lee sus datos, se revisan y corrigen, y se arma el PDF oficial con una vista previa "
+                      "antes de generarlo."),
+            ("nuevo", "«Leer documento» corta una ficha de seguridad en PDF por sus 16 secciones y no "
+                      "envía el archivo a ningún servicio externo. No traduce, y con un certificado solo "
+                      "trae los datos de cabecera (la tabla de parámetros se agrega a mano)."),
+            ("nuevo", "Carga en lote: hasta 10 documentos a la vez. Si uno falla se marca y los demás "
+                      "siguen; cada uno se revisa y se genera por separado."),
+            ("nuevo", "Nueva pestaña «Documentos generados» con el historial, que se busca por producto, "
+                      "código, proveedor o lote y vuelve a bajar el mismo PDF que se generó."),
+            ("mejora", "Cuando la lectura no alcanza a leer un dato, el portal lo señala y deja "
+                       "completarlo a mano; solo el nombre del producto es obligatorio."),
+            ("mejora", "En una versión ya subida se pueden corregir el número, la fecha de emisión y las "
+                       "observaciones con «Corregir datos», sin volver a subir el PDF."),
+        ],
+    },
+    {
+        "version": "0.74.0",
+        "fecha": "2026-11-06",
+        "titulo": "Fichas de seguridad: todas las FDS en un solo lugar",
+        "cambios": [
+            ("nuevo", "Módulo de Fichas de seguridad: cada producto tiene una ficha con su versión "
+                      "vigente y el historial de versiones anteriores. Se busca por nombre o código, "
+                      "sin importar tildes ni mayúsculas, y el PDF se abre desde la misma lista."),
+            ("nuevo", "Al subir una versión nueva la anterior no se pierde: queda como «Anterior» "
+                      "y se puede volver a dejar como vigente si hubo un error. Borrar una ficha "
+                      "con historial pide confirmación y ofrece desactivarla."),
+            ("nuevo", "Subir y cambiar fichas lo hace quien tenga la capacidad «Gestionar fichas de "
+                      "seguridad», que se otorga en Administración › Capacidades. Todos los demás "
+                      "roles pueden consultarlas."),
+        ],
+    },
+    {
+>>>>>>> Stashed changes
         "version": "0.73.0",
         "fecha": "2026-11-05",
         "titulo": "Marcaciones: lo que marca el reloj, en vivo",

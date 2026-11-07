@@ -9,8 +9,9 @@ propósito, porque tiene que funcionar aunque el portal esté caído.
 """
 
 # ── Llegada, salida y ausencia ────────────────────────────────
-TOLERANCIA_LLEGADA_MIN = 5       # entrada más de 5 min después del inicio = llegada tarde
-TOLERANCIA_SALIDA_MIN = 5        # salida más de 5 min antes del fin = salida anticipada
+ANTICIPACION_LLEGADA_MIN = 10    # hay que marcar entrada 10 min ANTES del inicio del turno
+TOLERANCIA_LLEGADA_MIN = 0       # gracia después de esa hora límite (inicio − 10 min) antes de contar llegada tarde
+TOLERANCIA_SALIDA_MIN = 0        # salida más de 0 min antes del fin = salida anticipada
 AUSENCIA_HORAS = 3               # sin marcar 3 h después del inicio de su turno más tardío
 AUSENCIA_HORAS_SABADO = 1.5      # el sábado la ventana es menor
 

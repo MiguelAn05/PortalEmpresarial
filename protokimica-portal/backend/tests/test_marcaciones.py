@@ -42,11 +42,11 @@ MALLA = [
 ]
 
 MARCAS = [
-    {"emp_code": "100", "momento": _a(MARTES, "06:58"), "estado": "0"},
+    {"emp_code": "100", "momento": _a(MARTES, "06:48"), "estado": "0"},
     {"emp_code": "100", "momento": _a(MARTES, "17:01"), "estado": "1"},
     {"emp_code": "101", "momento": _a(MARTES, "07:30"), "estado": "0"},
     # Luis: almuerzo de 60 minutos (permitido 45).
-    {"emp_code": "300", "momento": _a(MARTES, "06:55"), "estado": "0"},
+    {"emp_code": "300", "momento": _a(MARTES, "06:45"), "estado": "0"},
     {"emp_code": "300", "momento": _a(MARTES, "12:00"), "estado": "2"},
     {"emp_code": "300", "momento": _a(MARTES, "13:00"), "estado": "3"},
     {"emp_code": "300", "momento": _a(MARTES, "17:00"), "estado": "1"},
@@ -508,18 +508,18 @@ def _tipos(fila):
 
 
 def test_el_motor_break_y_almuerzo():
-    marcas = [_m("07:00", "0"), _m("09:30", "2"), _m("09:50", "3"), _m("12:00", "2"), _m("12:40", "3"), _m("17:00", "1")]
+    marcas = [_m("06:50", "0"), _m("09:30", "2"), _m("09:50", "3"), _m("12:00", "2"), _m("12:40", "3"), _m("17:00", "1")]
     fila = evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), marcas)
     assert _tipos(fila) == ["exceso_break"], fila["novedades"]   # break 20 min > 15; almuerzo 40 min ≤ 45
 
 
 def test_el_motor_un_solo_descanso_temprano_es_break():
-    marcas = [_m("07:00", "0"), _m("09:30", "2"), _m("09:50", "3"), _m("17:00", "1")]
+    marcas = [_m("06:50", "0"), _m("09:30", "2"), _m("09:50", "3"), _m("17:00", "1")]
     assert _tipos(evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), marcas)) == ["exceso_break"]
 
 
 def test_el_motor_descanso_abierto_cuenta_hasta_ahora_pero_no_si_ya_salio():
-    abierto = [_m("07:00", "0"), _m("12:00", "2")]
+    abierto = [_m("06:50", "0"), _m("12:00", "2")]
     ahora = dt.datetime(2026, 11, 3, 13, 0)
     fila = evaluacion.evaluar_persona(DIA, ahora, _emp(), abierto)
     assert _tipos(fila) == ["exceso_almuerzo"] and fila["presencia"] == "en_descanso"
@@ -529,7 +529,7 @@ def test_el_motor_descanso_abierto_cuenta_hasta_ahora_pero_no_si_ya_salio():
 
 def test_el_motor_un_regreso_sin_salida_abierta_es_la_salida():
     # El reloj marcó «regresa de descanso» al salir y al volver.
-    marcas = [_m("07:00", "0"), _m("09:30", "3"), _m("09:50", "3"), _m("12:00", "3"), _m("12:40", "3"), _m("17:00", "1")]
+    marcas = [_m("06:50", "0"), _m("09:30", "3"), _m("09:50", "3"), _m("12:00", "3"), _m("12:40", "3"), _m("17:00", "1")]
     fila = evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), marcas)
     assert [m["estado"] for m in fila["marcas"]] == ["0", "2", "3", "2", "3", "1"], fila["marcas"]
     assert _tipos(fila) == ["exceso_break"], fila["novedades"]
@@ -551,9 +551,11 @@ def test_el_motor_los_descansos_se_leen_por_el_orden_no_por_el_boton():
 
 
 def test_el_motor_salida_anticipada_y_tolerancias():
-    assert _tipos(evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), [_m("07:05", "0"), _m("16:56", "1")])) == []
-    fila = evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), [_m("07:06", "0"), _m("16:30", "1")])
+    # Hay que marcar 10 min antes del turno de las 07:00: el límite es 06:50.
+    assert _tipos(evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), [_m("06:50", "0"), _m("17:00", "1")])) == []
+    fila = evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), [_m("06:51", "0"), _m("16:30", "1")])
     assert _tipos(fila) == ["llegada_tarde", "salida_anticipada"]
+    assert "06:50" in fila["novedades"][0]["detalle"], fila["novedades"]
 
 
 def test_el_motor_ausencia_espera_a_todos_los_turnos():
@@ -577,19 +579,20 @@ def test_el_motor_dia_sin_turno_y_sin_marcas_no_aparece():
 
 def test_el_motor_turno_de_noche():
     emp = _emp(mar="22:00-06:00")
-    fila = evaluacion.evaluar_persona(DIA, FIN_DIA, emp, [_m("21:58", "0")])
+    fila = evaluacion.evaluar_persona(DIA, FIN_DIA, emp, [_m("21:49", "0")])
     assert fila["turno"] == "22:00-06:00" and _tipos(fila) == []
 
 
 def test_el_motor_horas_extra_no_se_evaluan():
-    fila = evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), [_m("07:00", "0"), _m("17:00", "1"), _m("18:00", "4"), _m("20:00", "5")])
+    fila = evaluacion.evaluar_persona(DIA, FIN_DIA, _emp(), [_m("06:50", "0"), _m("17:00", "1"), _m("18:00", "4"), _m("20:00", "5")])
     assert _tipos(fila) == [] and len(fila["marcas"]) == 2
 
 
 def test_las_constantes_son_las_de_las_alertas():
     """Si cambian aquí y no en el script del servidor, la pantalla y el correo dicen cosas distintas."""
     from app.modules.marcaciones import constants as C
-    assert (C.TOLERANCIA_LLEGADA_MIN, C.TOLERANCIA_SALIDA_MIN, C.AUSENCIA_HORAS, C.AUSENCIA_HORAS_SABADO) == (5, 5, 3, 1.5)
+    assert (C.TOLERANCIA_LLEGADA_MIN, C.TOLERANCIA_SALIDA_MIN, C.AUSENCIA_HORAS, C.AUSENCIA_HORAS_SABADO) == (0, 0, 3, 1.5)
+    assert C.ANTICIPACION_LLEGADA_MIN == 10
     assert (C.VENTANA_ANTES_MIN, C.VENTANA_DESPUES_MIN, C.ALMUERZO_MIN, C.BREAK_MIN, C.CORTE_BREAK_HORAS) == (45, 10, 45, 15, 4)
 
 

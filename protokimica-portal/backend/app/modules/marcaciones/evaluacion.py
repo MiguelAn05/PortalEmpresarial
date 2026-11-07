@@ -236,11 +236,16 @@ def evaluar_persona(dia: dt.date, ahora: dt.datetime, emp: dict, marcas: list,
     else:
         fila["turno"] = f"{_hhmm(inicio)}-{_hhmm(fin)}"
         nota = " (turno inferido por su historial)" if confianza == "historial" else ""
-        if t0 > inicio + dt.timedelta(minutes=C.TOLERANCIA_LLEGADA_MIN) and t0 < fin:
+        # Hay que marcar ANTICIPACION_LLEGADA_MIN antes del inicio: la hora
+        # límite es inicio − anticipación (+ la gracia, si hay).
+        limite = inicio - dt.timedelta(minutes=C.ANTICIPACION_LLEGADA_MIN) + dt.timedelta(minutes=C.TOLERANCIA_LLEGADA_MIN)
+        if t0 > limite and t0 < fin:
             mins = int((t0 - inicio).total_seconds() // 60)
+            despues = f" ({mins} min después del inicio)" if mins > 0 else ""
             fila["novedades"].append(_novedad(
                 "llegada_tarde",
-                f"Marcó entrada a las {_hhmm(t0)}; su turno empieza a las {_hhmm(inicio)} ({mins} min después).{nota}"))
+                f"Marcó entrada a las {_hhmm(t0)}{despues}; debía marcar a más tardar a las {_hhmm(limite)} "
+                f"({C.ANTICIPACION_LLEGADA_MIN} min antes de su turno de las {_hhmm(inicio)}).{nota}"))
         for t, e in marcas:
             if e == C.SALIDA and inicio < t < fin - dt.timedelta(minutes=C.TOLERANCIA_SALIDA_MIN):
                 mins = int((fin - t).total_seconds() // 60)
